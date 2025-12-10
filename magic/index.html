@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magic Sort - Games</title>
+    
+    <!-- ========== FAVICON & PWA SETUP ========== -->
+    <!-- Basic favicon -->
+    <link rel="icon" type="image/x-icon" href="index.png">
+    <link rel="icon" type="image/png" href="index.png">
+    
+    <!-- Apple Touch Icon (for Safari home screen) -->
+    <link rel="apple-touch-icon" href="index.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="index.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="index.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="index.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json,{
+        &#34;name&#34;: &#34;Magic Sort&#34;,
+        &#34;short_name&#34;: &#34;Magic Sort&#34;,
+        &#34;description&#34;: &#34;Play Magic Sort game&#34;,
+        &#34;theme_color&#34;: &#34;#4CAF50&#34;,
+        &#34;background_color&#34;: &#34;#000000&#34;,
+        &#34;display&#34;: &#34;fullscreen&#34;,
+        &#34;scope&#34;: &#34;/&#34;,
+        &#34;start_url&#34;: &#34;./&#34;,
+        &#34;icons&#34;: [
+            {
+                &#34;src&#34;: &#34;index.png&#34;,
+                &#34;sizes&#34;: &#34;64x64 128x128 256x256&#34;,
+                &#34;type&#34;: &#34;image/png&#34;
+            },
+            {
+                &#34;src&#34;: &#34;index.png&#34;,
+                &#34;sizes&#34;: &#34;192x192&#34;,
+                &#34;type&#34;: &#34;image/png&#34;
+            },
+            {
+                &#34;src&#34;: &#34;index.png&#34;,
+                &#34;sizes&#34;: &#34;512x512&#34;,
+                &#34;type&#34;: &#34;image/png&#34;
+            }
+        ]
+    }">
+    
+    <!-- Safari Pinned Tab Icon -->
+    <link rel="mask-icon" href="index.png" color="#4CAF50">
+    
+    <!-- Theme Color for Chrome, Firefox OS, etc. -->
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Magic Sort">
+    
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileColor" content="#4CAF50">
+    <meta name="msapplication-TileImage" content="index.png">
+    <meta name="msapplication-config" content="none">
+    
+    <!-- Open Graph Tags (optional but good for sharing) -->
+    <meta property="og:image" content="index.png">
+    <meta property="og:image:type" content="image/png">
+    <!-- ========== END FAVICON & PWA SETUP ========== -->
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        body {
+            background: #000;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Game takes full screen */
+        #gameFrame {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            z-index: 1;
+            background: #000;
+        }
+        
+        /* Simple Loader */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+            transition: opacity 0.3s ease-out;
+        }
+        
+        .loader-text {
+            color: #4CAF50;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .loader-dots {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* Floating Colors Container */
+        #floatingColors {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        /* Color Objects */
+        .color-object {
+            position: absolute;
+            pointer-events: auto;
+            cursor: pointer;
+            touch-action: none;
+            z-index: 51;
+            opacity: 0.9;
+            will-change: transform, opacity;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+            transition: transform 0.2s ease;
+        }
+        
+        .color-object:active {
+            transform: scale(1.2) !important;
+            opacity: 1;
+        }
+        
+        /* Color Bubble Styles */
+        .color-bubble {
+            width: 70px;
+            height: 70px;
+            position: relative;
+            border-radius: 50%;
+            transform: rotate(var(--rotation)) scale(1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .color-orb {
+            width: 65px;
+            height: 65px;
+            position: relative;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 
+                0 0 20px rgba(var(--glow-color), 0.5),
+                inset 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+        
+        .color-badge {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .color-square {
+            width: 55px;
+            height: 55px;
+            position: relative;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: rotate(var(--rotation));
+        }
+        
+        /* Ad text inside color object */
+        .ad-text {
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+            padding: 5px;
+            line-height: 1.2;
+            z-index: 2;
+            position: relative;
+        }
+        
+        /* Animations */
+        @keyframes floatDown {
+            0% {
+                transform: translateY(-100px) translateX(var(--start-x)) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.9;
+            }
+            90% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateY(calc(100vh + 100px)) translateX(var(--end-x)) rotate(180deg);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes floatUp {
+            0% {
+                transform: translateY(calc(100vh + 100px)) translateX(var(--start-x)) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.9;
+            }
+            90% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateY(-100px) translateX(var(--end-x)) rotate(180deg);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes floatSide {
+            0% {
+                transform: translateX(-100px) translateY(var(--start-y)) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.9;
+            }
+            90% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(var(--end-y)) rotate(180deg);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes colorGlow {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 10px rgba(var(--glow-color), 0.3),
+                    inset 0 0 10px rgba(255, 255, 255, 0.1);
+            }
+            50% { 
+                box-shadow: 
+                    0 0 20px rgba(var(--glow-color), 0.6),
+                    inset 0 0 20px rgba(255, 255, 255, 0.2);
+            }
+        }
+        
+        @keyframes rainbowGlow {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 10px rgba(255, 0, 0, 0.3),
+                    0 0 10px rgba(0, 255, 0, 0.3),
+                    0 0 10px rgba(0, 0, 255, 0.3),
+                    inset 0 0 10px rgba(255, 255, 255, 0.1);
+            }
+            33% { 
+                box-shadow: 
+                    0 0 20px rgba(0, 255, 0, 0.6),
+                    0 0 20px rgba(0, 0, 255, 0.6),
+                    0 0 20px rgba(255, 0, 0, 0.6),
+                    inset 0 0 20px rgba(255, 255, 255, 0.2);
+            }
+            66% { 
+                box-shadow: 
+                    0 0 20px rgba(0, 0, 255, 0.6),
+                    0 0 20px rgba(255, 0, 0, 0.6),
+                    0 0 20px rgba(0, 255, 0, 0.6),
+                    inset 0 0 20px rgba(255, 255, 255, 0.2);
+            }
+        }
+        
+        /* POP-UP BANNER STYLES */
+        .popup-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(90deg, #1a237e, #283593, #3949ab);
+            color: white;
+            padding: 15px 20px;
+            z-index: 200;
+            display: none;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+            border-top: 3px solid #4CAF50;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .popup-banner.show {
+            transform: translateY(0);
+        }
+        
+        .banner-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 20px;
+        }
+        
+        .banner-text {
+            flex: 1;
+        }
+        
+        .banner-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #C5CAE9;
+        }
+        
+        .banner-message {
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+        
+        .banner-button {
+            background: linear-gradient(45deg, #4CAF50, #2E7D32);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .banner-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        
+        .banner-button:active {
+            transform: translateY(0);
+        }
+        
+        .close-banner {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        
+        .close-banner:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .color-bubble, .color-orb { width: 60px; height: 60px; }
+            .color-badge, .color-square { width: 55px; height: 55px; }
+            .ad-text { font-size: 10px; }
+            .loader-text { font-size: 20px; }
+            
+            .popup-banner {
+                padding: 12px 15px;
+            }
+            
+            .banner-content {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .banner-title {
+                font-size: 16px;
+            }
+            
+            .banner-message {
+                font-size: 13px;
+            }
+            
+            .banner-button {
+                padding: 10px 20px;
+                font-size: 13px;
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .close-banner {
+                position: absolute;
+                top: 5px;
+                right: 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .color-bubble, .color-orb { width: 55px; height: 55px; }
+            .color-badge, .color-square { width: 50px; height: 50px; }
+            .ad-text { font-size: 9px; }
+            .loader-text { font-size: 18px; }
+            
+            .popup-banner {
+                padding: 10px 12px;
+            }
+            
+            .banner-title {
+                font-size: 15px;
+            }
+            
+            .banner-message {
+                font-size: 12px;
+            }
+            
+            .banner-button {
+                padding: 9px 18px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Game Frame - Full Screen -->
+    <iframe 
+        src="https://html5.gamedistribution.com/a3889875d26547899d96b0364d6473f5/?gd_sdk_referrer_url=https://gamedistribution.com/games/magic-sort/" 
+        id="gameFrame"
+        scrolling="no"
+        frameborder="0"
+        allow="autoplay; fullscreen"
+        allowfullscreen>
+    </iframe>
+    
+    <!-- Loader -->
+    <div class="loader" id="loader">
+        <div class="loader-text">Loading Magic Sort...</div>
+        <div class="loader-dots">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+    </div>
+    
+    <!-- Floating Colors Container -->
+    <div id="floatingColors"></div>
+    
+    <!-- POP-UP BANNER -->
+    <div class="popup-banner" id="popupBanner">
+        <div class="banner-content">
+            <div class="banner-text">
+                <div class="banner-title">🎮 You're playing for free anyway !</div>
+                <div class="banner-message">why not watch this ad?!</div>
+            </div>
+            <button class="banner-button" id="bannerActionBtn">Watch this ad!</button>
+            <button class="close-banner" id="closeBannerBtn">×</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const gameFrame = document.getElementById('gameFrame');
+        const loader = document.getElementById('loader');
+        const floatingColors = document.getElementById('floatingColors');
+        const popupBanner = document.getElementById('popupBanner');
+        const bannerActionBtn = document.getElementById('bannerActionBtn');
+        const closeBannerBtn = document.getElementById('closeBannerBtn');
+        
+        // Game State
+        let gameLoaded = false;
+        let colorsStarted = false;
+        let activeColors = 0;
+        const MAX_COLORS = 4;
+        let colorsInterval;
+        
+        // Configuration
+        const COLORS_START_DELAY = 30000; // 30 δευτερόλεπτα
+        const MONETAG_LINK = 'https://otieu.com/4/10274068'; // Monetag link
+        
+        // Pop-up Banner Configuration
+        const BANNER_FIRST_DELAY = 45000; // 45 δευτερόλεπτα μετά το φόρτωμα
+        const BANNER_SHOW_DURATION = 15000; // 15 δευτερόλεπτα που μένει ανοιχτό
+        const BANNER_HIDE_DURATION = 45000; // 45 δευτερόλεπτα που μένει κλειστό
+        let bannerInterval;
+        let bannerTimeout;
+        let bannerIsActive = false;
+        
+        // Color Palettes
+        const COLOR_PALETTES = [
+            {
+                name: 'Rainbow',
+                colors: [
+                    { background: 'linear-gradient(135deg, #FF5252, #FF4081)', glow: '255, 82, 82' },
+                    { background: 'linear-gradient(135deg, #FF9800, #FF5722)', glow: '255, 152, 0' },
+                    { background: 'linear-gradient(135deg, #FFEB3B, #FFC107)', glow: '255, 235, 59' },
+                    { background: 'linear-gradient(135deg, #4CAF50, #2E7D32)', glow: '76, 175, 80' },
+                    { background: 'linear-gradient(135deg, #2196F3, #0D47A1)', glow: '33, 150, 243' },
+                    { background: 'linear-gradient(135deg, #673AB7, #311B92)', glow: '103, 58, 183' },
+                    { background: 'linear-gradient(135deg, #9C27B0, #6A1B9A)', glow: '156, 39, 176' }
+                ]
+            },
+            {
+                name: 'Pastel',
+                colors: [
+                    { background: 'linear-gradient(135deg, #FFCDD2, #F8BBD0)', glow: '255, 205, 210' },
+                    { background: 'linear-gradient(135deg, #F8BBD0, #E1BEE7)', glow: '248, 187, 208' },
+                    { background: 'linear-gradient(135deg, #D1C4E9, #C5CAE9)', glow: '209, 196, 233' },
+                    { background: 'linear-gradient(135deg, #BBDEFB, #B3E5FC)', glow: '187, 222, 251' },
+                    { background: 'linear-gradient(135deg, #B2EBF2, #B2DFDB)', glow: '178, 235, 242' },
+                    { background: 'linear-gradient(135deg, #C8E6C9, #DCEDC8)', glow: '200, 230, 201' },
+                    { background: 'linear-gradient(135deg, #FFF9C4, #FFECB3)', glow: '255, 249, 196' }
+                ]
+            },
+            {
+                name: 'Magic',
+                colors: [
+                    { background: 'linear-gradient(135deg, #00BCD4, #0097A7)', glow: '0, 188, 212' },
+                    { background: 'linear-gradient(135deg, #9C27B0, #7B1FA2)', glow: '156, 39, 176' },
+                    { background: 'linear-gradient(135deg, #3F51B5, #303F9F)', glow: '63, 81, 181' },
+                    { background: 'linear-gradient(135deg, #00E676, #00C853)', glow: '0, 230, 118' },
+                    { background: 'linear-gradient(135deg, #FF9100, #FF6D00)', glow: '255, 145, 0' },
+                    { background: 'linear-gradient(135deg, #FF4081, #F50057)', glow: '255, 64, 129' },
+                    { background: 'linear-gradient(135deg, #651FFF, #6200EA)', glow: '101, 31, 255' }
+                ]
+            }
+        ];
+        
+        // Initialize - Optimized for fast loading
+        function init() {
+            console.log('🎨 Initializing Magic Sort...');
+            
+            // Set game to full screen
+            setupFullScreenGame();
+            
+            // Hide loader quickly - don't wait for game to fully load
+            setTimeout(() => {
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                    gameLoaded = true;
+                    
+                    // Start colors after 30 seconds
+                    console.log(`⏰ Color bubbles will appear in ${COLORS_START_DELAY/1000} seconds`);
+                    setTimeout(startFloatingColors, COLORS_START_DELAY);
+                    
+                    // Start pop-up banner after 45 seconds
+                    console.log(`⏰ Pop-up banner will appear in ${BANNER_FIRST_DELAY/1000} seconds`);
+                    setTimeout(startBannerCycle, BANNER_FIRST_DELAY);
+                }, 300);
+            }, 1500);
+            
+            // Game frame error handling
+            gameFrame.addEventListener('error', () => {
+                console.log('⚠️ Game frame error');
+            });
+            
+            // Prevent context menu
+            document.addEventListener('contextmenu', (e) => {
+                if (e.target.closest('.color-object')) {
+                    e.preventDefault();
+                }
+            });
+            
+            // Banner event handlers
+            bannerActionBtn.addEventListener('click', () => {
+                openMonetagAd();
+                hideBanner();
+            });
+            
+            closeBannerBtn.addEventListener('click', () => {
+                hideBanner();
+                // Reset timer για επόμενη εμφάνιση
+                if (bannerTimeout) clearTimeout(bannerTimeout);
+                bannerTimeout = setTimeout(showBanner, BANNER_HIDE_DURATION);
+            });
+            
+            // Touch events for mobile
+            bannerActionBtn.addEventListener('touchstart', function() {
+                this.style.transform = 'scale(0.98)';
+            }, { passive: true });
+            
+            bannerActionBtn.addEventListener('touchend', function() {
+                this.style.transform = '';
+            }, { passive: true });
+            
+            // PWA: Register service worker if supported
+            registerServiceWorker();
+        }
+        
+        // PWA: Register Service Worker
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    try {
+                        // Simple service worker registration
+                        navigator.serviceWorker.register('data:application/javascript;charset=utf-8,' + encodeURIComponent(`
+                            self.addEventListener('install', event => {
+                                self.skipWaiting();
+                            });
+                            
+                            self.addEventListener('activate', event => {
+                                event.waitUntil(clients.claim());
+                            });
+                            
+                            self.addEventListener('fetch', event => {
+                                // Cache-first strategy for the game
+                                event.respondWith(
+                                    caches.match(event.request).then(response => {
+                                        return response || fetch(event.request);
+                                    })
+                                );
+                            });
+                        `));
+                        console.log('✅ Service Worker registered successfully');
+                    } catch (error) {
+                        console.log('⚠️ Service Worker registration failed:', error);
+                    }
+                });
+            }
+        }
+        
+        // Setup full screen game
+        function setupFullScreenGame() {
+            const updateSize = () => {
+                gameFrame.style.width = window.innerWidth + 'px';
+                gameFrame.style.height = window.innerHeight + 'px';
+            };
+            
+            updateSize();
+            
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(updateSize, 100);
+            });
+            
+            window.addEventListener('orientationchange', () => {
+                setTimeout(updateSize, 150);
+            });
+        }
+        
+        // POP-UP BANNER FUNCTIONS
+        function startBannerCycle() {
+            console.log('🔄 Starting pop-up banner cycle...');
+            showBanner();
+        }
+        
+        function showBanner() {
+            if (bannerIsActive) return;
+            
+            console.log('🔼 Showing pop-up banner');
+            bannerIsActive = true;
+            popupBanner.style.display = 'block';
+            
+            // Force reflow
+            void popupBanner.offsetWidth;
+            
+            // Add show class for animation
+            setTimeout(() => {
+                popupBanner.classList.add('show');
+            }, 10);
+            
+            // Auto-hide after duration
+            bannerTimeout = setTimeout(() => {
+                hideBanner();
+                // Schedule next appearance
+                bannerTimeout = setTimeout(showBanner, BANNER_HIDE_DURATION);
+            }, BANNER_SHOW_DURATION);
+        }
+        
+        function hideBanner() {
+            if (!bannerIsActive) return;
+            
+            console.log('🔽 Hiding pop-up banner');
+            popupBanner.classList.remove('show');
+            
+            // Wait for animation to complete before hiding
+            setTimeout(() => {
+                if (!popupBanner.classList.contains('show')) {
+                    popupBanner.style.display = 'none';
+                    bannerIsActive = false;
+                }
+            }, 400);
+        }
+        
+        function openMonetagAd() {
+            console.log('🔗 Opening Monetag ad...');
+            window.open(MONETAG_LINK, '_blank');
+        }
+        
+        // Create color bubble with ad text
+        function createColorBubble() {
+            if (activeColors >= MAX_COLORS || !colorsStarted) return;
+            
+            const shapeTypes = [
+                { 
+                    type: 'color-bubble', 
+                    name: 'Color Bubble',
+                    animation: 'floatDown',
+                    duration: 15 + Math.random() * 10,
+                    adText: 'Click for\nAD',
+                    showGlow: true
+                },
+                { 
+                    type: 'color-bubble', 
+                    name: 'Color Bubble',
+                    animation: 'floatUp', 
+                    duration: 18 + Math.random() * 8,
+                    adText: 'Watch\nAD',
+                    showGlow: true
+                },
+                { 
+                    type: 'color-orb', 
+                    name: 'Color Orb',
+                    animation: 'floatDown',
+                    duration: 16 + Math.random() * 9,
+                    adText: 'AD Here',
+                    showGlow: false
+                },
+                { 
+                    type: 'color-badge', 
+                    name: 'Color Badge',
+                    animation: 'floatSide',
+                    duration: 20 + Math.random() * 5,
+                    adText: 'Support\nUs',
+                    showGlow: false
+                },
+                { 
+                    type: 'color-square', 
+                    name: 'Color Square',
+                    animation: 'floatUp',
+                    duration: 14 + Math.random() * 11,
+                    adText: 'Click\nMe',
+                    showGlow: false
+                }
+            ];
+            
+            const shapeType = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+            const rotation = Math.random() * 360;
+            
+            // Select random palette and color
+            const palette = COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)];
+            const color = palette.colors[Math.floor(Math.random() * palette.colors.length)];
+            
+            const colorObject = document.createElement('div');
+            colorObject.className = `color-object ${shapeType.type}`;
+            colorObject.style.setProperty('--rotation', `${rotation}deg`);
+            colorObject.style.cursor = 'pointer';
+            
+            // Create color element
+            const colorElement = document.createElement('div');
+            colorElement.className = shapeType.type;
+            colorElement.style.background = color.background;
+            
+            // Set CSS custom property for glow color
+            colorElement.style.setProperty('--glow-color', color.glow);
+            
+            // Add glow animation if needed
+            if (shapeType.showGlow) {
+                colorElement.style.animation = 'colorGlow 3s infinite alternate';
+            }
+            
+            // Special animation for rainbow palette
+            if (palette.name === 'Rainbow' && Math.random() > 0.5) {
+                colorElement.style.animation = 'rainbowGlow 2s infinite alternate';
+            }
+            
+            // Add AD text inside ALL color objects
+            const adText = document.createElement('div');
+            adText.className = 'ad-text';
+            adText.textContent = shapeType.adText;
+            colorElement.appendChild(adText);
+            
+            colorObject.appendChild(colorElement);
+            
+            // Set position and animation
+            if (shapeType.animation === 'floatDown' || shapeType.animation === 'floatUp') {
+                const startX = Math.random() * window.innerWidth;
+                const endX = startX + (Math.random() * 80 - 40);
+                colorObject.style.setProperty('--start-x', `${startX}px`);
+                colorObject.style.setProperty('--end-x', `${endX}px`);
+            } else {
+                const startY = Math.random() * window.innerHeight;
+                const endY = startY + (Math.random() * 80 - 40);
+                colorObject.style.setProperty('--start-y', `${startY}px`);
+                colorObject.style.setProperty('--end-y', `${endY}px`);
+            }
+            
+            colorObject.style.animation = `${shapeType.animation} ${shapeType.duration}s linear forwards`;
+            colorObject.style.left = '0px';
+            colorObject.style.top = '0px';
+            
+            // Click event for Monetag ad
+            const handleClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Visual feedback
+                colorObject.style.transform = 'scale(1.3) rotate(10deg)';
+                colorObject.style.opacity = '0.7';
+                colorObject.style.transition = 'all 0.2s ease';
+                
+                // Open Monetag ad in new tab
+                openMonetagAd();
+                
+                // Remove color object after animation
+                setTimeout(() => {
+                    if (colorObject.parentNode) {
+                        colorObject.style.opacity = '0';
+                        colorObject.style.transform = 'scale(0.5)';
+                        setTimeout(() => {
+                            if (colorObject.parentNode) {
+                                colorObject.remove();
+                                activeColors--;
+                            }
+                        }, 200);
+                    }
+                }, 300);
+            };
+            
+            colorObject.addEventListener('click', handleClick);
+            colorObject.addEventListener('touchstart', handleClick, { passive: false });
+            
+            // Touch feedback
+            colorObject.addEventListener('touchstart', function() {
+                this.style.transform = 'scale(1.15)';
+            }, { passive: true });
+            
+            colorObject.addEventListener('touchend', function() {
+                this.style.transform = '';
+            }, { passive: true });
+            
+            // Remove when animation completes
+            setTimeout(() => {
+                if (colorObject.parentNode) {
+                    colorObject.remove();
+                    activeColors--;
+                }
+            }, shapeType.duration * 1000);
+            
+            floatingColors.appendChild(colorObject);
+            activeColors++;
+        }
+        
+        // Start floating colors after 30 seconds
+        function startFloatingColors() {
+            if (colorsStarted) return;
+            
+            colorsStarted = true;
+            console.log('🎨 Starting floating colors with ads...');
+            
+            // Initial colors
+            setTimeout(() => createColorBubble(), 0);
+            setTimeout(() => createColorBubble(), 800);
+            setTimeout(() => createColorBubble(), 1600);
+            
+            // Continuous spawn every 8-12 seconds
+            colorsInterval = setInterval(() => {
+                if (colorsStarted && activeColors < MAX_COLORS) {
+                    createColorBubble();
+                }
+            }, 8000 + Math.random() * 4000);
+        }
+        
+        // Cleanup intervals on page unload
+        window.addEventListener('beforeunload', () => {
+            if (colorsInterval) clearInterval(colorsInterval);
+            if (bannerInterval) clearInterval(bannerInterval);
+            if (bannerTimeout) clearTimeout(bannerTimeout);
+        });
+        
+        // Start everything immediately
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Fallback for fast loading
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
