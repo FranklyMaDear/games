@@ -450,31 +450,7 @@
             }
         }
         
-        .command-display {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            z-index: 20;
-            display: none;
-            min-width: 200px;
-            backdrop-filter: blur(10px);
-        }
-        
-        .command-text {
-            font-size: 1.4rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        
-        .command-subtext {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
+        /* ΑΦΑΙΡΕΣΑ ΤΟ POPUP ΜΕ ΤΟ ΧΡΩΜΑ */
         
         /* Mobile Responsive */
         @media (max-width: 768px) {
@@ -642,12 +618,7 @@
         <div class="game-area" id="gameArea"></div>
         
         <div class="balloon-counter">
-            Μπαλόνια: <span id="balloonCount">0</span>/<span id="minBalloons">8</span>
-        </div>
-        
-        <div class="command-display" id="commandDisplay">
-            <div class="command-text" id="commandText">Σκάστε Κόκκινα!</div>
-            <div class="command-subtext">Κάντε κλικ στα <span id="commandColor">κόκκινα</span> μπαλόνια</div>
+            Μπαλόνια: <span id="balloonCount">0</span>/<span id="maxBalloons">15</span>
         </div>
         
         <div class="game-over" id="gameOver">
@@ -678,29 +649,25 @@
             const gameOverScreen = document.getElementById('gameOver');
             const playAgainBtn = document.getElementById('playAgainBtn');
             const balloonCountElement = document.getElementById('balloonCount');
-            const minBalloonsElement = document.getElementById('minBalloons');
+            const maxBalloonsElement = document.getElementById('maxBalloons');
             const finalPoppedElement = document.getElementById('finalPopped');
             const finalCorrectElement = document.getElementById('finalCorrect');
             const finalWrongElement = document.getElementById('finalWrong');
-            const commandDisplay = document.getElementById('commandDisplay');
-            const commandText = document.getElementById('commandText');
-            const commandColor = document.getElementById('commandColor');
             
             // Μεταβλητές παιχνιδιού
             let gameActive = false;
             let timeLeft = 60;
             let gameTimer;
             let balloonInterval;
-            let movementInterval;
-            let commandInterval;
+            let targetChangeInterval;
             let targetColor = 'red';
             let balloons = [];
             let audioContext;
-            let minBalloons = 8; // Αυξήθηκε από 5 σε 8
+            let maxBalloons = 15;
             let totalPopped = 0;
             let correctPopped = 0;
             let wrongPopped = 0;
-            let targetColorPercentage = 0.6; // 60% πιθανότητα για μπαλόνια του στόχου
+            let currentTargetDuration = 10000; // 10 δευτερόλεπτα για κάθε χρώμα
             
             // Χάρτης χρωμάτων
             const colorMap = {
@@ -735,26 +702,23 @@
                     oscillator2.connect(gainNode);
                     gainNode.connect(audioContext.destination);
                     
-                    // Χαρούμενος, ανερχόμενος ήχος
-                    oscillator1.frequency.setValueAtTime(523.25, now); // C5
-                    oscillator1.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
-                    oscillator1.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
-                    oscillator1.frequency.exponentialRampToValueAtTime(1046.50, now + 0.3); // C6
+                    oscillator1.frequency.setValueAtTime(523.25, now);
+                    oscillator1.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
+                    oscillator1.frequency.exponentialRampToValueAtTime(783.99, now + 0.2);
                     
-                    oscillator2.frequency.setValueAtTime(392.00, now); // G4
-                    oscillator2.frequency.exponentialRampToValueAtTime(493.88, now + 0.2); // B4
-                    oscillator2.frequency.exponentialRampToValueAtTime(587.33, now + 0.4); // D5
+                    oscillator2.frequency.setValueAtTime(392.00, now);
+                    oscillator2.frequency.exponentialRampToValueAtTime(493.88, now + 0.2);
                     
                     oscillator1.type = 'sine';
                     oscillator2.type = 'triangle';
                     
                     gainNode.gain.setValueAtTime(0.2, now);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
                     
                     oscillator1.start(now);
                     oscillator2.start(now);
-                    oscillator1.stop(now + 0.8);
-                    oscillator2.stop(now + 0.8);
+                    oscillator1.stop(now + 0.6);
+                    oscillator2.stop(now + 0.6);
                 } catch (e) {
                     console.log('Αδυναμία αναπαραγωγής ήχου σωστού');
                 }
@@ -772,47 +736,47 @@
                     oscillator.connect(gainNode);
                     gainNode.connect(audioContext.destination);
                     
-                    // Λυπημένος, κατιών ήχος
-                    oscillator.frequency.setValueAtTime(440.00, now); // A4
-                    oscillator.frequency.exponentialRampToValueAtTime(349.23, now + 0.2); // F4
-                    oscillator.frequency.exponentialRampToValueAtTime(293.66, now + 0.4); // D4
-                    oscillator.frequency.exponentialRampToValueAtTime(261.63, now + 0.6); // C4
+                    oscillator.frequency.setValueAtTime(440.00, now);
+                    oscillator.frequency.exponentialRampToValueAtTime(349.23, now + 0.2);
+                    oscillator.frequency.exponentialRampToValueAtTime(293.66, now + 0.4);
                     
                     oscillator.type = 'sawtooth';
                     
                     gainNode.gain.setValueAtTime(0.15, now);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
                     
                     oscillator.start(now);
-                    oscillator.stop(now + 0.7);
+                    oscillator.stop(now + 0.5);
                 } catch (e) {
                     console.log('Αδυναμία αναπαραγωγής ήχου λάθους');
                 }
             }
             
-            // Επιλογή νέου στόχου και εντολής
+            // Επιλογή νέου στόχου
             function selectNewTarget() {
                 const colors = Object.keys(colorMap);
                 const availableColors = colors.filter(color => color !== targetColor);
                 targetColor = availableColors[Math.floor(Math.random() * availableColors.length)];
                 updateTargetDisplay();
-                showCommand();
-                ensureTargetBalloons(); // Εξασφαλίζει ότι υπάρχουν μπαλόνια του νέου στόχου
+                
+                // Δημιουργία 3-5 μπαλονιών του νέου χρώματος
+                createTargetColorBalloons();
             }
             
-            // Εξασφάλιση ότι υπάρχουν μπαλόνια του στόχου
-            function ensureTargetBalloons() {
+            // Δημιουργία μπαλονιών του τρέχοντος χρώματος-στόχου
+            function createTargetColorBalloons() {
                 if (!gameActive) return;
                 
-                // Μετράει τα μπαλόνια του τρέχοντος στόχου
-                const targetBalloonCount = balloons.filter(b => b.color === targetColor).length;
+                const targetCount = 3 + Math.floor(Math.random() * 3); // 3-5 μπαλόνια
+                const existingTargetBalloons = balloons.filter(b => b.color === targetColor).length;
+                const needed = Math.max(0, targetCount - existingTargetBalloons);
                 
-                // Αν υπάρχουν λιγότερα από 2 μπαλόνια του στόχου, δημιουργεί περισσότερα
-                if (targetBalloonCount < 2) {
-                    const needed = Math.min(3, 12 - balloons.length);
-                    for (let i = 0; i < needed; i++) {
-                        setTimeout(() => createBalloon(targetColor), i * 200);
-                    }
+                for (let i = 0; i < needed; i++) {
+                    setTimeout(() => {
+                        if (balloons.length < maxBalloons) {
+                            createBalloon(targetColor);
+                        }
+                    }, i * 300);
                 }
             }
             
@@ -820,19 +784,12 @@
             function updateTargetDisplay() {
                 targetColorElement.textContent = colorMap[targetColor].name;
                 targetColorElement.style.color = colorMap[targetColor].hex;
-            }
-            
-            // Εμφάνιση εντολής
-            function showCommand() {
-                commandText.textContent = `Σκάστε ${colorMap[targetColor].name}!`;
-                commandColor.textContent = colorMap[targetColor].name.toLowerCase();
-                commandColor.style.color = colorMap[targetColor].hex;
                 
-                commandDisplay.style.display = 'block';
-                
+                // Animation για αλλαγή χρώματος
+                targetColorElement.style.transform = 'scale(1.1)';
                 setTimeout(() => {
-                    commandDisplay.style.display = 'none';
-                }, 2000);
+                    targetColorElement.style.transform = 'scale(1)';
+                }, 300);
             }
             
             // Έναρξη από welcome screen
@@ -853,7 +810,7 @@
                 totalPopped = 0;
                 correctPopped = 0;
                 wrongPopped = 0;
-                targetColorPercentage = 0.6;
+                currentTargetDuration = 10000;
                 
                 startBtn.disabled = true;
                 pauseBtn.disabled = false;
@@ -868,14 +825,15 @@
                 // Έναρξη χρονομέτρου
                 gameTimer = setInterval(updateTimer, 1000);
                 
-                // Έναρξη δημιουργίας μπαλονιών (πιο γρήγορα - κάθε 500ms αντί για 1000ms)
-                balloonInterval = setInterval(manageBalloons, 500);
+                // Έναρξη δημιουργίας μπαλονιών
+                balloonInterval = setInterval(manageBalloons, 800);
                 
-                // Έναρξη κίνησης μπαλονιών (πιο γρήγορη ενημέρωση - κάθε 30ms)
-                movementInterval = setInterval(moveBalloons, 30);
-                
-                // Έναρξη εντολών
-                commandInterval = setInterval(giveCommand, 8000);
+                // Έναρξη αλλαγής στόχου κάθε 10 δευτερόλεπτα
+                targetChangeInterval = setInterval(() => {
+                    if (gameActive) {
+                        selectNewTarget();
+                    }
+                }, currentTargetDuration);
                 
                 // Ενημέρωση μετρητή
                 updateBalloonCounter();
@@ -894,16 +852,18 @@
                     // Συνέχιση
                     pauseBtn.textContent = 'Παύση';
                     gameTimer = setInterval(updateTimer, 1000);
-                    balloonInterval = setInterval(manageBalloons, 500);
-                    movementInterval = setInterval(moveBalloons, 30);
-                    commandInterval = setInterval(giveCommand, 8000);
+                    balloonInterval = setInterval(manageBalloons, 800);
+                    targetChangeInterval = setInterval(() => {
+                        if (gameActive) {
+                            selectNewTarget();
+                        }
+                    }, currentTargetDuration);
                 } else {
                     // Παύση
                     pauseBtn.textContent = 'Συνέχεια';
                     clearInterval(gameTimer);
                     clearInterval(balloonInterval);
-                    clearInterval(movementInterval);
-                    clearInterval(commandInterval);
+                    clearInterval(targetChangeInterval);
                 }
             });
             
@@ -918,37 +878,36 @@
                 resetGame();
             });
             
-            // Δώσε εντολή
-            function giveCommand() {
-                if (!gameActive) return;
-                
-                // 60% πιθανότητα να αλλάξει ο στόχος
-                if (Math.random() > 0.4) {
-                    selectNewTarget();
-                } else {
-                    showCommand();
-                    ensureTargetBalloons(); // Εξασφαλίζει μπαλόνια του στόχου και όταν δεν αλλάζει
-                }
-            }
-            
             // Ενημέρωση χρονομέτρου
             function updateTimer() {
                 timeLeft--;
                 timerElement.textContent = timeLeft;
                 
-                // Αυξάνει την ταχύτητα και τον αριθμό των μπαλονιών καθώς περνάει ο χρόνος
+                // Αλλαγή δυσκολίας με τον χρόνο
                 if (timeLeft === 45) {
-                    minBalloons = 10;
-                    targetColorPercentage = 0.5;
-                    minBalloonsElement.textContent = minBalloons;
+                    currentTargetDuration = 9000;
+                    clearInterval(targetChangeInterval);
+                    targetChangeInterval = setInterval(() => {
+                        if (gameActive) {
+                            selectNewTarget();
+                        }
+                    }, currentTargetDuration);
                 } else if (timeLeft === 30) {
-                    minBalloons = 12;
-                    targetColorPercentage = 0.4;
-                    minBalloonsElement.textContent = minBalloons;
+                    currentTargetDuration = 8000;
+                    clearInterval(targetChangeInterval);
+                    targetChangeInterval = setInterval(() => {
+                        if (gameActive) {
+                            selectNewTarget();
+                        }
+                    }, currentTargetDuration);
                 } else if (timeLeft === 15) {
-                    minBalloons = 15;
-                    targetColorPercentage = 0.3;
-                    minBalloonsElement.textContent = minBalloons;
+                    currentTargetDuration = 7000;
+                    clearInterval(targetChangeInterval);
+                    targetChangeInterval = setInterval(() => {
+                        if (gameActive) {
+                            selectNewTarget();
+                        }
+                    }, currentTargetDuration);
                 }
                 
                 if (timeLeft <= 0) {
@@ -958,13 +917,18 @@
             
             // Δημιουργία αρχικών μπαλονιών
             function createInitialBalloons() {
-                // Δημιουργία αρχικών μπαλονιών (περισσότερα)
-                for (let i = 0; i < minBalloons; i++) {
+                // Δημιουργία 8-10 αρχικών μπαλονιών
+                const initialCount = 8 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < initialCount; i++) {
                     setTimeout(() => {
-                        // Προτεραιότητα στα μπαλόνια του στόχου
-                        const useTargetColor = i < Math.floor(minBalloons * targetColorPercentage);
-                        createBalloon(useTargetColor ? targetColor : null);
-                    }, i * 150);
+                        if (i < 4) {
+                            // Τα πρώτα 4 είναι του στόχου
+                            createBalloon(targetColor);
+                        } else {
+                            // Τα υπόλοιπα είναι τυχαία
+                            createBalloon();
+                        }
+                    }, i * 200);
                 }
             }
             
@@ -972,95 +936,79 @@
             function manageBalloons() {
                 if (!gameActive) return;
                 
-                // Δημιουργία νέων μπαλονιών αν υπάρχουν λιγότερα από το ελάχιστο
-                if (balloons.length < minBalloons) {
-                    const needed = minBalloons - balloons.length;
+                // Δημιουργία νέων μπαλονιών αν υπάρχουν λιγότερα από το μέγιστο
+                if (balloons.length < maxBalloons) {
+                    const needed = maxBalloons - balloons.length;
                     for (let i = 0; i < needed; i++) {
                         setTimeout(() => {
-                            // Προτεραιότητα στα μπαλόνια του στόχου
-                            const useTargetColor = Math.random() < targetColorPercentage;
+                            // 60% πιθανότητα για μπαλόνια του στόχου
+                            const useTargetColor = Math.random() < 0.6;
                             createBalloon(useTargetColor ? targetColor : null);
-                        }, i * 200);
+                        }, i * 300);
                     }
                 }
                 
                 // Διαγραφή μπαλονιών που είναι πολύ παλιά
                 const now = Date.now();
                 balloons = balloons.filter(balloon => {
-                    if (now - balloon.createdAt > 12000) { // Μικρότερος χρόνος ζωής
+                    if (now - balloon.createdAt > 15000) {
                         balloon.element.remove();
                         return false;
                     }
                     return true;
                 });
                 
-                // Εξασφάλιση ότι υπάρχουν μπαλόνια του στόχου
-                ensureTargetBalloons();
-                
                 updateBalloonCounter();
             }
             
-            // Κίνηση μπαλονιών (ΠΟΛΥ ΠΙΟ ΓΡΗΓΟΡΑ)
-            function moveBalloons() {
-                if (!gameActive) return;
+            // Κίνηση μπαλονιών (ΦΥΣΙΟΛΟΓΙΚΗ ΤΑΧΥΤΗΤΑ)
+            function moveBalloon(balloon) {
+                if (!balloon.directionX) balloon.directionX = Math.random() * 2 - 1;
+                if (!balloon.directionY) balloon.directionY = Math.random() * 2 - 1;
+                if (!balloon.speedX) balloon.speedX = 0.4 + Math.random() * 0.3; // Φυσιολογική ταχύτητα
+                if (!balloon.speedY) balloon.speedY = 0.3 + Math.random() * 0.2; // Φυσιολογική ταχύτητα
+                if (!balloon.rotation) balloon.rotation = 0;
+                if (!balloon.rotationSpeed) balloon.rotationSpeed = (Math.random() * 0.3 - 0.15);
                 
-                balloons.forEach(balloon => {
-                    if (!balloon.directionX) balloon.directionX = Math.random() * 2 - 1;
-                    if (!balloon.directionY) balloon.directionY = Math.random() * 2 - 1;
-                    // ΠΟΛΥ ΓΡΗΓΟΡΕΣ ΤΑΧΥΤΗΤΕΣ
-                    if (!balloon.speedX) balloon.speedX = 0.8 + Math.random() * 1.0; // Αυξημένη ταχύτητα
-                    if (!balloon.speedY) balloon.speedY = 0.6 + Math.random() * 0.8; // Αυξημένη ταχύτητα
-                    if (!balloon.rotation) balloon.rotation = 0;
-                    if (!balloon.rotationSpeed) balloon.rotationSpeed = (Math.random() * 0.8 - 0.4); // Γρηγορότερη περιστροφή
-                    
-                    const rect = balloon.element.getBoundingClientRect();
-                    const gameAreaRect = gameArea.getBoundingClientRect();
-                    
-                    // Αντιστροφή κατεύθυνσης στα όρια
-                    if (rect.left <= gameAreaRect.left + 10 || rect.right >= gameAreaRect.right - 10) {
-                        balloon.directionX *= -1;
-                    }
-                    
-                    if (rect.top <= gameAreaRect.top + 10 || rect.bottom >= gameAreaRect.bottom - 10) {
-                        balloon.directionY *= -1;
-                    }
-                    
-                    // Ανακύκλωση στο άλλο άκρο
-                    let x = parseFloat(balloon.element.style.left) + balloon.directionX * balloon.speedX;
-                    let y = parseFloat(balloon.element.style.top) + balloon.directionY * balloon.speedY;
-                    
-                    // Περιορισμός μέσα στο game area
-                    const maxX = gameArea.offsetWidth - 65;
-                    const maxY = gameArea.offsetHeight - 100;
-                    
-                    x = Math.max(10, Math.min(x, maxX));
-                    y = Math.max(10, Math.min(y, maxY));
-                    
-                    // Πρόσθεση μικρών τυχαίων αλλαγών για ρεαλιστική κίνηση
-                    if (Math.random() > 0.5) { // Περισσότερες τυχαίες αλλαγές
-                        balloon.directionX += (Math.random() * 0.3 - 0.15);
-                        balloon.directionY += (Math.random() * 0.3 - 0.15);
-                        
-                        // Κανονικοποίηση
-                        const magnitude = Math.sqrt(balloon.directionX * balloon.directionX + balloon.directionY * balloon.directionY);
-                        if (magnitude > 0) {
-                            balloon.directionX /= magnitude;
-                            balloon.directionY /= magnitude;
-                        }
-                    }
-                    
-                    // Περιστροφή
-                    balloon.rotation += balloon.rotationSpeed;
-                    
-                    balloon.element.style.left = x + 'px';
-                    balloon.element.style.top = y + 'px';
-                    balloon.element.style.transform = `rotate(${balloon.rotation}deg)`;
-                });
+                const rect = balloon.element.getBoundingClientRect();
+                const gameAreaRect = gameArea.getBoundingClientRect();
+                
+                // Αντιστροφή κατεύθυνσης στα όρια
+                if (rect.left <= gameAreaRect.left + 10 || rect.right >= gameAreaRect.right - 10) {
+                    balloon.directionX *= -1;
+                }
+                
+                if (rect.top <= gameAreaRect.top + 10 || rect.bottom >= gameAreaRect.bottom - 10) {
+                    balloon.directionY *= -1;
+                }
+                
+                // Κίνηση
+                let x = parseFloat(balloon.element.style.left) + balloon.directionX * balloon.speedX;
+                let y = parseFloat(balloon.element.style.top) + balloon.directionY * balloon.speedY;
+                
+                // Περιορισμός μέσα στο game area
+                const maxX = gameArea.offsetWidth - 65;
+                const maxY = gameArea.offsetHeight - 100;
+                
+                x = Math.max(10, Math.min(x, maxX));
+                y = Math.max(10, Math.min(y, maxY));
+                
+                // Περιστροφή
+                balloon.rotation += balloon.rotationSpeed;
+                
+                balloon.element.style.left = x + 'px';
+                balloon.element.style.top = y + 'px';
+                balloon.element.style.transform = `rotate(${balloon.rotation}deg)`;
+                
+                // Προγραμματισμός επόμενης κίνησης
+                if (balloon.element.parentNode && !balloon.element.classList.contains('popping')) {
+                    requestAnimationFrame(() => moveBalloon(balloon));
+                }
             }
             
             // Δημιουργία μπαλονιού
             function createBalloon(specificColor = null) {
-                if (!gameActive || balloons.length >= 20) return; // Μεγαλύτερο μέγιστο όριο
+                if (!gameActive || balloons.length >= maxBalloons) return;
                 
                 const colors = Object.keys(colorMap);
                 let color;
@@ -1072,7 +1020,7 @@
                 }
                 
                 const hexColor = colorMap[color].hex;
-                const isAd = Math.random() > 0.85; // 15% πιθανότητα για διαφημιστικό μπαλόνι
+                const isAd = Math.random() > 0.9; // 10% πιθανότητα για διαφημιστικό μπαλόνι
                 
                 const balloon = document.createElement('div');
                 balloon.className = 'balloon';
@@ -1128,10 +1076,12 @@
                         playCorrectSound();
                         showFeedback('✓ ΣΩΣΤΟ!', '#4CAF50', this);
                         
-                        // Συγχρονισμός με την εντολή
-                        if (Math.random() > 0.5) {
-                            setTimeout(() => giveCommand(), 300);
-                        }
+                        // Δημιουργία νέου μπαλονιού του ίδιου χρώματος
+                        setTimeout(() => {
+                            if (balloons.length < maxBalloons) {
+                                createBalloon(targetColor);
+                            }
+                        }, 500);
                     } else {
                         // Λάθος χρώμα
                         wrongPopped++;
@@ -1147,11 +1097,6 @@
                             this.remove();
                             balloons = balloons.filter(b => b.element !== this);
                             updateBalloonCounter();
-                            
-                            // Αν σκάσαμε μπαλόνι του στόχου, δημιουργούμε άλλο
-                            if (balloonColor === targetColor) {
-                                setTimeout(() => createBalloon(targetColor), 300);
-                            }
                         }
                     }, 500);
                     
@@ -1161,18 +1106,17 @@
                 gameArea.appendChild(balloon);
                 
                 // Αποθήκευση μπαλονιού
-                balloons.push({
+                const balloonObj = {
                     element: balloon,
                     color: color,
                     isAd: isAd,
-                    directionX: Math.random() * 2 - 1,
-                    directionY: Math.random() * 2 - 1,
-                    speedX: 0.8 + Math.random() * 1.0,
-                    speedY: 0.6 + Math.random() * 0.8,
-                    rotation: 0,
-                    rotationSpeed: (Math.random() * 0.8 - 0.4),
                     createdAt: Date.now()
-                });
+                };
+                
+                balloons.push(balloonObj);
+                
+                // Έναρξη κίνησης
+                setTimeout(() => moveBalloon(balloonObj), 100);
                 
                 // Ενημέρωση μετρητή
                 updateBalloonCounter();
@@ -1206,7 +1150,7 @@
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
                 
-                for (let i = 0; i < 12; i++) {
+                for (let i = 0; i < 8; i++) {
                     const particle = document.createElement('div');
                     particle.className = 'particle';
                     particle.style.backgroundColor = color;
@@ -1214,7 +1158,7 @@
                     particle.style.top = (centerY - 5) + 'px';
                     
                     const angle = Math.random() * Math.PI * 2;
-                    const distance = 20 + Math.random() * 40;
+                    const distance = 15 + Math.random() * 25;
                     const tx = Math.cos(angle) * distance;
                     const ty = Math.sin(angle) * distance;
                     
@@ -1234,7 +1178,7 @@
             // Ενημέρωση μετρητή μπαλονιών
             function updateBalloonCounter() {
                 balloonCountElement.textContent = balloons.length;
-                minBalloonsElement.textContent = minBalloons;
+                maxBalloonsElement.textContent = maxBalloons;
             }
             
             // Καθαρισμός μπαλονιών
@@ -1251,22 +1195,18 @@
                 gameActive = false;
                 clearInterval(gameTimer);
                 clearInterval(balloonInterval);
-                clearInterval(movementInterval);
-                clearInterval(commandInterval);
+                clearInterval(targetChangeInterval);
                 
                 startBtn.disabled = false;
                 pauseBtn.disabled = true;
                 pauseBtn.textContent = 'Παύση';
                 
                 timeLeft = 60;
-                minBalloons = 8;
-                targetColorPercentage = 0.6;
+                currentTargetDuration = 10000;
                 timerElement.textContent = timeLeft;
-                minBalloonsElement.textContent = minBalloons;
                 
                 clearBalloons();
                 gameOverScreen.style.display = 'none';
-                commandDisplay.style.display = 'none';
             }
             
             // Τέλος παιχνιδιού
@@ -1274,15 +1214,13 @@
                 gameActive = false;
                 clearInterval(gameTimer);
                 clearInterval(balloonInterval);
-                clearInterval(movementInterval);
-                clearInterval(commandInterval);
+                clearInterval(targetChangeInterval);
                 
                 finalPoppedElement.textContent = totalPopped;
                 finalCorrectElement.textContent = correctPopped;
                 finalWrongElement.textContent = wrongPopped;
                 
                 gameOverScreen.style.display = 'flex';
-                commandDisplay.style.display = 'none';
                 
                 // Καθαρισμός μπαλονιών μετά από 1 δευτερόλεπτο
                 setTimeout(() => {
