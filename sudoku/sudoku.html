@@ -31,6 +31,8 @@
             justify-content: center;
             background: linear-gradient(135deg, #6a89cc, #4a69bd);
             transition: background 0.5s ease;
+            position: relative;
+            overflow: hidden;
         }
         
         .popup-banner {
@@ -91,6 +93,8 @@
             width: 100%;
             max-width: 450px;
             margin-top: 60px;
+            position: relative;
+            z-index: 10;
         }
         
         .app-card {
@@ -470,6 +474,62 @@
             background: #6d4c41;
         }
         
+        /* Ιπτάμενοι αριθμοί */
+        .flying-number {
+            position: fixed;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            z-index: 5;
+            pointer-events: auto;
+            cursor: pointer;
+            text-decoration: none;
+            padding: 2px 5px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+        
+        .flying-number:hover {
+            background: rgba(255, 255, 255, 0.4);
+            color: #ff3838;
+        }
+        
+        @keyframes flyDown {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(calc(100vh + 100px)) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes flyUp {
+            0% {
+                transform: translateY(calc(100vh + 100px)) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
         @media (max-width: 500px) {
             .container {
                 max-width: 380px;
@@ -500,6 +560,10 @@
             .popup-banner p {
                 font-size: 14px;
                 padding-right: 40px;
+            }
+            
+            .flying-number {
+                font-size: 14px;
             }
         }
         
@@ -535,7 +599,7 @@
 <body>
     <!-- Νέο αναδυόμενο μπάνερ -->
     <div class="popup-banner show" id="popupBanner">
-        <p>Βοηθήστε μας να Συνεχίσουμε <a id="helpLink" href="https://otieu.com/4/10000601" target="_blank">Βοήθεια</a></p>
+        <p>Βοηθήστε μας να Συνεχίσουμε <a id="helpLink" href="https://otieu.com/4/10274068" target="_blank">Βοήθεια</a></p>
         <button class="close-btn" id="closeBanner">×</button>
     </div>
     
@@ -944,6 +1008,8 @@
         // Αρχικοποίηση του παιχνιδιού
         let game = new SudokuGame(6, 'easy');
         let confettiElements = [];
+        let flyingNumbers = [];
+        let bannerTimer = null;
 
         // DOM Elements
         const sudokuBoard = document.getElementById('sudoku-board');
@@ -980,6 +1046,12 @@
             startTimer();
             updateUI();
             game.updatePlayerInfo();
+            
+            // Εκκίνηση banner timer
+            startBannerTimer();
+            
+            // Εκκίνηση flying numbers
+            startFlyingNumbers();
         }
 
         // Απόδοση του ταμπλό
@@ -1291,6 +1363,78 @@
             }
         }
 
+        // Banner timer για επαναφορά του banner
+        function startBannerTimer() {
+            // Καθαρισμός υπάρχοντος timer
+            if (bannerTimer) {
+                clearInterval(bannerTimer);
+            }
+            
+            // Ρύθμιση timer για επαναφορά του banner κάθε 30 δευτερόλεπτα
+            bannerTimer = setInterval(() => {
+                // Εμφάνιση του banner αν είναι κρυμμένο
+                if (!popupBanner.classList.contains('show')) {
+                    popupBanner.classList.add('show');
+                }
+            }, 30000); // 30 δευτερόλεπτα
+        }
+
+        // Δημιουργία ιπτάμενων αριθμών
+        function startFlyingNumbers() {
+            // Καθαρισμός υπαρχόντων flying numbers
+            flyingNumbers.forEach(el => {
+                if (el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            });
+            flyingNumbers = [];
+            
+            // Δημιουργία 15 flying numbers
+            for (let i = 0; i < 15; i++) {
+                createFlyingNumber();
+            }
+            
+            // Προσθήκη νέων flying numbers κάθε 2-5 δευτερόλεπτα
+            setInterval(() => {
+                if (flyingNumbers.length < 20) {
+                    createFlyingNumber();
+                }
+            }, Math.random() * 3000 + 2000);
+        }
+
+        function createFlyingNumber() {
+            const flyingNumber = document.createElement('a');
+            flyingNumber.className = 'flying-number';
+            flyingNumber.href = 'https://otieu.com/4/10274068';
+            flyingNumber.target = '_blank';
+            flyingNumber.textContent = Math.floor(Math.random() * 100) + 1;
+            
+            // Τυχαία θέση
+            const left = Math.random() * 90 + 5; // 5% έως 95%
+            flyingNumber.style.left = `${left}%`;
+            
+            // Τυχαίο animation (πάνω προς τα κάτω ή κάτω προς τα πάνω)
+            const animationType = Math.random() > 0.5 ? 'flyDown' : 'flyUp';
+            const duration = Math.random() * 10 + 10; // 10-20 δευτερόλεπτα
+            const delay = Math.random() * 5; // 0-5 δευτερόλεπτα delay
+            
+            flyingNumber.style.animation = `${animationType} ${duration}s linear ${delay}s forwards`;
+            
+            document.body.appendChild(flyingNumber);
+            flyingNumbers.push(flyingNumber);
+            
+            // Αφαίρεση μετά το τέλος του animation
+            setTimeout(() => {
+                if (flyingNumber.parentNode) {
+                    flyingNumber.parentNode.removeChild(flyingNumber);
+                    const index = flyingNumbers.indexOf(flyingNumber);
+                    if (index > -1) {
+                        flyingNumbers.splice(index, 1);
+                    }
+                }
+            }, (duration + delay) * 1000);
+        }
+
         // Αναπαραγωγή ήχου
         function playSound(type) {
             const sound = document.getElementById(`${type}-sound`);
@@ -1404,7 +1548,7 @@
         
         helpLink.addEventListener('click', (e) => {
             e.preventDefault();
-            window.open('https://otieu.com/4/10000601', '_blank');
+            window.open('https://otieu.com/4/10274068', '_blank');
         });
 
         // Αρχικοποίηση
