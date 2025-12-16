@@ -4,8 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connect Four</title>
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="connect4.png">
+    
+    <!-- Apple Touch Icons (Για Safari iOS) -->
+    <link rel="apple-touch-icon" sizes="57x57" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="connect4.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="connect4.png">
+    
+    <!-- Standard Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="connect4.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="connect4.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="connect4.png">
+    
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileImage" content="connect4.png">
+    <meta name="msapplication-TileColor" content="#1e3c72">
+    
+    <!-- PWA Configuration -->
+    <meta name="theme-color" content="#1e3c72">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Connect Four">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Connect Four">
+    
     <style>
         * {
             box-sizing: border-box;
@@ -393,7 +421,6 @@
             transform: rotate(90deg);
         }
 
-        /* Game Container */
         .game-container {
             text-align: center;
             background: white;
@@ -983,6 +1010,39 @@
             color: #e74c3c;
             font-weight: bold;
         }
+
+        /* Install Prompt */
+        .install-prompt {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, #6A11CB 0%, #2575FC 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            z-index: 2001;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border: 2px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            max-width: 90%;
+        }
+
+        .install-prompt.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .install-prompt.hide {
+            transform: translateX(-50%) translateY(-100px);
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
@@ -1093,7 +1153,8 @@
                 this.moveCount = 0;
                 this.birdTimer = null;
                 this.birds = [];
-                this.maxBirds = 3; // Μέγιστος αριθμός πουλιών ταυτόχρονα
+                this.maxBirds = 3;
+                this.deferredPrompt = null;
                 
                 this.translations = {
                     el: {
@@ -1121,7 +1182,14 @@
                         difficultyExpert: 'Expert',
                         bannerText: 'Υποστηρίξτε την ανάπτυξη του παιχνιδιού!',
                         supportLink: 'Υποστήριξη',
-                        adsText: 'ads'
+                        adsText: 'ads',
+                        installPrompt: '📱 Προσθήκη στην Αρχική Οθόνη',
+                        installButton: 'Προσθήκη',
+                        iosInstallTitle: '📱 Προσθήκη στην Αρχική Οθόνη',
+                        iosStep1: 'Πατήστε το εικονίδιο ⎋ (Share)',
+                        iosStep2: 'Επιλέξτε "Προσθήκη στην Αρχική Οθόνη"',
+                        iosStep3: 'Πατήστε "Προσθήκη"',
+                        close: 'Κλείσιμο'
                     },
                     en: {
                         player1: 'Player 1',
@@ -1148,7 +1216,14 @@
                         difficultyExpert: 'Expert',
                         bannerText: 'Support the development of this game!',
                         supportLink: 'Support',
-                        adsText: 'ads'
+                        adsText: 'ads',
+                        installPrompt: '📱 Add to Home Screen',
+                        installButton: 'Add',
+                        iosInstallTitle: '📱 Add to Home Screen',
+                        iosStep1: 'Tap the ⎋ (Share) icon',
+                        iosStep2: 'Select "Add to Home Screen"',
+                        iosStep3: 'Tap "Add"',
+                        close: 'Close'
                     }
                 };
                 
@@ -1161,6 +1236,7 @@
                 this.setupEventListeners();
                 this.setupBanner();
                 this.setupBirds();
+                this.setupPWA();
                 this.updateGameMode();
                 this.updateUI();
                 this.setLanguage('el');
@@ -1179,15 +1255,11 @@
                 this.restartGame();
                 this.gameInProgress = true;
                 
-                // Εμφάνιση banner υποστήριξης αμέσως όταν ξεκινά το παιχνίδι
                 setTimeout(() => {
                     this.showBanner();
                 }, 1000);
                 
-                // Ξεκίνημα τακτικής εμφάνισης banner
                 this.startBannerInterval();
-                
-                // Ξεκίνημα εμφάνισης πουλιών
                 this.startBirdInterval();
             }
 
@@ -1198,20 +1270,18 @@
                     if (this.gameInProgress && !this.gameOver) {
                         this.showBanner();
                     }
-                }, 20000 + Math.random() * 20000); // Κάθε 20-40 δευτερόλεπτα
+                }, 20000 + Math.random() * 20000);
             }
 
             startBirdInterval() {
                 if (this.birdTimer) clearInterval(this.birdTimer);
                 
-                // Πουλιά εμφανίζονται πιο συχνά - κάθε 8-15 δευτερόλεπτα
                 this.birdTimer = setInterval(() => {
                     if (this.gameInProgress && !this.gameOver && this.birds.length < this.maxBirds) {
                         this.createBird();
                     }
                 }, 8000 + Math.random() * 7000);
                 
-                // Δημιουργία πρώτου πουλιού μετά από 2 δευτερόλεπτα
                 setTimeout(() => {
                     if (this.gameInProgress) {
                         this.createBird();
@@ -1220,10 +1290,8 @@
             }
 
             setupBirds() {
-                // Έλεγχος αν ο χρήστης έχει απενεργοποιήσει τα πουλιά
                 const birdsDisabled = localStorage.getItem('connectFourBirdsDisabled') === 'true';
                 if (!birdsDisabled) {
-                    // Δημιουργία ενός πουλιού στην αρχική οθόνη
                     setTimeout(() => {
                         this.createBird();
                     }, 3000);
@@ -1236,19 +1304,15 @@
                 const bird = document.createElement('div');
                 bird.className = 'floating-bird';
                 
-                // Τυχαίο χρώμα
                 const colors = ['red', 'yellow', 'blue', 'green'];
                 const color = colors[Math.floor(Math.random() * colors.length)];
                 bird.classList.add(color);
                 
-                // Τυχαία καθυστέρηση animation
                 bird.style.animationDelay = Math.random() * 3 + 's';
                 
-                // Τυχαία αρχική και τελική θέση
-                const startPos = Math.random() * 0.8 + 0.1; // 10% - 90% του πλάτους
-                const endPos = Math.random() * 0.8 + 0.1; // 10% - 90% του πλάτους
+                const startPos = Math.random() * 0.8 + 0.1;
+                const endPos = Math.random() * 0.8 + 0.1;
                 
-                // Τυχαία κατεύθυνση (προς τα πάνω ή προς τα κάτω)
                 const directionUp = Math.random() > 0.5;
                 const animationName = directionUp ? 'birdVerticalUp' : 'birdVerticalDown';
                 
@@ -1256,16 +1320,13 @@
                 bird.style.setProperty('--end-pos', endPos);
                 bird.style.animationName = animationName;
                 
-                // Τυχαία διάρκεια
-                const duration = 10 + Math.random() * 10; // 10-20 δευτερόλεπτα
+                const duration = 10 + Math.random() * 10;
                 bird.style.animationDuration = `${duration}s`;
                 
-                // Κείμενο "ads"
                 const birdText = document.createElement('div');
                 birdText.className = 'bird-text';
                 birdText.textContent = this.translations[this.language].adsText;
                 
-                // Κουμπί κλεισίματος
                 const closeBtn = document.createElement('button');
                 closeBtn.className = 'close-bird';
                 closeBtn.innerHTML = '×';
@@ -1274,7 +1335,6 @@
                     this.removeBird(bird);
                 });
                 
-                // Κλικ στο πουλί για άνοιγμα διαφήμισης
                 bird.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1286,7 +1346,6 @@
                 bird.appendChild(closeBtn);
                 document.body.appendChild(bird);
                 
-                // Αφαίρεση πουλιού όταν τελειώσει η animation
                 setTimeout(() => {
                     if (bird.parentNode) {
                         this.removeBird(bird);
@@ -1328,7 +1387,6 @@
                 document.getElementById('languageSelect').value = lang;
                 this.updateUI();
                 
-                // Update banner text if visible
                 const bannerText = document.getElementById('bannerText');
                 const supportLink = document.getElementById('supportLink');
                 if (bannerText && supportLink) {
@@ -1336,7 +1394,6 @@
                     supportLink.textContent = this.translations[lang].supportLink;
                 }
                 
-                // Update ads text in birds
                 document.querySelectorAll('.bird-text').forEach(text => {
                     text.textContent = this.translations[lang].adsText;
                 });
@@ -1413,6 +1470,227 @@
                 });
             }
 
+            setupPWA() {
+                // Create dynamic manifest
+                const manifest = {
+                    "name": "Connect Four",
+                    "short_name": "Connect4",
+                    "description": this.translations[this.language].player2,
+                    "start_url": window.location.href,
+                    "display": "standalone",
+                    "background_color": "#1e3c72",
+                    "theme_color": "#1e3c72",
+                    "orientation": "portrait-primary",
+                    "icons": [
+                        {
+                            "src": "connect4.png",
+                            "sizes": "192x192",
+                            "type": "image/png",
+                            "purpose": "any maskable"
+                        },
+                        {
+                            "src": "connect4.png",
+                            "sizes": "512x512",
+                            "type": "image/png",
+                            "purpose": "any maskable"
+                        }
+                    ]
+                };
+
+                // Create manifest link
+                const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+                const manifestURL = URL.createObjectURL(manifestBlob);
+                
+                const link = document.createElement('link');
+                link.rel = 'manifest';
+                link.href = manifestURL;
+                document.head.appendChild(link);
+                
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(manifestURL);
+                    }, 1000);
+                });
+
+                // Handle install prompt
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.deferredPrompt = e;
+                    
+                    setTimeout(() => {
+                        if (this.deferredPrompt && !localStorage.getItem('installPromptShown')) {
+                            this.showInstallPrompt();
+                        }
+                    }, 5000);
+                });
+
+                // iOS install instructions
+                if (window.navigator.standalone === undefined) {
+                    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                    
+                    if (isSafari && isIOS && !localStorage.getItem('iosInstallPromptShown')) {
+                        setTimeout(() => {
+                            this.showIOSInstallInstructions();
+                        }, 8000);
+                    }
+                }
+            }
+
+            showInstallPrompt() {
+                localStorage.setItem('installPromptShown', 'true');
+                
+                const t = this.translations[this.language];
+                const installPrompt = document.createElement('div');
+                installPrompt.className = 'install-prompt';
+                installPrompt.id = 'installPrompt';
+                
+                installPrompt.innerHTML = `
+                    <div style="font-weight: 600; font-size: 16px;">${t.installPrompt}</div>
+                    <button id="installBtn" style="
+                        background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 20px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        transition: transform 0.3s ease;
+                    ">${t.installButton}</button>
+                    <button id="closeInstall" style="
+                        background: rgba(255,255,255,0.2);
+                        border: none;
+                        color: white;
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 50%;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: background 0.3s ease;
+                    ">×</button>
+                `;
+                
+                document.body.appendChild(installPrompt);
+                
+                setTimeout(() => {
+                    installPrompt.classList.add('show');
+                }, 100);
+                
+                document.getElementById('installBtn').addEventListener('click', async () => {
+                    if (this.deferredPrompt) {
+                        await this.deferredPrompt.prompt();
+                        const { outcome } = await this.deferredPrompt.userChoice;
+                        if (outcome === 'accepted') {
+                            console.log('User accepted the install prompt');
+                        }
+                        this.deferredPrompt = null;
+                        installPrompt.classList.remove('show');
+                        installPrompt.classList.add('hide');
+                        setTimeout(() => {
+                            if (installPrompt.parentNode) {
+                                installPrompt.remove();
+                            }
+                        }, 500);
+                    }
+                });
+                
+                document.getElementById('closeInstall').addEventListener('click', () => {
+                    installPrompt.classList.remove('show');
+                    installPrompt.classList.add('hide');
+                    setTimeout(() => {
+                        if (installPrompt.parentNode) {
+                            installPrompt.remove();
+                        }
+                    }, 500);
+                });
+                
+                setTimeout(() => {
+                    if (installPrompt.parentNode && installPrompt.classList.contains('show')) {
+                        installPrompt.classList.remove('show');
+                        installPrompt.classList.add('hide');
+                        setTimeout(() => {
+                            if (installPrompt.parentNode) {
+                                installPrompt.remove();
+                            }
+                        }, 500);
+                    }
+                }, 10000);
+            }
+
+            showIOSInstallInstructions() {
+                localStorage.setItem('iosInstallPromptShown', 'true');
+                
+                const t = this.translations[this.language];
+                const iosInstall = document.createElement('div');
+                iosInstall.className = 'install-prompt';
+                iosInstall.id = 'iosInstallPrompt';
+                iosInstall.style.maxWidth = '350px';
+                iosInstall.style.textAlign = 'left';
+                
+                iosInstall.innerHTML = `
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; text-align: center;">
+                            ${t.iosInstallTitle}
+                        </div>
+                        <div style="margin-bottom: 15px; font-size: 14px; line-height: 1.5;">
+                            <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 20px; min-width: 24px;">1.</span>
+                                <span>${t.iosStep1}</span>
+                            </div>
+                            <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 20px; min-width: 24px;">2.</span>
+                                <span>${t.iosStep2}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 20px; min-width: 24px;">3.</span>
+                                <span>${t.iosStep3}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="closeIOSInstall" style="
+                        background: rgba(255,255,255,0.2);
+                        border: none;
+                        color: white;
+                        padding: 8px 20px;
+                        border-radius: 20px;
+                        cursor: pointer;
+                        margin-left: 10px;
+                        transition: background 0.3s ease;
+                        white-space: nowrap;
+                    ">${t.close}</button>
+                `;
+                
+                document.body.appendChild(iosInstall);
+                
+                setTimeout(() => {
+                    iosInstall.classList.add('show');
+                }, 100);
+                
+                document.getElementById('closeIOSInstall').addEventListener('click', () => {
+                    iosInstall.classList.remove('show');
+                    iosInstall.classList.add('hide');
+                    setTimeout(() => {
+                        if (iosInstall.parentNode) {
+                            iosInstall.remove();
+                        }
+                    }, 500);
+                });
+                
+                setTimeout(() => {
+                    if (iosInstall.parentNode && iosInstall.classList.contains('show')) {
+                        iosInstall.classList.remove('show');
+                        iosInstall.classList.add('hide');
+                        setTimeout(() => {
+                            if (iosInstall.parentNode) {
+                                iosInstall.remove();
+                            }
+                        }, 500);
+                    }
+                }, 15000);
+            }
+
             setupBanner() {
                 const floatingBanner = document.getElementById('floatingBanner');
                 const closeBanner = document.getElementById('closeBanner');
@@ -1422,7 +1700,6 @@
                     localStorage.setItem('connectFourBannerClosed', 'true');
                     localStorage.setItem('connectFourBannerCloseTime', new Date().getTime().toString());
                     
-                    // Επανεμφάνιση σε 30-60 δευτερόλεπτα
                     setTimeout(() => {
                         if (this.gameInProgress) {
                             localStorage.setItem('connectFourBannerClosed', 'false');
@@ -1445,7 +1722,7 @@
                         if (bannerCloseTime) {
                             const closeTime = parseInt(bannerCloseTime);
                             const currentTime = new Date().getTime();
-                            return (currentTime - closeTime) > 30000; // 30 δευτερόλεπτα
+                            return (currentTime - closeTime) > 30000;
                         }
                         return false;
                     }
@@ -1455,7 +1732,6 @@
                 if (shouldShowBanner()) {
                     floatingBanner.classList.add('show');
                     
-                    // Αυτόματη απόκρυψη μετά από 5 δευτερόλεπτα
                     setTimeout(() => {
                         floatingBanner.classList.remove('show');
                     }, 5000);
@@ -1487,7 +1763,6 @@
                 this.makeMove(row, col, this.currentPlayer);
                 this.moveCount++;
                 
-                // Τυχαία εμφάνιση banner μετά από κινήσεις
                 if (this.moveCount > 2 && Math.random() < 0.15) {
                     this.showBanner();
                 }
@@ -1995,6 +2270,13 @@
                 
                 this.clearAllBirds();
                 
+                // Remove install prompts if they exist
+                const installPrompt = document.getElementById('installPrompt');
+                if (installPrompt) installPrompt.remove();
+                
+                const iosInstallPrompt = document.getElementById('iosInstallPrompt');
+                if (iosInstallPrompt) iosInstallPrompt.remove();
+                
                 document.getElementById('gameContainer').classList.remove('active');
                 document.getElementById('startScreen').classList.remove('hidden');
                 
@@ -2004,230 +2286,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const game = new ConnectFour();
-            
-            // Προσθήκη σε αρχική οθόνη (Add to Home Screen)
-            let deferredPrompt;
-            
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                
-                // Εμφάνιση μηνύματος μετά από 5 δευτερόλεπτα
-                setTimeout(() => {
-                    if (deferredPrompt && !localStorage.getItem('installPromptShown')) {
-                        showInstallPrompt();
-                    }
-                }, 5000);
-            });
-            
-            function showInstallPrompt() {
-                localStorage.setItem('installPromptShown', 'true');
-                
-                const installPrompt = document.createElement('div');
-                installPrompt.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    left: 50%;
-                    transform: translateX(-50%) translateY(-100px);
-                    background: linear-gradient(135deg, #6A11CB 0%, #2575FC 100%);
-                    color: white;
-                    padding: 15px 25px;
-                    border-radius: 25px;
-                    z-index: 2001;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                    border: 2px solid rgba(255,255,255,0.2);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    animation: installSlideIn 0.5s ease-out forwards;
-                    opacity: 0;
-                `;
-                
-                installPrompt.innerHTML = `
-                    <div style="font-weight: 600; font-size: 16px;">📱 Προσθήκη στην Αρχική Οθόνη</div>
-                    <button id="installBtn" style="
-                        background: linear-gradient(135deg, #FF6B6B, #FF8E53);
-                        color: white;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 20px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        transition: transform 0.3s ease;
-                    ">Προσθήκη</button>
-                    <button id="closeInstall" style="
-                        background: rgba(255,255,255,0.2);
-                        border: none;
-                        color: white;
-                        width: 30px;
-                        height: 30px;
-                        border-radius: 50%;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        transition: background 0.3s ease;
-                    ">×</button>
-                `;
-                
-                document.body.appendChild(installPrompt);
-                
-                // Animation για εμφάνιση
-                setTimeout(() => {
-                    installPrompt.style.opacity = '1';
-                    installPrompt.style.transform = 'translateX(-50%) translateY(0)';
-                }, 10);
-                
-                document.getElementById('installBtn').addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        if (outcome === 'accepted') {
-                            console.log('Ο χρήστης αποδέχτηκε την προσθήκη');
-                        }
-                        deferredPrompt = null;
-                        installPrompt.style.animation = 'installSlideOut 0.5s ease-out forwards';
-                        setTimeout(() => installPrompt.remove(), 500);
-                    }
-                });
-                
-                document.getElementById('closeInstall').addEventListener('click', () => {
-                    installPrompt.style.animation = 'installSlideOut 0.5s ease-out forwards';
-                    setTimeout(() => installPrompt.remove(), 500);
-                });
-                
-                setTimeout(() => {
-                    if (installPrompt.parentNode) {
-                        installPrompt.style.animation = 'installSlideOut 0.5s ease-out forwards';
-                        setTimeout(() => {
-                            if (installPrompt.parentNode) {
-                                installPrompt.remove();
-                            }
-                        }, 500);
-                    }
-                }, 10000);
-            }
-            
-            // Για Safari iOS
-            if (window.navigator.standalone === undefined) {
-                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                
-                if (isSafari && isIOS && !localStorage.getItem('iosInstallPromptShown')) {
-                    setTimeout(() => {
-                        showIOSInstallInstructions();
-                    }, 8000);
-                }
-            }
-            
-            function showIOSInstallInstructions() {
-                localStorage.setItem('iosInstallPromptShown', 'true');
-                
-                const iosInstall = document.createElement('div');
-                iosInstall.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    left: 50%;
-                    transform: translateX(-50%) translateY(-100px);
-                    background: linear-gradient(135deg, #6A11CB 0%, #2575FC 100%);
-                    color: white;
-                    padding: 20px;
-                    border-radius: 20px;
-                    z-index: 2001;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                    max-width: 90%;
-                    border: 2px solid rgba(255,255,255,0.2);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    animation: installSlideIn 0.5s ease-out forwards;
-                    opacity: 0;
-                `;
-                
-                iosInstall.innerHTML = `
-                    <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; text-align: center;">
-                        📱 Προσθήκη στην Αρχική Οθόνη
-                    </div>
-                    <div style="margin-bottom: 15px; font-size: 14px; line-height: 1.5;">
-                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 20px;">1.</span>
-                            <span>Πατήστε το εικονίδιο <span style="font-size: 18px;">⎋</span> (Share)</span>
-                        </div>
-                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 20px;">2.</span>
-                            <span>Επιλέξτε "Προσθήκη στην Αρχική Οθόνη"</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 20px;">3.</span>
-                            <span>Πατήστε "Προσθήκη"</span>
-                        </div>
-                    </div>
-                    <button id="closeIOSInstall" style="
-                        background: rgba(255,255,255,0.2);
-                        border: none;
-                        color: white;
-                        padding: 8px 20px;
-                        border-radius: 20px;
-                        cursor: pointer;
-                        display: block;
-                        margin: 0 auto;
-                        transition: background 0.3s ease;
-                    ">Κλείσιμο</button>
-                `;
-                
-                document.body.appendChild(iosInstall);
-                
-                // Animation για εμφάνιση
-                setTimeout(() => {
-                    iosInstall.style.opacity = '1';
-                    iosInstall.style.transform = 'translateX(-50%) translateY(0)';
-                }, 10);
-                
-                document.getElementById('closeIOSInstall').addEventListener('click', () => {
-                    iosInstall.style.animation = 'installSlideOut 0.5s ease-out forwards';
-                    setTimeout(() => iosInstall.remove(), 500);
-                });
-                
-                setTimeout(() => {
-                    if (iosInstall.parentNode) {
-                        iosInstall.style.animation = 'installSlideOut 0.5s ease-out forwards';
-                        setTimeout(() => {
-                            if (iosInstall.parentNode) {
-                                iosInstall.remove();
-                            }
-                        }, 500);
-                    }
-                }, 15000);
-            }
-            
-            // Προσθήκη CSS animations
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes installSlideIn {
-                    from {
-                        transform: translateX(-50%) translateY(-100px);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateX(-50%) translateY(0);
-                        opacity: 1;
-                    }
-                }
-                
-                @keyframes installSlideOut {
-                    from {
-                        transform: translateX(-50%) translateY(0);
-                        opacity: 1;
-                    }
-                    to {
-                        transform: translateX(-50%) translateY(-100px);
-                        opacity: 0;
-                    }
-                }
-            `;
-            document.head.appendChild(style);
+            new ConnectFour();
         });
     </script>
 </body>
