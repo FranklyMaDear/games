@@ -140,6 +140,144 @@
             width: 100%;
         }
 
+        /* Floating Birds for Ads */
+        .floating-bird {
+            position: fixed;
+            z-index: 999;
+            width: 80px;
+            height: 60px;
+            pointer-events: auto;
+            animation: flyBird 20s linear infinite;
+            cursor: pointer;
+            filter: drop-shadow(0 3px 5px rgba(0,0,0,0.3));
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+
+        .floating-bird:hover {
+            opacity: 1;
+            animation-play-state: paused;
+        }
+
+        .floating-bird.red {
+            background: radial-gradient(circle at 30% 40%, #ff6b6b, #c0392b);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50% 50% 45% 45%;
+        }
+
+        .floating-bird.yellow {
+            background: radial-gradient(circle at 30% 40%, #ffd93d, #f39c12);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50% 50% 45% 45%;
+        }
+
+        .bird-body {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+        }
+
+        .bird-body::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 10px;
+            width: 15px;
+            height: 15px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 22px 0 0 white;
+        }
+
+        .bird-body::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            left: 13px;
+            width: 8px;
+            height: 8px;
+            background: #2c3e50;
+            border-radius: 50%;
+            box-shadow: 22px 0 0 #2c3e50;
+        }
+
+        .bird-wings {
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            width: 40px;
+            height: 25px;
+            background: inherit;
+            border-radius: 50%;
+            transform: rotate(20deg);
+            animation: flapWings 0.5s infinite alternate;
+        }
+
+        .bird-ads-text {
+            position: absolute;
+            bottom: -25px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            background: rgba(44, 62, 80, 0.8);
+            padding: 2px 6px;
+            border-radius: 10px;
+            white-space: nowrap;
+            z-index: 1001;
+        }
+
+        .close-bird {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            color: #2c3e50;
+            font-size: 14px;
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1002;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .floating-bird:hover .close-bird {
+            opacity: 1;
+        }
+
+        @keyframes flyBird {
+            0% {
+                transform: translateX(-100px) translateY(calc(100vh * var(--start-y))) rotate(0deg);
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(calc(100vh * var(--end-y))) rotate(5deg);
+            }
+        }
+
+        @keyframes flapWings {
+            0% {
+                transform: rotate(15deg) scaleY(0.9);
+            }
+            100% {
+                transform: rotate(25deg) scaleY(1.1);
+            }
+        }
+
         /* Floating Banner */
         .floating-banner {
             position: fixed;
@@ -700,6 +838,16 @@
                 flex-direction: column;
                 gap: 8px;
             }
+            
+            .floating-bird {
+                width: 60px;
+                height: 45px;
+            }
+            
+            .bird-ads-text {
+                font-size: 10px;
+                bottom: -20px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -737,6 +885,17 @@
             .support-link {
                 padding: 6px 12px;
                 font-size: 11px;
+            }
+            
+            .floating-bird {
+                width: 50px;
+                height: 38px;
+            }
+            
+            .bird-ads-text {
+                font-size: 9px;
+                bottom: -18px;
+                padding: 1px 4px;
             }
         }
 
@@ -811,6 +970,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Floating Birds for Ads -->
+    <!-- Birds will be dynamically added here -->
 
     <!-- Floating Banner -->
     <div class="floating-banner" id="floatingBanner">
@@ -888,10 +1050,14 @@
                 this.scores = {1: 0, 2: 0};
                 this.gameMode = 'ai';
                 this.difficulty = 'hard';
-                this.language = 'el'; // Default language
+                this.language = 'el';
                 this.gameInProgress = false;
                 this.bannerTimer = null;
                 this.moveCount = 0;
+                this.birdTimer = null;
+                this.birds = [];
+                this.birdCount = 0;
+                this.maxBirds = 3; // Μέγιστος αριθμός πουλιών ταυτόχρονα
                 
                 this.translations = {
                     el: {
@@ -918,7 +1084,8 @@
                         difficultyHard: 'Δύσκολη',
                         difficultyExpert: 'Expert',
                         bannerText: 'Υποστηρίξτε την ανάπτυξη του παιχνιδιού!',
-                        supportLink: 'Υποστήριξη'
+                        supportLink: 'Υποστήριξη',
+                        adsText: 'monetag Ads'
                     },
                     en: {
                         player1: 'Player 1',
@@ -944,7 +1111,8 @@
                         difficultyHard: 'Hard',
                         difficultyExpert: 'Expert',
                         bannerText: 'Support the development of this game!',
-                        supportLink: 'Support'
+                        supportLink: 'Support',
+                        adsText: 'monetag Ads'
                     }
                 };
                 
@@ -956,6 +1124,7 @@
                 this.initializeBoard();
                 this.setupEventListeners();
                 this.setupBanner();
+                this.setupBirds();
                 this.updateGameMode();
                 this.updateUI();
                 this.setLanguage('el');
@@ -973,7 +1142,149 @@
                 this.updateGameMode();
                 this.restartGame();
                 this.gameInProgress = true;
+                
+                // Εμφάνιση banner υποστήριξης αμέσως όταν ξεκινά το παιχνίδι
+                setTimeout(() => {
+                    this.showBanner();
+                }, 1000);
+                
+                // Ξεκίνημα τακτικής εμφάνισης banner σε μικρότερα διαστήματα
                 this.startBannerInterval();
+                
+                // Ξεκίνημα εμφάνισης πουλιών
+                this.startBirdInterval();
+            }
+
+            startBannerInterval() {
+                if (this.bannerTimer) clearInterval(this.bannerTimer);
+                
+                // Banner εμφανίζεται κάθε 30-60 δευτερόλεπτα
+                this.bannerTimer = setInterval(() => {
+                    if (this.gameInProgress && !this.gameOver) {
+                        this.showBanner();
+                    }
+                }, 30000 + Math.random() * 30000);
+            }
+
+            startBirdInterval() {
+                if (this.birdTimer) clearInterval(this.birdTimer);
+                
+                // Πουλιά εμφανίζονται κάθε 15-30 δευτερόλεπτα
+                this.birdTimer = setInterval(() => {
+                    if (this.gameInProgress && !this.gameOver && this.birds.length < this.maxBirds) {
+                        this.createBird();
+                    }
+                }, 15000 + Math.random() * 15000);
+                
+                // Δημιουργία πρώτου πουλιού μετά από 5 δευτερόλεπτα
+                setTimeout(() => {
+                    if (this.gameInProgress) {
+                        this.createBird();
+                    }
+                }, 5000);
+            }
+
+            setupBirds() {
+                // Έλεγχος αν ο χρήστης έχει απενεργοποιήσει τα πουλιά
+                const birdsDisabled = localStorage.getItem('connectFourBirdsDisabled') === 'true';
+                if (!birdsDisabled) {
+                    // Δημιουργία ενός πουλιού στην αρχική οθόνη
+                    setTimeout(() => {
+                        this.createBird();
+                    }, 3000);
+                }
+            }
+
+            createBird() {
+                if (this.birds.length >= this.maxBirds) return;
+                
+                const bird = document.createElement('div');
+                bird.className = 'floating-bird';
+                
+                // Τυχαίο χρώμα (κόκκινο ή κίτρινο)
+                const isRed = Math.random() > 0.5;
+                bird.classList.add(isRed ? 'red' : 'yellow');
+                
+                // Τυχαίες θέσεις για την πτήση
+                const startY = Math.random() * 0.8;
+                const endY = Math.random() * 0.8;
+                bird.style.setProperty('--start-y', startY);
+                bird.style.setProperty('--end-y', endY);
+                
+                // Τυχαία καθυστέρηση
+                bird.style.animationDelay = Math.random() * 5 + 's';
+                
+                // Δημιουργία σώματος πουλιού
+                const birdBody = document.createElement('div');
+                birdBody.className = 'bird-body';
+                
+                // Δημιουργία φτερών
+                const birdWings = document.createElement('div');
+                birdWings.className = 'bird-wings';
+                
+                // Κείμενο διαφήμισης
+                const adsText = document.createElement('div');
+                adsText.className = 'bird-ads-text';
+                adsText.textContent = this.translations[this.language].adsText;
+                
+                // Κουμπί κλεισίματος
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'close-bird';
+                closeBtn.innerHTML = '×';
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.removeBird(bird);
+                });
+                
+                // Κλικ στο πουλί για άνοιγμα διαφήμισης
+                bird.addEventListener('click', () => {
+                    window.open('https://www.monetag.com', '_blank');
+                });
+                
+                birdBody.appendChild(birdWings);
+                birdBody.appendChild(adsText);
+                birdBody.appendChild(closeBtn);
+                bird.appendChild(birdBody);
+                
+                document.body.appendChild(bird);
+                
+                // Αφαίρεση πουλιού όταν τελειώσει η animation
+                const duration = 20000; // 20 δευτερόλεπτα
+                setTimeout(() => {
+                    if (bird.parentNode) {
+                        this.removeBird(bird);
+                    }
+                }, duration);
+                
+                this.birds.push(bird);
+                this.birdCount++;
+                
+                return bird;
+            }
+
+            removeBird(bird) {
+                const index = this.birds.indexOf(bird);
+                if (index > -1) {
+                    this.birds.splice(index, 1);
+                }
+                if (bird.parentNode) {
+                    bird.style.opacity = '0';
+                    setTimeout(() => {
+                        if (bird.parentNode) {
+                            bird.parentNode.removeChild(bird);
+                        }
+                    }, 300);
+                }
+            }
+
+            clearAllBirds() {
+                this.birds.forEach(bird => {
+                    if (bird.parentNode) {
+                        bird.parentNode.removeChild(bird);
+                    }
+                });
+                this.birds = [];
+                this.birdCount = 0;
             }
 
             setLanguage(lang) {
@@ -988,16 +1299,19 @@
                     bannerText.textContent = this.translations[lang].bannerText;
                     supportLink.textContent = this.translations[lang].supportLink;
                 }
+                
+                // Update ads text in birds
+                document.querySelectorAll('.bird-ads-text').forEach(text => {
+                    text.textContent = this.translations[lang].adsText;
+                });
             }
 
             updateUI() {
                 const t = this.translations[this.language];
                 
-                // Update labels and text
                 document.querySelector('label[for="gameMode"]').textContent = t.gameType;
                 document.querySelector('label[for="difficulty"]').textContent = t.difficulty;
                 
-                // Update options
                 const gameModeSelect = document.getElementById('gameMode');
                 gameModeSelect.innerHTML = `
                     <option value="ai">${t.gameModeAI}</option>
@@ -1005,7 +1319,6 @@
                 `;
                 gameModeSelect.value = this.gameMode;
                 
-                // Update difficulty options
                 const difficultySelect = document.getElementById('difficulty');
                 difficultySelect.innerHTML = `
                     <option value="easy">${t.difficultyEasy}</option>
@@ -1015,12 +1328,10 @@
                 `;
                 difficultySelect.value = this.difficulty;
                 
-                // Update button texts
                 document.getElementById('restartBtn').textContent = t.restart;
                 document.getElementById('newGameBtn').textContent = t.newGame;
                 document.getElementById('backToMenuBtn').textContent = t.backToMenu;
                 
-                // Update status
                 this.updateStatus();
             }
 
@@ -1045,14 +1356,12 @@
             }
 
             setupEventListeners() {
-                // Start screen
                 document.getElementById('startAI').addEventListener('click', () => this.startGame('ai'));
                 document.getElementById('startPVP').addEventListener('click', () => this.startGame('player'));
                 document.getElementById('languageSelect').addEventListener('change', (e) => {
                     this.setLanguage(e.target.value);
                 });
                 
-                // Game controls
                 document.getElementById('restartBtn').addEventListener('click', () => this.restartGame());
                 document.getElementById('newGameBtn').addEventListener('click', () => this.newGame());
                 document.getElementById('backToMenuBtn').addEventListener('click', () => this.backToMenu());
@@ -1072,28 +1381,16 @@
                 const floatingBanner = document.getElementById('floatingBanner');
                 const closeBanner = document.getElementById('closeBanner');
                 
-                // Show banner with random intervals during gameplay
-                this.startBannerInterval = () => {
-                    if (this.bannerTimer) clearInterval(this.bannerTimer);
-                    
-                    this.bannerTimer = setInterval(() => {
-                        if (this.gameInProgress && !this.gameOver) {
-                            this.showBanner();
-                        }
-                    }, 45000 + Math.random() * 45000); // Random between 45-90 seconds
-                };
-
                 closeBanner.addEventListener('click', () => {
                     floatingBanner.classList.remove('show');
-                    // Show again in 2 minutes
+                    // Επανεμφάνιση σε 20-40 δευτερόλεπτα
                     setTimeout(() => {
                         if (this.gameInProgress) {
                             this.showBanner();
                         }
-                    }, 120000);
+                    }, 20000 + Math.random() * 20000);
                 });
 
-                // Force reflow for Chrome compatibility
                 setTimeout(() => {
                     floatingBanner.style.willChange = 'transform, opacity';
                 }, 100);
@@ -1109,8 +1406,7 @@
                         if (bannerCloseTime) {
                             const closeTime = parseInt(bannerCloseTime);
                             const currentTime = new Date().getTime();
-                            // Don't show if closed less than 2 minutes ago
-                            return (currentTime - closeTime) > 120000;
+                            return (currentTime - closeTime) > 60000; // 1 λεπτό
                         }
                         return false;
                     }
@@ -1120,10 +1416,10 @@
                 if (shouldShowBanner()) {
                     floatingBanner.classList.add('show');
                     
-                    // Auto-hide after 8 seconds
+                    // Αυτόματη απόκρυψη μετά από 5 δευτερόλεπτα
                     setTimeout(() => {
                         floatingBanner.classList.remove('show');
-                    }, 8000);
+                    }, 5000);
                 }
             }
 
@@ -1152,8 +1448,8 @@
                 this.makeMove(row, col, this.currentPlayer);
                 this.moveCount++;
                 
-                // Random chance to show banner after moves
-                if (this.moveCount > 3 && Math.random() < 0.1) {
+                // Τυχαία εμφάνιση banner μετά από κινήσεις
+                if (this.moveCount > 2 && Math.random() < 0.15) {
                     this.showBanner();
                 }
 
@@ -1170,7 +1466,6 @@
                 this.switchPlayer();
                 this.updateStatus();
 
-                // AI move
                 if (this.gameMode === 'ai' && this.currentPlayer === 2 && !this.gameOver) {
                     setTimeout(() => this.aiMove(), 500);
                 }
@@ -1654,17 +1949,21 @@
                     clearInterval(this.bannerTimer);
                     this.bannerTimer = null;
                 }
+                if (this.birdTimer) {
+                    clearInterval(this.birdTimer);
+                    this.birdTimer = null;
+                }
+                
+                this.clearAllBirds();
                 
                 document.getElementById('gameContainer').classList.remove('active');
                 document.getElementById('startScreen').classList.remove('hidden');
                 
-                // Reset banner state
                 const floatingBanner = document.getElementById('floatingBanner');
                 floatingBanner.classList.remove('show');
             }
         }
 
-        // Initialize the game when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             new ConnectFour();
         });
