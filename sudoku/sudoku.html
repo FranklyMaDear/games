@@ -65,6 +65,15 @@
             text-decoration: underline;
             font-weight: bold;
             cursor: pointer;
+            display: inline-block;
+            padding: 2px 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        
+        .popup-banner a:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
         
         .popup-banner .close-btn {
@@ -194,12 +203,16 @@
             display: flex;
             justify-content: center;
             margin: 10px 0 15px;
+            position: relative;
+            z-index: 15;
         }
         
         #sudoku-board {
             display: grid;
             border: 2px solid #3e2723;
             background: white;
+            position: relative;
+            z-index: 20;
         }
         
         .cell {
@@ -213,6 +226,7 @@
             font-size: 18px;
             cursor: pointer;
             transition: background-color 0.2s;
+            z-index: 25;
         }
         
         .prefilled {
@@ -474,8 +488,8 @@
             background: #6d4c41;
         }
         
-        /* Ιπτάμενοι αριθμοί */
-        .flying-number {
+        /* Ιπτάμενοι αριθμοί και ads */
+        .flying-ad {
             position: fixed;
             font-size: 16px;
             font-weight: bold;
@@ -485,20 +499,24 @@
             pointer-events: auto;
             cursor: pointer;
             text-decoration: none;
-            padding: 2px 5px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
+            padding: 4px 8px;
+            background: linear-gradient(45deg, #ff6b6b, #ffa726);
+            border-radius: 20px;
             white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            transition: all 0.3s;
         }
         
-        .flying-number:hover {
-            background: rgba(255, 255, 255, 0.4);
-            color: #ff3838;
+        .flying-ad:hover {
+            background: linear-gradient(45deg, #ff3838, #ff9800);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
         
         @keyframes flyDown {
             0% {
-                transform: translateY(-100px) rotate(0deg);
+                transform: translateY(-100px) rotate(0deg) scale(0.8);
                 opacity: 0;
             }
             10% {
@@ -508,14 +526,14 @@
                 opacity: 1;
             }
             100% {
-                transform: translateY(calc(100vh + 100px)) rotate(360deg);
+                transform: translateY(calc(100vh + 100px)) rotate(360deg) scale(0.8);
                 opacity: 0;
             }
         }
         
         @keyframes flyUp {
             0% {
-                transform: translateY(calc(100vh + 100px)) rotate(0deg);
+                transform: translateY(calc(100vh + 100px)) rotate(0deg) scale(0.8);
                 opacity: 0;
             }
             10% {
@@ -525,7 +543,41 @@
                 opacity: 1;
             }
             100% {
-                transform: translateY(-100px) rotate(360deg);
+                transform: translateY(-100px) rotate(360deg) scale(0.8);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes flyAcross {
+            0% {
+                transform: translateX(-100px) translateY(0) rotate(0deg) scale(0.8);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(0) rotate(360deg) scale(0.8);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes flyDiagonal {
+            0% {
+                transform: translateX(-100px) translateY(-100px) rotate(0deg) scale(0.8);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(calc(100vh + 100px)) rotate(360deg) scale(0.8);
                 opacity: 0;
             }
         }
@@ -562,8 +614,9 @@
                 padding-right: 40px;
             }
             
-            .flying-number {
+            .flying-ad {
                 font-size: 14px;
+                padding: 3px 6px;
             }
         }
         
@@ -597,9 +650,9 @@
     </style>
 </head>
 <body>
-    <!-- Νέο αναδυόμενο μπάνερ -->
-    <div class="popup-banner show" id="popupBanner">
-        <p>Βοηθήστε μας να Συνεχίσουμε <a id="helpLink" href="https://otieu.com/4/10274068" target="_blank">Βοήθεια</a></p>
+    <!-- Αναδυόμενο μπάνερ -->
+    <div class="popup-banner" id="popupBanner">
+        <p>Στηρίξτε μας για την προσπάθειά μας <a id="helpLink" href="https://otieu.com/4/10274068" target="_blank">βλέποντας μια διαφήμιση</a></p>
         <button class="close-btn" id="closeBanner">×</button>
     </div>
     
@@ -1008,7 +1061,7 @@
         // Αρχικοποίηση του παιχνιδιού
         let game = new SudokuGame(6, 'easy');
         let confettiElements = [];
-        let flyingNumbers = [];
+        let flyingAds = [];
         let bannerTimer = null;
 
         // DOM Elements
@@ -1047,11 +1100,16 @@
             updateUI();
             game.updatePlayerInfo();
             
-            // Εκκίνηση banner timer
+            // Εκκίνηση banner timer (ανά 1 λεπτό)
             startBannerTimer();
             
-            // Εκκίνηση flying numbers
-            startFlyingNumbers();
+            // Εκκίνηση flying ads
+            startFlyingAds();
+            
+            // Εμφάνιση banner μετά από 10 δευτερόλεπτα από την αρχή
+            setTimeout(() => {
+                showBanner();
+            }, 10000);
         }
 
         // Απόδοση του ταμπλό
@@ -1363,73 +1421,100 @@
             }
         }
 
-        // Banner timer για επαναφορά του banner
+        // Banner timer για επαναφορά του banner ανά 1 λεπτό
         function startBannerTimer() {
             // Καθαρισμός υπάρχοντος timer
             if (bannerTimer) {
                 clearInterval(bannerTimer);
             }
             
-            // Ρύθμιση timer για επαναφορά του banner κάθε 30 δευτερόλεπτα
+            // Ρύθμιση timer για επαναφορά του banner κάθε 1 λεπτό (60 δευτερόλεπτα)
             bannerTimer = setInterval(() => {
-                // Εμφάνιση του banner αν είναι κρυμμένο
-                if (!popupBanner.classList.contains('show')) {
-                    popupBanner.classList.add('show');
-                }
-            }, 30000); // 30 δευτερόλεπτα
+                showBanner();
+            }, 60000); // 60 δευτερόλεπτα = 1 λεπτό
         }
 
-        // Δημιουργία ιπτάμενων αριθμών
-        function startFlyingNumbers() {
-            // Καθαρισμός υπαρχόντων flying numbers
-            flyingNumbers.forEach(el => {
+        // Εμφάνιση banner
+        function showBanner() {
+            // Εμφάνιση του banner με animation
+            popupBanner.classList.add('show');
+            
+            // Αυτόματο κλείσιμο μετά από 15 δευτερόλεπτα
+            setTimeout(() => {
+                popupBanner.classList.remove('show');
+            }, 15000); // 15 δευτερόλεπτα
+        }
+
+        // Δημιουργία ιπτάμενων ads
+        function startFlyingAds() {
+            // Καθαρισμός υπαρχόντων flying ads
+            flyingAds.forEach(el => {
                 if (el.parentNode) {
                     el.parentNode.removeChild(el);
                 }
             });
-            flyingNumbers = [];
+            flyingAds = [];
             
-            // Δημιουργία 15 flying numbers
-            for (let i = 0; i < 15; i++) {
-                createFlyingNumber();
+            // Δημιουργία 10 flying ads αρχικά
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    createFlyingAd();
+                }, i * 1000); // Διαδοχική εμφάνιση
             }
             
-            // Προσθήκη νέων flying numbers κάθε 2-5 δευτερόλεπτα
+            // Προσθήκη νέων flying ads κάθε 3-8 δευτερόλεπτα
             setInterval(() => {
-                if (flyingNumbers.length < 20) {
-                    createFlyingNumber();
+                if (flyingAds.length < 15) {
+                    createFlyingAd();
                 }
-            }, Math.random() * 3000 + 2000);
+            }, Math.random() * 5000 + 3000);
         }
 
-        function createFlyingNumber() {
-            const flyingNumber = document.createElement('a');
-            flyingNumber.className = 'flying-number';
-            flyingNumber.href = 'https://otieu.com/4/10274068';
-            flyingNumber.target = '_blank';
-            flyingNumber.textContent = Math.floor(Math.random() * 100) + 1;
+        function createFlyingAd() {
+            const flyingAd = document.createElement('a');
+            flyingAd.className = 'flying-ad';
+            flyingAd.href = 'https://otieu.com/4/10274068';
+            flyingAd.target = '_blank';
+            
+            // Τυχαία επιλογή κειμένου (αριθμός ή ads)
+            const texts = [
+                Math.floor(Math.random() * 100) + 1,
+                Math.floor(Math.random() * 1000) + 100,
+                "ads",
+                "ADS",
+                "Ad",
+                "AD",
+                "Διαφήμιση",
+                "Κλικ εδώ",
+                "Click"
+            ];
+            
+            flyingAd.textContent = texts[Math.floor(Math.random() * texts.length)];
             
             // Τυχαία θέση
-            const left = Math.random() * 90 + 5; // 5% έως 95%
-            flyingNumber.style.left = `${left}%`;
+            const left = Math.random() * 85 + 7.5; // 7.5% έως 92.5%
+            const top = Math.random() * 85 + 7.5; // 7.5% έως 92.5%
+            flyingAd.style.left = `${left}%`;
+            flyingAd.style.top = `${top}%`;
             
-            // Τυχαίο animation (πάνω προς τα κάτω ή κάτω προς τα πάνω)
-            const animationType = Math.random() > 0.5 ? 'flyDown' : 'flyUp';
-            const duration = Math.random() * 10 + 10; // 10-20 δευτερόλεπτα
-            const delay = Math.random() * 5; // 0-5 δευτερόλεπτα delay
+            // Τυχαίο animation
+            const animations = ['flyDown', 'flyUp', 'flyAcross', 'flyDiagonal'];
+            const animationType = animations[Math.floor(Math.random() * animations.length)];
+            const duration = Math.random() * 15 + 10; // 10-25 δευτερόλεπτα
+            const delay = Math.random() * 2; // 0-2 δευτερόλεπτα delay
             
-            flyingNumber.style.animation = `${animationType} ${duration}s linear ${delay}s forwards`;
+            flyingAd.style.animation = `${animationType} ${duration}s linear ${delay}s forwards`;
             
-            document.body.appendChild(flyingNumber);
-            flyingNumbers.push(flyingNumber);
+            document.body.appendChild(flyingAd);
+            flyingAds.push(flyingAd);
             
             // Αφαίρεση μετά το τέλος του animation
             setTimeout(() => {
-                if (flyingNumber.parentNode) {
-                    flyingNumber.parentNode.removeChild(flyingNumber);
-                    const index = flyingNumbers.indexOf(flyingNumber);
+                if (flyingAd.parentNode) {
+                    flyingAd.parentNode.removeChild(flyingAd);
+                    const index = flyingAds.indexOf(flyingAd);
                     if (index > -1) {
-                        flyingNumbers.splice(index, 1);
+                        flyingAds.splice(index, 1);
                     }
                 }
             }, (duration + delay) * 1000);
