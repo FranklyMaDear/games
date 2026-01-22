@@ -68,6 +68,7 @@
         .top-banner-ad ins {
             width: 100%;
             height: 100%;
+            display: block;
         }
 
         @media (max-width: 768px) {
@@ -389,7 +390,7 @@
             width: 100%;
         }
 
-        /* Full Screen Ad Overlay - Απλούστερη έκδοση */
+        /* Full Screen Ad Overlay */
         .fullscreen-ad-overlay {
             position: fixed;
             top: 0;
@@ -402,10 +403,11 @@
             justify-content: center;
             align-items: center;
             flex-direction: column;
+            padding: 20px;
         }
 
         .fullscreen-ad-container {
-            width: 90%;
+            width: 100%;
             max-width: 728px;
             height: 90vh;
             max-height: 600px;
@@ -413,6 +415,9 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
         }
 
         .ad-close-btn {
@@ -460,7 +465,6 @@
             margin-bottom: 20px;
             text-align: center;
             font-weight: bold;
-            background: rgba(0,0,0,0.7);
             padding: 15px;
             border-radius: 10px;
         }
@@ -468,12 +472,19 @@
         .ad-wrapper {
             width: 100%;
             height: 400px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
             overflow: hidden;
+        }
+
+        .ad-placeholder {
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -482,11 +493,15 @@
     <div class="fullscreen-ad-overlay" id="fullscreenAd">
         <button class="ad-close-btn" id="adCloseBtn">×</button>
         <div class="fullscreen-ad-container">
-            <div class="ad-message">Υποστήριξε το Σκάκι Deluxe Pro</div>
+            <div class="ad-message">Υποστήριξε το Σκάκι Deluxe Pro - Διαφήμιση</div>
             <div class="ad-wrapper" id="adWrapper">
+                <div class="ad-placeholder" id="adPlaceholder">
+                    Διαφήμιση φορτώνει...<br>
+                    Αν δεν εμφανιστεί σε 10 δευτερόλεπτα, πατήστε "Παράλειψη"
+                </div>
                 <!-- Το ad θα προστεθεί εδώ -->
             </div>
-            <button class="ad-skip-btn" id="adSkipBtn">Παράλειψη (10)</button>
+            <button class="ad-skip-btn" id="adSkipBtn">Παράλειψη διαφήμισης</button>
         </div>
     </div>
 
@@ -498,7 +513,7 @@
                  style="display:block"
                  data-ad-client="ca-pub-3186700611266549"
                  data-ad-slot="9660744817"
-                 data-ad-format="horizontal"
+                 data-ad-format="auto"
                  data-full-width-responsive="true"></ins>
         </div>
 
@@ -568,6 +583,7 @@
         const adCloseBtn = document.getElementById("adCloseBtn");
         const adSkipBtn = document.getElementById("adSkipBtn");
         const adWrapper = document.getElementById("adWrapper");
+        const adPlaceholder = document.getElementById("adPlaceholder");
         
         let board = [];
         let whiteToMove = true;
@@ -580,10 +596,6 @@
         let aiDepth = 4;
         let kingInCheck = false;
         let promotionPending = null;
-        
-        // Ad Variables
-        let adTimerInterval;
-        let secondsRemaining = 10;
         
         const START = [
             ['r','n','b','q','k','b','n','r'],
@@ -610,8 +622,10 @@
         function initializeAds() {
             try {
                 // Initialize top banner ad
-                (adsbygoogle = window.adsbygoogle || []).push({});
-                console.log("Top banner ad initialized");
+                if (typeof adsbygoogle !== 'undefined') {
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                    console.log("Top banner ad initialized");
+                }
             } catch (e) {
                 console.log("Ad initialization error:", e);
             }
@@ -619,86 +633,53 @@
         
         // Show fullscreen ad
         function showFullscreenAd() {
-            console.log("Showing fullscreen ad");
-            
-            // Reset timer
-            secondsRemaining = 10;
-            adSkipBtn.textContent = `Παράλειψη (${secondsRemaining})`;
-            adSkipBtn.disabled = true;
+            console.log("Attempting to show fullscreen ad");
             
             // Clear previous ad
             adWrapper.innerHTML = '';
-            
-            // Create new ad element
-            const adElement = document.createElement('ins');
-            adElement.className = 'adsbygoogle';
-            adElement.style.display = 'block';
-            adElement.dataset.adClient = 'ca-pub-3186700611266549';
-            adElement.dataset.adSlot = '9660744817';
-            adElement.dataset.adFormat = 'autorelaxed';
-            adElement.dataset.fullWidthResponsive = 'true';
-            adElement.style.width = '100%';
-            adElement.style.height = '100%';
-            
-            adWrapper.appendChild(adElement);
+            adPlaceholder.style.display = 'block';
             
             // Show overlay
             fullscreenAd.style.display = 'flex';
             
-            // Initialize the ad with a small delay
+            // Create new ad element with different format
+            const adElement = document.createElement('ins');
+            adElement.className = 'adsbygoogle';
+            adElement.style.display = 'block';
+            adElement.dataset.adClient = 'ca-pub-3186700611266549';
+            // Trying different ad slot
+            adElement.dataset.adSlot = '5407828554'; // Using the new slot you provided
+            adElement.dataset.adFormat = 'auto';
+            adElement.dataset.fullWidthResponsive = 'true';
+            
+            adWrapper.appendChild(adElement);
+            
+            // Initialize the ad with a delay
             setTimeout(() => {
                 try {
-                    (adsbygoogle = window.adsbygoogle || []).push({});
-                    console.log("Fullscreen ad pushed");
-                    
-                    // Start timer
-                    startAdTimer();
-                    
+                    if (typeof adsbygoogle !== 'undefined') {
+                        (adsbygoogle = window.adsbygoogle || []).push({});
+                        console.log("Fullscreen ad pushed to queue");
+                        
+                        // Hide placeholder after a moment
+                        setTimeout(() => {
+                            adPlaceholder.style.display = 'none';
+                        }, 2000);
+                    }
                 } catch (e) {
                     console.log("Fullscreen ad error:", e);
-                    // If ad fails, allow immediate skip
-                    adSkipBtn.disabled = false;
-                    adSkipBtn.textContent = "Παράλειψη";
+                    adPlaceholder.innerHTML = "Δεν βρέθηκαν διαθέσιμες διαφημίσεις<br>Πατήστε 'Παράλειψη' για να συνεχίσετε";
                 }
-            }, 100);
-        }
-        
-        function startAdTimer() {
-            clearInterval(adTimerInterval);
-            
-            adTimerInterval = setInterval(() => {
-                secondsRemaining--;
-                adSkipBtn.textContent = `Παράλειψη (${secondsRemaining})`;
-                
-                if (secondsRemaining <= 0) {
-                    clearInterval(adTimerInterval);
-                    adSkipBtn.disabled = false;
-                    adSkipBtn.textContent = "Παράλειψη";
-                }
-            }, 1000);
-        }
-        
-        function closeFullscreenAd() {
-            if (secondsRemaining > 0) {
-                return; // Don't close if timer is still running
-            }
-            
-            clearInterval(adTimerInterval);
-            fullscreenAd.style.display = 'none';
-            adWrapper.innerHTML = '';
+            }, 500);
         }
         
         // Event listeners for ad controls
         adCloseBtn.addEventListener('click', () => {
-            if (secondsRemaining <= 0) {
-                closeFullscreenAd();
-            }
+            fullscreenAd.style.display = 'none';
         });
         
         adSkipBtn.addEventListener('click', () => {
-            if (!adSkipBtn.disabled) {
-                closeFullscreenAd();
-            }
+            fullscreenAd.style.display = 'none';
         });
         
         // Ηχητικά εφέ
@@ -1280,7 +1261,9 @@
         // Αρχικοποίηση
         window.addEventListener('DOMContentLoaded', () => {
             // Initialize ads
-            initializeAds();
+            setTimeout(() => {
+                initializeAds();
+            }, 1000);
             
             // Εμφάνιση modal επιλογής τρόπου παιχνιδιού στην αρχή
             gameModeModal.style.display = 'flex';
