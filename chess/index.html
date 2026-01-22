@@ -12,6 +12,11 @@
     <link rel="mask-icon" href="safari-pinned-tab.svg" color="#5bbad5">
     <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#1e3c72">
+    
+    <!-- Google Ads Script -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549"
+     crossorigin="anonymous"></script>
+    
     <style>
         :root {
             --board-size: min(95vw, 95vh, 800px);
@@ -44,6 +49,32 @@
             width: 100%;
             max-width: 1400px;
             gap: 20px;
+        }
+
+        /* Top Banner Ad */
+        .top-banner-ad {
+            width: 100%;
+            max-width: 728px;
+            height: 90px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .top-banner-ad ins {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .top-banner-ad {
+                height: 100px;
+                max-width: 320px;
+            }
         }
 
         .board-container {
@@ -357,10 +388,140 @@
             align-items: center;
             width: 100%;
         }
+
+        /* Full Screen Ad Overlay */
+        .fullscreen-ad-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .fullscreen-ad-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .fullscreen-ad-container ins {
+            width: 90%;
+            max-width: 728px;
+            height: 90vh;
+            max-height: 600px;
+        }
+
+        .ad-close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ad-close-btn:hover {
+            background: #ff6666;
+        }
+
+        .ad-skip-btn {
+            margin-top: 20px;
+            background: #d19a4c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .ad-skip-btn:hover {
+            background: #e0ad61;
+        }
+
+        .ad-timer {
+            color: white;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .ad-title {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* Loading Spinner for Ads */
+        .ad-loading {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <!-- Full Screen Ad Overlay -->
+    <div class="fullscreen-ad-overlay" id="fullscreenAd">
+        <button class="ad-close-btn" id="adCloseBtn">×</button>
+        <div class="fullscreen-ad-container">
+            <div class="ad-title">Υποστήριξε το Σκάκι Deluxe Pro</div>
+            <div class="spinner"></div>
+            <div class="ad-loading">Φόρτωση διαφήμισης...</div>
+            <!-- Ad will be inserted here -->
+            <div class="ad-slot" id="fullscreenAdSlot"></div>
+            <div class="ad-timer" id="adTimer">Μπορείς να κλείσεις σε <span id="timerCount">10</span> δευτερόλεπτα</div>
+            <button class="ad-skip-btn" id="adSkipBtn" style="display: none;">Παράλειψη διαφήμισης</button>
+        </div>
+    </div>
+
     <div class="container">
+        <!-- Top Banner Ad -->
+        <div class="top-banner-ad">
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-3186700611266549"
+                 data-ad-slot="9660744817"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+        </div>
+
         <!-- Κεντρική σκακιέρα -->
         <div class="board-wrapper">
             <div class="board-container">
@@ -422,6 +583,14 @@
         const winnerTextEl = document.getElementById("winnerText");
         const celebrationEl = document.getElementById("celebration");
         
+        // Ad Variables
+        const fullscreenAd = document.getElementById("fullscreenAd");
+        const adCloseBtn = document.getElementById("adCloseBtn");
+        const adSkipBtn = document.getElementById("adSkipBtn");
+        const adTimer = document.getElementById("adTimer");
+        const timerCount = document.getElementById("timerCount");
+        const fullscreenAdSlot = document.getElementById("fullscreenAdSlot");
+        
         let board = [];
         let whiteToMove = true;
         let selected = null;
@@ -433,6 +602,12 @@
         let aiDepth = 4;
         let kingInCheck = false;
         let promotionPending = null;
+        
+        // Ad Variables
+        let adTimerInterval;
+        let canCloseAd = false;
+        const AD_SHOW_TIMER = 10; // 10 seconds before showing skip button
+        const AD_MIN_DISPLAY_TIME = 3; // Minimum 3 seconds display
         
         const START = [
             ['r','n','b','q','k','b','n','r'],
@@ -454,6 +629,87 @@
             'q': 90,
             'k': 900
         };
+        
+        // Initialize Google Ads
+        function initializeAds() {
+            // Initialize top banner ad
+            try {
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            } catch (e) {
+                console.log("Ad initialization error:", e);
+            }
+        }
+        
+        // Show fullscreen ad
+        function showFullscreenAd() {
+            // Reset ad state
+            canCloseAd = false;
+            timerCount.textContent = AD_SHOW_TIMER;
+            adSkipBtn.style.display = 'none';
+            adTimer.style.display = 'block';
+            
+            // Show overlay
+            fullscreenAd.style.display = 'flex';
+            
+            // Create new ad slot for fullscreen
+            fullscreenAdSlot.innerHTML = '';
+            const newAdSlot = document.createElement('ins');
+            newAdSlot.className = 'adsbygoogle';
+            newAdSlot.style.display = 'block';
+            newAdSlot.dataset.adClient = 'ca-pub-3186700611266549';
+            newAdSlot.dataset.adSlot = '9660744817';
+            newAdSlot.dataset.adFormat = 'autorelaxed';
+            newAdSlot.dataset.fullWidthResponsive = 'true';
+            
+            fullscreenAdSlot.appendChild(newAdSlot);
+            
+            // Initialize the new ad
+            try {
+                (adsbygoogle = window.adsbygoogle || []).push({});
+                
+                // Start timer
+                startAdTimer();
+                
+            } catch (e) {
+                console.log("Fullscreen ad error:", e);
+                // If ad fails, allow immediate close
+                canCloseAd = true;
+                adSkipBtn.style.display = 'block';
+                adTimer.style.display = 'none';
+            }
+        }
+        
+        function startAdTimer() {
+            let secondsRemaining = AD_SHOW_TIMER;
+            
+            adTimerInterval = setInterval(() => {
+                secondsRemaining--;
+                timerCount.textContent = secondsRemaining;
+                
+                if (secondsRemaining <= 0) {
+                    clearInterval(adTimerInterval);
+                    canCloseAd = true;
+                    adSkipBtn.style.display = 'block';
+                    adTimer.style.display = 'none';
+                }
+            }, 1000);
+        }
+        
+        function closeFullscreenAd() {
+            if (!canCloseAd) return;
+            
+            clearInterval(adTimerInterval);
+            fullscreenAd.style.display = 'none';
+        }
+        
+        // Event listeners for ad controls
+        adCloseBtn.addEventListener('click', () => {
+            closeFullscreenAd();
+        });
+        
+        adSkipBtn.addEventListener('click', () => {
+            closeFullscreenAd();
+        });
         
         // Ηχητικά εφέ
         function playSound(soundType) {
@@ -720,12 +976,23 @@
                     setTimeout(() => {
                         playSound('victory');
                         showVictoryMessage(currentColor === 'w' ? "Μαύρα" : "Λευκά");
+                        
+                        // Show ad after game ends (with delay)
+                        setTimeout(() => {
+                            showFullscreenAd();
+                        }, 2000);
+                        
                     }, 500);
                     
                     gameInfoEl.innerHTML = `<span class="status-mate">${currentColor === 'w' ? "Ματ! Νικάν τα Μαύρα" : "Ματ! Νικάν τα Λευκά"}</span>`;
                 } else {
                     // Πατ
                     gameInfoEl.textContent = "Πατ! Ισοπαλία";
+                    
+                    // Show ad after draw
+                    setTimeout(() => {
+                        showFullscreenAd();
+                    }, 2000);
                 }
             } else if (kingInCheck && !wasInCheck) {
                 // Σαχ (μόνο όταν γίνεται για πρώτη φορά)
@@ -1022,6 +1289,12 @@
         document.getElementById("twoPlayersBtn").addEventListener("click", () => {
             vsAI = false;
             gameModeModal.style.display = 'none';
+            
+            // Show ad after selecting game mode
+            setTimeout(() => {
+                showFullscreenAd();
+            }, 500);
+            
             init();
         });
         
@@ -1046,6 +1319,12 @@
                 vsAI = true;
                 gameModeModal.style.display = 'none';
                 document.getElementById("difficultySelector").style.display = 'none';
+                
+                // Show ad after selecting game mode
+                setTimeout(() => {
+                    showFullscreenAd();
+                }, 500);
+                
                 init();
             });
         });
@@ -1083,6 +1362,9 @@
         
         // Αρχικοποίηση παιχνιδιού - εμφάνιση επιλογής τρόπου αμέσως
         window.addEventListener('DOMContentLoaded', () => {
+            // Initialize ads
+            initializeAds();
+            
             // Εμφάνιση modal επιλογής τρόπου παιχνιδιού στην αρχή
             gameModeModal.style.display = 'flex';
             
