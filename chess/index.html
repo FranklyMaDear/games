@@ -166,7 +166,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.7);
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 100;
@@ -203,6 +203,17 @@
             background: #8b4513;
         }
         
+        .start-btn {
+            background: #4CAF50;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        
+        .start-btn:hover {
+            background: #45a049;
+        }
+        
         .thinking {
             position: absolute;
             top: 50%;
@@ -229,6 +240,14 @@
         }
         
         .difficulty-btn.active {
+            background: #d19a4c;
+        }
+        
+        .game-mode-btn {
+            background: #2a5298;
+        }
+        
+        .game-mode-btn.active {
             background: #d19a4c;
         }
         
@@ -305,7 +324,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.7);
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 100;
@@ -350,9 +369,11 @@
             width: 100%;
         }
         
-        /* Welcome modal styling */
-        .welcome-modal {
-            display: flex !important;
+        .selected-info {
+            color: #ffcb2e;
+            font-weight: bold;
+            margin: 5px 0;
+            min-height: 20px;
         }
     </style>
 </head>
@@ -376,44 +397,28 @@
     <div class="thinking" id="thinkingIndicator">Το AI σκέφτεται...</div>
     
     <!-- Welcome Modal - Εμφανίζεται μόνο στην αρχή -->
-    <div class="modal welcome-modal" id="welcomeModal">
+    <div class="modal" id="welcomeModal">
         <div class="modal-content">
             <h2>Καλώς ήρθατε στο Σκάκι Deluxe Pro</h2>
             <p>Επιλέξτε τρόπο παιχνιδιού:</p>
             <div class="modal-options">
-                <button class="modal-btn" id="twoPlayersBtn">Δύο Παίκτες</button>
-                <button class="modal-btn" id="vsAiBtn">Παίξτε με AI</button>
+                <button class="modal-btn game-mode-btn active" data-mode="twoPlayers">Δύο Παίκτες</button>
+                <button class="modal-btn game-mode-btn" data-mode="vsAI">Παίξτε με AI</button>
             </div>
+            
             <div class="difficulty-selector" id="difficultySelector" style="display: none;">
                 <h3 style="color: white; margin: 10px 0;">Επιλογή Δυσκολίας</h3>
                 <button class="modal-btn difficulty-btn" data-depth="2">Εύκολο</button>
                 <button class="modal-btn difficulty-btn" data-depth="3">Μέτριο</button>
                 <button class="modal-btn difficulty-btn active" data-depth="4">Δύσκολο</button>
             </div>
-        </div>
-    </div>
-    
-    <!-- Modal για επιλογή τρόπου παιχνιδιού -->
-    <div class="modal" id="gameModeModal" style="display: none;">
-        <div class="modal-content">
-            <h2>Επιλογή Τρόπου Παιχνιδιού</h2>
-            <p>Πώς θέλετε να παίξετε;</p>
-            <div class="modal-options">
-                <button class="modal-btn" id="twoPlayersBtn2">Δύο Παίκτες</button>
-                <button class="modal-btn" id="vsAiBtn2">Παίξτε με AI</button>
-            </div>
-            <div class="difficulty-selector" id="difficultySelector2" style="display: none;">
-                <h3 style="color: white; margin: 10px 0;">Επιλογή Δυσκολίας</h3>
-                <button class="modal-btn difficulty-btn" data-depth="2">Εύκολο</button>
-                <button class="modal-btn difficulty-btn" data-depth="3">Μέτριο</button>
-                <button class="modal-btn difficulty-btn active" data-depth="4">Δύσκολο</button>
-            </div>
-            <button class="modal-btn close-btn" id="closeModalBtn">Κλείσιμο</button>
+            
+            <button class="modal-btn start-btn" id="startGameBtn">Έναρξη Παιχνιδιού</button>
         </div>
     </div>
     
     <!-- Modal για προαγωγή πιονιού -->
-    <div class="promotion-modal" id="promotionModal" style="display: none;">
+    <div class="promotion-modal" id="promotionModal">
         <div class="promotion-options" id="promotionOptions">
             <!-- Τα κομμάτια προαγωγής θα προστεθούν δυναμικά -->
         </div>
@@ -431,12 +436,15 @@
         const gameInfoEl = document.getElementById("gameInfo");
         const thinkingIndicator = document.getElementById("thinkingIndicator");
         const welcomeModal = document.getElementById("welcomeModal");
-        const gameModeModal = document.getElementById("gameModeModal");
         const promotionModal = document.getElementById("promotionModal");
         const promotionOptions = document.getElementById("promotionOptions");
         const victoryMessageEl = document.getElementById("victoryMessage");
         const winnerTextEl = document.getElementById("winnerText");
         const celebrationEl = document.getElementById("celebration");
+        
+        // Μεταβλητές επιλογών παιχνιδιού
+        let selectedGameMode = 'twoPlayers'; // 'twoPlayers' ή 'vsAI'
+        let selectedDifficulty = 4; // Default: Δύσκολο
         
         let board = [];
         let whiteToMove = true;
@@ -471,72 +479,18 @@
             'k': 900
         };
         
-        // Ηχητικά εφέ
-        function playSound(soundType) {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                
-                switch(soundType) {
-                    case 'move':
-                        // Ήχος για απλή κίνηση
-                        oscillator.frequency.value = 400;
-                        oscillator.type = 'sine';
-                        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-                        oscillator.start(audioContext.currentTime);
-                        oscillator.stop(audioContext.currentTime + 0.3);
-                        break;
-                    case 'capture':
-                        // Ήχος για κατάληψη πιονιού
-                        oscillator.frequency.value = 200;
-                        oscillator.type = 'square';
-                        gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-                        oscillator.start(audioContext.currentTime);
-                        oscillator.stop(audioContext.currentTime + 0.2);
-                        break;
-                    case 'check':
-                        // Προφορά "Σαχ"
-                        if ('speechSynthesis' in window) {
-                            const utterance = new SpeechSynthesisUtterance();
-                            utterance.lang = 'el-GR';
-                            utterance.text = "Σάχ";
-                            utterance.rate = 0.9;
-                            speechSynthesis.speak(utterance);
-                        }
-                        break;
-                    case 'checkmate':
-                        // Προφορά "Σάχ Ματ"
-                        if ('speechSynthesis' in window) {
-                            const utterance = new SpeechSynthesisUtterance();
-                            utterance.lang = 'el-GR';
-                            utterance.text = "Σάχ Ματ";
-                            utterance.rate = 0.9;
-                            speechSynthesis.speak(utterance);
-                        }
-                        break;
-                    case 'victory':
-                        // Ήχος για νίκη
-                        oscillator.frequency.value = 600;
-                        oscillator.type = 'sine';
-                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
-                        oscillator.start(audioContext.currentTime);
-                        oscillator.stop(audioContext.currentTime + 1);
-                        break;
-                }
-            } catch (e) {
-                console.log("Αδυναμία αναπαραγωγής ήχου:", e);
-            }
-        }
-        
         // Αρχικοποίηση παιχνιδιού
-        function init() {
+        function initGame() {
+            // Ορισμός μεταβλητών βάσει επιλογών
+            vsAI = (selectedGameMode === 'vsAI');
+            aiDepth = selectedDifficulty;
+            
+            // Αν είναι AI, επιλογή τυχαίου χρώματος για AI
+            if (vsAI) {
+                aiColor = Math.random() > 0.5 ? 'b' : 'w';
+            }
+            
+            // Αρχικοποίηση σκακιέρας
             board = [];
             for (let r=0;r<8;r++) {
                 board[r]=[];
@@ -556,7 +510,14 @@
             gameActive = true;
             kingInCheck = false;
             promotionPending = null;
+            
+            // Κλείσιμο modal
+            welcomeModal.style.display = 'none';
+            
+            // Ενημέρωση πληροφοριών παιχνιδιού
             updateGameInfo();
+            
+            // Απόδοση σκακιέρας
             render();
         }
         
@@ -616,7 +577,7 @@
                                 e.stopPropagation();
                                 onSquareTap(row, col);
                             });
-                            }
+                        }
                         
                         sq.appendChild(img);
                     }
@@ -667,13 +628,6 @@
             board[tr][tc]=board[sr][sc];
             board[sr][sc]=null;
             
-            // Αναπαραγωγή ήχου
-            if (capturedPiece) {
-                playSound('capture'); // Ήχος για κατάληψη
-            } else {
-                playSound('move'); // Ήχος για απλή κίνηση
-            }
-            
             whiteToMove=!whiteToMove;
             
             // Έλεγχος για προαγωγή πιονιού
@@ -682,7 +636,7 @@
                 if ((piece.color === 'w' && tr === 0) || (piece.color === 'b' && tr === 7)) {
                     promotionPending = {r: tr, c: tc};
                     showPromotionOptions(piece.color);
-                    return; // Σταματάμε εδώ μέχρι να επιλεγεί κομμάτι προαγωγής
+                    return;
                 }
             }
             
@@ -713,7 +667,6 @@
             board[r][c].type = pieceType;
             promotionPending = null;
             
-            // Συνεχίζουμε με τον έλεγχο κατάστασης παιχνιδιού
             checkGameState();
             updateGameInfo();
             render();
@@ -721,7 +674,6 @@
         
         function checkGameState() {
             const currentColor = whiteToMove ? 'w' : 'b';
-            const wasInCheck = kingInCheck;
             kingInCheck = isKingInCheck(currentColor);
             
             // Έλεγχος για ματ ή πατ
@@ -731,21 +683,14 @@
                 gameActive = false;
                 if (kingInCheck) {
                     // Ματ
-                    playSound('checkmate'); // Προφορά "Σάχ Ματ"
-                    
-                    setTimeout(() => {
-                        playSound('victory');
-                        showVictoryMessage(currentColor === 'w' ? "Μαύρα" : "Λευκά");
-                    }, 500);
-                    
                     gameInfoEl.innerHTML = `<span class="status-mate">${currentColor === 'w' ? "Ματ! Νικάν τα Μαύρα" : "Ματ! Νικάν τα Λευκά"}</span>`;
+                    showVictoryMessage(currentColor === 'w' ? "Μαύρα" : "Λευκά");
                 } else {
                     // Πατ
                     gameInfoEl.textContent = "Πατ! Ισοπαλία";
                 }
-            } else if (kingInCheck && !wasInCheck) {
-                // Σαχ (μόνο όταν γίνεται για πρώτη φορά)
-                playSound('check'); // Προφορά "Σάχ"
+            } else if (kingInCheck) {
+                // Σαχ
                 gameInfoEl.innerHTML = `<span class="status-check">${currentColor === 'w' ? "Σαχ στα Λευκά!" : "Σαχ στα Μαύρα!"}</span>`;
             }
         }
@@ -894,9 +839,14 @@
             } else {
                 gameInfoEl.textContent = whiteToMove ? "Παίζουν τα Λευκά" : "Παίζουν τα Μαύρα";
             }
+            
+            // Εμφάνιση επιπλέον πληροφοριών για AI
+            if (vsAI) {
+                gameInfoEl.textContent += ` (AI: ${aiColor === 'w' ? 'Λευκά' : 'Μαύρα'})`;
+            }
         }
         
-        // AI ΚΙΝΗΣΕΙΣ - Βελτιωμένο AI
+        // AI ΚΙΝΗΣΕΙΣ
         function makeAIMove() {
             thinkingIndicator.style.display = 'block';
             
@@ -929,37 +879,22 @@
                 }
             }
             
-            // Αν δεν υπάρχουν κινήσεις, επέστρεψε null
             if (possibleMoves.length === 0) return null;
             
-            // Αξιολόγηση κινήσεων με βάση την τρέχουσα δυσκολία
             let bestScore = -Infinity;
             let bestMoves = [];
             
             for (const move of possibleMoves) {
-                // Προσωρινή εκτέλεση κίνησης
                 const originalPiece = board[move.to.r][move.to.c];
                 const movingPiece = board[move.from.r][move.from.c];
                 
                 board[move.to.r][move.to.c] = movingPiece;
                 board[move.from.r][move.from.c] = null;
                 
-                // Αξιολόγηση θέσης
                 let score = evaluatePosition();
                 
-                // Αν η κίνηση καταλαμβάνει κομμάτι, προσθέτουμε επιπλέον πόντους
                 if (originalPiece) {
                     score += PIECE_VALUES[originalPiece.type] * 2;
-                }
-                
-                // Αν η κίνηση προστατεύει βασικό κομμάτι
-                if (protectsImportantPiece(move)) {
-                    score += 10;
-                }
-                
-                // Αν η κίνηση απειλεί βασικό κομμάτι
-                if (threatensImportantPiece(move)) {
-                    score += 15;
                 }
                 
                 // Αν η κίνηση βάζει τον αντίπαλο βασιλιά σε σαχ
@@ -970,11 +905,9 @@
                 }
                 whiteToMove = tempWhiteToMove;
                 
-                // Ανάκτηση προηγούμενης κατάστασης
                 board[move.from.r][move.from.c] = movingPiece;
                 board[move.to.r][move.to.c] = originalPiece;
                 
-                // Ενημέρωση καλύτερης κίνησης
                 if (score > bestScore) {
                     bestScore = score;
                     bestMoves = [move];
@@ -983,14 +916,12 @@
                 }
             }
             
-            // Επέλεξε τυχαία από τις καλύτερες κινήσεις
             return bestMoves[Math.floor(Math.random() * bestMoves.length)];
         }
         
         function evaluatePosition() {
             let score = 0;
             
-            // Βασική αξιολόγηση βάσει υλικού
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const piece = board[r][c];
@@ -1007,21 +938,9 @@
             return score;
         }
         
-        function protectsImportantPiece(move) {
-            // Έλεγχος αν η κίνηση προστατεύει βασικό κομμάτι
-            return false;
-        }
-        
-        function threatensImportantPiece(move) {
-            // Έλεγχος αν η κίνηση απειλεί βασικό κομμάτι
-            return false;
-        }
-        
-        // Συναρτήσεις UI παιχνιδιού
+        // UI Event Listeners
         document.getElementById("resetBtn").addEventListener("click", () => {
             welcomeModal.style.display = 'flex';
-            gameModeModal.style.display = 'none';
-            init();
         });
         
         document.getElementById("flipBtn").addEventListener("click", () => {
@@ -1030,75 +949,51 @@
         });
         
         document.getElementById("aiBtn").addEventListener("click", () => {
-            gameModeModal.style.display = 'flex';
+            welcomeModal.style.display = 'flex';
         });
         
-        // Event listeners για το welcome modal
-        document.getElementById("twoPlayersBtn").addEventListener("click", () => {
-            vsAI = false;
-            welcomeModal.style.display = 'none';
-            init();
-        });
-        
-        document.getElementById("vsAiBtn").addEventListener("click", () => {
-            document.getElementById("difficultySelector").style.display = 'flex';
-        });
-        
-        // Event listeners για το game mode modal
-        document.getElementById("twoPlayersBtn2").addEventListener("click", () => {
-            vsAI = false;
-            gameModeModal.style.display = 'none';
-            init();
-        });
-        
-        document.getElementById("vsAiBtn2").addEventListener("click", () => {
-            document.getElementById("difficultySelector2").style.display = 'flex';
-        });
-        
-        document.getElementById("closeModalBtn").addEventListener("click", () => {
-            gameModeModal.style.display = 'none';
-            document.getElementById("difficultySelector2").style.display = 'none';
-        });
-        
-        // Επιλογή δυσκολίας για welcome modal
-        document.querySelectorAll("#difficultySelector .difficulty-btn").forEach(btn => {
+        // Επιλογή τρόπου παιχνιδιού στο welcome modal
+        document.querySelectorAll(".game-mode-btn").forEach(btn => {
             btn.addEventListener("click", () => {
-                document.querySelectorAll("#difficultySelector .difficulty-btn").forEach(b => b.classList.remove("active"));
+                // Αφαίρεση active από όλα
+                document.querySelectorAll(".game-mode-btn").forEach(b => b.classList.remove("active"));
+                // Προσθήκη active στο επιλεγμένο
                 btn.classList.add("active");
-                aiDepth = parseInt(btn.dataset.depth);
+                // Αποθήκευση επιλογής
+                selectedGameMode = btn.dataset.mode;
                 
-                // Επιλογή χρώματος για AI
-                aiColor = Math.random() > 0.5 ? 'b' : 'w';
-                vsAI = true;
-                welcomeModal.style.display = 'none';
-                init();
+                // Εμφάνιση/απόκρυψη επιλογών δυσκολίας
+                if (selectedGameMode === 'vsAI') {
+                    document.getElementById("difficultySelector").style.display = 'flex';
+                } else {
+                    document.getElementById("difficultySelector").style.display = 'none';
+                }
             });
         });
         
-        // Επιλογή δυσκολίας για game mode modal
-        document.querySelectorAll("#difficultySelector2 .difficulty-btn").forEach(btn => {
+        // Επιλογή δυσκολίας
+        document.querySelectorAll(".difficulty-btn").forEach(btn => {
             btn.addEventListener("click", () => {
-                document.querySelectorAll("#difficultySelector2 .difficulty-btn").forEach(b => b.classList.remove("active"));
+                // Αφαίρεση active από όλα
+                document.querySelectorAll(".difficulty-btn").forEach(b => b.classList.remove("active"));
+                // Προσθήκη active στο επιλεγμένο
                 btn.classList.add("active");
-                aiDepth = parseInt(btn.dataset.depth);
-                
-                // Επιλογή χρώματος για AI
-                aiColor = Math.random() > 0.5 ? 'b' : 'w';
-                vsAI = true;
-                gameModeModal.style.display = 'none';
-                document.getElementById("difficultySelector2").style.display = 'none';
-                init();
+                // Αποθήκευση επιλογής
+                selectedDifficulty = parseInt(btn.dataset.depth);
             });
+        });
+        
+        // Κουμπί Έναρξη
+        document.getElementById("startGameBtn").addEventListener("click", () => {
+            initGame();
         });
         
         function showVictoryMessage(winner) {
             winnerTextEl.textContent = `Νίκη για τα ${winner}!`;
             victoryMessageEl.style.display = 'block';
             
-            // Δημιουργία πανηγυρισμών
             createConfetti();
             
-            // Απόκρυψη μηνύματος μετά από 5 δευτερόλεπτα
             setTimeout(() => {
                 victoryMessageEl.style.display = 'none';
             }, 5000);
@@ -1123,7 +1018,9 @@
         }
         
         // Το welcome modal εμφανίζεται αυτόματα στην αρχή
-        welcomeModal.style.display = 'flex';
+        window.addEventListener('DOMContentLoaded', () => {
+            welcomeModal.style.display = 'flex';
+        });
     </script>
 </body>
 </html>
