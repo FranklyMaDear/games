@@ -389,7 +389,7 @@
             width: 100%;
         }
 
-        /* Full Screen Ad Overlay */
+        /* Full Screen Ad Overlay - Απλούστερη έκδοση */
         .fullscreen-ad-overlay {
             position: fixed;
             top: 0;
@@ -405,19 +405,14 @@
         }
 
         .fullscreen-ad-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .fullscreen-ad-container ins {
             width: 90%;
             max-width: 728px;
             height: 90vh;
             max-height: 600px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
         .ad-close-btn {
@@ -428,14 +423,15 @@
             color: white;
             border: none;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 20px;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
             cursor: pointer;
             z-index: 10000;
             display: flex;
             justify-content: center;
             align-items: center;
+            font-weight: bold;
         }
 
         .ad-close-btn:hover {
@@ -447,9 +443,9 @@
             background: #d19a4c;
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 15px 30px;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 18px;
             cursor: pointer;
             font-weight: bold;
         }
@@ -458,41 +454,26 @@
             background: #e0ad61;
         }
 
-        .ad-timer {
+        .ad-message {
             color: white;
-            font-size: 14px;
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .ad-title {
-            color: white;
-            font-size: 18px;
+            font-size: 20px;
             margin-bottom: 20px;
             text-align: center;
             font-weight: bold;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
         }
 
-        /* Loading Spinner for Ads */
-        .ad-loading {
-            color: white;
-            font-size: 18px;
-            margin-bottom: 20px;
-        }
-
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid #fff;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .ad-wrapper {
+            width: 100%;
+            height: 400px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
         }
     </style>
 </head>
@@ -501,24 +482,23 @@
     <div class="fullscreen-ad-overlay" id="fullscreenAd">
         <button class="ad-close-btn" id="adCloseBtn">×</button>
         <div class="fullscreen-ad-container">
-            <div class="ad-title">Υποστήριξε το Σκάκι Deluxe Pro</div>
-            <div class="spinner"></div>
-            <div class="ad-loading">Φόρτωση διαφήμισης...</div>
-            <!-- Ad will be inserted here -->
-            <div class="ad-slot" id="fullscreenAdSlot"></div>
-            <div class="ad-timer" id="adTimer">Μπορείς να κλείσεις σε <span id="timerCount">10</span> δευτερόλεπτα</div>
-            <button class="ad-skip-btn" id="adSkipBtn" style="display: none;">Παράλειψη διαφήμισης</button>
+            <div class="ad-message">Υποστήριξε το Σκάκι Deluxe Pro</div>
+            <div class="ad-wrapper" id="adWrapper">
+                <!-- Το ad θα προστεθεί εδώ -->
+            </div>
+            <button class="ad-skip-btn" id="adSkipBtn">Παράλειψη (10)</button>
         </div>
     </div>
 
     <div class="container">
         <!-- Top Banner Ad -->
         <div class="top-banner-ad">
+            <!-- Οριζόντια διαφήμιση -->
             <ins class="adsbygoogle"
                  style="display:block"
                  data-ad-client="ca-pub-3186700611266549"
                  data-ad-slot="9660744817"
-                 data-ad-format="auto"
+                 data-ad-format="horizontal"
                  data-full-width-responsive="true"></ins>
         </div>
 
@@ -587,9 +567,7 @@
         const fullscreenAd = document.getElementById("fullscreenAd");
         const adCloseBtn = document.getElementById("adCloseBtn");
         const adSkipBtn = document.getElementById("adSkipBtn");
-        const adTimer = document.getElementById("adTimer");
-        const timerCount = document.getElementById("timerCount");
-        const fullscreenAdSlot = document.getElementById("fullscreenAdSlot");
+        const adWrapper = document.getElementById("adWrapper");
         
         let board = [];
         let whiteToMove = true;
@@ -605,9 +583,7 @@
         
         // Ad Variables
         let adTimerInterval;
-        let canCloseAd = false;
-        const AD_SHOW_TIMER = 10; // 10 seconds before showing skip button
-        const AD_MIN_DISPLAY_TIME = 3; // Minimum 3 seconds display
+        let secondsRemaining = 10;
         
         const START = [
             ['r','n','b','q','k','b','n','r'],
@@ -632,9 +608,10 @@
         
         // Initialize Google Ads
         function initializeAds() {
-            // Initialize top banner ad
             try {
+                // Initialize top banner ad
                 (adsbygoogle = window.adsbygoogle || []).push({});
+                console.log("Top banner ad initialized");
             } catch (e) {
                 console.log("Ad initialization error:", e);
             }
@@ -642,73 +619,86 @@
         
         // Show fullscreen ad
         function showFullscreenAd() {
-            // Reset ad state
-            canCloseAd = false;
-            timerCount.textContent = AD_SHOW_TIMER;
-            adSkipBtn.style.display = 'none';
-            adTimer.style.display = 'block';
+            console.log("Showing fullscreen ad");
+            
+            // Reset timer
+            secondsRemaining = 10;
+            adSkipBtn.textContent = `Παράλειψη (${secondsRemaining})`;
+            adSkipBtn.disabled = true;
+            
+            // Clear previous ad
+            adWrapper.innerHTML = '';
+            
+            // Create new ad element
+            const adElement = document.createElement('ins');
+            adElement.className = 'adsbygoogle';
+            adElement.style.display = 'block';
+            adElement.dataset.adClient = 'ca-pub-3186700611266549';
+            adElement.dataset.adSlot = '9660744817';
+            adElement.dataset.adFormat = 'autorelaxed';
+            adElement.dataset.fullWidthResponsive = 'true';
+            adElement.style.width = '100%';
+            adElement.style.height = '100%';
+            
+            adWrapper.appendChild(adElement);
             
             // Show overlay
             fullscreenAd.style.display = 'flex';
             
-            // Create new ad slot for fullscreen
-            fullscreenAdSlot.innerHTML = '';
-            const newAdSlot = document.createElement('ins');
-            newAdSlot.className = 'adsbygoogle';
-            newAdSlot.style.display = 'block';
-            newAdSlot.dataset.adClient = 'ca-pub-3186700611266549';
-            newAdSlot.dataset.adSlot = '9660744817';
-            newAdSlot.dataset.adFormat = 'autorelaxed';
-            newAdSlot.dataset.fullWidthResponsive = 'true';
-            
-            fullscreenAdSlot.appendChild(newAdSlot);
-            
-            // Initialize the new ad
-            try {
-                (adsbygoogle = window.adsbygoogle || []).push({});
-                
-                // Start timer
-                startAdTimer();
-                
-            } catch (e) {
-                console.log("Fullscreen ad error:", e);
-                // If ad fails, allow immediate close
-                canCloseAd = true;
-                adSkipBtn.style.display = 'block';
-                adTimer.style.display = 'none';
-            }
+            // Initialize the ad with a small delay
+            setTimeout(() => {
+                try {
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                    console.log("Fullscreen ad pushed");
+                    
+                    // Start timer
+                    startAdTimer();
+                    
+                } catch (e) {
+                    console.log("Fullscreen ad error:", e);
+                    // If ad fails, allow immediate skip
+                    adSkipBtn.disabled = false;
+                    adSkipBtn.textContent = "Παράλειψη";
+                }
+            }, 100);
         }
         
         function startAdTimer() {
-            let secondsRemaining = AD_SHOW_TIMER;
+            clearInterval(adTimerInterval);
             
             adTimerInterval = setInterval(() => {
                 secondsRemaining--;
-                timerCount.textContent = secondsRemaining;
+                adSkipBtn.textContent = `Παράλειψη (${secondsRemaining})`;
                 
                 if (secondsRemaining <= 0) {
                     clearInterval(adTimerInterval);
-                    canCloseAd = true;
-                    adSkipBtn.style.display = 'block';
-                    adTimer.style.display = 'none';
+                    adSkipBtn.disabled = false;
+                    adSkipBtn.textContent = "Παράλειψη";
                 }
             }, 1000);
         }
         
         function closeFullscreenAd() {
-            if (!canCloseAd) return;
+            if (secondsRemaining > 0) {
+                return; // Don't close if timer is still running
+            }
             
             clearInterval(adTimerInterval);
             fullscreenAd.style.display = 'none';
+            adWrapper.innerHTML = '';
         }
         
         // Event listeners for ad controls
         adCloseBtn.addEventListener('click', () => {
-            closeFullscreenAd();
+            if (secondsRemaining <= 0) {
+                closeFullscreenAd();
+            }
         });
         
         adSkipBtn.addEventListener('click', () => {
-            closeFullscreenAd();
+            if (!adSkipBtn.disabled) {
+                closeFullscreenAd();
+            }
         });
         
         // Ηχητικά εφέ
@@ -723,7 +713,6 @@
                 
                 switch(soundType) {
                     case 'move':
-                        // Ήχος για απλή κίνηση
                         oscillator.frequency.value = 400;
                         oscillator.type = 'sine';
                         gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
@@ -732,7 +721,6 @@
                         oscillator.stop(audioContext.currentTime + 0.3);
                         break;
                     case 'capture':
-                        // Ήχος για κατάληψη πιονιού
                         oscillator.frequency.value = 200;
                         oscillator.type = 'square';
                         gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
@@ -741,7 +729,6 @@
                         oscillator.stop(audioContext.currentTime + 0.2);
                         break;
                     case 'check':
-                        // Προφορά "Σαχ"
                         if ('speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance();
                             utterance.lang = 'el-GR';
@@ -751,7 +738,6 @@
                         }
                         break;
                     case 'checkmate':
-                        // Προφορά "Σάχ Ματ"
                         if ('speechSynthesis' in window) {
                             const utterance = new SpeechSynthesisUtterance();
                             utterance.lang = 'el-GR';
@@ -761,7 +747,6 @@
                         }
                         break;
                     case 'victory':
-                        // Ήχος για νίκη
                         oscillator.frequency.value = 600;
                         oscillator.type = 'sine';
                         gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
@@ -806,7 +791,6 @@
             const rows=[...Array(8).keys()];
             if(flipped) rows.reverse();
             
-            // Βρες τη θέση του βασιλιά που είναι σε σαχ
             let kingInCheckPos = null;
             if (kingInCheck) {
                 const currentColor = whiteToMove ? 'w' : 'b';
@@ -831,7 +815,6 @@
                     sq.className="square "+((row+col)%2===0?"sq-dark":"sq-light");
                     sq.dataset.r=row; sq.dataset.c=col;
                     
-                    // Προσθήκη κλάσης check αν ο βασιλιάς είναι σε σαχ
                     if (kingInCheckPos && kingInCheckPos.r === row && kingInCheckPos.c === col) {
                         sq.classList.add("check");
                     }
@@ -850,7 +833,6 @@
                         img.className="piece";
                         img.draggable=true;
                         
-                        // Προσθήκη event listeners μόνο αν είναι η σειρά του χρήστη
                         if (!vsAI || (vsAI && whiteToMove !== (aiColor === 'w'))) {
                             img.addEventListener("click", (e) => {
                                 e.stopPropagation();
@@ -861,7 +843,6 @@
                         sq.appendChild(img);
                     }
                     
-                    // Προσθήκη event listener για το τετράγωνο
                     if (!vsAI || (vsAI && whiteToMove !== (aiColor === 'w'))) {
                         sq.addEventListener("click", () => onSquareTap(row, col));
                     }
@@ -870,14 +851,12 @@
                 }
             }
             
-            // Αν είναι η σειρά του AI και το παιχνίδι είναι ενεργό, κάνε κίνηση AI
             if (vsAI && gameActive && whiteToMove === (aiColor === 'w')) {
                 setTimeout(makeAIMove, 500);
             }
         }
         
         function onSquareTap(r, c) {
-            // Έλεγχος αν ο χρήστης μπορεί να παίξει
             if (vsAI && whiteToMove === (aiColor === 'w')) {
                 return;
             }
@@ -900,33 +879,28 @@
         }
         
         function movePiece(sr,sc,tr,tc){
-            // Έλεγχος για κατάληψη
             const capturedPiece = board[tr][tc];
             
-            // Εκτέλεση της κίνησης
             board[tr][tc]=board[sr][sc];
             board[sr][sc]=null;
             
-            // Αναπαραγωγή ήχου
             if (capturedPiece) {
-                playSound('capture'); // Ήχος για κατάληψη
+                playSound('capture');
             } else {
-                playSound('move'); // Ήχος για απλή κίνηση
+                playSound('move');
             }
             
             whiteToMove=!whiteToMove;
             
-            // Έλεγχος για προαγωγή πιονιού
             const piece = board[tr][tc];
             if (piece && piece.type === 'p') {
                 if ((piece.color === 'w' && tr === 0) || (piece.color === 'b' && tr === 7)) {
                     promotionPending = {r: tr, c: tc};
                     showPromotionOptions(piece.color);
-                    return; // Σταματάμε εδώ μέχρι να επιλεγεί κομμάτι προαγωγής
+                    return;
                 }
             }
             
-            // Έλεγχος για σαχ και ματ
             checkGameState();
             updateGameInfo();
         }
@@ -953,7 +927,6 @@
             board[r][c].type = pieceType;
             promotionPending = null;
             
-            // Συνεχίζουμε με τον έλεγχο κατάστασης παιχνιδιού
             checkGameState();
             updateGameInfo();
             render();
@@ -964,20 +937,18 @@
             const wasInCheck = kingInCheck;
             kingInCheck = isKingInCheck(currentColor);
             
-            // Έλεγχος για ματ ή πατ
             const hasLegalMoves = hasAnyLegalMoves(currentColor);
             
             if (!hasLegalMoves) {
                 gameActive = false;
                 if (kingInCheck) {
-                    // Ματ
-                    playSound('checkmate'); // Προφορά "Σάχ Ματ"
+                    playSound('checkmate');
                     
                     setTimeout(() => {
                         playSound('victory');
                         showVictoryMessage(currentColor === 'w' ? "Μαύρα" : "Λευκά");
                         
-                        // Show ad after game ends (with delay)
+                        // Show ad after game ends
                         setTimeout(() => {
                             showFullscreenAd();
                         }, 2000);
@@ -986,7 +957,6 @@
                     
                     gameInfoEl.innerHTML = `<span class="status-mate">${currentColor === 'w' ? "Ματ! Νικάν τα Μαύρα" : "Ματ! Νικάν τα Λευκά"}</span>`;
                 } else {
-                    // Πατ
                     gameInfoEl.textContent = "Πατ! Ισοπαλία";
                     
                     // Show ad after draw
@@ -995,14 +965,12 @@
                     }, 2000);
                 }
             } else if (kingInCheck && !wasInCheck) {
-                // Σαχ (μόνο όταν γίνεται για πρώτη φορά)
-                playSound('check'); // Προφορά "Σάχ"
+                playSound('check');
                 gameInfoEl.innerHTML = `<span class="status-check">${currentColor === 'w' ? "Σαχ στα Λευκά!" : "Σαχ στα Μαύρα!"}</span>`;
             }
         }
         
         function isKingInCheck(color) {
-            // Βρες τη θέση του βασιλιά
             let kingPos = null;
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
@@ -1017,7 +985,6 @@
             
             if (!kingPos) return false;
             
-            // Έλεγξε αν οποιοδήποτε αντίπαλο κομμάτι μπορεί να πιάσει τον βασιλιά
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const piece = board[r][c];
@@ -1051,22 +1018,17 @@
         function generateLegalMoves(r, c) {
             const moves = generateMoves(r, c);
             return moves.filter(move => {
-                // Δοκιμαστική κίνηση για έλεγχο σαχ
                 const originalPiece = board[move.r][move.c];
                 const movingPiece = board[r][c];
                 
-                // Εκτέλεση προσωρινής κίνησης
                 board[move.r][move.c] = movingPiece;
                 board[r][c] = null;
                 
-                // Έλεγχος αν ο βασιλιάς βρίσκεται σε σαχ μετά την κίνηση
                 const inCheck = isKingInCheck(movingPiece.color);
                 
-                // Αναίρεση της προσωρινής κίνησης
                 board[r][c] = movingPiece;
                 board[move.r][move.c] = originalPiece;
                 
-                // Η κίνηση είναι νόμιμη μόνο αν δεν αφήνει τον βασιλιά σε σαχ
                 return !inCheck;
             });
         }
@@ -1147,7 +1109,7 @@
             }
         }
         
-        // AI ΚΙΝΗΣΕΙΣ - Βελτιωμένο AI
+        // AI ΚΙΝΗΣΕΙΣ
         function makeAIMove() {
             thinkingIndicator.style.display = 'block';
             
@@ -1164,7 +1126,6 @@
         function findBestMove() {
             const possibleMoves = [];
             
-            // Βρες όλες τις πιθανές κινήσεις για το AI
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const piece = board[r][c];
@@ -1180,52 +1141,27 @@
                 }
             }
             
-            // Αν δεν υπάρχουν κινήσεις, επέστρεψε null
             if (possibleMoves.length === 0) return null;
             
-            // Αξιολόγηση κινήσεων με βάση την τρέχουσα δυσκολία
             let bestScore = -Infinity;
             let bestMoves = [];
             
             for (const move of possibleMoves) {
-                // Προσωρινή εκτέλεση κίνησης
                 const originalPiece = board[move.to.r][move.to.c];
                 const movingPiece = board[move.from.r][move.from.c];
                 
                 board[move.to.r][move.to.c] = movingPiece;
                 board[move.from.r][move.from.c] = null;
                 
-                // Αξιολόγηση θέσης
                 let score = evaluatePosition();
                 
-                // Αν η κίνηση καταλαμβάνει κομμάτι, προσθέτουμε επιπλέον πόντους
                 if (originalPiece) {
                     score += PIECE_VALUES[originalPiece.type] * 2;
                 }
                 
-                // Αν η κίνηση προστατεύει βασικό κομμάτι
-                if (protectsImportantPiece(move)) {
-                    score += 10;
-                }
-                
-                // Αν η κίνηση απειλεί βασικό κομμάτι
-                if (threatensImportantPiece(move)) {
-                    score += 15;
-                }
-                
-                // Αν η κίνηση βάζει τον αντίπαλο βασιλιά σε σαχ
-                const tempWhiteToMove = whiteToMove;
-                whiteToMove = !whiteToMove;
-                if (isKingInCheck(whiteToMove ? 'w' : 'b')) {
-                    score += 50;
-                }
-                whiteToMove = tempWhiteToMove;
-                
-                // Ανάκτηση προηγούμενης κατάστασης
                 board[move.from.r][move.from.c] = movingPiece;
                 board[move.to.r][move.to.c] = originalPiece;
                 
-                // Ενημέρωση καλύτερης κίνησης
                 if (score > bestScore) {
                     bestScore = score;
                     bestMoves = [move];
@@ -1234,14 +1170,12 @@
                 }
             }
             
-            // Επέλεξε τυχαία από τις καλύτερες κινήσεις
             return bestMoves[Math.floor(Math.random() * bestMoves.length)];
         }
         
         function evaluatePosition() {
             let score = 0;
             
-            // Βασική αξιολόγηση βάσει υλικού
             for (let r = 0; r < 8; r++) {
                 for (let c = 0; c < 8; c++) {
                     const piece = board[r][c];
@@ -1252,28 +1186,14 @@
                 }
             }
             
-            // Προσθήκη τυχαίας διακύμανσης για λιγότερο προβλέψιμο AI
             score += Math.random() * 10 - 5;
             
             return score;
         }
         
-        function protectsImportantPiece(move) {
-            // Έλεγχος αν η κίνηση προστατεύει βασικό κομμάτι
-            // Απλοποιημένη υλοποίηση
-            return false;
-        }
-        
-        function threatensImportantPiece(move) {
-            // Έλεγχος αν η κίνηση απειλεί βασικό κομμάτι
-            // Απλοποιημένη υλοποίηση
-            return false;
-        }
-        
         // Συναρτήσεις UI παιχνιδιού
         document.getElementById("resetBtn").addEventListener("click", () => {
             init();
-            // Εμφάνιση modal επιλογής τρόπου παιχνιδιού
             gameModeModal.style.display = 'flex';
         });
         
@@ -1314,7 +1234,6 @@
                 btn.classList.add("active");
                 aiDepth = parseInt(btn.dataset.depth);
                 
-                // Επιλογή χρώματος για AI
                 aiColor = Math.random() > 0.5 ? 'b' : 'w';
                 vsAI = true;
                 gameModeModal.style.display = 'none';
@@ -1333,10 +1252,8 @@
             winnerTextEl.textContent = `Νίκη για τα ${winner}!`;
             victoryMessageEl.style.display = 'block';
             
-            // Δημιουργία πανηγυρισμών
             createConfetti();
             
-            // Απόκρυψη μηνύματος μετά από 5 δευτερόλεπτα
             setTimeout(() => {
                 victoryMessageEl.style.display = 'none';
             }, 5000);
@@ -1360,7 +1277,7 @@
             }
         }
         
-        // Αρχικοποίηση παιχνιδιού - εμφάνιση επιλογής τρόπου αμέσως
+        // Αρχικοποίηση
         window.addEventListener('DOMContentLoaded', () => {
             // Initialize ads
             initializeAds();
