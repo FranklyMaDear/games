@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Magic Sort - Games</title>
     
+    <!-- ========== GOOGLE ADSENSE ========== -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549"
+        crossorigin="anonymous"></script>
+    <!-- ========== END GOOGLE ADSENSE ========== -->
+    
     <!-- ========== FAVICON & PWA SETUP ========== -->
     <!-- Basic favicon -->
     <link rel="icon" type="image/x-icon" href="index.png">
@@ -324,6 +329,105 @@
             }
         }
         
+        /* ========== GOOGLE ADSENSE STYLES ========== */
+        /* Fullscreen Ad Overlay */
+        #adOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        #adOverlay.show {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .ad-container {
+            width: 90%;
+            max-width: 400px;
+            height: 300px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .ad-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 1002;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .ad-close-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+        
+        /* Mid-game Ad Indicator */
+        #midGameAdIndicator {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 999;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .ad-indicator-icon {
+            width: 20px;
+            height: 20px;
+            background: #FF9800;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+        }
+        
+        .ad-countdown {
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        /* ========== END GOOGLE ADSENSE STYLES ========== */
+        
         /* POP-UP BANNER STYLES */
         .popup-banner {
             position: fixed;
@@ -451,6 +555,18 @@
                 top: 5px;
                 right: 10px;
             }
+            
+            .ad-container {
+                width: 95%;
+                height: 250px;
+            }
+            
+            #midGameAdIndicator {
+                top: 10px;
+                right: 10px;
+                font-size: 11px;
+                padding: 6px 10px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -474,6 +590,10 @@
             .banner-button {
                 padding: 9px 18px;
                 font-size: 12px;
+            }
+            
+            .ad-container {
+                height: 200px;
             }
         }
     </style>
@@ -502,6 +622,28 @@
     <!-- Floating Colors Container -->
     <div id="floatingColors"></div>
     
+    <!-- ========== GOOGLE ADSENSE ELEMENTS ========== -->
+    <!-- Fullscreen Ad Overlay -->
+    <div id="adOverlay">
+        <div class="ad-container">
+            <button class="ad-close-btn" id="adCloseBtn">×</button>
+            <!-- Google AdSense Ad Slot -->
+            <ins class="adsbygoogle"
+                 style="display:block; width:100%; height:100%;"
+                 data-ad-format="autorelaxed"
+                 data-ad-client="ca-pub-3186700611266549"
+                 data-ad-slot="9660744817"></ins>
+        </div>
+    </div>
+    
+    <!-- Mid-game Ad Indicator -->
+    <div id="midGameAdIndicator">
+        <div class="ad-indicator-icon">⏳</div>
+        <span>Next ad in:</span>
+        <span class="ad-countdown" id="adCountdown">02:00</span>
+    </div>
+    <!-- ========== END GOOGLE ADSENSE ELEMENTS ========== -->
+    
     <!-- POP-UP BANNER -->
     <div class="popup-banner" id="popupBanner">
         <div class="banner-content">
@@ -523,6 +665,13 @@
         const bannerActionBtn = document.getElementById('bannerActionBtn');
         const closeBannerBtn = document.getElementById('closeBannerBtn');
         
+        // ========== GOOGLE ADSENSE ELEMENTS ==========
+        const adOverlay = document.getElementById('adOverlay');
+        const adCloseBtn = document.getElementById('adCloseBtn');
+        const midGameAdIndicator = document.getElementById('midGameAdIndicator');
+        const adCountdown = document.getElementById('adCountdown');
+        // ========== END GOOGLE ADSENSE ELEMENTS ==========
+        
         // Game State
         let gameLoaded = false;
         let colorsStarted = false;
@@ -530,14 +679,31 @@
         const MAX_COLORS = 4;
         let colorsInterval;
         
+        // ========== GOOGLE ADSENSE STATE ==========
+        let adTimer = null;
+        let adTimeout = null;
+        let adCountdownInterval = null;
+        let adCountdownTime = 120; // 2 minutes in seconds
+        let adSystemActive = true;
+        let isAdShowing = false;
+        let videoEnded = false;
+        let pageVisible = true;
+        
+        // Ad schedule (in seconds)
+        const AD_SCHEDULE = [
+            2,   // Startup ad at 2 seconds
+            120  // Mid-game ad at 2 minutes
+        ];
+        let nextAdIndex = 0;
+        // ========== END GOOGLE ADSENSE STATE ==========
+        
         // Configuration
-        const COLORS_START_DELAY = 30000; // 30 δευτερόλεπτα
-        const MONETAG_LINK = 'https://otieu.com/4/10274068'; // Monetag link
+        const COLORS_START_DELAY = 30000; // 30 seconds
         
         // Pop-up Banner Configuration
-        const BANNER_FIRST_DELAY = 45000; // 45 δευτερόλεπτα μετά το φόρτωμα
-        const BANNER_SHOW_DURATION = 15000; // 15 δευτερόλεπτα που μένει ανοιχτό
-        const BANNER_HIDE_DURATION = 45000; // 45 δευτερόλεπτα που μένει κλειστό
+        const BANNER_FIRST_DELAY = 45000; // 45 seconds after loading
+        const BANNER_SHOW_DURATION = 15000; // 15 seconds open
+        const BANNER_HIDE_DURATION = 45000; // 45 seconds closed
         let bannerInterval;
         let bannerTimeout;
         let bannerIsActive = false;
@@ -589,6 +755,10 @@
             // Set game to full screen
             setupFullScreenGame();
             
+            // ========== INITIALIZE GOOGLE ADSENSE ==========
+            initializeAdSystem();
+            // ========== END INITIALIZE GOOGLE ADSENSE ==========
+            
             // Hide loader quickly - don't wait for game to fully load
             setTimeout(() => {
                 loader.style.opacity = '0';
@@ -609,6 +779,7 @@
             // Game frame error handling
             gameFrame.addEventListener('error', () => {
                 console.log('⚠️ Game frame error');
+                stopAdSystem();
             });
             
             // Prevent context menu
@@ -620,7 +791,7 @@
             
             // Banner event handlers
             bannerActionBtn.addEventListener('click', () => {
-                openMonetagAd();
+                showAd();
                 hideBanner();
             });
             
@@ -643,6 +814,184 @@
             // PWA: Register service worker if supported
             registerServiceWorker();
         }
+        
+        // ========== GOOGLE ADSENSE FUNCTIONS ==========
+        function initializeAdSystem() {
+            console.log('📢 Initializing Google AdSense system...');
+            
+            // Push the initial ad
+            try {
+                (adsbygoogle = window.adsbygoogle || []).push({});
+                console.log('✅ Google AdSense ad pushed successfully');
+            } catch (error) {
+                console.error('❌ Error pushing Google AdSense ad:', error);
+            }
+            
+            // Setup ad close button
+            adCloseBtn.addEventListener('click', () => {
+                hideAd();
+            });
+            
+            // Setup visibility tracking
+            document.addEventListener('visibilitychange', () => {
+                pageVisible = !document.hidden;
+                if (pageVisible && adSystemActive && !videoEnded) {
+                    resumeAdCountdown();
+                } else {
+                    pauseAdCountdown();
+                }
+            });
+            
+            // Start ad schedule
+            scheduleNextAd();
+        }
+        
+        function scheduleNextAd() {
+            if (nextAdIndex >= AD_SCHEDULE.length || !adSystemActive || videoEnded) return;
+            
+            const adTime = AD_SCHEDULE[nextAdIndex];
+            console.log(`⏰ Scheduling ad #${nextAdIndex + 1} at ${adTime} seconds`);
+            
+            if (nextAdIndex === 1) {
+                // Show mid-game indicator for second ad
+                showMidGameIndicator();
+                startAdCountdown();
+            }
+            
+            adTimeout = setTimeout(() => {
+                if (pageVisible && adSystemActive && !videoEnded) {
+                    showAd();
+                } else {
+                    // Reschedule if page not visible
+                    console.log('⏸️ Ad postponed - page not visible');
+                    scheduleNextAd();
+                }
+            }, adTime * 1000);
+            
+            nextAdIndex++;
+        }
+        
+        function showAd() {
+            if (isAdShowing || !adSystemActive) return;
+            
+            console.log('📢 Showing ad');
+            isAdShowing = true;
+            
+            // Pause game/video if possible
+            pauseGame();
+            
+            // Show overlay
+            adOverlay.classList.add('show');
+            
+            // Reset countdown if mid-game ad
+            if (nextAdIndex > 1) {
+                resetAdCountdown();
+            }
+        }
+        
+        function hideAd() {
+            if (!isAdShowing) return;
+            
+            console.log('📢 Hiding ad');
+            adOverlay.classList.remove('show');
+            isAdShowing = false;
+            
+            // Resume game/video
+            resumeGame();
+            
+            // If this was mid-game ad, schedule next one
+            if (nextAdIndex >= AD_SCHEDULE.length) {
+                // All scheduled ads shown, start recurring countdown
+                setTimeout(() => {
+                    if (adSystemActive && !videoEnded) {
+                        resetAdCountdown();
+                        startAdCountdown();
+                    }
+                }, 60000); // Wait 1 minute after mid-game ad
+            } else {
+                // Schedule next ad
+                setTimeout(scheduleNextAd, 1000);
+            }
+        }
+        
+        function showMidGameIndicator() {
+            midGameAdIndicator.style.display = 'flex';
+        }
+        
+        function hideMidGameIndicator() {
+            midGameAdIndicator.style.display = 'none';
+        }
+        
+        function startAdCountdown() {
+            if (adCountdownInterval) clearInterval(adCountdownInterval);
+            
+            adCountdownInterval = setInterval(() => {
+                if (pageVisible && adSystemActive && !isAdShowing && !videoEnded) {
+                    adCountdownTime--;
+                    
+                    if (adCountdownTime <= 0) {
+                        clearInterval(adCountdownInterval);
+                        showAd();
+                        adCountdownTime = 120; // Reset to 2 minutes
+                    } else {
+                        updateCountdownDisplay();
+                    }
+                }
+            }, 1000);
+        }
+        
+        function pauseAdCountdown() {
+            console.log('⏸️ Pausing ad countdown');
+        }
+        
+        function resumeAdCountdown() {
+            console.log('▶️ Resuming ad countdown');
+        }
+        
+        function resetAdCountdown() {
+            adCountdownTime = 120;
+            updateCountdownDisplay();
+        }
+        
+        function updateCountdownDisplay() {
+            const minutes = Math.floor(adCountdownTime / 60);
+            const seconds = adCountdownTime % 60;
+            adCountdown.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        function pauseGame() {
+            // Try to pause the iframe game/video
+            try {
+                gameFrame.contentWindow.postMessage('pause', '*');
+                console.log('⏸️ Game paused for ad');
+            } catch (e) {
+                console.log('⚠️ Could not pause game');
+            }
+        }
+        
+        function resumeGame() {
+            // Try to resume the iframe game/video
+            try {
+                gameFrame.contentWindow.postMessage('play', '*');
+                console.log('▶️ Game resumed after ad');
+            } catch (e) {
+                console.log('⚠️ Could not resume game');
+            }
+        }
+        
+        function stopAdSystem() {
+            console.log('🛑 Stopping ad system');
+            adSystemActive = false;
+            videoEnded = true;
+            
+            if (adTimer) clearTimeout(adTimer);
+            if (adTimeout) clearTimeout(adTimeout);
+            if (adCountdownInterval) clearInterval(adCountdownInterval);
+            
+            hideMidGameIndicator();
+            hideAd();
+        }
+        // ========== END GOOGLE ADSENSE FUNCTIONS ==========
         
         // PWA: Register Service Worker
         function registerServiceWorker() {
@@ -738,11 +1087,6 @@
                     bannerIsActive = false;
                 }
             }, 400);
-        }
-        
-        function openMonetagAd() {
-            console.log('🔗 Opening Monetag ad...');
-            window.open(MONETAG_LINK, '_blank');
         }
         
         // Create color bubble with ad text
@@ -847,7 +1191,7 @@
             colorObject.style.left = '0px';
             colorObject.style.top = '0px';
             
-            // Click event for Monetag ad
+            // Click event for ad
             const handleClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -857,8 +1201,8 @@
                 colorObject.style.opacity = '0.7';
                 colorObject.style.transition = 'all 0.2s ease';
                 
-                // Open Monetag ad in new tab
-                openMonetagAd();
+                // Show ad
+                showAd();
                 
                 // Remove color object after animation
                 setTimeout(() => {
@@ -924,6 +1268,7 @@
             if (colorsInterval) clearInterval(colorsInterval);
             if (bannerInterval) clearInterval(bannerInterval);
             if (bannerTimeout) clearTimeout(bannerTimeout);
+            stopAdSystem();
         });
         
         // Start everything immediately
