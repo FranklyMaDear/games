@@ -31,14 +31,15 @@
             height: 100%;
             z-index: 1;
             background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        #gamemonetize-video {
+        .game-wrapper {
             width: 100%;
             height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
+            position: relative;
         }
         
         /* Κουμπί πληροφοριών */
@@ -222,12 +223,14 @@
             bottom: -300px;
             left: 0;
             width: 100%;
-            height: 300px;
+            height: 250px;
             z-index: 1000;
             background: white;
             display: none;
             transition: bottom 0.5s ease-out;
             box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3);
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
         }
         
         .bottom-ad.active {
@@ -275,10 +278,47 @@
             padding: 20px;
         }
         
-        /* Προστασία από εξωτερικούς συνδέσμους */
-        .game-container iframe,
-        #gamemonetize-video iframe {
-            pointer-events: auto;
+        .ad-placeholder {
+            width: 100%;
+            height: 100%;
+            background: #f5f5f5;
+            border: 2px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #666;
+            font-size: 1.2rem;
+        }
+        
+        /* Loading για το παιχνίδι */
+        .game-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            z-index: 5;
+        }
+        
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #3f007e;
+            border-radius: 50%;
+            border-top-color: #6a11cb;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
         /* Responsive */
@@ -297,7 +337,7 @@
             }
             
             .bottom-ad {
-                height: 250px;
+                height: 200px;
             }
         }
         
@@ -326,7 +366,7 @@
             }
             
             .bottom-ad {
-                height: 200px;
+                height: 180px;
             }
             
             .ad-close {
@@ -340,34 +380,30 @@
         
         @media (max-height: 600px) {
             .bottom-ad {
-                height: 200px;
+                height: 150px;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Loading για το παιχνίδι -->
+    <div class="game-loading" id="gameLoading">
+        <div class="loader"></div>
+        <p>Φόρτωση παιχνιδιού...</p>
+    </div>
+    
     <!-- Παιχνίδι σε πλήρη οθόνη -->
     <div class="game-container">
-        <!-- ΠΑΙΧΝΙΔΙ GAMEMONETIZE -->
-        <div id="gamemonetize-video"></div>
-        <script type="text/javascript">
-           // ΑΠΑΓΟΡΕΥΟΥΜΕ gamesmunch.com
-           if (window.location.href.indexOf('gamesmunch.com') !== -1) {
-               window.location.href = '/';
-           }
-           
-           window.VIDEO_OPTIONS = {
-               gameid : "4kci7og3klgj0ivy2wz3gdvd9dth5e7n",
-               width  : "100%",
-               height : "100%",
-               color  : "#3f007e",
-               getAds  : "false"
-           };
-           (function (a, b, c) {
-              var d = a.getElementsByTagName(b)[0];
-              a.getElementById(c) || (a = a.createElement(b), a.id = c, a.src = "https://api.gamemonetize.com/video.js", d.parentNode.insertBefore(a, d))
-           })(document, "script", "gamemonetize-video-api"); 
-        </script>
+        <div class="game-wrapper" id="gameWrapper">
+            <!-- ΠΑΙΧΝΙΔΙ GAMEMONETIZE - ΕΝΑΛΛΑΚΤΙΚΗ ΕΚΔΟΣΗ -->
+            <iframe 
+                id="gameFrame"
+                src="https://html5.gamemonetize.com/bqj8e306rpk3tz68id1v19bhwbud4gjc/" 
+                style="width:100%; height:100%; border:none;"
+                title="Match POP Blocks Puzzle"
+                allowfullscreen>
+            </iframe>
+        </div>
     </div>
     
     <!-- Κουμπί πληροφοριών -->
@@ -461,35 +497,46 @@
         </button>
         <div class="ad-content">
             <!-- GOOGLE ADSENSE ΔΙΚΗ ΣΟΥ ΔΙΑΦΗΜΙΣΗ -->
-            <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549" crossorigin="anonymous"></script>
-            <ins class="adsbygoogle"
-                 style="display:block; width:100%; height:100%;"
-                 data-ad-format="autorelaxed"
-                 data-ad-client="ca-pub-3186700611266549"
-                 data-ad-slot="9660744817"></ins>
-            <script>
-                 (adsbygoogle = window.adsbygoogle || []).push({});
-            </script>
+            <div class="ad-placeholder" id="adPlaceholder">
+                <i class="fas fa-ad" style="font-size: 3rem; margin-bottom: 15px; color: #666;"></i>
+                <p>Διαφήμιση</p>
+            </div>
+            
+            <!-- Το πραγματικό AdSense script θα εισαχθεί από JavaScript -->
+            <div id="adsenseContainer" style="width:100%; height:100%;"></div>
         </div>
     </div>
 
     <script>
-        // ΑΠΑΓΟΡΕΥΣΗ gamesmunch.com
-        if (window.location.hostname.includes('gamesmunch.com') || 
-            window.location.href.includes('gamesmunch.com')) {
-            window.location.href = window.location.origin;
-        }
-        
         document.addEventListener('DOMContentLoaded', function() {
             // Στοιχεία του DOM
+            const gameLoading = document.getElementById('gameLoading');
+            const gameFrame = document.getElementById('gameFrame');
             const infoBtn = document.getElementById('infoBtn');
             const infoPopup = document.getElementById('infoPopup');
             const closeInfoBtn = document.getElementById('closeInfoBtn');
             const bottomAd = document.getElementById('bottomAd');
             const closeAd = document.getElementById('closeAd');
+            const adsenseContainer = document.getElementById('adsenseContainer');
+            const adPlaceholder = document.getElementById('adPlaceholder');
             
             let adTimer;
             let adInterval;
+            let adShown = false;
+            
+            // Κρύψε το loading μόλις φορτώσει το παιχνίδι
+            gameFrame.onload = function() {
+                setTimeout(function() {
+                    gameLoading.style.display = 'none';
+                    console.log('Το παιχνίδι φορτώθηκε!');
+                    
+                    // Ξεκίνα τις διαφημίσεις μόλις φορτώσει το παιχνίδι
+                    if (!adShown) {
+                        startAdCycle();
+                        adShown = true;
+                    }
+                }, 2000);
+            };
             
             // Άνοιγμα pop-up πληροφοριών
             infoBtn.addEventListener('click', function() {
@@ -522,48 +569,89 @@
             // Κλείσιμο διαφήμισης
             closeAd.addEventListener('click', function() {
                 bottomAd.classList.remove('active');
+                clearTimeout(adTimer);
             });
             
-            // Λειτουργία εμφάνισης διαφήμισης κάθε 1.5 λεπτό (90 δευτερόλεπτα)
-            function showBottomAd() {
-                clearTimeout(adTimer);
+            // Συνάρτηση για εμφάνιση διαφήμισης
+            function showAd() {
+                // Κρύψε το placeholder
+                adPlaceholder.style.display = 'none';
+                
+                // Δημιούργησε και πρόσθεσε το AdSense script
+                const adScript = document.createElement('script');
+                adScript.async = true;
+                adScript.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549";
+                adScript.crossOrigin = "anonymous";
+                
+                // Δημιούργησε το ad container
+                const adIns = document.createElement('ins');
+                adIns.className = 'adsbygoogle';
+                adIns.style.display = 'block';
+                adIns.style.width = '100%';
+                adIns.style.height = '100%';
+                adIns.setAttribute('data-ad-format', 'autorelaxed');
+                adIns.setAttribute('data-ad-client', 'ca-pub-3186700611266549');
+                adIns.setAttribute('data-ad-slot', '9660744817');
+                
+                // Καθάρισε το container και πρόσθεσε τα νέα στοιχεία
+                adsenseContainer.innerHTML = '';
+                adsenseContainer.appendChild(adIns);
+                document.head.appendChild(adScript);
                 
                 // Εμφάνιση διαφήμισης από κάτω προς τα πάνω
                 bottomAd.classList.add('active');
                 
+                // Εκτέλεση του AdSense script
+                setTimeout(function() {
+                    try {
+                        (adsbygoogle = window.adsbygoogle || []).push({});
+                        console.log('AdSense διαφήμιση φορτώθηκε');
+                    } catch(e) {
+                        console.log('AdSense error:', e);
+                        // Εμφάνισε το placeholder αν αποτύχει
+                        adPlaceholder.style.display = 'flex';
+                        adPlaceholder.innerHTML = '<p>Διαφήμιση φόρτωσης...</p>';
+                    }
+                }, 500);
+                
                 // Αυτόματο κλείσιμο μετά από 30 δευτερόλεπτα
                 adTimer = setTimeout(() => {
                     bottomAd.classList.remove('active');
-                }, 30000);
-                
-                // Επαναφόρτωση του AdSense script
-                if (window.adsbygoogle) {
+                    // Επαναφορά placeholder
                     setTimeout(() => {
-                        try {
-                            (adsbygoogle = window.adsbygoogle || []).push({});
-                        } catch(e) {
-                            console.log("AdSense error:", e);
-                        }
-                    }, 100);
-                }
+                        adPlaceholder.style.display = 'flex';
+                        adPlaceholder.innerHTML = `
+                            <i class="fas fa-ad" style="font-size: 3rem; margin-bottom: 15px; color: #666;"></i>
+                            <p>Διαφήμιση</p>
+                        `;
+                    }, 500);
+                }, 30000);
             }
             
             // Έναρξη διαφημίσεων
             function startAdCycle() {
+                console.log('Ξεκίνησε ο κύκλος διαφημίσεων');
+                
                 // Πρώτη εμφάνιση μετά από 30 δευτερόλεπτα
                 setTimeout(() => {
-                    showBottomAd();
+                    showAd();
                     // Επανάληψη κάθε 1.5 λεπτό (90000 ms = 90 δευτερόλεπτα)
-                    adInterval = setInterval(showBottomAd, 90000);
+                    adInterval = setInterval(showAd, 90000);
                 }, 30000);
             }
             
-            // Έναρξη του κύκλου διαφημίσεων
-            startAdCycle();
+            // Έναρξη του κύκλου διαφημίσεων όταν φορτωθεί η σελίδα
+            // Αλλά πρώτα περιμένουμε να φορτωθεί το παιχνίδι
+            setTimeout(function() {
+                if (!adShown) {
+                    startAdCycle();
+                    adShown = true;
+                }
+            }, 5000);
             
             // Επαναφόρτωση διαφημίσεων όταν ο χρήστης επιστρέψει στην εφαρμογή
             document.addEventListener('visibilitychange', function() {
-                if (!document.hidden && window.adsbygoogle) {
+                if (!document.hidden && window.adsbygoogle && bottomAd.classList.contains('active')) {
                     setTimeout(() => {
                         try {
                             (adsbygoogle = window.adsbygoogle || []).push({});
@@ -576,37 +664,26 @@
             
             // Αναβάθμιση του παιχνιδιού για να πιάνει όλη την οθόνη
             setTimeout(function() {
-                const videoContainer = document.querySelector('#gamemonetize-video');
-                if (videoContainer) {
-                    videoContainer.style.width = '100%';
-                    videoContainer.style.height = '100%';
-                }
-                
-                // Αναβάθμιση των VIDEO_OPTIONS για πλήρη οθόνη
-                if (window.VIDEO_OPTIONS) {
-                    window.VIDEO_OPTIONS.width = "100%";
-                    window.VIDEO_OPTIONS.height = "100%";
-                }
-            }, 1500);
+                gameFrame.style.width = '100%';
+                gameFrame.style.height = '100%';
+            }, 1000);
             
-            // Αποτροπή ανοίγματος άλλων sites
+            // Προστασία από gamesmunch.com
+            if (window.location.hostname.includes('gamesmunch.com') || 
+                window.location.href.includes('gamesmunch.com')) {
+                console.log('Απαγορευμένος ιστότοπος - ανακατεύθυνση');
+                window.location.href = window.location.origin;
+            }
+            
+            // Αποτροπή click σε εξωτερικούς συνδέσμους
             document.addEventListener('click', function(e) {
-                if (e.target.tagName === 'A' || e.target.closest('a')) {
-                    const link = e.target.href || e.target.closest('a').href;
-                    if (link && link.includes('gamesmunch.com')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('Blocked gamesmunch.com link');
-                        return false;
-                    }
+                let target = e.target;
+                while (target && target.tagName !== 'A') {
+                    target = target.parentElement;
                 }
-            });
-            
-            // Αποτροπή navigation προς gamesmunch
-            window.addEventListener('beforeunload', function(e) {
-                const newURL = e.currentTarget.location.href;
-                if (newURL.includes('gamesmunch.com')) {
+                if (target && target.href && target.href.includes('gamesmunch.com')) {
                     e.preventDefault();
+                    e.stopPropagation();
                     return false;
                 }
             });
