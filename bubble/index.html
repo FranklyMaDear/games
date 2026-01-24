@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Smash</title>
+    <!-- Google AdSense Script -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549"
+     crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #000;
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Game Container - Εμφανίζεται αμέσως */
+        .game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: #000;
+            display: block;
+        }
+        
+        /* ΔΙΑΦΗΜΙΣΗ ΑΠΟ ΚΑΤΩ ΠΡΟΣ ΤΑ ΠΑΝΩ - 25% ΟΘΟΝΗΣ */
+        .bottom-ad {
+            position: fixed;
+            bottom: -25vh; /* Αρχικά κρυμμένη από κάτω */
+            left: 0;
+            width: 100%;
+            height: 25vh; /* 25% της οθόνης */
+            z-index: 1001;
+            background: white;
+            display: none;
+            transition: bottom 0.5s ease-out;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3);
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            overflow: hidden;
+        }
+        
+        .bottom-ad.active {
+            display: block;
+            bottom: 0;
+            animation: slideUp 0.5s ease-out forwards;
+        }
+        
+        @keyframes slideUp {
+            from { bottom: -25vh; }
+            to { bottom: 0; }
+        }
+        
+        .bottom-ad-header {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 50px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .bottom-ad-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .bottom-ad-close {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        
+        .bottom-ad-close:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .bottom-ad-content {
+            width: 100%;
+            height: calc(100% - 50px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+        
+        .bottom-ad-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #666;
+            font-size: 1.1rem;
+            text-align: center;
+            padding: 15px;
+        }
+        
+        /* Timer για τη διαφήμιση */
+        .bottom-ad-timer {
+            font-size: 0.9rem;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 10px;
+            border-radius: 15px;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        
+        /* Video player styling */
+        .video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* Image ad styling */
+        .image-ad {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* Ad type indicator */
+        .ad-type-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .bottom-ad {
+                height: 30vh; /* Λίγο μεγαλύτερη σε mobile */
+            }
+            
+            .bottom-ad-header {
+                padding: 10px 15px;
+                height: 45px;
+            }
+            
+            .bottom-ad-title {
+                font-size: 1rem;
+            }
+            
+            .bottom-ad-timer {
+                font-size: 0.8rem;
+                padding: 3px 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .bottom-ad {
+                height: 35vh; /* Ακόμα μεγαλύτερη σε πολύ μικρές οθόνες */
+            }
+            
+            .bottom-ad-header {
+                padding: 8px 12px;
+                height: 40px;
+            }
+            
+            .bottom-ad-title {
+                font-size: 0.9rem;
+                gap: 5px;
+            }
+            
+            .bottom-ad-close {
+                width: 25px;
+                height: 25px;
+                font-size: 0.8rem;
+            }
+            
+            .bottom-ad-timer {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+                margin-left: 5px;
+            }
+            
+            .bottom-ad-placeholder {
+                font-size: 1rem;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- ΔΙΑΦΗΜΙΣΗ ΑΠΟ ΚΑΤΩ ΠΡΟΣ ΤΑ ΠΑΝΩ - 25% ΟΘΟΝΗΣ -->
+    <div class="bottom-ad" id="bottomAd">
+        <div class="bottom-ad-header">
+            <div class="bottom-ad-title">
+                <i class="fas fa-ad" style="margin-right: 8px;"></i>
+                Διαφήμιση
+                <span class="bottom-ad-timer" id="bottomAdTimer">Κλείνει σε 10s</span>
+            </div>
+            <span class="ad-type-indicator" id="adTypeIndicator">
+                <i class="fas fa-image"></i>
+                Εικόνα
+            </span>
+            <button class="bottom-ad-close" id="closeBottomAd">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="bottom-ad-content">
+            <div class="bottom-ad-placeholder" id="bottomAdPlaceholder">
+                <i class="fas fa-ad" style="font-size: 2.5rem; margin-bottom: 10px; color: #666;"></i>
+                <p style="font-size: 1.2rem; margin-bottom: 5px;">Φόρτωση διαφήμισης...</p>
+                <p style="font-size: 0.8rem; color: #888;">Κλείνει αυτόματα σε 10 δευτερόλεπτα</p>
+            </div>
+            
+            <!-- Video player -->
+            <video id="bottomVideoPlayer" class="video-player" playsinline muted style="display: none;">
+                <source src="" type="video/mp4">
+                Το πρόγραμμα περιήγησής σας δεν υποστηρίζει την αναπαραγωγή βίντεο.
+            </video>
+            
+            <!-- Image ad -->
+            <img id="bottomImageAd" class="image-ad" src="" alt="Διαφήμιση" style="display: none;">
+            
+            <!-- Google AdSense Ad -->
+            <div id="bottomAdContainer" style="width:100%; height:100%; display:none;"></div>
+        </div>
+    </div>
+    
+    <!-- Παιχνίδι σε πλήρη οθόνη - Εμφανίζεται αμέσως -->
+    <div class="game-container" id="gameContainer">
+        <!-- NEO GAMEZOP ΠΑΙΧΝΙΔΙ -->
+        <iframe 
+            seamless="seamless" 
+            allowtransparency="true" 
+            allowfullscreen="true" 
+            frameborder="0" 
+            style="width: 100%; height: 100%; border: 0px;" 
+            src="https://zv1y2i8p.play.gamezop.com/g/ryJGkhT7qAB"
+            title="Νέο Παιχνίδι">
+        </iframe>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Στοιχεία του DOM
+            const bottomAd = document.getElementById('bottomAd');
+            const bottomAdTimer = document.getElementById('bottomAdTimer');
+            const bottomAdPlaceholder = document.getElementById('bottomAdPlaceholder');
+            const closeBottomAd = document.getElementById('closeBottomAd');
+            const adTypeIndicator = document.getElementById('adTypeIndicator');
+            
+            const bottomVideoPlayer = document.getElementById('bottomVideoPlayer');
+            const bottomImageAd = document.getElementById('bottomImageAd');
+            const bottomAdContainer = document.getElementById('bottomAdContainer');
+            
+            const gameContainer = document.getElementById('gameContainer');
+            const gameFrame = document.querySelector('#gameContainer iframe');
+            
+            // Μεταβλητές ελέγχου
+            let bottomAdCountdown;
+            let bottomAdInterval;
+            let currentBottomAdTime = 10;
+            let bottomAdRotation = 0;
+            
+            // Λίστα με διαφορετικούς τύπους διαφημίσεων
+            const bottomAds = [
+                {
+                    type: 'video',
+                    name: 'Βίντεο Διαφήμιση 1',
+                    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                    icon: 'fa-video',
+                    text: 'Βίντεο'
+                },
+                {
+                    type: 'image', 
+                    name: 'Εικόνα Διαφήμιση 1',
+                    url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400',
+                    icon: 'fa-image',
+                    text: 'Εικόνα'
+                },
+                {
+                    type: 'adsense',
+                    name: 'Google AdSense',
+                    client: 'ca-pub-3186700611266549',
+                    slot: '9660744817',
+                    icon: 'fa-google',
+                    text: 'Google'
+                },
+                {
+                    type: 'video',
+                    name: 'Βίντεο Διαφήμιση 2',
+                    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+                    icon: 'fa-video',
+                    text: 'Βίντεο'
+                },
+                {
+                    type: 'image',
+                    name: 'Εικόνα Διαφήμιση 2',
+                    url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400',
+                    icon: 'fa-image',
+                    text: 'Εικόνα'
+                }
+            ];
+            
+            // ΤΟ ΠΑΙΧΝΙΔΙ ΞΕΚΙΝΑΕΙ ΑΜΕΣΩΣ
+            
+            // Έναρξη διαφημίσεων από κάτω μετά από 1 λεπτό
+            setTimeout(() => {
+                startBottomAdCycle();
+            }, 60000);
+            
+            // Timer για διαφήμιση από κάτω (10 δευτερόλεπτα)
+            function startBottomAdTimer() {
+                currentBottomAdTime = 10;
+                bottomAdTimer.textContent = `Κλείνει σε ${currentBottomAdTime}s`;
+                
+                clearInterval(bottomAdCountdown);
+                bottomAdCountdown = setInterval(function() {
+                    currentBottomAdTime--;
+                    bottomAdTimer.textContent = `Κλείνει σε ${currentBottomAdTime}s`;
+                    
+                    if (currentBottomAdTime <= 0) {
+                        clearInterval(bottomAdCountdown);
+                        hideBottomAd();
+                    }
+                }, 1000);
+            }
+            
+            // Εμφάνιση διαφήμισης από κάτω
+            function showBottomAd() {
+                console.log('Εμφάνιση διαφήμισης από κάτω (10 δευτερόλεπτα, 25% οθόνης)');
+                
+                // Επιλογή διαφορετικής διαφήμισης
+                bottomAdRotation++;
+                const adConfig = bottomAds[bottomAdRotation % bottomAds.length];
+                
+                // Κρύψε όλα τα περιεχόμενα
+                bottomAdPlaceholder.style.display = 'none';
+                bottomVideoPlayer.style.display = 'none';
+                bottomImageAd.style.display = 'none';
+                bottomAdContainer.style.display = 'none';
+                
+                // Σταμάτησε τυχόν βίντεο
+                bottomVideoPlayer.pause();
+                bottomVideoPlayer.currentTime = 0;
+                
+                // Ενημέρωση indicator
+                adTypeIndicator.innerHTML = `<i class="fas ${adConfig.icon}"></i> ${adConfig.text}`;
+                
+                // Εμφάνιση διαφήμισης (από κάτω προς τα πάνω)
+                bottomAd.classList.add('active');
+                
+                // Ξεκίνα timer
+                startBottomAdTimer();
+                
+                // Ανάλογα με τον τύπο της διαφήμισης
+                switch(adConfig.type) {
+                    case 'video':
+                        bottomVideoPlayer.src = adConfig.url;
+                        bottomVideoPlayer.load();
+                        bottomVideoPlayer.style.display = 'block';
+                        
+                        setTimeout(() => {
+                            bottomVideoPlayer.play().catch(e => {
+                                console.log('Video autoplay failed:', e);
+                                bottomAdPlaceholder.style.display = 'flex';
+                            });
+                        }, 300);
+                        break;
+                        
+                    case 'image':
+                        bottomImageAd.src = adConfig.url;
+                        bottomImageAd.style.display = 'block';
+                        break;
+                        
+                    case 'adsense':
+                        bottomAdContainer.style.display = 'block';
+                        
+                        try {
+                            const adIns = document.createElement('ins');
+                            adIns.className = 'adsbygoogle';
+                            adIns.style.display = 'block';
+                            adIns.style.width = '100%';
+                            adIns.style.height = '100%';
+                            adIns.setAttribute('data-ad-client', adConfig.client);
+                            adIns.setAttribute('data-ad-slot', adConfig.slot);
+                            adIns.setAttribute('data-ad-format', 'auto');
+                            adIns.setAttribute('data-full-width-responsive', 'true');
+                            
+                            bottomAdContainer.innerHTML = '';
+                            bottomAdContainer.appendChild(adIns);
+                            
+                            setTimeout(() => {
+                                (adsbygoogle = window.adsbygoogle || []).push({});
+                            }, 300);
+                        } catch(e) {
+                            console.log('AdSense error:', e);
+                            bottomAdPlaceholder.style.display = 'flex';
+                        }
+                        break;
+                }
+                
+                console.log(`Bottom Ad loaded: ${adConfig.name} (Type: ${adConfig.type})`);
+            }
+            
+            // Απόκρυψη διαφήμισης από κάτω
+            function hideBottomAd() {
+                clearInterval(bottomAdCountdown);
+                bottomAd.classList.remove('active');
+                
+                // Σταμάτησε το βίντεο
+                bottomVideoPlayer.pause();
+                bottomVideoPlayer.currentTime = 0;
+                
+                // Επαναφορά placeholder
+                setTimeout(() => {
+                    bottomAdPlaceholder.style.display = 'flex';
+                }, 300);
+            }
+            
+            // Έναρξη κύκλου διαφημίσεων από κάτω
+            function startBottomAdCycle() {
+                console.log('Ξεκίνησε ο κύκλος διαφημίσεων κάθε 1 λεπτό');
+                
+                // Πρώτη διαφήμιση αμέσως
+                showBottomAd();
+                
+                // Επανάληψη κάθε 1 λεπτό (60000 ms)
+                bottomAdInterval = setInterval(showBottomAd, 60000);
+            }
+            
+            // Κλείσιμο διαφήμισης από κάτω
+            closeBottomAd.addEventListener('click', function() {
+                hideBottomAd();
+                clearInterval(bottomAdCountdown);
+            });
+            
+            // Έλεγχος φόρτωσης παιχνιδιού
+            gameFrame.onload = function() {
+                console.log('Το νέο παιχνίδι φορτώθηκε!');
+            };
+            
+            gameFrame.onerror = function() {
+                console.log('Σφάλμα φόρτωσης παιχνιδιού');
+            };
+            
+            // AdSense initialization function
+            function initAdSense() {
+                console.log('AdSense initialized για το νέο παιχνίδι');
+                try {
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                } catch(error) {
+                    console.error('Error initializing AdSense:', error);
+                }
+            }
+            
+            // Initialize AdSense
+            initAdSense();
+        });
+    </script>
+</body>
+</html>
