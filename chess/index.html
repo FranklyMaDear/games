@@ -13,6 +13,12 @@
     <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#1e3c72">
     
+    <!-- Open Graph για κοινή χρήση στο Facebook -->
+    <meta property="og:image" content="index.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    
     <!-- Google AdSense Script -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3186700611266549"
             crossorigin="anonymous"></script>
@@ -260,8 +266,7 @@
         }
         
         .ad-close-btn:hover {
-            background: rgba(255, 0, 0, 0.4);
-            border-color: #ff0000;
+            background: rgba(255, 255, 255, 0.3);
             transform: rotate(90deg) scale(1.1);
         }
         
@@ -287,28 +292,6 @@
             font-size: 18px;
             font-weight: bold;
             padding: 0 20px;
-        }
-        
-        /* Mid-game Ad Indicator */
-        .midgame-ad-indicator {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(209, 154, 76, 0.9);
-            color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            z-index: 999;
-            display: none;
-            box-shadow: 0 3px 15px rgba(0,0,0,0.3);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
         }
         
         /* Modal Styles */
@@ -609,22 +592,10 @@
                 height: 45px;
                 font-size: 24px;
             }
-            
-            .midgame-ad-indicator {
-                top: 10px;
-                right: 10px;
-                font-size: 12px;
-                padding: 6px 12px;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Mid-game Ad Indicator -->
-    <div class="midgame-ad-indicator" id="midgameAdIndicator">
-        🕒 Επόμενη διαφήμιση σε: <span id="midgameTimer">120</span> δευτερόλεπτα
-    </div>
-
     <div class="container">
         <!-- Κεντρική σκακιέρα -->
         <div class="board-wrapper">
@@ -735,8 +706,6 @@
         const fullscreenAd = document.getElementById("fullscreenAd");
         const closeFullscreenAd = document.getElementById("closeFullscreenAd");
         const adTimerCount = document.getElementById("adTimerCount");
-        const midgameAdIndicator = document.getElementById("midgameAdIndicator");
-        const midgameTimer = document.getElementById("midgameTimer");
         
         // UI Elements
         const postGameTitle = document.getElementById("postGameTitle");
@@ -763,18 +732,15 @@
         
         // Ad Variables
         let adShown = false;
-        let midgameAdShown = false;
-        let gameStartTime = null;
         let adTimer;
         let adCountdownTimer;
-        let midgameCountdownTimer;
-        let midgameAdTimeout;
         let adCountdownValue = 15;
+        let midgameAdInterval;
         
         const START = [
             ['r','n','b','q','k','b','n','r'],
             ['p','p','p','p','p','p','p','p'],
-            [null,null,null,null,null,null,null],
+            [null,null,null,null,null,null,null,null],
             [null,null,null,null,null,null,null,null],
             [null,null,null,null,null,null,null,null],
             [null,null,null,null,null,null,null,null],
@@ -817,7 +783,6 @@
             gameActive = true;
             kingInCheck = false;
             promotionPending = null;
-            gameStartTime = Date.now();
             
             updateGameInfo();
             render();
@@ -829,8 +794,8 @@
                 }, 2000);
             }
             
-            // Προετοιμασία για mid-game ad (μετά από 2 λεπτά = 120 δευτερόλεπτα)
-            startMidgameAdCountdown();
+            // Προετοιμασία για mid-game ads κάθε λεπτό
+            startMidgameAdInterval();
         }
         
         // Απόδοση σκακιέρας
@@ -982,8 +947,7 @@
             
             if (!hasLegalMoves) {
                 gameActive = false;
-                stopMidgameAdCountdown();
-                hideMidgameIndicator();
+                stopMidgameAdInterval();
                 
                 if (kingInCheck) {
                     // Checkmate
@@ -1236,12 +1200,7 @@
             // Μάρκαρε ότι εμφανίστηκε
             if (type === "startup") {
                 adShown = true;
-            } else {
-                midgameAdShown = true;
             }
-            
-            // Κλείσε το mid-game indicator
-            hideMidgameIndicator();
             
             // Αναδύεται από το ΚΑΤΩ
             fullscreenAd.classList.add('show');
@@ -1292,59 +1251,25 @@
             fullscreenAd.classList.remove('show', 'show-abrupt');
             clearInterval(adCountdownTimer);
             clearTimeout(adTimer);
-            
-            // Αν ήταν mid-game ad, ξαναξεκίνα το countdown για επόμενη
-            if (type === "midgame") {
-                setTimeout(() => {
-                    midgameAdShown = false;
-                    startMidgameAdCountdown();
-                }, 60000); // Ξαναεμφανίζεται μετά από 1 λεπτό
-            }
         }
         
-        // MID-GAME AD FUNCTIONS
-        function startMidgameAdCountdown() {
-            // Καθαρίσε προηγούμενα timers
-            stopMidgameAdCountdown();
+        // MID-GAME AD FUNCTIONS (ΚΑΘΕ ΛΕΠΤΟ)
+        function startMidgameAdInterval() {
+            // Καθάρισε προηγούμενα intervals
+            stopMidgameAdInterval();
             
-            let secondsLeft = 120; // 2 λεπτά = 120 δευτερόλεπτα
-            
-            // Εμφάνιση indicator
-            midgameTimer.textContent = secondsLeft;
-            midgameAdIndicator.style.display = 'block';
-            
-            // Countdown
-            midgameCountdownTimer = setInterval(() => {
-                secondsLeft--;
-                midgameTimer.textContent = secondsLeft;
-                
-                if (secondsLeft <= 0) {
-                    // Εμφάνιση mid-game ad
-                    if (gameActive && !midgameAdShown) {
-                        showFullscreenAd("midgame");
-                    }
-                    clearInterval(midgameCountdownTimer);
-                    hideMidgameIndicator();
-                }
-            }, 1000);
-            
-            // Backup timer για mid-game ad
-            midgameAdTimeout = setTimeout(() => {
-                if (gameActive && !midgameAdShown) {
+            // Θέσε interval για διαφήμιση κάθε λεπτό (60000 ms)
+            midgameAdInterval = setInterval(() => {
+                if (gameActive && !fullscreenAd.classList.contains('show') && !fullscreenAd.classList.contains('show-abrupt')) {
                     showFullscreenAd("midgame");
                 }
-                hideMidgameIndicator();
-            }, 120000); // 2 λεπτά
+            }, 60000); // 60 δευτερόλεπτα = 1 λεπτό
         }
         
-        function stopMidgameAdCountdown() {
-            clearInterval(midgameCountdownTimer);
-            clearTimeout(midgameAdTimeout);
-            hideMidgameIndicator();
-        }
-        
-        function hideMidgameIndicator() {
-            midgameAdIndicator.style.display = 'none';
+        function stopMidgameAdInterval() {
+            if (midgameAdInterval) {
+                clearInterval(midgameAdInterval);
+            }
         }
         
         // SHOW POST-GAME MODAL
@@ -1365,8 +1290,7 @@
         // UI EVENT LISTENERS
         document.getElementById("resetBtn").addEventListener("click", () => {
             welcomeModal.style.display = 'flex';
-            stopMidgameAdCountdown();
-            hideMidgameIndicator();
+            stopMidgameAdInterval();
         });
         
         document.getElementById("flipBtn").addEventListener("click", () => {
@@ -1415,28 +1339,24 @@
         playAgainBtn.addEventListener("click", () => {
             postGameModal.style.display = 'none';
             welcomeModal.style.display = 'flex';
-            stopMidgameAdCountdown();
-            hideMidgameIndicator();
+            stopMidgameAdInterval();
         });
         
         mainMenuBtn.addEventListener("click", () => {
             postGameModal.style.display = 'none';
             welcomeModal.style.display = 'flex';
-            stopMidgameAdCountdown();
-            hideMidgameIndicator();
+            stopMidgameAdInterval();
         });
         
         // Close Fullscreen Ad
         closeFullscreenAd.addEventListener("click", () => {
-            const type = midgameAdShown ? "midgame" : "startup";
-            closeFullscreenAdFunc(type);
+            closeFullscreenAdFunc();
         });
         
         // Close ad by clicking outside (στο 50% πάνω μέρος)
         fullscreenAd.addEventListener("click", (e) => {
             if (e.clientY < window.innerHeight / 2) {
-                const type = midgameAdShown ? "midgame" : "startup";
-                closeFullscreenAdFunc(type);
+                closeFullscreenAdFunc();
             }
         });
         
