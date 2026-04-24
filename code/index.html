@@ -186,29 +186,30 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: nowrap;
             background: rgba(0,0,0,0.5);
-            padding: 20px 16px;
+            padding: 16px 12px;
             border-radius: 18px;
             border: 2px solid var(--border);
             width: 100%;
-            min-height: 75px;
+            min-height: 70px;
             position: relative;
             z-index: 1;
-            overflow-x: auto;
+            overflow-x: visible;
+            overflow-y: visible;
         }
 
         .word-slot {
-            width: clamp(40px, 12vw, 55px);
-            height: clamp(48px, 14vw, 65px);
+            width: clamp(36px, 10vw, 50px);
+            height: clamp(44px, 12vw, 60px);
             background: linear-gradient(180deg, #1a1f28 0%, #0d1117 100%);
             border: 2px solid #30363d;
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(1.6rem, 5vw, 2.2rem);
+            font-size: clamp(1.4rem, 4.5vw, 2rem);
             font-weight: 700;
             text-transform: uppercase;
             color: var(--gold-light);
@@ -216,7 +217,8 @@
             text-shadow: 0 0 10px rgba(226,176,74,0.5);
             transition: all 0.3s ease;
             font-family: 'SF Mono', 'Courier New', monospace;
-            flex-shrink: 0;
+            flex-shrink: 1;
+            min-width: 32px;
             position: relative;
             overflow: hidden;
         }
@@ -261,7 +263,8 @@
         }
 
         .word-slot.space {
-            width: 20px;
+            width: 16px;
+            min-width: 16px;
             background: transparent;
             border: none;
             box-shadow: none;
@@ -541,19 +544,21 @@
             100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
 
-        /* Για κύλιση στο word-display σε πολύ μικρές οθόνες */
+        /* Για κύλιση στο word-display σε πολύ μικρές οθόνες - ΑΦΑΙΡΕΘΗΚΕ ΤΟ SCROLL */
         @media (max-width: 380px) {
             .word-display {
-                gap: 5px;
-                padding: 14px 10px;
+                gap: 4px;
+                padding: 12px 8px;
             }
             .word-slot {
-                width: 36px;
-                height: 44px;
-                font-size: 1.4rem;
+                width: 30px;
+                height: 38px;
+                font-size: 1.2rem;
+                min-width: 28px;
             }
             .word-slot.space {
-                width: 14px;
+                width: 10px;
+                min-width: 10px;
             }
         }
 
@@ -630,9 +635,11 @@
 
     <script>
         (function() {
-            // ========== 22 ΛΕΞΕΙΣ (ΟΙ 2 ΝΕΕΣ ΠΡΩΤΕΣ) ==========
+            // ========== 23 ΛΕΞΕΙΣ (Η ΝΕΑ ΠΡΩΤΗ-ΠΡΩΤΗ) ==========
             const SECRET_WORDS = [
-                // --- ΟΙ ΔΥΟ ΝΕΕΣ ΛΕΞΕΙΣ ΠΡΩΤΕΣ ---
+                // --- ΠΡΩΤΗ-ΠΡΩΤΗ: ΜΑΡΙΖΑ ---
+                { word: "ΜΑΡΙΖΑ", hint: "Ποιο είναι το καλύτερο κορίτσι μέσα στο καφέ βόλτα;" },
+                // --- ΟΙ ΔΥΟ ΠΡΟΗΓΟΥΜΕΝΕΣ ΝΕΕΣ ---
                 { word: "ΚΟΥΔΟΥΝΑΚΙ", hint: "Τι είναι η Μαρίζα;" },
                 { word: "ΒΡΟΥΑΝΑ", hint: "Ποια λέξη ακούγεται συχνά στο καφέ βόλτα;" },
                 // --- ΟΙ ΥΠΟΛΟΙΠΕΣ 20 ---
@@ -1021,17 +1028,43 @@
                 });
             }
 
+            // ========== ΥΠΟΛΟΓΙΣΜΟΣ ΜΕΓΕΘΟΥΣ ΚΟΥΤΙΩΝ ΜΕ ΒΑΣΗ ΤΟ ΜΗΚΟΣ ΛΕΞΗΣ ==========
+            function calculateSlotSize(wordLength) {
+                const container = wordDisplay;
+                const containerWidth = container.clientWidth - 24; // padding
+                const gapSize = 6; // gap μεταξύ κουτιών
+                const totalGaps = (wordLength - 1) * gapSize;
+                
+                let slotSize = Math.floor((containerWidth - totalGaps) / wordLength);
+                
+                // Μέγιστο και ελάχιστο όριο
+                slotSize = Math.min(slotSize, 50);
+                slotSize = Math.max(slotSize, 28);
+                
+                return slotSize;
+            }
+
             function updateWordDisplay(animate = false, highlightPositions = []) {
                 wordDisplay.innerHTML = "";
                 const displayWord = currentWord.toUpperCase();
+                const normalizedWord = normalizeGreek(currentWord);
+                const wordLength = normalizedWord.length;
+                const slotSize = calculateSlotSize(wordLength);
                 
                 for (let i = 0; i < displayWord.length; i++) {
                     const slot = document.createElement("span");
                     
                     if (displayWord[i] === " ") {
                         slot.className = "word-slot space";
+                        slot.style.width = Math.floor(slotSize * 0.4) + "px";
+                        slot.style.minWidth = Math.floor(slotSize * 0.4) + "px";
                     } else {
                         slot.className = "word-slot";
+                        slot.style.width = slotSize + "px";
+                        slot.style.height = (slotSize * 1.2) + "px";
+                        slot.style.fontSize = (slotSize * 0.45) + "px";
+                        slot.style.minWidth = slotSize + "px";
+                        
                         const inner = document.createElement("span");
                         inner.className = "slot-inner";
                         inner.textContent = revealedLetters[i] || "_";
@@ -1204,6 +1237,13 @@
             createAttemptDots();
             createAlphabetButtons();
             resetGame();
+            
+            // Επανασχεδίαση όταν αλλάζει μέγεθος το παράθυρο
+            window.addEventListener('resize', () => {
+                if (gameActive || !gameActive) {
+                    updateWordDisplay();
+                }
+            });
         })();
     </script>
 </body>
