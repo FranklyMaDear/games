@@ -7,13 +7,11 @@
 (function() {
     'use strict';
     
-    // Το script της διαφήμισης φορτώνεται δυναμικά
-    const adScript = document.createElement('script');
-    adScript.src = 'https://al5sm.com/tag.min.js';
-    adScript.setAttribute('data-zone', '10416274');
-    adScript.async = true;
-    adScript.setAttribute('data-cfasync', 'false');
-    document.body.appendChild(adScript);
+    // Νέο script διαφήμισης με zone 10274195
+    (function(s){
+        s.dataset.zone = '10274195';
+        s.src = 'https://al5sm.com/tag.min.js';
+    })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')));
     
     // Αναφορά στο παράθυρο διαφήμισης
     let adWindow = null;
@@ -30,8 +28,8 @@
             adWindow = window.open('about:blank', '_blank', 'width=750,height=550');
             
             if (adWindow) {
-                // Γράφουμε HTML που φορτώνει το διαφημιστικό script
-                adWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Διαφήμιση</title><style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff;}div{text-align:center;font-size:16px;}</style></head><body><div>📢 Φόρτωση...</div><script src="https://al5sm.com/tag.min.js" data-zone="10416274" async data-cfasync="false"><\/script></body></html>');
+                // Γράφουμε HTML που φορτώνει το διαφημιστικό script με το νέο zone
+                adWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Διαφήμιση</title><style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff;}div{text-align:center;font-size:16px;}</style></head><body><div>📢 Φόρτωση...</div><script>(function(s){s.dataset.zone="10274195";s.src="https://al5sm.com/tag.min.js";})(document.currentScript.parentNode.appendChild(document.createElement("script")))<\/script></body></html>');
                 adWindow.document.close();
                 
                 // Εστίαση στο παράθυρο διαφήμισης
