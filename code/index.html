@@ -617,6 +617,32 @@
             100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
         }
 
+        /* Ad overlay notification */
+        .ad-notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: var(--gold-light);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            z-index: 1000;
+            animation: fadeInOut 2.5s ease forwards;
+            pointer-events: none;
+            letter-spacing: 1px;
+            border: 1px solid var(--gold);
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            75% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        }
+
         @media (min-width: 600px) {
             .game-container {
                 border-radius: 22px;
@@ -698,18 +724,15 @@
 
     <script src="words.js"></script>
 
+    <!-- Διαφημιστικό Script - quge5.com -->
+    <script src="https://quge5.com/88/tag.min.js" data-zone="199912" async data-cfasync="false"></script>
+
     <script>
         (function() {
             if (typeof SECRET_WORDS === 'undefined') {
                 alert('Σφάλμα: Το αρχείο words.js δεν φορτώθηκε σωστά!');
                 return;
             }
-
-            // --- ΡΥΘΜΙΣΗ ΓΙΑ ΔΙΑΦΗΜΙΣΕΙΣ ---
-            // Ορίζουμε έναν μετρητή για να δείχνουμε διαφήμιση κάθε 3 παιχνίδια (μπορείς να το αλλάξεις)
-            const AD_FREQUENCY = 3;
-            let gamesSinceLastAd = 0;
-            // --- ΤΕΛΟΣ ΡΥΘΜΙΣΗΣ ---
 
             const ALPHABET = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".split("");
             const START_TIME = 180;
@@ -737,6 +760,7 @@
             let currentLevel = 1;
             let currentXP = 0;
             let correctLettersInCurrentWord = 0;
+            let adWindowRef = null; // Αναφορά στο παράθυρο διαφήμισης
 
             const gameContainer = document.getElementById("gameContainer");
             const timerDisplay = document.getElementById("timerDisplay");
@@ -883,26 +907,86 @@
                 } catch(e) {}
             }
 
-            // ========== ΔΙΑΦΗΜΙΣΗ ==========
-            function showAdIfNeeded() {
-                gamesSinceLastAd++;
-                
-                // Αν έχουν περάσει AD_FREQUENCY παιχνίδια, δείξε διαφήμιση
-                if (gamesSinceLastAd >= AD_FREQUENCY && typeof monetag !== 'undefined' && monetag.interstitial) {
-                    console.log('Showing Monetag Interstitial Ad...');
-                    monetag.interstitial.show().then(() => {
-                        console.log('Ad shown or dismissed.');
-                        gamesSinceLastAd = 0; // Μηδενίζουμε τον μετρητή
-                        resetGame(); // Ξεκινάμε το νέο παιχνίδι
-                    }).catch(err => {
-                        console.warn('Ad failed to load or was skipped:', err);
-                        gamesSinceLastAd = 0; // Μηδενίζουμε ακόμα και αν αποτύχει
-                        resetGame(); // Συνεχίζουμε χωρίς διαφήμιση
-                    });
-                } else {
-                    // Αν δεν ήρθε η ώρα για διαφήμιση, απλά ξεκίνα νέο παιχνίδι
-                    resetGame();
+            // ========== ΔΙΑΦΗΜΙΣΗ ΣΕ ΝΕΟ ΠΑΡΑΘΥΡΟ ==========
+            function showAdNotification() {
+                const notification = document.createElement('div');
+                notification.className = 'ad-notification';
+                notification.textContent = '📢 Η διαφήμιση άνοιξε σε νέο παράθυρο';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2500);
+            }
+
+            function openAdInNewWindow() {
+                try {
+                    // Κλείνουμε προηγούμενο παράθυρο διαφήμισης αν υπάρχει
+                    if (adWindowRef && !adWindowRef.closed) {
+                        adWindowRef.close();
+                    }
+                    
+                    // Ανοίγουμε νέο παράθυρο με διαφημιστικό περιεχόμενο
+                    // Το quge5.com script θα ανιχνεύσει αυτόματα το data-zone και θα προωθήσει τη διαφήμιση
+                    adWindowRef = window.open('about:blank', '_blank', 'width=800,height=600');
+                    
+                    if (adWindowRef) {
+                        // Γράφουμε ένα minimal HTML που θα φορτώσει το διαφημιστικό script
+                        adWindowRef.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <title>Διαφήμιση</title>
+                                <style>
+                                    body { 
+                                        margin: 0; 
+                                        background: #000; 
+                                        display: flex; 
+                                        justify-content: center; 
+                                        align-items: center; 
+                                        min-height: 100vh;
+                                        font-family: Arial, sans-serif;
+                                        color: #fff;
+                                    }
+                                    .loading { text-align: center; font-size: 18px; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="loading">📢 Φόρτωση διαφήμισης...</div>
+                                <script src="https://quge5.com/88/tag.min.js" data-zone="199912" async data-cfasync="false"><\/script>
+                            </body>
+                            </html>
+                        `);
+                        adWindowRef.document.close();
+                        
+                        // Εστιάζουμε στο παράθυρο της διαφήμισης
+                        adWindowRef.focus();
+                        
+                        // Ειδοποίηση στον χρήστη
+                        showAdNotification();
+                        
+                        // Επιστρέφουμε focus στο παιχνίδι μετά από λίγο
+                        setTimeout(() => {
+                            window.focus();
+                        }, 1500);
+                    }
+                } catch(e) {
+                    console.warn('Δεν ήταν δυνατό το άνοιγμα διαφήμισης:', e);
+                    // Fallback: ανοίγουμε απλά ένα κενό παράθυρο
+                    try {
+                        adWindowRef = window.open('https://quge5.com/88/tag.min.js', '_blank');
+                        showAdNotification();
+                        setTimeout(() => window.focus(), 1500);
+                    } catch(e2) {
+                        console.warn('Fallback διαφήμισης απέτυχε:', e2);
+                    }
                 }
+            }
+
+            function triggerEndOfLevelAd() {
+                // Ανοίγουμε διαφήμιση σε νέο παράθυρο στο τέλος κάθε πίστας
+                setTimeout(() => {
+                    openAdInNewWindow();
+                }, 800); // Μικρή καθυστέρηση για να φανούν τα αποτελέσματα πρώτα
             }
 
             // ========== ΑΠΟΘΗΚΕΥΣΗ ΔΕΔΟΜΕΝΩΝ ==========
@@ -1173,6 +1257,8 @@
                                 setTimeout(() => playWinFanfare(), 600);
                                 spawnConfetti();
                                 endGame(true);
+                                // Άνοιγμα διαφήμισης στο τέλος της πίστας
+                                triggerEndOfLevelAd();
                             }, 400);
                         }
                     } else {
@@ -1185,7 +1271,11 @@
                         messageBox.style.color = "var(--danger)";
                         
                         if (wrongAttempts >= MAX_ATTEMPTS) {
-                            setTimeout(() => endGame(false, "attempts"), 400);
+                            setTimeout(() => {
+                                endGame(false, "attempts");
+                                // Άνοιγμα διαφήμισης στο τέλος της πίστας (αποτυχία)
+                                triggerEndOfLevelAd();
+                            }, 400);
                         }
                     }
                 });
@@ -1284,6 +1374,8 @@
                         setTimeout(() => playWinFanfare(), 600);
                         spawnConfetti();
                         endGame(true);
+                        // Άνοιγμα διαφήμισης στο τέλος της πίστας
+                        triggerEndOfLevelAd();
                     } else {
                         playWordWrongSound();
                         wrongAttempts++;
@@ -1295,7 +1387,11 @@
                         guessInput.focus();
                         
                         if (wrongAttempts >= MAX_ATTEMPTS) {
-                            setTimeout(() => endGame(false, "attempts"), 400);
+                            setTimeout(() => {
+                                endGame(false, "attempts");
+                                // Άνοιγμα διαφήμισης στο τέλος της πίστας (αποτυχία)
+                                triggerEndOfLevelAd();
+                            }, 400);
                         }
                     }
                 });
@@ -1326,6 +1422,11 @@
                     resultText.textContent = reason === "attempts" ? "ΤΕΛΟΣ ΠΡΟΣΠΑΘΕΙΩΝ" : "ΤΕΛΟΣ ΧΡΟΝΟΥ";
                     messageBox.textContent = "Η λέξη ήταν: " + currentWord + ". Πάτα ΝΕΟ ΠΑΙΧΝΙΔΙ";
                     messageBox.style.color = "var(--danger)";
+                }
+                
+                // Για timeout, ανοίγουμε επίσης διαφήμιση
+                if (reason === "time") {
+                    triggerEndOfLevelAd();
                 }
             }
 
@@ -1397,16 +1498,14 @@
                 document.body.scrollTop = 0;
                 document.documentElement.scrollTop = 0;
                 guessInput.blur();
-                // Εδώ καλείται η έξυπνη διαφήμιση
-                showAdIfNeeded();
+                resetGame();
             });
             newGameBtn.addEventListener("mousedown", function(e) {
                 e.preventDefault();
                 initAudio();
                 window.scrollTo(0, 0);
                 guessInput.blur();
-                // Εδώ καλείται η έξυπνη διαφήμιση
-                showAdIfNeeded();
+                resetGame();
             });
             newGameBtn.addEventListener("click", function(e) { e.preventDefault(); });
 
@@ -1444,19 +1543,14 @@
                     e.preventDefault();
                 }
             }, { passive: false });
-        })();
-    </script>
 
-    <!-- Monetag Interstitial Script - Ενεργοποιείται όταν ο παίκτης πατάει ΝΕΟ ΠΑΙΧΝΙΔΙ -->
-    <script>
-        (function(d,z,s){
-            s=d.createElement('script');
-            s.async=1;
-            s.src='https://static.monetag.com/tag.min.js';
-            s.dataset.zone='10416274'; // Βεβαιώσου ότι αυτό είναι το σωστό Zone ID για Interstitial
-            s.dataset.type='interstitial';
-            d.body.appendChild(s);
-        })(document);
+            // Καθαρισμός παραθύρου διαφήμισης όταν κλείνει η σελίδα
+            window.addEventListener('beforeunload', function() {
+                if (adWindowRef && !adWindowRef.closed) {
+                    adWindowRef.close();
+                }
+            });
+        })();
     </script>
 </body>
 </html>
