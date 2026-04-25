@@ -271,24 +271,30 @@
             50% { transform: scale(1.5); }
         }
 
-        /* ========== ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ - ΜΙΚΡΟΤΕΡΑ ΚΟΥΤΑΚΙΑ, ΟΛΟΚΛΗΡΗ ΛΕΞΗ ΣΕ ΜΙΑ ΣΕΙΡΑ ========== */
+        /* ========== ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ - 4 ΣΕΙΡΕΣ, ΧΩΡΙΣ SCROLL ========== */
         .word-display {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            flex-wrap: nowrap;
-            gap: 4px;
+            justify-content: center;
+            gap: 8px;
             background: rgba(0,0,0,0.55);
-            padding: 14px 10px;
+            padding: 12px 8px;
             border-radius: 14px;
             border: 2px solid var(--border);
             width: 100%;
-            min-height: 55px;
+            min-height: 200px;
             position: relative;
             z-index: 1;
             flex-shrink: 0;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
+        }
+
+        .word-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            width: 100%;
         }
 
         .word-slot {
@@ -308,7 +314,7 @@
             position: relative;
             overflow: hidden;
             width: 38px;
-            height: 48px;
+            height: 44px;
             min-width: 38px;
             font-size: 1.1rem;
             flex-shrink: 0;
@@ -356,8 +362,8 @@
             background: transparent;
             border: none;
             box-shadow: none;
-            width: 12px;
-            min-width: 12px;
+            width: 10px;
+            min-width: 10px;
             height: auto;
         }
 
@@ -744,6 +750,7 @@
             const STORAGE_KEY_XP = 'crackTheCode_xp';
             const STORAGE_KEY_SCORE = 'crackTheCode_score';
             const XP_PER_LEVEL = 500;
+            const MAX_COLS_PER_ROW = 10; // Μέγιστα κουτάκια ανά σειρά
 
             let currentWord = "";
             let currentHint = "";
@@ -1061,9 +1068,9 @@
                 if (isSpinning) return;
                 isSpinning = true;
                 playSpinSound();
-                const slots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
+                const allSlots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
                 const allLetters = ALPHABET.join("");
-                slots.forEach((slot) => {
+                allSlots.forEach((slot) => {
                     const inner = slot.querySelector(".slot-inner");
                     if (!inner) return;
                     slot.classList.add("spinning");
@@ -1206,44 +1213,122 @@
             }
 
             function flashAllSlots() {
-                const slots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
-                slots.forEach(slot => {
+                const allSlots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
+                allSlots.forEach(slot => {
                     slot.classList.add("wrong-flash");
                     setTimeout(() => slot.classList.remove("wrong-flash"), 500);
                 });
             }
 
+            // ========== ΝΕΑ ΛΟΓΙΚΗ: 4 ΣΕΙΡΕΣ, ΜΟΙΡΑΣΜΑ ΓΡΑΜΜΑΤΩΝ ==========
             function updateWordDisplay(animate = false, highlightPositions = []) {
                 wordDisplay.innerHTML = "";
                 const displayWord = currentWord.toUpperCase();
+                const normalizedWord = normalizeGreek(currentWord);
+                const totalLetters = normalizedWord.length;
                 
+                // Χωρίζουμε τη λέξη σε λέξεις (αν υπάρχουν κενά)
+                const words = displayWord.split(" ");
+                
+                // Δημιουργούμε μια λίστα με όλα τα slots (γράμματα και κενά)
+                const allSlots = [];
                 let letterIndex = 0;
                 
                 for (let i = 0; i < displayWord.length; i++) {
-                    const char = displayWord[i];
-                    
-                    if (char === " ") {
-                        const space = document.createElement("span");
-                        space.className = "word-slot space";
-                        wordDisplay.appendChild(space);
+                    if (displayWord[i] === " ") {
+                        allSlots.push({ type: "space" });
                     } else {
-                        const slot = document.createElement("span");
-                        slot.className = "word-slot";
-                        
-                        const inner = document.createElement("span");
-                        inner.className = "slot-inner";
-                        inner.textContent = revealedLetters[letterIndex] || "_";
-                        slot.appendChild(inner);
-                        
-                        if (animate && highlightPositions.includes(letterIndex)) {
-                            slot.classList.add("revealed");
-                            setTimeout(() => slot.classList.remove("revealed"), 400);
-                        }
-                        
-                        wordDisplay.appendChild(slot);
+                        allSlots.push({ 
+                            type: "letter", 
+                            index: letterIndex,
+                            char: revealedLetters[letterIndex] || "_"
+                        });
                         letterIndex++;
                     }
                 }
+                
+                // Μοιράζουμε τα slots σε σειρές (max MAX_COLS_PER_ROW ανά σειρά)
+                const rows = [];
+                let currentRow = [];
+                let currentRowCount = 0; // Μετράμε μόνο τα γράμματα
+                
+                for (let i = 0; i < allSlots.length; i++) {
+                    const slot = allSlots[i];
+                    
+                    if (slot.type === "space") {
+                        // Ελέγχουμε αν το κενό είναι στο τέλος μιας λέξης
+                        // Αν η τρέχουσα σειρά έχει ήδη γράμματα και το επόμενο γράμμα θα ξεπερνούσε το όριο
+                        const nextLetters = countNextLetters(allSlots, i + 1);
+                        if (currentRowCount > 0 && currentRowCount + nextLetters > MAX_COLS_PER_ROW && nextLetters <= MAX_COLS_PER_ROW) {
+                            // Το κενό λειτουργεί ως σημείο αλλαγής σειράς
+                            rows.push(currentRow);
+                            currentRow = [];
+                            currentRowCount = 0;
+                            continue; // Δεν προσθέτουμε το κενό
+                        }
+                        currentRow.push(slot);
+                    } else {
+                        if (currentRowCount >= MAX_COLS_PER_ROW) {
+                            rows.push(currentRow);
+                            currentRow = [];
+                            currentRowCount = 0;
+                        }
+                        currentRow.push(slot);
+                        currentRowCount++;
+                    }
+                }
+                if (currentRow.length > 0) rows.push(currentRow);
+                
+                // Περιορίζουμε σε 4 σειρές max
+                const maxRows = 4;
+                if (rows.length > maxRows) {
+                    // Ενώνουμε τις υπόλοιπες σειρές
+                    while (rows.length > maxRows) {
+                        const lastRow = rows.pop();
+                        rows[rows.length - 1].push(...lastRow);
+                    }
+                }
+                
+                // Δημιουργούμε τα row divs
+                rows.forEach((rowSlots, rowIndex) => {
+                    const rowDiv = document.createElement("div");
+                    rowDiv.className = "word-row";
+                    
+                    rowSlots.forEach((slot) => {
+                        if (slot.type === "space") {
+                            const spaceEl = document.createElement("span");
+                            spaceEl.className = "word-slot space";
+                            rowDiv.appendChild(spaceEl);
+                        } else {
+                            const slotEl = document.createElement("span");
+                            slotEl.className = "word-slot";
+                            
+                            const inner = document.createElement("span");
+                            inner.className = "slot-inner";
+                            inner.textContent = slot.char;
+                            slotEl.appendChild(inner);
+                            
+                            if (animate && highlightPositions.includes(slot.index)) {
+                                slotEl.classList.add("revealed");
+                                setTimeout(() => slotEl.classList.remove("revealed"), 400);
+                            }
+                            
+                            rowDiv.appendChild(slotEl);
+                        }
+                    });
+                    
+                    wordDisplay.appendChild(rowDiv);
+                });
+            }
+            
+            function countNextLetters(slots, startIndex) {
+                let count = 0;
+                for (let i = startIndex; i < slots.length; i++) {
+                    if (slots[i].type === "space") break;
+                    count++;
+                    if (count > MAX_COLS_PER_ROW) break;
+                }
+                return count;
             }
 
             function checkFullGuess() {
