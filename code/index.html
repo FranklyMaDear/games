@@ -257,23 +257,30 @@
             50% { transform: scale(1.5); }
         }
 
-        /* ========== ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ ========== */
+        /* ========== ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ ΜΕ ΣΠΑΣΙΜΟ ΑΝΑ ΛΕΞΗ ========== */
         .word-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.55);
+            padding: 14px 10px;
+            border-radius: 14px;
+            border: 2px solid var(--border);
+            width: 100%;
+            min-height: 70px;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+        }
+
+        .word-row {
             display: flex;
             flex-direction: row;
             justify-content: center;
             align-items: center;
-            flex-wrap: wrap;
             gap: 8px;
-            background: rgba(0,0,0,0.55);
-            padding: 18px 14px;
-            border-radius: 14px;
-            border: 2px solid var(--border);
-            width: 100%;
-            min-height: 80px;
-            position: relative;
-            z-index: 1;
-            flex-shrink: 0;
+            flex-wrap: nowrap;
         }
 
         .word-slot {
@@ -292,7 +299,6 @@
             font-family: 'SF Mono', 'Courier New', monospace;
             position: relative;
             overflow: hidden;
-            order: 0;
         }
 
         .word-slot.spinning .slot-inner {
@@ -333,13 +339,10 @@
             80% { transform: translateX(3px); }
         }
 
-        .word-slot.space {
-            background: transparent;
-            border: none;
-            box-shadow: none;
-            min-width: 12px !important;
-            width: 16px !important;
-            height: auto;
+        .word-separator {
+            width: 16px;
+            min-width: 16px;
+            height: 1px;
         }
 
         .slot-inner {
@@ -1030,7 +1033,7 @@
                 if (isSpinning) return;
                 isSpinning = true;
                 playSpinSound();
-                const slots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
+                const slots = wordDisplay.querySelectorAll(".word-slot:not(.word-separator)");
                 const allLetters = ALPHABET.join("");
                 slots.forEach((slot) => {
                     const inner = slot.querySelector(".slot-inner");
@@ -1146,7 +1149,6 @@
                         messageBox.textContent = `✅ Το γράμμα "${letter}" βρέθηκε! +${pointsEarned} πόντοι`;
                         messageBox.style.color = "var(--success)";
                         
-                        // ΣΩΣΤΟΣ ΕΛΕΓΧΟΣ ΝΙΚΗΣ - ΣΥΓΚΡΙΝΟΥΜΕ ΧΑΡΑΚΤΗΡΑ-ΧΑΡΑΚΤΗΡΑ
                         const allRevealed = revealedLetters.map((l, i) => l || '').join('');
                         if (allRevealed === normalizedWord) {
                             setTimeout(() => {
@@ -1180,7 +1182,7 @@
             }
 
             function flashAllSlots() {
-                const slots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
+                const slots = wordDisplay.querySelectorAll(".word-slot");
                 slots.forEach(slot => {
                     slot.classList.add("wrong-flash");
                     setTimeout(() => slot.classList.remove("wrong-flash"), 500);
@@ -1189,61 +1191,106 @@
 
             function calculateSlotSize(wordLength) {
                 const container = wordDisplay;
-                const containerWidth = container.clientWidth - 24;
-                const gapSize = 10;
+                const containerWidth = container.clientWidth - 32;
+                const gapSize = 8;
                 const totalGaps = (wordLength - 1) * gapSize;
                 let slotSize = Math.floor((containerWidth - totalGaps) / wordLength);
                 
-                // ΜΕΓΑΛΥΤΕΡΑ ΚΟΥΤΑΚΙΑ
-                slotSize = Math.min(slotSize, 72);
-                slotSize = Math.max(slotSize, 36);
+                slotSize = Math.min(slotSize, 70);
+                slotSize = Math.max(slotSize, 34);
                 
                 return slotSize;
             }
 
+            // ========== ΝΕΑ ΛΟΓΙΚΗ ΓΙΑ ΣΠΑΣΙΜΟ ΛΕΞΕΩΝ ΣΤΑ ΚΕΝΑ ==========
             function updateWordDisplay(animate = false, highlightPositions = []) {
                 wordDisplay.innerHTML = "";
                 const displayWord = currentWord.toUpperCase();
                 const normalizedWord = normalizeGreek(currentWord);
-                const slotSize = calculateSlotSize(normalizedWord.length);
                 
-                // ΣΗΜΑΝΤΙΚΟ: Χρησιμοποιούμε flex-direction: row (default) για σωστή σειρά αριστερά προς δεξιά
-                wordDisplay.style.flexDirection = 'row';
-                wordDisplay.style.flexWrap = 'wrap';
-                wordDisplay.style.justifyContent = 'center';
-                wordDisplay.style.alignItems = 'center';
+                // Χωρίζουμε την πρόταση σε λέξεις με βάση το κενό
+                const words = displayWord.split(" ");
+                // Χωρίζουμε και το normalized για να έχουμε τα μήκη των λέξεων
+                const normalizedWords = currentWord.toUpperCase().split(" ");
                 
-                // Πρώτα μετράμε πόσα μη-κενού χαρακτήρες έχουμε για σωστή αντιστοίχιση
-                let letterIndex = 0;
+                const slotSize = calculateSlotSize(Math.max(...normalizedWords.map(w => normalizeGreek(w).length)));
                 
-                for (let i = 0; i < displayWord.length; i++) {
-                    const slot = document.createElement("span");
+                // Υπολογίζουμε ποιες λέξεις χωράνε σε κάθε σειρά
+                const rows = [];
+                let currentRow = [];
+                let currentRowWidth = 0;
+                const containerWidth = wordDisplay.clientWidth - 20;
+                const gapSize = 8;
+                const separatorWidth = 20;
+                
+                for (let w = 0; w < words.length; w++) {
+                    const wordLetters = normalizeGreek(normalizedWords[w]);
+                    const wordWidth = wordLetters.length * slotSize + (wordLetters.length - 1) * gapSize;
+                    const totalNeeded = currentRowWidth + (currentRow.length > 0 ? separatorWidth + wordWidth : wordWidth);
                     
-                    if (displayWord[i] === " ") {
-                        slot.className = "word-slot space";
+                    if (currentRow.length > 0 && totalNeeded > containerWidth) {
+                        // Ξεκινάμε νέα σειρά
+                        rows.push(currentRow);
+                        currentRow = [w];
+                        currentRowWidth = wordWidth;
                     } else {
-                        slot.className = "word-slot";
-                        slot.style.width = slotSize + "px";
-                        slot.style.height = (slotSize * 1.5) + "px";
-                        slot.style.fontSize = (slotSize * 0.6) + "px";
-                        slot.style.minWidth = slotSize + "px";
-                        slot.style.order = "0";
-                        
-                        const inner = document.createElement("span");
-                        inner.className = "slot-inner";
-                        // ΣΩΣΤΗ ΑΝΤΙΣΤΟΙΧΙΣΗ: Χρησιμοποιούμε το letterIndex για το revealedLetters
-                        inner.textContent = revealedLetters[letterIndex] || "_";
-                        slot.appendChild(inner);
-                        
-                        if (animate && highlightPositions.includes(letterIndex)) {
-                            slot.classList.add("revealed");
-                            setTimeout(() => slot.classList.remove("revealed"), 400);
+                        currentRow.push(w);
+                        currentRowWidth = totalNeeded;
+                    }
+                }
+                if (currentRow.length > 0) rows.push(currentRow);
+                
+                // Δημιουργούμε τα rows
+                let globalLetterIndex = 0;
+                
+                rows.forEach((rowWordIndices, rowIndex) => {
+                    const rowDiv = document.createElement("div");
+                    rowDiv.className = "word-row";
+                    
+                    rowWordIndices.forEach((wordIndex, idx) => {
+                        // Προσθέτουμε separator αν δεν είναι η πρώτη λέξη στη σειρά
+                        if (idx > 0) {
+                            const separator = document.createElement("span");
+                            separator.className = "word-separator";
+                            rowDiv.appendChild(separator);
                         }
                         
-                        letterIndex++;
-                    }
-                    wordDisplay.appendChild(slot);
-                }
+                        const word = normalizedWords[wordIndex];
+                        const wordLetters = normalizeGreek(word);
+                        
+                        for (let i = 0; i < word.length; i++) {
+                            // Παίρνουμε τον δείκτη του γράμματος στην κανονικοποιημένη λέξη
+                            const letterInWord = normalizeGreek(word[i] || "");
+                            
+                            if (originalChar === " ") {
+                                // Αυτό δεν θα συμβεί γιατί χωρίσαμε ήδη
+                                continue;
+                            }
+                            
+                            const slot = document.createElement("span");
+                            slot.className = "word-slot";
+                            slot.style.width = slotSize + "px";
+                            slot.style.height = (slotSize * 1.5) + "px";
+                            slot.style.fontSize = (slotSize * 0.6) + "px";
+                            slot.style.minWidth = slotSize + "px";
+                            
+                            const inner = document.createElement("span");
+                            inner.className = "slot-inner";
+                            inner.textContent = revealedLetters[globalLetterIndex] || "_";
+                            slot.appendChild(inner);
+                            
+                            if (animate && highlightPositions.includes(globalLetterIndex)) {
+                                slot.classList.add("revealed");
+                                setTimeout(() => slot.classList.remove("revealed"), 400);
+                            }
+                            
+                            rowDiv.appendChild(slot);
+                            globalLetterIndex++;
+                        }
+                    });
+                    
+                    wordDisplay.appendChild(rowDiv);
+                });
             }
 
             function checkFullGuess() {
@@ -1269,7 +1316,6 @@
                         updateScoreDisplay();
                         saveAllData();
                         
-                        // ΣΩΣΤΗ ΑΠΟΚΑΛΥΨΗ ΟΛΩΝ ΤΩΝ ΓΡΑΜΜΑΤΩΝ
                         for (let i = 0; i < normalizedWord.length; i++) {
                             if (!revealedLetters[i]) {
                                 revealedLetters[i] = normalizedWord[i];
@@ -1318,7 +1364,6 @@
                 }
 
                 const normalizedWord = normalizeGreek(currentWord);
-                // ΣΩΣΤΗ ΑΠΟΚΑΛΥΨΗ ΣΤΟ ΤΕΛΟΣ
                 for (let i = 0; i < normalizedWord.length; i++) {
                     revealedLetters[i] = normalizedWord[i];
                 }
