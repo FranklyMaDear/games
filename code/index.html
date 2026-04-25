@@ -256,20 +256,20 @@
             50% { transform: scale(1.5); }
         }
 
-        /* ========== ΜΕΓΑΛΟ ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ ========== */
+        /* ========== ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ ========== */
         .word-display {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             background: rgba(0,0,0,0.55);
-            padding: 14px 10px;
+            padding: 12px 8px;
             border-radius: 16px;
             border: 2px solid var(--border);
             width: 100%;
             flex: 1;
-            min-height: 180px;
+            min-height: 160px;
             position: relative;
             z-index: 1;
         }
@@ -286,7 +286,7 @@
         .word-slot {
             background: linear-gradient(180deg, #1a1f28 0%, #0d1117 100%);
             border: 2px solid #30363d;
-            border-radius: 10px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -299,12 +299,8 @@
             font-family: 'SF Mono', 'Courier New', monospace;
             position: relative;
             overflow: hidden;
-            width: clamp(34px, 8vw, 52px);
-            height: clamp(42px, 10vw, 62px);
-            min-width: clamp(34px, 8vw, 52px);
-            font-size: clamp(0.9rem, 3.5vw, 1.3rem);
-            flex-shrink: 1;
-            flex-grow: 0;
+            flex-shrink: 0;
+            /* Το μέγεθος ορίζεται δυναμικά από JavaScript */
         }
 
         .word-slot.spinning .slot-inner {
@@ -669,7 +665,6 @@
 
         <div class="attempts-dots" id="attemptsDots"></div>
 
-        <!-- ΜΕΓΑΛΟ ΠΛΑΙΣΙΟ ΛΕΞΕΩΝ -->
         <div class="word-display" id="wordDisplay"></div>
 
         <div class="alphabet-container" id="alphabetContainer"></div>
@@ -720,6 +715,7 @@
             const STORAGE_KEY_XP = 'crackTheCode_xp';
             const STORAGE_KEY_SCORE = 'crackTheCode_score';
             const XP_PER_LEVEL = 500;
+            const MAX_LETTERS_PER_ROW = 10;
 
             let currentWord = "";
             let currentHint = "";
@@ -888,9 +884,7 @@
                     currentLevel = parseInt(localStorage.getItem(STORAGE_KEY_LEVEL), 10) || 1;
                     currentXP = parseInt(localStorage.getItem(STORAGE_KEY_XP), 10) || 0;
                     currentScore = parseInt(localStorage.getItem(STORAGE_KEY_SCORE), 10) || 0;
-                } catch(e) {
-                    highScore = 0; currentLevel = 1; currentXP = 0; currentScore = 0;
-                }
+                } catch(e) { highScore = 0; currentLevel = 1; currentXP = 0; currentScore = 0; }
                 highScoreDisplay.textContent = highScore;
                 updateScoreDisplay();
                 updateLevelDisplay();
@@ -1088,7 +1082,8 @@
                             setTimeout(() => {
                                 currentScore += POINTS_FULL_WORD; addXP(POINTS_FULL_WORD);
                                 updateScoreDisplay(); saveAllData();
-                                showScorePop('+100 ΛΕΞΗ!', wordDisplay.getBoundingClientRect().left - containerRect.left + wordDisplay.clientWidth/2, wordDisplay.getBoundingClientRect().top - containerRect.top);
+                                const wdRect = wordDisplay.getBoundingClientRect();
+                                showScorePop('+100 ΛΕΞΗ!', wdRect.left - containerRect.left + wdRect.width/2, wdRect.top - containerRect.top);
                                 playWordCorrectSound(); setTimeout(() => playWinFanfare(), 600);
                                 spawnConfetti(); endGame(true);
                             }, 400);
@@ -1110,43 +1105,159 @@
                 });
             }
 
-            // ========== ΛΕΞΕΙΣ Η ΜΙΑ ΚΑΤΩ ΑΠΟ ΤΗΝ ΑΛΛΗ, ΧΩΡΙΣ ΝΑ ΒΓΑΙΝΟΥΝ ΑΠΟ ΤΟ ΠΛΑΙΣΙΟ ==========
+            // ========== ΕΞΥΠΝΟ ΣΠΑΣΙΜΟ ΛΕΞΕΩΝ ==========
             function updateWordDisplay(animate = false, highlightPositions = []) {
                 wordDisplay.innerHTML = "";
                 const displayWord = currentWord.toUpperCase();
-                
-                // Χωρίζουμε σε λέξεις
                 const words = displayWord.split(" ");
                 
-                // Κάθε λέξη σε δική της σειρά
-                words.forEach((word, wordIndex) => {
+                // Υπολογίζουμε τα μεγέθη των λέξεων
+                const wordLengths = words.map(w => normalizeGreek(w).length);
+                const maxWordLength = Math.max(...wordLengths);
+                
+                // Υπολογίζουμε το μέγεθος των κουτιών
+                const containerWidth = wordDisplay.clientWidth - 16;
+                const gapPerSlot = 5;
+                
+                // Αν η μεγαλύτερη λέξη είναι >10 γράμματα, μικραίνουμε τα κουτάκια
+                let slotSize, fontSize;
+                
+                if (maxWordLength > MAX_LETTERS_PER_ROW) {
+                    // Χρειάζεται να χωρέσουμε maxWordLength γράμματα σε μία σειρά
+                    slotSize = Math.floor((containerWidth - (maxWordLength - 1) * gapPerSlot) / maxWordLength);
+                    slotSize = Math.max(slotSize, 24);
+                    slotSize = Math.min(slotSize, 52);
+                } else {
+                    // Χωράνε έως 10 γράμματα στη σειρά
+                    slotSize = Math.floor((containerWidth - (MAX_LETTERS_PER_ROW - 1) * gapPerSlot) / MAX_LETTERS_PER_ROW);
+                    slotSize = Math.max(slotSize, 32);
+                    slotSize = Math.min(slotSize, 52);
+                }
+                
+                fontSize = Math.floor(slotSize * 0.42);
+                
+                // Δημιουργούμε τις σειρές
+                // Στόχος: να χωρέσουμε όσο το δυνατόν περισσότερες λέξεις σε κάθε σειρά
+                const rows = [];
+                let currentRow = [];
+                let currentRowLetters = 0; // Συνολικά γράμματα + κενά (1 κενό = 1 θέση)
+                
+                for (let w = 0; w < words.length; w++) {
+                    const wordLen = normalizeGreek(words[w]).length;
+                    // Υπολογίζουμε πόσες θέσεις χρειάζεται αυτή η λέξη
+                    // +1 για το κενό πριν (εκτός αν είναι η πρώτη στη σειρά)
+                    const spaceNeeded = currentRow.length > 0 ? 1 : 0; // 1 θέση για το κενό
+                    const totalNeeded = currentRowLetters + spaceNeeded + wordLen;
+                    
+                    if (totalNeeded <= MAX_LETTERS_PER_ROW && wordLen <= MAX_LETTERS_PER_ROW) {
+                        // Χωράει στην τρέχουσα σειρά
+                        if (currentRow.length > 0) {
+                            currentRow.push({ type: "space" });
+                            currentRowLetters += 1;
+                        }
+                        currentRow.push({ type: "word", word: words[w], length: wordLen });
+                        currentRowLetters += wordLen;
+                    } else {
+                        // Δεν χωράει - νέα σειρά
+                        if (currentRow.length > 0) {
+                            rows.push(currentRow);
+                        }
+                        currentRow = [{ type: "word", word: words[w], length: wordLen }];
+                        currentRowLetters = wordLen;
+                    }
+                }
+                if (currentRow.length > 0) {
+                    // Αν η τελευταία σειρά έχει μόνο μία λέξη >10 γράμματα, 
+                    // θα χρησιμοποιήσει το μικρότερο slotSize που υπολογίστηκε παραπάνω
+                    rows.push(currentRow);
+                }
+                
+                // Βρίσκουμε το starting letter index για κάθε λέξη
+                let globalLetterIndex = 0;
+                const wordStartIndices = {};
+                for (let w = 0; w < words.length; w++) {
+                    wordStartIndices[w] = globalLetterIndex;
+                    globalLetterIndex += normalizeGreek(words[w]).length;
+                }
+                
+                // Επαναϋπολογισμός slotSize για κάθε σειρά ξεχωριστά
+                // αν έχει λέξη >10 γράμματα
+                
+                // Δημιουργούμε τα rows
+                rows.forEach((rowItems) => {
+                    // Βρίσκουμε τη μεγαλύτερη λέξη σε αυτή τη σειρά
+                    let rowMaxLen = 0;
+                    let totalLettersInRow = 0;
+                    let spaceCount = 0;
+                    
+                    rowItems.forEach(item => {
+                        if (item.type === "word") {
+                            rowMaxLen = Math.max(rowMaxLen, item.length);
+                            totalLettersInRow += item.length;
+                        } else {
+                            spaceCount++;
+                        }
+                    });
+                    
+                    // Υπολογίζουμε slot size για αυτή τη σειρά
+                    const totalSlots = totalLettersInRow + spaceCount;
+                    let rowSlotSize;
+                    
+                    if (rowMaxLen > MAX_LETTERS_PER_ROW || totalSlots > MAX_LETTERS_PER_ROW) {
+                        // Πρέπει να χωρέσουμε την πιο μεγάλη λέξη
+                        rowSlotSize = Math.floor((containerWidth - (rowMaxLen - 1) * gapPerSlot) / rowMaxLen);
+                        rowSlotSize = Math.max(rowSlotSize, 24);
+                        rowSlotSize = Math.min(rowSlotSize, 52);
+                    } else {
+                        rowSlotSize = slotSize;
+                    }
+                    
+                    const rowFontSize = Math.floor(rowSlotSize * 0.42);
+                    
                     const rowDiv = document.createElement("div");
                     rowDiv.className = "word-row";
                     
-                    // Υπολογίζουμε πόσα γράμματα έχει αυτή η λέξη
-                    // και βρίσκουμε το starting index στο revealedLetters
-                    let startIndex = 0;
-                    for (let w = 0; w < wordIndex; w++) {
-                        startIndex += normalizeGreek(words[w]).length;
-                    }
-                    
-                    for (let i = 0; i < word.length; i++) {
-                        const letterIndex = startIndex + i;
-                        const slot = document.createElement("span");
-                        slot.className = "word-slot";
-                        
-                        const inner = document.createElement("span");
-                        inner.className = "slot-inner";
-                        inner.textContent = revealedLetters[letterIndex] || "_";
-                        slot.appendChild(inner);
-                        
-                        if (animate && highlightPositions.includes(letterIndex)) {
-                            slot.classList.add("revealed");
-                            setTimeout(() => slot.classList.remove("revealed"), 400);
+                    rowItems.forEach((item) => {
+                        if (item.type === "space") {
+                            const spaceEl = document.createElement("span");
+                            spaceEl.className = "word-slot space";
+                            rowDiv.appendChild(spaceEl);
+                        } else {
+                            const word = item.word;
+                            const startIdx = wordStartIndices[words.indexOf(word)];
+                            
+                            // Βρίσκουμε το σωστό index στον words array
+                            let actualWordIndex = 0;
+                            for (let w = 0; w < words.length; w++) {
+                                if (words[w] === word && wordStartIndices[w] === startIdx) {
+                                    actualWordIndex = w;
+                                    break;
+                                }
+                            }
+                            
+                            for (let i = 0; i < word.length; i++) {
+                                const letterIndex = wordStartIndices[actualWordIndex] + i;
+                                const slot = document.createElement("span");
+                                slot.className = "word-slot";
+                                slot.style.width = rowSlotSize + "px";
+                                slot.style.height = (rowSlotSize * 1.25) + "px";
+                                slot.style.fontSize = rowFontSize + "px";
+                                slot.style.minWidth = rowSlotSize + "px";
+                                
+                                const inner = document.createElement("span");
+                                inner.className = "slot-inner";
+                                inner.textContent = revealedLetters[letterIndex] || "_";
+                                slot.appendChild(inner);
+                                
+                                if (animate && highlightPositions.includes(letterIndex)) {
+                                    slot.classList.add("revealed");
+                                    setTimeout(() => slot.classList.remove("revealed"), 400);
+                                }
+                                
+                                rowDiv.appendChild(slot);
+                            }
                         }
-                        
-                        rowDiv.appendChild(slot);
-                    }
+                    });
                     
                     wordDisplay.appendChild(rowDiv);
                 });
@@ -1173,7 +1284,8 @@
                             }
                         }
                         updateWordDisplay(true); updateAlphabetButtons();
-                        showScorePop('+' + totalPoints, wordDisplay.getBoundingClientRect().left + wordDisplay.clientWidth/2, wordDisplay.getBoundingClientRect().top);
+                        const wdRect = wordDisplay.getBoundingClientRect();
+                        showScorePop('+' + totalPoints, wdRect.left + wdRect.width/2, wdRect.top);
                         playWordCorrectSound(); setTimeout(() => playWinFanfare(), 600);
                         spawnConfetti(); endGame(true);
                     } else {
