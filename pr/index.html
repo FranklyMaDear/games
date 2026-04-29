@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔮 HandMaster Ultimate - Ανάγνωση Χεριού & Ιστορικό</title>
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <!-- PDF Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase (προαιρετικό - σύνδεση cloud) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d0d0d; color: #fff; margin: 0; padding: 20px; text-align: center; }
+        h1 { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.3); }
+        #container { max-width: 700px; margin: 0 auto; }
+        
+        #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #FFD700; box-shadow: 0 0 30px rgba(255,215,0,0.2); background: #111; }
+        video { width: 100%; display: block; transform: scaleX(-1); }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
+        .btn { padding: 12px 24px; border: none; border-radius: 30px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; flex: 1; min-width: 100px; }
+        .btn-gold { background: #FFD700; color: #111; }
+        .btn-gold:hover { background: #FFC107; transform: scale(1.03); }
+        .btn-green { background: #2ecc71; color: #fff; }
+        .btn-red { background: #e74c3c; color: #fff; }
+        .btn-blue { background: #3498db; color: #fff; }
+        .btn-purple { background: #9b59b6; color: #fff; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        #zodiac-group { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        select { padding: 10px 20px; border-radius: 30px; border: none; background: #333; color: white; font-size: 16px; }
+
+        #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
+        #result-area h2 { color: #FFD700; margin-top: 0; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .stat-item { background: #222; padding: 8px 12px; border-radius: 10px; }
+
+        #pdf-preview { display: none; background: #222; padding: 15px; border-radius: 15px; margin: 20px 0; border: 1px solid #444; text-align: left; }
+        #pdf-preview h3 { margin-top: 0; color: #FFD700; }
+
+        /* Ιστορικό */
+        #history-area { display: none; margin-top: 30px; text-align: left; }
+        #history-area h2 { color: #FFD700; }
+        .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .history-item small { color: #888; }
+        .history-actions { display: flex; gap: 5px; margin-top: 5px; }
+        .history-actions button { padding: 5px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; }
+
+        .badge { display: inline-block; background: #FFD700; color: #111; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-left: 5px; }
+        #loading { display: none; margin: 15px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🖐️ HandMaster Ultimate</h1>
+        <p style="color:#aaa;">Δείξε την παλάμη σου & μάθε τι λέει</p>
+
+        <!-- CAMERA -->
+        <div id="camera-wrapper">
+            <video id="webcam" playsinline></video>
+            <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Εκκίνηση Κάμερας</button>
+            <button class="btn btn-green" id="analyzeBtn" onclick="analyzeHand()" disabled>🔍 Ανάλυση</button>
+            <button class="btn btn-red" id="resetBtn" onclick="resetAll()">⟳ Επαναφορά</button>
+        </div>
+
+        <div id="zodiac-group">
+            <label for="zodiac">♈ Ζώδιο:</label>
+            <select id="zodiac">
+                <option value="Κριός">Κριός</option>
+                <option value="Ταύρος">Ταύρος</option>
+                <option value="Δίδυμοι">Δίδυμοι</option>
+                <option value="Καρκίνος">Καρκίνος</option>
+                <option value="Λέων">Λέων</option>
+                <option value="Παρθένος">Παρθένος</option>
+                <option value="Ζυγός">Ζυγός</option>
+                <option value="Σκορπιός">Σκορπιός</option>
+                <option value="Τοξότης">Τοξότης</option>
+                <option value="Αιγόκερως">Αιγόκερως</option>
+                <option value="Υδροχόος">Υδροχόος</option>
+                <option value="Ιχθείς">Ιχθείς</option>
+            </select>
+        </div>
+
+        <div id="loading">⏳ Αναλύω το χέρι σου...</div>
+
+        <!-- RESULT -->
+        <div id="result-area">
+            <h2>🔮 Ανάλυση Χεριού</h2>
+            <div id="result-text"></div>
+            <div class="stat-grid" id="stats-grid"></div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;">
+                <button class="btn btn-blue" onclick="exportPDF()">📄 Εξαγωγή PDF</button>
+                <button class="btn btn-purple" onclick="saveToHistory()">💾 Αποθήκευση</button>
+                <button class="btn btn-gold" onclick="resetAll()">⟳ Νέα Ανάλυση</button>
+            </div>
+        </div>
+
+        <!-- PDF PREVIEW -->
+        <div id="pdf-preview">
+            <h3>📄 Προεπισκόπηση PDF</h3>
+            <div id="pdf-content"></div>
+        </div>
+
+        <!-- HISTORY -->
+        <div id="history-area">
+            <h2>📚 Ιστορικό Αναλύσεων</h2>
+            <div id="history-list"></div>
+            <button class="btn btn-red" onclick="clearHistory()" style="margin-top:10px;">🗑️ Διαγραφή Ιστορικού</button>
+            <button class="btn btn-blue" onclick="syncToFirebase()" style="margin-top:10px;">☁️ Συγχρονισμός με Cloud</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Firebase Configuration (προαιρετικό) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBogusKey_Replace_Me",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+        // Αν θέλετε να χρησιμοποιήσετε Firebase, αντικαταστήστε τα παραπάνω με τα δικά σας στοιχεία.
+        // firebase.initializeApp(firebaseConfig);
+        // const db = firebase.firestore();
+
+        // --- MediaPipe Setup ---
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('overlay');
+        const ctx = overlay.getContext('2d');
+        let landmarksData = null;
+        let analysisResult = null;
+
+        overlay.width = 500; overlay.height = 500;
+
+        const hands = new Hands({
+            locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                landmarksData = results.multiHandLandmarks[0];
+                drawHand(landmarksData);
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('startBtn').disabled = true;
+            } else {
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                landmarksData = null;
+                document.getElementById('analyzeBtn').disabled = true;
+            }
+        });
+
+        function drawHand(lm) {
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            ctx.save();
+            ctx.scale(-1,1);
+            ctx.translate(-overlay.width, 0);
+            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color:'#FFD700', lineWidth:2});
+            drawLandmarks(ctx, lm, {color:'#FFD700', radius:4});
+            ctx.restore();
+        }
+
+        // --- Camera ---
+        function startCamera() {
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.innerText = "⏳ Φορτώνω AI...";
+            const camera = new Camera(video, {
+                onFrame: async () => { await hands.send({image: video}); },
+                width: 500, height: 500
+            });
+            camera.start().then(() => {
+                btn.innerText = "✅ Κάμερα έτοιμη";
+                btn.style.background = "#2ecc71";
+            }).catch(err => {
+                alert("Σφάλμα κάμερας: " + err);
+                btn.disabled = false;
+                btn.innerText = "📷 Εκκίνηση";
+            });
+        }
+
+        // --- Ανάλυση ---
+        function analyzeHand() {
+            if (!landmarksData) { alert("Δείξε το χέρι σου!"); return; }
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = true;
+
+            setTimeout(() => {
+                const result = computeAnalysis(landmarksData);
+                displayResult(result);
+                analysisResult = result;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }, 300);
+        }
+
+        function computeAnalysis(lm) {
+            const tips = [4,8,12,16,20];
+            const pips = [3,6,10,14,18];
+            const lengths = tips.map((t,i) => {
+                const dx = lm[t].x - lm[pips[i]].x;
+                const dy = lm[t].y - lm[pips[i]].y;
+                return Math.sqrt(dx*dx + dy*dy);
+            });
+            const idxLen = lengths[1];
+            if (idxLen === 0) return { error: "Δεν βλέπω δείκτη" };
+            const norm = lengths.map(l => l / idxLen);
+
+            const middleRatio = norm[2] / norm[1];
+            const ringRatio = norm[3] / norm[1];
+            const thumbWidth = Math.abs(lm[4].x - lm[20].x);
+
+            let personality = "";
+            if (middleRatio > 1.15) personality += "Ισχυρή θέληση & αυτοπεποίθηση. ";
+            else if (middleRatio < 0.95) personality += "Διακριτικός/ή, με βαθιά σκέψη. ";
+            else personality += "Ισορροπημένος/η, προσγειωμένος/η. ";
+
+            if (ringRatio > 1.1) personality += "Καλλιτεχνική φύση, αίσθηση ομορφιάς. ";
+            else if (ringRatio < 0.9) personality += "Λογικός/ή, πρακτικός/ή. ";
+            else personality += "Αναλυτικός/ή, προσέχεις λεπτομέρειες. ";
+
+            const open = thumbWidth > 0.12 ? "Ανοιχτή παλάμη: Εξωστρεφής, δίνεις συναισθήματα." : "Κλειστή παλάμη: Κρατάς συναισθήματα, επιφυλακτικός/ή.";
+
+            const zodiac = document.getElementById('zodiac').value;
+            const zodiacMap = {
+                "Κριός":"Παρορμητική φύση, ενέργεια.",
+                "Ταύρος":"Σταθερότητα & αντοχή.",
+                "Δίδυμοι":"Ευελιξία, αλλαγή γνώμης.",
+                "Καρκίνος":"Συναισθηματική ευαισθησία.",
+                "Λέων":"Ηγέτης, θέλει δράση.",
+                "Παρθένος":"Αναλυτικό μυαλό.",
+                "Ζυγός":"Διπλωματία & ισορροπία.",
+                "Σκορπιός":"Πάθος & μυστήριο.",
+                "Τοξότης":"Περιπέτεια & ενθουσιασμός.",
+                "Αιγόκερως":"Υπομονή & στόχοι.",
+                "Υδροχόος":"Μοναδικότητα & καινοτομία.",
+                "Ιχθείς":"Ενσυναίσθηση & φαντασία."
+            };
+            const zodiacMatch = zodiacMap[zodiac] || "Συνδυασμός με το ζώδιο σου.";
+
+            return {
+                personality,
+                openHand: open,
+                zodiacMatch: zodiacMatch,
+                zodiac: zodiac,
+                stats: {
+                    "Δείκτης/Μέσος": middleRatio.toFixed(2),
+                    "Παράμεσος/Δείκτης": ringRatio.toFixed(2),
+                    "Άνοιγμα παλάμης": thumbWidth.toFixed(3)
+                },
+                date: new Date().toISOString()
+            };
+        }
+
+        function displayResult(r) {
+            const area = document.getElementById('result-area');
+            const text = document.getElementById('result-text');
+            const grid = document.getElementById('stats-grid');
+
+            if (r.error) {
+                text.innerHTML = "⚠️ " + r.error;
+                grid.innerHTML = "";
+                area.style.display = 'block';
+                return;
+            }
+
+            text.innerHTML = `
+                <strong>♥️ Χαρακτήρας:</strong> ${r.personality}<br>
+                <strong>👐 Στάση:</strong> ${r.openHand}<br>
+                <hr style="border-color:#444;">
+                <strong>♈ ${r.zodiac}:</strong> ${r.zodiacMatch}
+            `;
+            grid.innerHTML = `
+                <div class="stat-item"><span class="badge">Δείκτης/Μέσος</span><br>${r.stats["Δείκτης/Μέσος"]}</div>
+                <div class="stat-item"><span class="badge">Παράμεσος/Δείκτης</span><br>${r.stats["Παράμεσος/Δείκτης"]}</div>
+                <div class="stat-item"><span class="badge">Άνοιγμα</span><br>${r.stats["Άνοιγμα παλάμης"]}</div>
+            `;
+            area.style.display = 'block';
+        }
+
+        // --- localStorage (Αποθήκευση Ιστορικού) ---
+        function saveToHistory() {
+            if (!analysisResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
+            
+            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            const entry = {
+                id: Date.now(),
+                ...analysisResult,
+                dateStr: new Date().toLocaleString('el-GR')
+            };
+            history.push(entry);
+            localStorage.setItem('handHistory', JSON.stringify(history));
+            alert("✅ Αποθηκεύτηκε στο ιστορικό!");
+            renderHistory();
+            document.getElementById('history-area').style.display = 'block';
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            
+            if (history.length === 0) {
+                list.innerHTML = "<p style='color:#888;'>Δεν υπάρχουν αποθηκευμένες αναλύσεις.</p>";
+                return;
+            }
+
+            list.innerHTML = history.map((item, index) => `
+                <div class="history-item">
+                    <strong>#${index+1}</strong> <small>${item.dateStr}</small><br>
+                    <strong>Ζώδιο:</strong> ${item.zodiac} &nbsp;|&nbsp; 
+                    <strong>Προσωπικότητα:</strong> ${item.personality}<br>
+                    <strong>Στάση:</strong> ${item.openHand}<br>
+                    <small>Δείκτης/Μέσος: ${item.stats["Δείκτης/Μέσος"]} | Παράμεσος/Δείκτης: ${item.stats["Παράμεσος/Δείκτης"]}</small>
+                    <div class="history-actions">
+                        <button onclick="deleteHistoryItem(${index})" style="background:#e74c3c;color:#fff;">Διαγραφή</button>
+                        <button onclick="exportHistoryItemAsPDF(${index})" style="background:#3498db;color:#fff;">PDF</button>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('history-area').style.display = 'block';
+        }
+
+        function deleteHistoryItem(index) {
+            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            history.splice(index, 1);
+            localStorage.setItem('handHistory', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function clearHistory() {
+            if (confirm("Διαγραφή όλου του ιστορικού;")) {
+                localStorage.removeItem('handHistory');
+                renderHistory();
+                alert("Ιστορικό διαγράφηκε.");
+            }
+        }
+
+        // --- Export PDF (από ιστορικό) ---
+        async function exportHistoryItemAsPDF(index) {
+            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            const item = history[index];
+            if (!item) return;
+
+            const preview = document.getElementById('pdf-preview');
+            const content = document.getElementById('pdf-content');
+
+            content.innerHTML = `
+                <div style="font-family: Arial; padding: 20px; color: #111; background: white; max-width: 500px; margin: auto; border-radius: 15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🖐️ HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">Ανάλυση Χεριού &mdash; ${item.dateStr}</p>
+                    <hr>
+                    <p><strong>♥️ Χαρακτήρας:</strong> ${item.personality}</p>
+                    <p><strong>👐 Στάση:</strong> ${item.openHand}</p>
+                    <p><strong>♈ Ζώδιο:</strong> ${item.zodiac} — ${item.zodiacMatch}</p>
+                    <hr>
+                    <p><strong>Στατιστικά:</strong><br>
+                    Δείκτης/Μέσος: ${item.stats["Δείκτης/Μέσος"]}<br>
+                    Παράμεσος/Δείκτης: ${item.stats["Παράμεσος/Δείκτης"]}<br>
+                    Άνοιγμα: ${item.stats["Άνοιγμα παλάμης"]}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">Παραγωγή από HandMaster Pro AI</p>
+                </div>
+            `;
+
+            preview.style.display = 'block';
+
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`HandMaster_${item.dateStr}.pdf`);
+        }
+
+        // --- Export current PDF ---
+        async function exportPDF() {
+            if (!analysisResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
+            const preview = document.getElementById('pdf-preview');
+            const content = document.getElementById('pdf-content');
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('el-GR');
+            const timeStr = now.toLocaleTimeString('el-GR');
+
+            content.innerHTML = `
+                <div style="font-family: Arial; padding: 20px; color: #111; background: white; max-width: 500px; margin: auto; border-radius: 15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🖐️ HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">Ανάλυση Χεριού &mdash; ${dateStr} ${timeStr}</p>
+                    <hr>
+                    <p><strong>♥️ Χαρακτήρας:</strong> ${analysisResult.personality}</p>
+                    <p><strong>👐 Στάση:</strong> ${analysisResult.openHand}</p>
+                    <p><strong>♈ Ζώδιο:</strong> ${analysisResult.zodiac} — ${analysisResult.zodiacMatch}</p>
+                    <hr>
+                    <p><strong>Στατιστικά:</strong><br>
+                    Δείκτης/Μέσος: ${analysisResult.stats["Δείκτης/Μέσος"]}<br>
+                    Παράμεσος/Δείκτης: ${analysisResult.stats["Παράμεσος/Δείκτης"]}<br>
+                    Άνοιγμα: ${analysisResult.stats["Άνοιγμα παλάμης"]}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">Παραγωγή από HandMaster Pro AI</p>
+                </div>
+            `;
+
+            preview.style.display = 'block';
+
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`HandMaster_${dateStr}.pdf`);
+        }
+
+        // --- Sync με Firebase (αν υπάρχει) ---
+        async function syncToFirebase() {
+            try {
+                // Έλεγχος αν το Firebase έχει αρχικοποιηθεί
+                if (typeof firebase === 'undefined') {
+                    alert("⚠️ Το Firebase δεν έχει ρυθμιστεί. Προσθέστε τα δικά σας στοιχεία στο firebaseConfig.");
+                    return;
+                }
+                const db = firebase.firestore();
+                const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+                
+                for (const entry of history) {
+                    await db.collection('handAnalyses').add(entry);
+                }
+                alert("✅ Συγχρονίστηκε με το Cloud!");
+            } catch (e) {
+                alert("Σφάλμα συγχρονισμού: " + e.message);
+            }
+        }
+
+        // --- Reset ---
+        function resetAll() {
+            document.getElementById('result-area').style.display = 'none';
+            document.getElementById('pdf-preview').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').innerText = "📷 Εκκίνηση Κάμερας";
+            document.getElementById('startBtn').style.background = "#FFD700";
+            ctx.clearRect(0,0,overlay.width,overlay.height);
+            landmarksData = null;
+            analysisResult = null;
+        }
+
+        // --- Βοηθητικά σχεδίασης ---
+        function drawConnectors(ctx, lm, conn, style) {
+            ctx.strokeStyle = style.color || 'white';
+            ctx.lineWidth = style.lineWidth || 2;
+            for (const [i,j] of conn) {
+                ctx.beginPath();
+                ctx.moveTo(lm[i].x * overlay.width, lm[i].y * overlay.height);
+                ctx.lineTo(lm[j].x * overlay.width, lm[j].y * overlay.height);
+                ctx.stroke();
+            }
+        }
+        function drawLandmarks(ctx, lm, style) {
+            ctx.fillStyle = style.color || 'white';
+            for (const p of lm) {
+                ctx.beginPath();
+                ctx.arc(p.x * overlay.width, p.y * overlay.height, style.radius || 3, 0, 2*Math.PI);
+                ctx.fill();
+            }
+        }
+        const HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [0,9],[9,10],[10,11],[11,12],
+            [0,13],[13,14],[14,15],[15,16],
+            [0,17],[17,18],[18,19],[19,20],
+            [5,9],[9,13],[13,17]
+        ];
+
+        // --- Αρχικό φόρτωμα ιστορικού ---
+        window.onload = function() {
+            const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            if (history.length > 0) {
+                renderHistory();
+                document.getElementById('history-area').style.display = 'block';
+            }
+        };
+    </script>
+</body>
+</html>
