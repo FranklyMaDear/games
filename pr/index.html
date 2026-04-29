@@ -3,112 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔮 HandMaster - Αυτόματη Ανάλυση</title>
-    
+    <title>🔮 HandMaster Ultimate - Ανάγνωση Χεριού & Ιστορικό</title>
     <!-- MediaPipe Hands -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    
-    <!-- TensorFlow & COCO-SSD -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest/dist/coco-ssd.min.js"></script>
-
     <!-- PDF Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase (προαιρετικό - σύνδεση cloud) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d0d0d; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        h1 { color: #c48a4a; text-shadow: 0 0 20px rgba(196,138,74,0.3); }
-        #container { max-width: 750px; margin: 0 auto; }
+        h1 { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.3); }
+        #container { max-width: 700px; margin: 0 auto; }
         
-        .mode-selector { display: flex; gap: 10px; margin: 20px 0; justify-content: center; flex-wrap: wrap; }
-        .mode-btn { padding: 10px 20px; border: none; border-radius: 30px; background: #333; color: #fff; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .mode-btn.active { background: #c48a4a; color: #111; }
-        .mode-btn:hover { transform: scale(1.05); }
-
-        #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #c48a4a; box-shadow: 0 0 30px rgba(196,138,74,0.2); background: #111; }
+        #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #FFD700; box-shadow: 0 0 30px rgba(255,215,0,0.2); background: #111; }
         video { width: 100%; display: block; transform: scaleX(-1); }
         #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
 
         .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
         .btn { padding: 12px 24px; border: none; border-radius: 30px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; flex: 1; min-width: 100px; }
-        .btn-gold { background: #c48a4a; color: #111; }
-        .btn-gold:hover { background: #b07a3e; transform: scale(1.03); }
+        .btn-gold { background: #FFD700; color: #111; }
+        .btn-gold:hover { background: #FFC107; transform: scale(1.03); }
         .btn-green { background: #2ecc71; color: #fff; }
         .btn-red { background: #e74c3c; color: #fff; }
         .btn-blue { background: #3498db; color: #fff; }
         .btn-purple { background: #9b59b6; color: #fff; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-        
-        .status { margin: 10px 0; color: #aaa; font-size: 14px; }
 
-        #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #c48a4a; text-align: left; }
-        #result-area h2 { color: #c48a4a; margin-top: 0; }
+        #zodiac-group { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        select { padding: 10px 20px; border-radius: 30px; border: none; background: #333; color: white; font-size: 16px; }
+
+        #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
+        #result-area h2 { color: #FFD700; margin-top: 0; }
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
         .stat-item { background: #222; padding: 8px 12px; border-radius: 10px; }
 
-        #symbols-detected { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
-        .symbol-badge { background: #333; padding: 8px 12px; border-radius: 20px; border: 1px solid #c48a4a; }
-        .symbol-badge strong { color: #c48a4a; }
+        #pdf-preview { display: none; background: #222; padding: 15px; border-radius: 15px; margin: 20px 0; border: 1px solid #444; text-align: left; }
+        #pdf-preview h3 { margin-top: 0; color: #FFD700; }
 
-        #loading { display: none; margin: 15px; color: #aaa; }
-        
+        /* Ιστορικό */
         #history-area { display: none; margin-top: 30px; text-align: left; }
-        #history-area h2 { color: #c48a4a; }
-        .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #c48a4a; }
+        #history-area h2 { color: #FFD700; }
+        .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db; }
         .history-item small { color: #888; }
         .history-actions { display: flex; gap: 5px; margin-top: 5px; }
         .history-actions button { padding: 5px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; }
 
-        #upload-section { display: none; margin: 20px 0; }
-        #upload-area { border: 2px dashed #c48a4a; padding: 30px; margin: 20px auto; max-width: 400px; border-radius: 20px; cursor: pointer; background: #1a1a1a; }
-        #upload-area:hover { background: #222; }
-        #uploaded-img { max-width: 100%; border-radius: 15px; margin: 10px 0; display: none; }
+        .badge { display: inline-block; background: #FFD700; color: #111; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-left: 5px; }
+        #loading { display: none; margin: 15px; color: #aaa; }
     </style>
 </head>
 <body>
     <div id="container">
-        <h1>🔮 HandMaster - Αυτόματη Ανάλυση</h1>
-        <p style="color:#aaa;">Δείξε το χέρι ή το φλιτζάνι σου - η κάμερα αναλύει αυτόματα</p>
+        <h1>🖐️ HandMaster Ultimate</h1>
+        <p style="color:#aaa;">Δείξε την παλάμη σου & μάθε τι λέει</p>
 
-        <div class="mode-selector">
-            <button class="mode-btn active" id="handModeBtn" onclick="setMode('hand')">🖐️ Παλάμη</button>
-            <button class="mode-btn" id="coffeeModeBtn" onclick="setMode('coffee')">☕ Φλιτζάνι</button>
-        </div>
-
+        <!-- CAMERA -->
         <div id="camera-wrapper">
             <video id="webcam" playsinline></video>
             <canvas id="overlay"></canvas>
         </div>
 
-        <div class="status" id="statusText">⏳ Φόρτωση κάμερας...</div>
-
         <div class="controls">
             <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Εκκίνηση Κάμερας</button>
-            <button class="btn btn-blue" id="captureBtn" onclick="capturePhoto()" disabled>📸 Λήψη Φωτογραφίας</button>
-            <button class="btn btn-red" onclick="resetAll()">⟳ Επαναφορά</button>
+            <button class="btn btn-green" id="analyzeBtn" onclick="analyzeHand()" disabled>🔍 Ανάλυση</button>
+            <button class="btn btn-red" id="resetBtn" onclick="resetAll()">⟳ Επαναφορά</button>
         </div>
 
-        <!-- Upload section (only for coffee mode) -->
-        <div id="upload-section">
-            <p style="color:#aaa;">ή ανέβασε φωτογραφία από τη συσκευή σου:</p>
-            <div id="upload-area" onclick="document.getElementById('fileInput').click()">
-                <p>📂 Κάνε κλικ για ανέβασμα εικόνας</p>
-                <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleUpload(event)">
-            </div>
-            <img id="uploaded-img">
+        <div id="zodiac-group">
+            <label for="zodiac">♈ Ζώδιο:</label>
+            <select id="zodiac">
+                <option value="Κριός">Κριός</option>
+                <option value="Ταύρος">Ταύρος</option>
+                <option value="Δίδυμοι">Δίδυμοι</option>
+                <option value="Καρκίνος">Καρκίνος</option>
+                <option value="Λέων">Λέων</option>
+                <option value="Παρθένος">Παρθένος</option>
+                <option value="Ζυγός">Ζυγός</option>
+                <option value="Σκορπιός">Σκορπιός</option>
+                <option value="Τοξότης">Τοξότης</option>
+                <option value="Αιγόκερως">Αιγόκερως</option>
+                <option value="Υδροχόος">Υδροχόος</option>
+                <option value="Ιχθείς">Ιχθείς</option>
+            </select>
         </div>
 
-        <div id="loading">⏳ Αναλύω...</div>
+        <div id="loading">⏳ Αναλύω το χέρι σου...</div>
 
-        <!-- Result -->
+        <!-- RESULT -->
         <div id="result-area">
-            <h2 id="result-title">🔮 Ανάλυση</h2>
+            <h2>🔮 Ανάλυση Χεριού</h2>
             <div id="result-text"></div>
-            <div id="symbols-detected"></div>
             <div class="stat-grid" id="stats-grid"></div>
 
             <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;">
@@ -118,38 +108,42 @@
             </div>
         </div>
 
-        <!-- History -->
+        <!-- PDF PREVIEW -->
+        <div id="pdf-preview">
+            <h3>📄 Προεπισκόπηση PDF</h3>
+            <div id="pdf-content"></div>
+        </div>
+
+        <!-- HISTORY -->
         <div id="history-area">
             <h2>📚 Ιστορικό Αναλύσεων</h2>
             <div id="history-list"></div>
             <button class="btn btn-red" onclick="clearHistory()" style="margin-top:10px;">🗑️ Διαγραφή Ιστορικού</button>
+            <button class="btn btn-blue" onclick="syncToFirebase()" style="margin-top:10px;">☁️ Συγχρονισμός με Cloud</button>
         </div>
     </div>
 
     <script>
-        // --- Global Variables ---
-        let handLandmarks = null;
-        let currentResult = null;
-        let currentMode = 'hand';
-        let objectModel = null;
-        let cameraRunning = false;
-        let analysisDone = false;
-        let uploadedImage = null;
-
-        // --- COCO-SSD Model load ---
-        (async function loadObjectModel() {
-            try {
-                objectModel = await cocoSsd.load();
-                console.log("✅ COCO-SSD loaded");
-            } catch (err) {
-                console.error("Σφάλμα φόρτωσης COCO-SSD:", err);
-            }
-        })();
+        // --- Firebase Configuration (προαιρετικό) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBogusKey_Replace_Me",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+        // Αν θέλετε να χρησιμοποιήσετε Firebase, αντικαταστήστε τα παραπάνω με τα δικά σας στοιχεία.
+        // firebase.initializeApp(firebaseConfig);
+        // const db = firebase.firestore();
 
         // --- MediaPipe Setup ---
         const video = document.getElementById('webcam');
         const overlay = document.getElementById('overlay');
         const ctx = overlay.getContext('2d');
+        let landmarksData = null;
+        let analysisResult = null;
+
         overlay.width = 500; overlay.height = 500;
 
         const hands = new Hands({
@@ -163,25 +157,16 @@
             minTrackingConfidence: 0.5
         });
 
-        // Auto-analysis when hand is detected
         hands.onResults((results) => {
-            if (currentMode === 'hand' && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                handLandmarks = results.multiHandLandmarks[0];
-                drawHand(handLandmarks);
-                if (!analysisDone) {
-                    analysisDone = true;
-                    setTimeout(() => {
-                        const result = computeHandAnalysis(handLandmarks);
-                        displayResult(result, 'hand');
-                        currentResult = result;
-                        document.getElementById('statusText').innerText = "✅ Χέρι αναλύθηκε!";
-                    }, 300);
-                }
-            } else if (currentMode === 'hand') {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                landmarksData = results.multiHandLandmarks[0];
+                drawHand(landmarksData);
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('startBtn').disabled = true;
+            } else {
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
-                handLandmarks = null;
-                analysisDone = false;
-                document.getElementById('statusText').innerText = "👀 Περιμένω να δω το χέρι σου...";
+                landmarksData = null;
+                document.getElementById('analyzeBtn').disabled = true;
             }
         });
 
@@ -190,8 +175,8 @@
             ctx.save();
             ctx.scale(-1,1);
             ctx.translate(-overlay.width, 0);
-            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color:'#c48a4a', lineWidth:2});
-            drawLandmarks(ctx, lm, {color:'#c48a4a', radius:4});
+            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color:'#FFD700', lineWidth:2});
+            drawLandmarks(ctx, lm, {color:'#FFD700', radius:4});
             ctx.restore();
         }
 
@@ -200,181 +185,36 @@
             const btn = document.getElementById('startBtn');
             btn.disabled = true;
             btn.innerText = "⏳ Φορτώνω AI...";
-            document.getElementById('statusText').innerText = "⏳ Φορτώνω κάμερα...";
-
             const camera = new Camera(video, {
-                onFrame: async () => {
-                    if (currentMode === 'hand') {
-                        await hands.send({image: video});
-                    } else if (currentMode === 'coffee') {
-                        // For coffee mode, we capture frame periodically for analysis
-                        captureFrame();
-                    }
-                },
+                onFrame: async () => { await hands.send({image: video}); },
                 width: 500, height: 500
             });
             camera.start().then(() => {
                 btn.innerText = "✅ Κάμερα έτοιμη";
                 btn.style.background = "#2ecc71";
-                document.getElementById('statusText').innerText = "👀 Περιμένω...";
-                document.getElementById('captureBtn').disabled = false;
-                cameraRunning = true;
             }).catch(err => {
                 alert("Σφάλμα κάμερας: " + err);
                 btn.disabled = false;
                 btn.innerText = "📷 Εκκίνηση";
-                document.getElementById('statusText').innerText = "❌ Σφάλμα κάμερας";
             });
         }
 
-        // --- Mode Switching ---
-        function setMode(mode) {
-            currentMode = mode;
-            document.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(mode + 'ModeBtn').classList.add('active');
-            resetAll();
-            
-            if (mode === 'coffee') {
-                document.getElementById('upload-section').style.display = 'block';
-                document.getElementById('statusText').innerText = "☕ Δείξε το φλιτζάνι σου ή ανέβασε φωτογραφία";
-            } else {
-                document.getElementById('upload-section').style.display = 'none';
-                document.getElementById('statusText').innerText = "🖐️ Δείξε το χέρι σου";
-            }
-        }
-
-        // --- Auto coffee detection via camera ---
-        let coffeeFrame = null;
-        let coffeeAnalysisDone = false;
-
-        function captureFrame() {
-            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
-            coffeeFrame = ctx.getImageData(0, 0, overlay.width, overlay.height);
-            
-            // Trigger analysis only once
-            if (!coffeeAnalysisDone && coffeeFrame) {
-                coffeeAnalysisDone = true;
-                setTimeout(() => {
-                    analyzeCoffeeFromFrame();
-                }, 500);
-            }
-        }
-
-        async function analyzeCoffeeFromFrame() {
-            if (!coffeeFrame) return;
-            if (!objectModel) { 
-                document.getElementById('statusText').innerText = "⏳ Φόρτωση μοντέλου...";
-                return; 
-            }
-
+        // --- Ανάλυση ---
+        function analyzeHand() {
+            if (!landmarksData) { alert("Δείξε το χέρι σου!"); return; }
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('statusText').innerText = "☕ Αναλύω το φλιτζάνι...";
+            document.getElementById('analyzeBtn').disabled = true;
 
-            // Create temp image
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = overlay.width;
-            tempCanvas.height = overlay.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.putImageData(coffeeFrame, 0, 0);
-            
-            const img = document.createElement('img');
-            img.src = tempCanvas.toDataURL('image/png');
-            await new Promise((resolve) => { img.onload = resolve; });
-
-            const predictions = await objectModel.detect(img);
-            const top = predictions.length > 0 ? predictions[0] : null;
-            const objectType = top ? top.class : 'unknown';
-            const confidence = top ? (top.score * 100).toFixed(1) : 0;
-
-            if (objectType === 'cup' || objectType === 'bottle' || objectType === 'bowl') {
-                const symbols = detectCoffeeSymbols(coffeeFrame);
-                let reading = "";
-                let details = "";
-                let symbolsList = [];
-
-                if (symbols.length === 0) {
-                    reading = "Βλέπω ένα φλιτζάνι με κατακάθια. Δεν εντοπίζονται ξεκάθαρα σχήματα, που σημαίνει ότι είσαι σε φάση ηρεμίας ή αναμονής.";
-                    details = "Ομοιόμορφα κατακάθια, χωρίς έντονες κηλίδες. Ισορροπία και σταθερότητα.";
-                } else {
-                    symbolsList = symbols;
-                    const interpretations = symbols.map(s => symbolDatabase[s] || "Ενδιαφέρον σχήμα.").join(" ");
-                    reading = interpretations;
-                    details = `Σύμβολα: ${symbols.join(', ')}.`;
-                }
-
-                const result = {
-                    personality: reading,
-                    openHand: details,
-                    advice: "Συμβουλή: Μην παίρνεις βιαστικές αποφάσεις. Οι απαντήσεις θα έρθουν σύντομα.",
-                    stats: {
-                        "Αντικείμενο": "Φλιτζάνι (Κατακάθια)",
-                        "Εμπιστοσύνη": confidence + "%",
-                        "Σύμβολα": symbols.join(', ') || "Κανένα"
-                    },
-                    date: new Date().toISOString(),
-                    type: 'coffee'
-                };
-                displayResult(result, 'coffee');
-                currentResult = result;
-                document.getElementById('statusText').innerText = "✅ Φλιτζάνι αναλύθηκε!";
-            } else {
-                document.getElementById('statusText').innerText = "☕ Δεν βλέπω φλιτζάνι. Δείξε το φλιτζάνι σου.";
-                coffeeAnalysisDone = false; // Allow retry
-            }
-
-            document.getElementById('loading').style.display = 'none';
+            setTimeout(() => {
+                const result = computeAnalysis(landmarksData);
+                displayResult(result);
+                analysisResult = result;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }, 300);
         }
 
-        // --- Symbol Detection ---
-        function detectCoffeeSymbols(frameData) {
-            const data = frameData.data;
-            let symbols = [];
-            let darkPixels = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
-                if (brightness < 50) darkPixels++;
-            }
-            const darkRatio = darkPixels / (frameData.width * frameData.height);
-
-            if (darkRatio > 0.4) {
-                symbols.push('κύκλος', 'φωτιά');
-                if (darkRatio > 0.6) symbols.push('βουνό');
-            }
-            if (darkRatio < 0.3) {
-                symbols.push('ήλιος', 'λουλούδι');
-            }
-            if (darkRatio > 0.2 && darkRatio < 0.5) {
-                symbols.push('γραμμή', 'αστέρι');
-            }
-
-            const extras = ['καρδιά', 'πουλί', 'σπίτι', 'δρόμος', 'σύννεφο', 'φίδι', 'ψάρι'];
-            if (Math.random() > 0.5) {
-                symbols.push(extras[Math.floor(Math.random() * extras.length)]);
-            }
-
-            return [...new Set(symbols)];
-        }
-
-        // --- Symbol Database ---
-        const symbolDatabase = {
-            'καρδιά': '💖 Η καρδιά είναι τυχερό σύμβολο. Σημαίνει ότι αγάπη ή δυνατή φιλία βρίσκεται κοντά.',
-            'αστέρι': '⭐ Το αστέρι είναι σύμβολο επιτυχίας. Δείχνει ότι είσαι στο σωστό δρόμο.',
-            'φίδι': '🐍 Το φίδι είναι προειδοποιητικό σύμβολο. Υπάρχει άτομο κοντά σου που δεν είναι ειλικρινές.',
-            'πουλί': '🐦 Το πουλί είναι σύμβολο ελευθερίας. Σύντομα θα έχεις ευκαιρία να ταξιδέψεις.',
-            'λουλούδι': '🌸 Το λουλούδι είναι σύμβολο ομορφιάς. Μια δημιουργική περίοδος έρχεται.',
-            'κύκλος': '⭕ Ο κύκλος είναι σύμβολο ολοκλήρωσης. Ένας κύκλος κλείνει και νέος ξεκινά.',
-            'γραμμή': '➖ Μια γραμμή σημαίνει πορεία. Η πορεία σου είναι ξεκάθαρη.',
-            'βουνό': '🏔️ Το βουνό είναι σύμβολο πρόκλησης. Θα ξεπεράσεις μια δύσκολη περίοδο.',
-            'ήλιος': '☀️ Ο ήλιος είναι σύμβολο καλής ενέργειας. Μια ευχάριστη περίοδος ξεκινά.',
-            'σπίτι': '🏠 Το σπίτι είναι σύμβολο ασφάλειας. Η οικογένεια σου είναι σταθερή.',
-            'δρόμος': '🛤️ Ο δρόμος δείχνει ταξίδι ή νέα πορεία.',
-            'σύννεφο': '☁️ Το σύννεφο είναι σύμβολο αμφιβολίας. Μην παίρνεις σημαντικές αποφάσεις τώρα.',
-            'φωτιά': '🔥 Η φωτιά είναι σύμβολο πάθους. Είσαι έτοιμος για νέα σχέση ή δυναμική κίνηση.',
-            'ψάρι': '🐟 Το ψάρι δείχνει ότι θα λάβεις μια ευχάριστη είδηση.'
-        };
-
-        // --- Hand Analysis ---
-        function computeHandAnalysis(lm) {
+        function computeAnalysis(lm) {
             const tips = [4,8,12,16,20];
             const pips = [3,6,10,14,18];
             const lengths = tips.map((t,i) => {
@@ -391,181 +231,86 @@
             const thumbWidth = Math.abs(lm[4].x - lm[20].x);
 
             let personality = "";
-            if (middleRatio > 1.15) personality = "Ισχυρή θέληση, αυτοπεποίθηση. Δεν φοβάσαι να πάρεις ρίσκα. Οι άλλοι σε βλέπουν ως γεννημένο ηγέτη.";
-            else if (middleRatio < 0.95) personality = "Διακριτικός, βαθιά σκέψη. Προτιμάς να παρατηρείς. Έχεις ενσυναίσθηση.";
-            else personality = "Ισορροπημένος, προσγειωμένος. Δεν είσαι υπερβολικά παρορμητικός ούτε διστακτικός.";
+            if (middleRatio > 1.15) personality += "Ισχυρή θέληση & αυτοπεποίθηση. ";
+            else if (middleRatio < 0.95) personality += "Διακριτικός/ή, με βαθιά σκέψη. ";
+            else personality += "Ισορροπημένος/η, προσγειωμένος/η. ";
 
-            let handOpen = "";
-            if (thumbWidth > 0.12) handOpen = "Ανοιχτή παλάμη: Εξωστρεφής, δίνεις συναισθήματα. Δεν διστάζεις να δείξεις αγάπη.";
-            else handOpen = "Κλειστή παλάμη: Κρατάς συναισθήματα, επιφυλακτικός. Προτιμάς να αναλύεις.";
+            if (ringRatio > 1.1) personality += "Καλλιτεχνική φύση, αίσθηση ομορφιάς. ";
+            else if (ringRatio < 0.9) personality += "Λογικός/ή, πρακτικός/ή. ";
+            else personality += "Αναλυτικός/ή, προσέχεις λεπτομέρειες. ";
 
-            const advice = "Η γραμμή της ζωής σου είναι καθαρή. Μην φοβάσαι τα ρίσκα. Η τύχη είναι με το μέρος σου.";
+            const open = thumbWidth > 0.12 ? "Ανοιχτή παλάμη: Εξωστρεφής, δίνεις συναισθήματα." : "Κλειστή παλάμη: Κρατάς συναισθήματα, επιφυλακτικός/ή.";
+
+            const zodiac = document.getElementById('zodiac').value;
+            const zodiacMap = {
+                "Κριός":"Παρορμητική φύση, ενέργεια.",
+                "Ταύρος":"Σταθερότητα & αντοχή.",
+                "Δίδυμοι":"Ευελιξία, αλλαγή γνώμης.",
+                "Καρκίνος":"Συναισθηματική ευαισθησία.",
+                "Λέων":"Ηγέτης, θέλει δράση.",
+                "Παρθένος":"Αναλυτικό μυαλό.",
+                "Ζυγός":"Διπλωματία & ισορροπία.",
+                "Σκορπιός":"Πάθος & μυστήριο.",
+                "Τοξότης":"Περιπέτεια & ενθουσιασμός.",
+                "Αιγόκερως":"Υπομονή & στόχοι.",
+                "Υδροχόος":"Μοναδικότητα & καινοτομία.",
+                "Ιχθείς":"Ενσυναίσθηση & φαντασία."
+            };
+            const zodiacMatch = zodiacMap[zodiac] || "Συνδυασμός με το ζώδιο σου.";
 
             return {
                 personality,
-                openHand,
-                advice,
+                openHand: open,
+                zodiacMatch: zodiacMatch,
+                zodiac: zodiac,
                 stats: {
                     "Δείκτης/Μέσος": middleRatio.toFixed(2),
                     "Παράμεσος/Δείκτης": ringRatio.toFixed(2),
-                    "Άνοιγμα": thumbWidth.toFixed(3)
+                    "Άνοιγμα παλάμης": thumbWidth.toFixed(3)
                 },
-                date: new Date().toISOString(),
-                type: 'hand'
+                date: new Date().toISOString()
             };
         }
 
-        // --- Capture Photo (for coffee) ---
-        function capturePhoto() {
-            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
-            const dataUrl = overlay.toDataURL('image/png');
-            
-            // Display captured image
-            const img = document.getElementById('uploaded-img');
-            img.src = dataUrl;
-            img.style.display = 'block';
-            
-            // Analyze the captured photo
-            analyzeImageData(dataUrl);
-        }
-
-        // --- Upload Handler ---
-        function handleUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const img = document.getElementById('uploaded-img');
-            img.src = URL.createObjectURL(file);
-            img.style.display = 'block';
-            
-            img.onload = function() {
-                // Convert to base64 and analyze
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx2 = canvas.getContext('2d');
-                ctx2.drawImage(img, 0, 0);
-                const dataUrl = canvas.toDataURL('image/png');
-                analyzeImageData(dataUrl);
-            };
-        }
-
-        // --- Analyze Image Data (for coffee) ---
-        async function analyzeImageData(dataUrl) {
-            if (!objectModel) { alert("Το μοντέλο AI δεν φόρτωσε ακόμα."); return; }
-            
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('statusText').innerText = "☕ Αναλύω την εικόνα...";
-
-            const img = document.createElement('img');
-            img.src = dataUrl;
-            await new Promise((resolve) => { img.onload = resolve; });
-
-            const predictions = await objectModel.detect(img);
-            const top = predictions.length > 0 ? predictions[0] : null;
-            const objectType = top ? top.class : 'unknown';
-            const confidence = top ? (top.score * 100).toFixed(1) : 0;
-
-            if (objectType === 'cup' || objectType === 'bottle' || objectType === 'bowl') {
-                // Analyze coffee grounds from the image
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx2 = canvas.getContext('2d');
-                ctx2.drawImage(img, 0, 0);
-                const frameData = ctx2.getImageData(0, 0, canvas.width, canvas.height);
-                
-                const symbols = detectCoffeeSymbols(frameData);
-                let reading = "";
-                let details = "";
-                let symbolsList = [];
-
-                if (symbols.length === 0) {
-                    reading = "Βλέπω ένα φλιτζάνι με κατακάθια. Δεν εντοπίζονται ξεκάθαρα σχήματα, που σημαίνει ότι είσαι σε φάση ηρεμίας.";
-                    details = "Ομοιόμορφα κατακάθια, ισορροπία και σταθερότητα.";
-                } else {
-                    symbolsList = symbols;
-                    const interpretations = symbols.map(s => symbolDatabase[s] || "Ενδιαφέρον σχήμα.").join(" ");
-                    reading = interpretations;
-                    details = `Σύμβολα: ${symbols.join(', ')}.`;
-                }
-
-                const result = {
-                    personality: reading,
-                    openHand: details,
-                    advice: "Συμβουλή: Μην παίρνεις βιαστικές αποφάσεις. Οι απαντήσεις θα έρθουν σύντομα.",
-                    stats: {
-                        "Αντικείμενο": "Φλιτζάνι (Upload)",
-                        "Εμπιστοσύνη": confidence + "%",
-                        "Σύμβολα": symbols.join(', ') || "Κανένα"
-                    },
-                    date: new Date().toISOString(),
-                    type: 'coffee'
-                };
-                displayResult(result, 'coffee');
-                currentResult = result;
-                document.getElementById('statusText').innerText = "✅ Ανάλυση ολοκληρώθηκε!";
-            } else {
-                document.getElementById('statusText').innerText = "☕ Δεν αναγνώρισα φλιτζάνι. Το αντικείμενο είναι: " + objectType;
-                document.getElementById('loading').style.display = 'none';
-            }
-
-            document.getElementById('loading').style.display = 'none';
-        }
-
-        // --- Display Result ---
-        function displayResult(r, mode) {
+        function displayResult(r) {
             const area = document.getElementById('result-area');
             const text = document.getElementById('result-text');
             const grid = document.getElementById('stats-grid');
-            const title = document.getElementById('result-title');
-            const symbolsDiv = document.getElementById('symbols-detected');
 
             if (r.error) {
                 text.innerHTML = "⚠️ " + r.error;
                 grid.innerHTML = "";
-                symbolsDiv.innerHTML = "";
-                title.innerText = "🔮 Ανάλυση";
                 area.style.display = 'block';
                 return;
             }
 
-            if (mode === 'hand') {
-                title.innerText = "🖐️ Ανάλυση Παλάμης";
-                text.innerHTML = `<strong>🧠 Χαρακτήρας:</strong><br>${r.personality}<br><br><strong>✋ Στάση:</strong><br>${r.openHand}<br><br><strong>💡 Συμβουλή:</strong><br>${r.advice}`;
-                symbolsDiv.innerHTML = "";
-                grid.innerHTML = `
-                    <div class="stat-item"><span class="badge">Δείκτης/Μέσος</span><br>${r.stats["Δείκτης/Μέσος"]}</div>
-                    <div class="stat-item"><span class="badge">Παράμεσος/Δείκτης</span><br>${r.stats["Παράμεσος/Δείκτης"]}</div>
-                    <div class="stat-item"><span class="badge">Άνοιγμα</span><br>${r.stats["Άνοιγμα"]}</div>
-                `;
-            } else {
-                title.innerText = "☕ Καφεμαντεία";
-                text.innerHTML = `<strong>🔮 Ανάλυση:</strong><br>${r.personality}<br><br><strong>📊 Λεπτομέρειες:</strong><br>${r.openHand}<br><br><strong>💡 Συμβουλή:</strong><br>${r.advice}`;
-                if (r.stats["Σύμβολα"]) {
-                    const symList = r.stats["Σύμβολα"].split(', ').filter(s => s !== 'Κανένα');
-                    symbolsDiv.innerHTML = symList.map(s => `<span class="symbol-badge"><strong>${s}</strong></span>`).join('');
-                } else {
-                    symbolsDiv.innerHTML = "<span style='color:#888;'>Δεν εντοπίστηκαν σύμβολα</span>";
-                }
-                grid.innerHTML = `
-                    <div class="stat-item"><span class="badge">Αντικείμενο</span><br>${r.stats["Αντικείμενο"]}</div>
-                    <div class="stat-item"><span class="badge">Εμπιστοσύνη</span><br>${r.stats["Εμπιστοσύνη"]}</div>
-                    <div class="stat-item"><span class="badge">Σύμβολα</span><br>${r.stats["Σύμβολα"]}</div>
-                `;
-            }
-
+            text.innerHTML = `
+                <strong>♥️ Χαρακτήρας:</strong> ${r.personality}<br>
+                <strong>👐 Στάση:</strong> ${r.openHand}<br>
+                <hr style="border-color:#444;">
+                <strong>♈ ${r.zodiac}:</strong> ${r.zodiacMatch}
+            `;
+            grid.innerHTML = `
+                <div class="stat-item"><span class="badge">Δείκτης/Μέσος</span><br>${r.stats["Δείκτης/Μέσος"]}</div>
+                <div class="stat-item"><span class="badge">Παράμεσος/Δείκτης</span><br>${r.stats["Παράμεσος/Δείκτης"]}</div>
+                <div class="stat-item"><span class="badge">Άνοιγμα</span><br>${r.stats["Άνοιγμα παλάμης"]}</div>
+            `;
             area.style.display = 'block';
         }
 
-        // --- History Management ---
+        // --- localStorage (Αποθήκευση Ιστορικού) ---
         function saveToHistory() {
-            if (!currentResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
+            if (!analysisResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
+            
             let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            const entry = { id: Date.now(), ...currentResult, dateStr: new Date().toLocaleString('el-GR') };
+            const entry = {
+                id: Date.now(),
+                ...analysisResult,
+                dateStr: new Date().toLocaleString('el-GR')
+            };
             history.push(entry);
             localStorage.setItem('handHistory', JSON.stringify(history));
-            alert("✅ Αποθηκεύτηκε!");
+            alert("✅ Αποθηκεύτηκε στο ιστορικό!");
             renderHistory();
             document.getElementById('history-area').style.display = 'block';
         }
@@ -573,18 +318,22 @@
         function renderHistory() {
             const list = document.getElementById('history-list');
             const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            
             if (history.length === 0) {
                 list.innerHTML = "<p style='color:#888;'>Δεν υπάρχουν αποθηκευμένες αναλύσεις.</p>";
                 return;
             }
+
             list.innerHTML = history.map((item, index) => `
                 <div class="history-item">
                     <strong>#${index+1}</strong> <small>${item.dateStr}</small><br>
-                    <strong>Τύπος:</strong> ${item.type === 'hand' ? '🖐️ Παλάμη' : '☕ Φλιτζάνι'}<br>
-                    <strong>Ανάλυση:</strong> ${item.personality ? item.personality.substring(0,80) + '...' : 'N/A'}<br>
+                    <strong>Ζώδιο:</strong> ${item.zodiac} &nbsp;|&nbsp; 
+                    <strong>Προσωπικότητα:</strong> ${item.personality}<br>
+                    <strong>Στάση:</strong> ${item.openHand}<br>
+                    <small>Δείκτης/Μέσος: ${item.stats["Δείκτης/Μέσος"]} | Παράμεσος/Δείκτης: ${item.stats["Παράμεσος/Δείκτης"]}</small>
                     <div class="history-actions">
                         <button onclick="deleteHistoryItem(${index})" style="background:#e74c3c;color:#fff;">Διαγραφή</button>
-                        <button onclick="exportPDF_fromHistory(${index})" style="background:#3498db;color:#fff;">PDF</button>
+                        <button onclick="exportHistoryItemAsPDF(${index})" style="background:#3498db;color:#fff;">PDF</button>
                     </div>
                 </div>
             `).join('');
@@ -592,4 +341,169 @@
         }
 
         function deleteHistoryItem(index) {
-            let history = JSON.parse(l
+            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            history.splice(index, 1);
+            localStorage.setItem('handHistory', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function clearHistory() {
+            if (confirm("Διαγραφή όλου του ιστορικού;")) {
+                localStorage.removeItem('handHistory');
+                renderHistory();
+                alert("Ιστορικό διαγράφηκε.");
+            }
+        }
+
+        // --- Export PDF (από ιστορικό) ---
+        async function exportHistoryItemAsPDF(index) {
+            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            const item = history[index];
+            if (!item) return;
+
+            const preview = document.getElementById('pdf-preview');
+            const content = document.getElementById('pdf-content');
+
+            content.innerHTML = `
+                <div style="font-family: Arial; padding: 20px; color: #111; background: white; max-width: 500px; margin: auto; border-radius: 15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🖐️ HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">Ανάλυση Χεριού &mdash; ${item.dateStr}</p>
+                    <hr>
+                    <p><strong>♥️ Χαρακτήρας:</strong> ${item.personality}</p>
+                    <p><strong>👐 Στάση:</strong> ${item.openHand}</p>
+                    <p><strong>♈ Ζώδιο:</strong> ${item.zodiac} — ${item.zodiacMatch}</p>
+                    <hr>
+                    <p><strong>Στατιστικά:</strong><br>
+                    Δείκτης/Μέσος: ${item.stats["Δείκτης/Μέσος"]}<br>
+                    Παράμεσος/Δείκτης: ${item.stats["Παράμεσος/Δείκτης"]}<br>
+                    Άνοιγμα: ${item.stats["Άνοιγμα παλάμης"]}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">Παραγωγή από HandMaster Pro AI</p>
+                </div>
+            `;
+
+            preview.style.display = 'block';
+
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`HandMaster_${item.dateStr}.pdf`);
+        }
+
+        // --- Export current PDF ---
+        async function exportPDF() {
+            if (!analysisResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
+            const preview = document.getElementById('pdf-preview');
+            const content = document.getElementById('pdf-content');
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('el-GR');
+            const timeStr = now.toLocaleTimeString('el-GR');
+
+            content.innerHTML = `
+                <div style="font-family: Arial; padding: 20px; color: #111; background: white; max-width: 500px; margin: auto; border-radius: 15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🖐️ HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">Ανάλυση Χεριού &mdash; ${dateStr} ${timeStr}</p>
+                    <hr>
+                    <p><strong>♥️ Χαρακτήρας:</strong> ${analysisResult.personality}</p>
+                    <p><strong>👐 Στάση:</strong> ${analysisResult.openHand}</p>
+                    <p><strong>♈ Ζώδιο:</strong> ${analysisResult.zodiac} — ${analysisResult.zodiacMatch}</p>
+                    <hr>
+                    <p><strong>Στατιστικά:</strong><br>
+                    Δείκτης/Μέσος: ${analysisResult.stats["Δείκτης/Μέσος"]}<br>
+                    Παράμεσος/Δείκτης: ${analysisResult.stats["Παράμεσος/Δείκτης"]}<br>
+                    Άνοιγμα: ${analysisResult.stats["Άνοιγμα παλάμης"]}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">Παραγωγή από HandMaster Pro AI</p>
+                </div>
+            `;
+
+            preview.style.display = 'block';
+
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale: 2, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`HandMaster_${dateStr}.pdf`);
+        }
+
+        // --- Sync με Firebase (αν υπάρχει) ---
+        async function syncToFirebase() {
+            try {
+                // Έλεγχος αν το Firebase έχει αρχικοποιηθεί
+                if (typeof firebase === 'undefined') {
+                    alert("⚠️ Το Firebase δεν έχει ρυθμιστεί. Προσθέστε τα δικά σας στοιχεία στο firebaseConfig.");
+                    return;
+                }
+                const db = firebase.firestore();
+                const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+                
+                for (const entry of history) {
+                    await db.collection('handAnalyses').add(entry);
+                }
+                alert("✅ Συγχρονίστηκε με το Cloud!");
+            } catch (e) {
+                alert("Σφάλμα συγχρονισμού: " + e.message);
+            }
+        }
+
+        // --- Reset ---
+        function resetAll() {
+            document.getElementById('result-area').style.display = 'none';
+            document.getElementById('pdf-preview').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').innerText = "📷 Εκκίνηση Κάμερας";
+            document.getElementById('startBtn').style.background = "#FFD700";
+            ctx.clearRect(0,0,overlay.width,overlay.height);
+            landmarksData = null;
+            analysisResult = null;
+        }
+
+        // --- Βοηθητικά σχεδίασης ---
+        function drawConnectors(ctx, lm, conn, style) {
+            ctx.strokeStyle = style.color || 'white';
+            ctx.lineWidth = style.lineWidth || 2;
+            for (const [i,j] of conn) {
+                ctx.beginPath();
+                ctx.moveTo(lm[i].x * overlay.width, lm[i].y * overlay.height);
+                ctx.lineTo(lm[j].x * overlay.width, lm[j].y * overlay.height);
+                ctx.stroke();
+            }
+        }
+        function drawLandmarks(ctx, lm, style) {
+            ctx.fillStyle = style.color || 'white';
+            for (const p of lm) {
+                ctx.beginPath();
+                ctx.arc(p.x * overlay.width, p.y * overlay.height, style.radius || 3, 0, 2*Math.PI);
+                ctx.fill();
+            }
+        }
+        const HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [0,9],[9,10],[10,11],[11,12],
+            [0,13],[13,14],[14,15],[15,16],
+            [0,17],[17,18],[18,19],[19,20],
+            [5,9],[9,13],[13,17]
+        ];
+
+        // --- Αρχικό φόρτωμα ιστορικού ---
+        window.onload = function() {
+            const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
+            if (history.length > 0) {
+                renderHistory();
+                document.getElementById('history-area').style.display = 'block';
+            }
+        };
+    </script>
+</body>
+</html>
