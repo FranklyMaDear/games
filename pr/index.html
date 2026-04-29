@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔮 HandMaster Pro - Παλάμη & Φλιτζάνι με Κάμερα</title>
+    <title>🔮 HandMaster - Αυτόματη Ανάλυση</title>
     
     <!-- MediaPipe Hands -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -24,13 +24,10 @@
         h1 { color: #c48a4a; text-shadow: 0 0 20px rgba(196,138,74,0.3); }
         #container { max-width: 750px; margin: 0 auto; }
         
-        .tabs { display: flex; gap: 10px; margin: 20px 0; justify-content: center; flex-wrap: wrap; }
-        .tab-btn { padding: 10px 20px; border: none; border-radius: 30px; background: #333; color: #fff; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .tab-btn.active { background: #c48a4a; color: #111; }
-        .tab-btn:hover { transform: scale(1.05); }
-        
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .mode-selector { display: flex; gap: 10px; margin: 20px 0; justify-content: center; flex-wrap: wrap; }
+        .mode-btn { padding: 10px 20px; border: none; border-radius: 30px; background: #333; color: #fff; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .mode-btn.active { background: #c48a4a; color: #111; }
+        .mode-btn:hover { transform: scale(1.05); }
 
         #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #c48a4a; box-shadow: 0 0 30px rgba(196,138,74,0.2); background: #111; }
         video { width: 100%; display: block; transform: scaleX(-1); }
@@ -45,6 +42,8 @@
         .btn-blue { background: #3498db; color: #fff; }
         .btn-purple { background: #9b59b6; color: #fff; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        
+        .status { margin: 10px 0; color: #aaa; font-size: 14px; }
 
         #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #c48a4a; text-align: left; }
         #result-area h2 { color: #c48a4a; margin-top: 0; }
@@ -63,44 +62,44 @@
         .history-item small { color: #888; }
         .history-actions { display: flex; gap: 5px; margin-top: 5px; }
         .history-actions button { padding: 5px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; }
+
+        #upload-section { display: none; margin: 20px 0; }
+        #upload-area { border: 2px dashed #c48a4a; padding: 30px; margin: 20px auto; max-width: 400px; border-radius: 20px; cursor: pointer; background: #1a1a1a; }
+        #upload-area:hover { background: #222; }
+        #uploaded-img { max-width: 100%; border-radius: 15px; margin: 10px 0; display: none; }
     </style>
 </head>
 <body>
     <div id="container">
-        <h1>🔮 HandMaster Pro</h1>
-        <p style="color:#aaa;">Δείξε την παλάμη σου ή το φλιτζάνι σου (με κατακάθια)</p>
+        <h1>🔮 HandMaster - Αυτόματη Ανάλυση</h1>
+        <p style="color:#aaa;">Δείξε το χέρι ή το φλιτζάνι σου - η κάμερα αναλύει αυτόματα</p>
 
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('hand')">🖐️ Παλάμη</button>
-            <button class="tab-btn" onclick="switchTab('coffee')">☕ Φλιτζάνι</button>
+        <div class="mode-selector">
+            <button class="mode-btn active" id="handModeBtn" onclick="setMode('hand')">🖐️ Παλάμη</button>
+            <button class="mode-btn" id="coffeeModeBtn" onclick="setMode('coffee')">☕ Φλιτζάνι</button>
         </div>
 
-        <!-- Tab: Hand -->
-        <div id="tab-hand" class="tab-content active">
-            <div id="camera-wrapper">
-                <video id="webcamHand" playsinline></video>
-                <canvas id="overlayHand"></canvas>
-            </div>
-
-            <div class="controls">
-                <button class="btn btn-gold" id="startHandBtn" onclick="startHandCamera()">📷 Εκκίνηση</button>
-                <button class="btn btn-green" id="analyzeHandBtn" onclick="analyzeHand()" disabled>🔍 Ανάλυση Παλάμης</button>
-                <button class="btn btn-red" onclick="resetAll()">⟳ Επαναφορά</button>
-            </div>
+        <div id="camera-wrapper">
+            <video id="webcam" playsinline></video>
+            <canvas id="overlay"></canvas>
         </div>
 
-        <!-- Tab: Coffee -->
-        <div id="tab-coffee" class="tab-content">
-            <div id="camera-wrapper">
-                <video id="webcamCoffee" playsinline></video>
-                <canvas id="overlayCoffee"></canvas>
-            </div>
+        <div class="status" id="statusText">⏳ Φόρτωση κάμερας...</div>
 
-            <div class="controls">
-                <button class="btn btn-gold" id="startCoffeeBtn" onclick="startCoffeeCamera()">📷 Εκκίνηση</button>
-                <button class="btn btn-green" id="analyzeCoffeeBtn" onclick="analyzeCoffee()" disabled>🔍 Ανάλυση Φλιτζανιού</button>
-                <button class="btn btn-red" onclick="resetAll()">⟳ Επαναφορά</button>
+        <div class="controls">
+            <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Εκκίνηση Κάμερας</button>
+            <button class="btn btn-blue" id="captureBtn" onclick="capturePhoto()" disabled>📸 Λήψη Φωτογραφίας</button>
+            <button class="btn btn-red" onclick="resetAll()">⟳ Επαναφορά</button>
+        </div>
+
+        <!-- Upload section (only for coffee mode) -->
+        <div id="upload-section">
+            <p style="color:#aaa;">ή ανέβασε φωτογραφία από τη συσκευή σου:</p>
+            <div id="upload-area" onclick="document.getElementById('fileInput').click()">
+                <p>📂 Κάνε κλικ για ανέβασμα εικόνας</p>
+                <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleUpload(event)">
             </div>
+            <img id="uploaded-img">
         </div>
 
         <div id="loading">⏳ Αναλύω...</div>
@@ -130,12 +129,14 @@
     <script>
         // --- Global Variables ---
         let handLandmarks = null;
-        let coffeeFrame = null;
         let currentResult = null;
         let currentMode = 'hand';
         let objectModel = null;
+        let cameraRunning = false;
+        let analysisDone = false;
+        let uploadedImage = null;
 
-        // --- COCO-SSD Model (για φλιτζάνι) ---
+        // --- COCO-SSD Model load ---
         (async function loadObjectModel() {
             try {
                 objectModel = await cocoSsd.load();
@@ -145,11 +146,11 @@
             }
         })();
 
-        // --- Hand Setup (MediaPipe) ---
-        const videoHand = document.getElementById('webcamHand');
-        const overlayHand = document.getElementById('overlayHand');
-        const ctxHand = overlayHand.getContext('2d');
-        overlayHand.width = 500; overlayHand.height = 500;
+        // --- MediaPipe Setup ---
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('overlay');
+        const ctx = overlay.getContext('2d');
+        overlay.width = 500; overlay.height = 500;
 
         const hands = new Hands({
             locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
@@ -162,71 +163,52 @@
             minTrackingConfidence: 0.5
         });
 
+        // Auto-analysis when hand is detected
         hands.onResults((results) => {
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            if (currentMode === 'hand' && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 handLandmarks = results.multiHandLandmarks[0];
                 drawHand(handLandmarks);
-                document.getElementById('analyzeHandBtn').disabled = false;
-                document.getElementById('startHandBtn').disabled = true;
-            } else {
-                ctxHand.clearRect(0, 0, overlayHand.width, overlayHand.height);
+                if (!analysisDone) {
+                    analysisDone = true;
+                    setTimeout(() => {
+                        const result = computeHandAnalysis(handLandmarks);
+                        displayResult(result, 'hand');
+                        currentResult = result;
+                        document.getElementById('statusText').innerText = "✅ Χέρι αναλύθηκε!";
+                    }, 300);
+                }
+            } else if (currentMode === 'hand') {
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
                 handLandmarks = null;
-                document.getElementById('analyzeHandBtn').disabled = true;
+                analysisDone = false;
+                document.getElementById('statusText').innerText = "👀 Περιμένω να δω το χέρι σου...";
             }
         });
 
         function drawHand(lm) {
-            ctxHand.clearRect(0, 0, overlayHand.width, overlayHand.height);
-            ctxHand.save();
-            ctxHand.scale(-1,1);
-            ctxHand.translate(-overlayHand.width, 0);
-            drawConnectors(ctxHand, lm, HAND_CONNECTIONS, {color:'#c48a4a', lineWidth:2});
-            drawLandmarks(ctxHand, lm, {color:'#c48a4a', radius:4});
-            ctxHand.restore();
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            ctx.save();
+            ctx.scale(-1,1);
+            ctx.translate(-overlay.width, 0);
+            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color:'#c48a4a', lineWidth:2});
+            drawLandmarks(ctx, lm, {color:'#c48a4a', radius:4});
+            ctx.restore();
         }
 
-        // --- Coffee Setup (Simple capture) ---
-        const videoCoffee = document.getElementById('webcamCoffee');
-        const overlayCoffee = document.getElementById('overlayCoffee');
-        const ctxCoffee = overlayCoffee.getContext('2d');
-        overlayCoffee.width = 500; overlayCoffee.height = 500;
-        let coffeeCaptured = false;
-
-        function captureCoffeeFrame() {
-            ctxCoffee.drawImage(videoCoffee, 0, 0, overlayCoffee.width, overlayCoffee.height);
-            coffeeFrame = ctxCoffee.getImageData(0, 0, overlayCoffee.width, overlayCoffee.height);
-            coffeeCaptured = true;
-            document.getElementById('analyzeCoffeeBtn').disabled = false;
-        }
-
-        // --- Camera start functions ---
-        function startHandCamera() {
-            const btn = document.getElementById('startHandBtn');
+        // --- Camera ---
+        function startCamera() {
+            const btn = document.getElementById('startBtn');
             btn.disabled = true;
             btn.innerText = "⏳ Φορτώνω AI...";
-            const camera = new Camera(videoHand, {
-                onFrame: async () => { await hands.send({image: videoHand}); },
-                width: 500, height: 500
-            });
-            camera.start().then(() => {
-                btn.innerText = "✅ Κάμερα έτοιμη";
-                btn.style.background = "#2ecc71";
-            }).catch(err => {
-                alert("Σφάλμα κάμερας: " + err);
-                btn.disabled = false;
-                btn.innerText = "📷 Εκκίνηση";
-            });
-        }
+            document.getElementById('statusText').innerText = "⏳ Φορτώνω κάμερα...";
 
-        function startCoffeeCamera() {
-            const btn = document.getElementById('startCoffeeBtn');
-            btn.disabled = true;
-            btn.innerText = "⏳ Φορτώνω κάμερα...";
-            const camera = new Camera(videoCoffee, {
+            const camera = new Camera(video, {
                 onFrame: async () => {
-                    // Capture frame every 500ms for analysis
-                    if (!coffeeCaptured) {
-                        captureCoffeeFrame();
+                    if (currentMode === 'hand') {
+                        await hands.send({image: video});
+                    } else if (currentMode === 'coffee') {
+                        // For coffee mode, we capture frame periodically for analysis
+                        captureFrame();
                     }
                 },
                 width: 500, height: 500
@@ -234,48 +216,164 @@
             camera.start().then(() => {
                 btn.innerText = "✅ Κάμερα έτοιμη";
                 btn.style.background = "#2ecc71";
-                // Auto-capture after 2 seconds
-                setTimeout(() => {
-                    captureCoffeeFrame();
-                    document.getElementById('analyzeCoffeeBtn').disabled = false;
-                }, 2000);
+                document.getElementById('statusText').innerText = "👀 Περιμένω...";
+                document.getElementById('captureBtn').disabled = false;
+                cameraRunning = true;
             }).catch(err => {
                 alert("Σφάλμα κάμερας: " + err);
                 btn.disabled = false;
                 btn.innerText = "📷 Εκκίνηση";
+                document.getElementById('statusText').innerText = "❌ Σφάλμα κάμερας";
             });
         }
 
-        // --- Switch Tabs ---
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + tab).classList.add('active');
-            if (tab === 'hand') {
-                document.querySelector('.tab-btn:first-child').classList.add('active');
-                currentMode = 'hand';
-            } else {
-                document.querySelector('.tab-btn:last-child').classList.add('active');
-                currentMode = 'coffee';
-            }
+        // --- Mode Switching ---
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(mode + 'ModeBtn').classList.add('active');
             resetAll();
+            
+            if (mode === 'coffee') {
+                document.getElementById('upload-section').style.display = 'block';
+                document.getElementById('statusText').innerText = "☕ Δείξε το φλιτζάνι σου ή ανέβασε φωτογραφία";
+            } else {
+                document.getElementById('upload-section').style.display = 'none';
+                document.getElementById('statusText').innerText = "🖐️ Δείξε το χέρι σου";
+            }
         }
 
-        // --- Analyze Hand ---
-        function analyzeHand() {
-            if (!handLandmarks) { alert("Δείξε το χέρι σου!"); return; }
+        // --- Auto coffee detection via camera ---
+        let coffeeFrame = null;
+        let coffeeAnalysisDone = false;
+
+        function captureFrame() {
+            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+            coffeeFrame = ctx.getImageData(0, 0, overlay.width, overlay.height);
+            
+            // Trigger analysis only once
+            if (!coffeeAnalysisDone && coffeeFrame) {
+                coffeeAnalysisDone = true;
+                setTimeout(() => {
+                    analyzeCoffeeFromFrame();
+                }, 500);
+            }
+        }
+
+        async function analyzeCoffeeFromFrame() {
+            if (!coffeeFrame) return;
+            if (!objectModel) { 
+                document.getElementById('statusText').innerText = "⏳ Φόρτωση μοντέλου...";
+                return; 
+            }
+
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('analyzeHandBtn').disabled = true;
+            document.getElementById('statusText').innerText = "☕ Αναλύω το φλιτζάνι...";
 
-            setTimeout(() => {
-                const result = computeHandAnalysis(handLandmarks);
-                displayResult(result, 'hand');
+            // Create temp image
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = overlay.width;
+            tempCanvas.height = overlay.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(coffeeFrame, 0, 0);
+            
+            const img = document.createElement('img');
+            img.src = tempCanvas.toDataURL('image/png');
+            await new Promise((resolve) => { img.onload = resolve; });
+
+            const predictions = await objectModel.detect(img);
+            const top = predictions.length > 0 ? predictions[0] : null;
+            const objectType = top ? top.class : 'unknown';
+            const confidence = top ? (top.score * 100).toFixed(1) : 0;
+
+            if (objectType === 'cup' || objectType === 'bottle' || objectType === 'bowl') {
+                const symbols = detectCoffeeSymbols(coffeeFrame);
+                let reading = "";
+                let details = "";
+                let symbolsList = [];
+
+                if (symbols.length === 0) {
+                    reading = "Βλέπω ένα φλιτζάνι με κατακάθια. Δεν εντοπίζονται ξεκάθαρα σχήματα, που σημαίνει ότι είσαι σε φάση ηρεμίας ή αναμονής.";
+                    details = "Ομοιόμορφα κατακάθια, χωρίς έντονες κηλίδες. Ισορροπία και σταθερότητα.";
+                } else {
+                    symbolsList = symbols;
+                    const interpretations = symbols.map(s => symbolDatabase[s] || "Ενδιαφέρον σχήμα.").join(" ");
+                    reading = interpretations;
+                    details = `Σύμβολα: ${symbols.join(', ')}.`;
+                }
+
+                const result = {
+                    personality: reading,
+                    openHand: details,
+                    advice: "Συμβουλή: Μην παίρνεις βιαστικές αποφάσεις. Οι απαντήσεις θα έρθουν σύντομα.",
+                    stats: {
+                        "Αντικείμενο": "Φλιτζάνι (Κατακάθια)",
+                        "Εμπιστοσύνη": confidence + "%",
+                        "Σύμβολα": symbols.join(', ') || "Κανένα"
+                    },
+                    date: new Date().toISOString(),
+                    type: 'coffee'
+                };
+                displayResult(result, 'coffee');
                 currentResult = result;
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('analyzeHandBtn').disabled = false;
-            }, 500);
+                document.getElementById('statusText').innerText = "✅ Φλιτζάνι αναλύθηκε!";
+            } else {
+                document.getElementById('statusText').innerText = "☕ Δεν βλέπω φλιτζάνι. Δείξε το φλιτζάνι σου.";
+                coffeeAnalysisDone = false; // Allow retry
+            }
+
+            document.getElementById('loading').style.display = 'none';
         }
 
+        // --- Symbol Detection ---
+        function detectCoffeeSymbols(frameData) {
+            const data = frameData.data;
+            let symbols = [];
+            let darkPixels = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+                if (brightness < 50) darkPixels++;
+            }
+            const darkRatio = darkPixels / (frameData.width * frameData.height);
+
+            if (darkRatio > 0.4) {
+                symbols.push('κύκλος', 'φωτιά');
+                if (darkRatio > 0.6) symbols.push('βουνό');
+            }
+            if (darkRatio < 0.3) {
+                symbols.push('ήλιος', 'λουλούδι');
+            }
+            if (darkRatio > 0.2 && darkRatio < 0.5) {
+                symbols.push('γραμμή', 'αστέρι');
+            }
+
+            const extras = ['καρδιά', 'πουλί', 'σπίτι', 'δρόμος', 'σύννεφο', 'φίδι', 'ψάρι'];
+            if (Math.random() > 0.5) {
+                symbols.push(extras[Math.floor(Math.random() * extras.length)]);
+            }
+
+            return [...new Set(symbols)];
+        }
+
+        // --- Symbol Database ---
+        const symbolDatabase = {
+            'καρδιά': '💖 Η καρδιά είναι τυχερό σύμβολο. Σημαίνει ότι αγάπη ή δυνατή φιλία βρίσκεται κοντά.',
+            'αστέρι': '⭐ Το αστέρι είναι σύμβολο επιτυχίας. Δείχνει ότι είσαι στο σωστό δρόμο.',
+            'φίδι': '🐍 Το φίδι είναι προειδοποιητικό σύμβολο. Υπάρχει άτομο κοντά σου που δεν είναι ειλικρινές.',
+            'πουλί': '🐦 Το πουλί είναι σύμβολο ελευθερίας. Σύντομα θα έχεις ευκαιρία να ταξιδέψεις.',
+            'λουλούδι': '🌸 Το λουλούδι είναι σύμβολο ομορφιάς. Μια δημιουργική περίοδος έρχεται.',
+            'κύκλος': '⭕ Ο κύκλος είναι σύμβολο ολοκλήρωσης. Ένας κύκλος κλείνει και νέος ξεκινά.',
+            'γραμμή': '➖ Μια γραμμή σημαίνει πορεία. Η πορεία σου είναι ξεκάθαρη.',
+            'βουνό': '🏔️ Το βουνό είναι σύμβολο πρόκλησης. Θα ξεπεράσεις μια δύσκολη περίοδο.',
+            'ήλιος': '☀️ Ο ήλιος είναι σύμβολο καλής ενέργειας. Μια ευχάριστη περίοδος ξεκινά.',
+            'σπίτι': '🏠 Το σπίτι είναι σύμβολο ασφάλειας. Η οικογένεια σου είναι σταθερή.',
+            'δρόμος': '🛤️ Ο δρόμος δείχνει ταξίδι ή νέα πορεία.',
+            'σύννεφο': '☁️ Το σύννεφο είναι σύμβολο αμφιβολίας. Μην παίρνεις σημαντικές αποφάσεις τώρα.',
+            'φωτιά': '🔥 Η φωτιά είναι σύμβολο πάθους. Είσαι έτοιμος για νέα σχέση ή δυναμική κίνηση.',
+            'ψάρι': '🐟 Το ψάρι δείχνει ότι θα λάβεις μια ευχάριστη είδηση.'
+        };
+
+        // --- Hand Analysis ---
         function computeHandAnalysis(lm) {
             const tips = [4,8,12,16,20];
             const pips = [3,6,10,14,18];
@@ -293,15 +391,15 @@
             const thumbWidth = Math.abs(lm[4].x - lm[20].x);
 
             let personality = "";
-            if (middleRatio > 1.15) personality = "Ισχυρή θέληση, αυτοπεποίθηση. Δεν φοβάσαι να πάρεις ρίσκα. Οι άλλοι σε βλέπουν ως γεννημένο ηγέτη. Πρόσεχε μην γίνεις εγωιστής.";
-            else if (middleRatio < 0.95) personality = "Διακριτικός, βαθιά σκέψη. Προτιμάς να παρατηρείς παρά να μιλάς. Έχεις ενσυναίσθηση. Η σιωπή σου θα σε οδηγήσει σε σημαντικές ανακαλύψεις.";
-            else personality = "Ισορροπημένος, προσγειωμένος. Δεν είσαι ούτε υπερβολικά παρορμητικός ούτε διστακτικός. Οι άλλοι νιώθουν ασφάλεια γύρω σου.";
+            if (middleRatio > 1.15) personality = "Ισχυρή θέληση, αυτοπεποίθηση. Δεν φοβάσαι να πάρεις ρίσκα. Οι άλλοι σε βλέπουν ως γεννημένο ηγέτη.";
+            else if (middleRatio < 0.95) personality = "Διακριτικός, βαθιά σκέψη. Προτιμάς να παρατηρείς. Έχεις ενσυναίσθηση.";
+            else personality = "Ισορροπημένος, προσγειωμένος. Δεν είσαι υπερβολικά παρορμητικός ούτε διστακτικός.";
 
             let handOpen = "";
-            if (thumbWidth > 0.12) handOpen = "Ανοιχτή παλάμη: Εξωστρεφής, δίνεις συναισθήματα. Δεν διστάζεις να δείξεις αγάπη. Κράτα μερικές φορές τα συναισθήματά σου για σένα.";
-            else handOpen = "Κλειστή παλάμη: Κρατάς συναισθήματα, επιφυλακτικός. Προτιμάς να αναλύεις. Αυτό σε κάνει καλό στο να κρατάς μυστικά, αλλά μπορεί να σε κάνει να νιώθεις μόνος.";
+            if (thumbWidth > 0.12) handOpen = "Ανοιχτή παλάμη: Εξωστρεφής, δίνεις συναισθήματα. Δεν διστάζεις να δείξεις αγάπη.";
+            else handOpen = "Κλειστή παλάμη: Κρατάς συναισθήματα, επιφυλακτικός. Προτιμάς να αναλύεις.";
 
-            const advice = "Η γραμμή της ζωής σου είναι καθαρή. Μην φοβάσαι τα ρίσκα στο επαγγελματικό πεδίο. Η τύχη είναι με το μέρος σου.";
+            const advice = "Η γραμμή της ζωής σου είναι καθαρή. Μην φοβάσαι τα ρίσκα. Η τύχη είναι με το μέρος σου.";
 
             return {
                 personality,
@@ -317,147 +415,103 @@
             };
         }
 
-        // --- Analyze Coffee (with Symbol Detection) ---
-        async function analyzeCoffee() {
-            if (!coffeeFrame) { alert("Περίμενε να σταθεροποιηθεί η εικόνα του φλιτζανιού."); return; }
-            if (!objectModel) { alert("Το μοντέλο AI δεν φόρτωσε ακόμα."); return; }
-
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('analyzeCoffeeBtn').disabled = true;
-
-            // Create a temporary image from the captured frame
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = overlayCoffee.width;
-            tempCanvas.height = overlayCoffee.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.putImageData(coffeeFrame, 0, 0);
+        // --- Capture Photo (for coffee) ---
+        function capturePhoto() {
+            ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+            const dataUrl = overlay.toDataURL('image/png');
             
+            // Display captured image
+            const img = document.getElementById('uploaded-img');
+            img.src = dataUrl;
+            img.style.display = 'block';
+            
+            // Analyze the captured photo
+            analyzeImageData(dataUrl);
+        }
+
+        // --- Upload Handler ---
+        function handleUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const img = document.getElementById('uploaded-img');
+            img.src = URL.createObjectURL(file);
+            img.style.display = 'block';
+            
+            img.onload = function() {
+                // Convert to base64 and analyze
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx2 = canvas.getContext('2d');
+                ctx2.drawImage(img, 0, 0);
+                const dataUrl = canvas.toDataURL('image/png');
+                analyzeImageData(dataUrl);
+            };
+        }
+
+        // --- Analyze Image Data (for coffee) ---
+        async function analyzeImageData(dataUrl) {
+            if (!objectModel) { alert("Το μοντέλο AI δεν φόρτωσε ακόμα."); return; }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('statusText').innerText = "☕ Αναλύω την εικόνα...";
+
             const img = document.createElement('img');
-            img.src = tempCanvas.toDataURL('image/png');
+            img.src = dataUrl;
             await new Promise((resolve) => { img.onload = resolve; });
 
-            // 1. Detect if it's a cup
             const predictions = await objectModel.detect(img);
             const top = predictions.length > 0 ? predictions[0] : null;
             const objectType = top ? top.class : 'unknown';
             const confidence = top ? (top.score * 100).toFixed(1) : 0;
 
-            if (objectType !== 'cup' && objectType !== 'bottle' && objectType !== 'bowl') {
+            if (objectType === 'cup' || objectType === 'bottle' || objectType === 'bowl') {
+                // Analyze coffee grounds from the image
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx2 = canvas.getContext('2d');
+                ctx2.drawImage(img, 0, 0);
+                const frameData = ctx2.getImageData(0, 0, canvas.width, canvas.height);
+                
+                const symbols = detectCoffeeSymbols(frameData);
+                let reading = "";
+                let details = "";
+                let symbolsList = [];
+
+                if (symbols.length === 0) {
+                    reading = "Βλέπω ένα φλιτζάνι με κατακάθια. Δεν εντοπίζονται ξεκάθαρα σχήματα, που σημαίνει ότι είσαι σε φάση ηρεμίας.";
+                    details = "Ομοιόμορφα κατακάθια, ισορροπία και σταθερότητα.";
+                } else {
+                    symbolsList = symbols;
+                    const interpretations = symbols.map(s => symbolDatabase[s] || "Ενδιαφέρον σχήμα.").join(" ");
+                    reading = interpretations;
+                    details = `Σύμβολα: ${symbols.join(', ')}.`;
+                }
+
                 const result = {
-                    personality: `Δεν αναγνώρισα φλιτζάνι. Το αντικείμενο φαίνεται να είναι "${objectType}". Ανέβασε μια φωτογραφία φλιτζανιού με κατακάθια.`,
-                    openHand: "Το σύστημα αναγνώρισε: " + objectType,
-                    advice: "Προσπάθησε ξανά με καθαρή εικόνα του φλιτζανιού.",
+                    personality: reading,
+                    openHand: details,
+                    advice: "Συμβουλή: Μην παίρνεις βιαστικές αποφάσεις. Οι απαντήσεις θα έρθουν σύντομα.",
                     stats: {
-                        "Αντικείμενο": objectType,
+                        "Αντικείμενο": "Φλιτζάνι (Upload)",
                         "Εμπιστοσύνη": confidence + "%",
-                        "Συμβουλή": "Δείξε το φλιτζάνι"
+                        "Σύμβολα": symbols.join(', ') || "Κανένα"
                     },
                     date: new Date().toISOString(),
                     type: 'coffee'
                 };
                 displayResult(result, 'coffee');
                 currentResult = result;
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('analyzeCoffeeBtn').disabled = false;
-                return;
-            }
-
-            // 2. Symbol detection from coffee grounds
-            const symbols = detectCoffeeSymbols(coffeeFrame);
-            
-            // 3. Generate reading
-            let reading = "";
-            let details = "";
-            let symbolsList = [];
-
-            if (symbols.length === 0) {
-                reading = "Βλέπω ένα φλιτζάνι με κατακάθια, αλλά δεν μπορώ να εντοπίσω ξεκάθαρα σχήματα. Μπορεί να σημαίνει ότι είσαι σε μια φάση ηρεμίας. Περίμενε λίγες ημέρες και ξαναέλεγξε.";
-                details = "Το φλιτζάνι έχει ομοιόμορφα κατακάθια, χωρίς έντονες κηλίδες. Αυτό δείχνει ισορροπία και σταθερότητα.";
+                document.getElementById('statusText').innerText = "✅ Ανάλυση ολοκληρώθηκε!";
             } else {
-                symbolsList = symbols;
-                const interpretations = symbols.map(s => symbolDatabase[s] || "Ενδιαφέρον σχήμα.").join(" ");
-                reading = interpretations;
-                details = `Ανιχνεύτηκαν ${symbols.length} σύμβολα: ${symbols.join(', ')}.`;
+                document.getElementById('statusText').innerText = "☕ Δεν αναγνώρισα φλιτζάνι. Το αντικείμενο είναι: " + objectType;
+                document.getElementById('loading').style.display = 'none';
             }
 
-            const result = {
-                personality: reading,
-                openHand: details,
-                advice: "Συμβουλή: Μην παίρνεις βιαστικές αποφάσεις. Τα σημάδια θα ξεκαθαρίσουν μόνα τους.",
-                stats: {
-                    "Αντικείμενο": "Φλιτζάνι",
-                    "Εμπιστοσύνη": confidence + "%",
-                    "Σύμβολα": symbols.join(', ') || "Κανένα"
-                },
-                date: new Date().toISOString(),
-                type: 'coffee'
-            };
-
-            displayResult(result, 'coffee');
-            currentResult = result;
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('analyzeCoffeeBtn').disabled = false;
         }
-
-        // --- Symbol Detection (image processing) ---
-        function detectCoffeeSymbols(frameData) {
-            const data = frameData.data;
-            const width = frameData.width;
-            const height = frameData.height;
-            let symbols = [];
-
-            // Calculate dark/light ratio
-            let darkPixels = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
-                if (brightness < 50) darkPixels++;
-            }
-            const darkRatio = darkPixels / (width * height);
-
-            // Detect symbols based on patterns
-            if (darkRatio > 0.4) {
-                symbols.push('κύκλος');
-                symbols.push('φωτιά');
-                if (darkRatio > 0.6) symbols.push('βουνό');
-            }
-            if (darkRatio < 0.3) {
-                symbols.push('ήλιος');
-                symbols.push('λουλούδι');
-            }
-            if (darkRatio > 0.2 && darkRatio < 0.5) {
-                symbols.push('γραμμή');
-                symbols.push('αστέρι');
-            }
-
-            // Random addition for realism (based on actual coffee reading)
-            const extras = ['καρδιά', 'πουλί', 'σπίτι', 'δρόμος', 'σύννεφο', 'φίδι', 'ψάρι'];
-            if (Math.random() > 0.5) {
-                symbols.push(extras[Math.floor(Math.random() * extras.length)]);
-            }
-
-            // Remove duplicates
-            return [...new Set(symbols)];
-        }
-
-        // --- Symbol Database ---
-        const symbolDatabase = {
-            'καρδιά': '💖 Η καρδιά είναι τυχερό σύμβολο. Σημαίνει ότι αγάπη ή δυνατή φιλία βρίσκεται κοντά σου. Μπορεί να λάβεις μήνυμα που θα σε κάνει ευτυχισμένο.',
-            'αστέρι': '⭐ Το αστέρι είναι σύμβολο επιτυχίας. Δείχνει ότι είσαι στο σωστό δρόμο. Μια επαγγελματική εξέλιξη ή προαγωγή είναι πιθανή.',
-            'φίδι': '🐍 Το φίδι είναι προειδοποιητικό σύμβολο. Μπορεί να σημαίνει ότι υπάρχει άτομο κοντά σου που δεν είναι ειλικρινές. Πρόσεχε.',
-            'πουλί': '🐦 Το πουλί είναι σύμβολο ελευθερίας. Δείχνει ότι σύντομα θα έχεις την ευκαιρία να ταξιδέψεις ή να αλλάξεις περιβάλλον.',
-            'λουλούδι': '🌸 Το λουλούδι είναι σύμβολο ομορφιάς. Σημαίνει ότι μια δημιουργική περίοδος έρχεται στη ζωή σου.',
-            'κύκλος': '⭕ Ο κύκλος είναι σύμβολο ολοκλήρωσης. Δείχνει ότι ένας κύκλος στη ζωή σου κλείνει και ένας νέος ξεκινά.',
-            'γραμμή': '➖ Μια γραμμή σημαίνει πορεία. Αν είναι ίσια, η πορεία σου είναι ξεκάθαρη. Αν είναι κυματιστή, θα υπάρχουν εμπόδια.',
-            'βουνό': '🏔️ Το βουνό είναι σύμβολο πρόκλησης. Δείχνει ότι θα αντιμετωπίσεις μια δύσκολη περίοδο, αλλά θα την ξεπεράσεις.',
-            'ήλιος': '☀️ Ο ήλιος είναι σύμβολο καλής ενέργειας. Σημαίνει ότι μια ευχάριστη περίοδος ξεκινά.',
-            'σπίτι': '🏠 Το σπίτι είναι σύμβολο ασφάλειας. Δείχνει ότι η οικογένεια σου είναι σταθερή.',
-            'δρόμος': '🛤️ Ο δρόμος δείχνει ότι σύντομα θα κάνεις ένα ταξίδι κυριολεκτικό ή μεταφορικό.',
-            'σύννεφο': '☁️ Το σύννεφο είναι σύμβολο αμφιβολίας. Δείχνει ότι νιώθεις μπερδεμένος. Μην πάρεις σημαντικές αποφάσεις τώρα.',
-            'φωτιά': '🔥 Η φωτιά είναι σύμβολο πάθους. Δείχνει ότι είσαι έτοιμος για μια νέα σχέση ή δυναμική κίνηση.',
-            'ψάρι': '🐟 Το ψάρι δείχνει ότι θα λάβεις μια ευχάριστη είδηση ή ένα δώρο.',
-            'σπίτι': '🏠 Αν το σχήμα μοιάζει με σπίτι, δείχνει ότι η οικογένεια σου είναι το στήριγμά σου.',
-            'ζώο': '🐾 Σχήμα ζώου σημαίνει ότι έχεις έναν ισχυρό προστάτη. Μπορεί να είναι φίλος ή συγγενής.'
-        };
 
         // --- Display Result ---
         function displayResult(r, mode) {
@@ -478,11 +532,7 @@
 
             if (mode === 'hand') {
                 title.innerText = "🖐️ Ανάλυση Παλάμης";
-                text.innerHTML = `
-                    <strong>🧠 Χαρακτήρας:</strong><br>${r.personality}<br><br>
-                    <strong>✋ Στάση Παλάμης:</strong><br>${r.openHand}<br><br>
-                    <strong>💡 Συμβουλή:</strong><br>${r.advice}
-                `;
+                text.innerHTML = `<strong>🧠 Χαρακτήρας:</strong><br>${r.personality}<br><br><strong>✋ Στάση:</strong><br>${r.openHand}<br><br><strong>💡 Συμβουλή:</strong><br>${r.advice}`;
                 symbolsDiv.innerHTML = "";
                 grid.innerHTML = `
                     <div class="stat-item"><span class="badge">Δείκτης/Μέσος</span><br>${r.stats["Δείκτης/Μέσος"]}</div>
@@ -490,18 +540,11 @@
                     <div class="stat-item"><span class="badge">Άνοιγμα</span><br>${r.stats["Άνοιγμα"]}</div>
                 `;
             } else {
-                title.innerText = "☕ Καφεμαντεία (Κατακάθια)";
-                text.innerHTML = `
-                    <strong>🔮 Ανάλυση:</strong><br>${r.personality}<br><br>
-                    <strong>📊 Λεπτομέρειες:</strong><br>${r.openHand}<br><br>
-                    <strong>💡 Συμβουλή:</strong><br>${r.advice}
-                `;
-                // Display symbols
+                title.innerText = "☕ Καφεμαντεία";
+                text.innerHTML = `<strong>🔮 Ανάλυση:</strong><br>${r.personality}<br><br><strong>📊 Λεπτομέρειες:</strong><br>${r.openHand}<br><br><strong>💡 Συμβουλή:</strong><br>${r.advice}`;
                 if (r.stats["Σύμβολα"]) {
                     const symList = r.stats["Σύμβολα"].split(', ').filter(s => s !== 'Κανένα');
-                    symbolsDiv.innerHTML = symList.map(s => 
-                        `<span class="symbol-badge"><strong>${s}</strong></span>`
-                    ).join('');
+                    symbolsDiv.innerHTML = symList.map(s => `<span class="symbol-badge"><strong>${s}</strong></span>`).join('');
                 } else {
                     symbolsDiv.innerHTML = "<span style='color:#888;'>Δεν εντοπίστηκαν σύμβολα</span>";
                 }
@@ -518,16 +561,11 @@
         // --- History Management ---
         function saveToHistory() {
             if (!currentResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
-            
             let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            const entry = {
-                id: Date.now(),
-                ...currentResult,
-                dateStr: new Date().toLocaleString('el-GR')
-            };
+            const entry = { id: Date.now(), ...currentResult, dateStr: new Date().toLocaleString('el-GR') };
             history.push(entry);
             localStorage.setItem('handHistory', JSON.stringify(history));
-            alert("✅ Αποθηκεύτηκε στο ιστορικό!");
+            alert("✅ Αποθηκεύτηκε!");
             renderHistory();
             document.getElementById('history-area').style.display = 'block';
         }
@@ -535,12 +573,10 @@
         function renderHistory() {
             const list = document.getElementById('history-list');
             const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            
             if (history.length === 0) {
                 list.innerHTML = "<p style='color:#888;'>Δεν υπάρχουν αποθηκευμένες αναλύσεις.</p>";
                 return;
             }
-
             list.innerHTML = history.map((item, index) => `
                 <div class="history-item">
                     <strong>#${index+1}</strong> <small>${item.dateStr}</small><br>
@@ -556,160 +592,4 @@
         }
 
         function deleteHistoryItem(index) {
-            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            history.splice(index, 1);
-            localStorage.setItem('handHistory', JSON.stringify(history));
-            renderHistory();
-        }
-
-        function clearHistory() {
-            if (confirm("Διαγραφή όλου του ιστορικού;")) {
-                localStorage.removeItem('handHistory');
-                renderHistory();
-                alert("Ιστορικό διαγράφηκε.");
-            }
-        }
-
-        // --- PDF Export ---
-        async function exportPDF() {
-            if (!currentResult) { alert("Κάνε πρώτα ανάλυση!"); return; }
-
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
-            
-            const dateStr = new Date().toLocaleString('el-GR');
-            const typeLabel = currentResult.type === 'hand' ? '🖐️ Ανάλυση Παλάμης' : '☕ Καφεμαντεία';
-            
-            doc.setFontSize(22);
-            doc.setTextColor(196, 138, 74);
-            doc.text('🔮 HandMaster Pro', 20, 30);
-            
-            doc.setFontSize(12);
-            doc.setTextColor(0, 0, 0);
-            doc.text(`${typeLabel} - ${dateStr}`, 20, 40);
-            
-            doc.setFontSize(14);
-            doc.text('Ανάλυση:', 20, 60);
-            doc.setFontSize(12);
-            const lines = doc.splitTextToSize(currentResult.personality || 'N/A', 170);
-            doc.text(lines, 20, 70);
-            
-            doc.setFontSize(14);
-            doc.text('Λεπτομέρειες & Συμβουλή:', 20, 100);
-            doc.setFontSize(12);
-            const lines2 = doc.splitTextToSize((currentResult.openHand || '') + ' ' + (currentResult.advice || ''), 170);
-            doc.text(lines2, 20, 110);
-            
-            doc.setFontSize(14);
-            doc.text('Στατιστικά:', 20, 140);
-            doc.setFontSize(12);
-            let statsY = 150;
-            for (const [k,v] of Object.entries(currentResult.stats || {})) {
-                doc.text(`${k}: ${v}`, 20, statsY);
-                statsY += 8;
-            }
-            
-            doc.save(`HandMaster_${dateStr}.pdf`);
-        }
-
-        async function exportPDF_fromHistory(index) {
-            let history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            const item = history[index];
-            if (!item) return;
-
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
-            
-            const typeLabel = item.type === 'hand' ? '🖐️ Ανάλυση Παλάμης' : '☕ Καφεμαντεία';
-            
-            doc.setFontSize(22);
-            doc.setTextColor(196, 138, 74);
-            doc.text('🔮 HandMaster Pro', 20, 30);
-            
-            doc.setFontSize(12);
-            doc.setTextColor(0, 0, 0);
-            doc.text(`${typeLabel} - ${item.dateStr}`, 20, 40);
-            
-            doc.setFontSize(14);
-            doc.text('Ανάλυση:', 20, 60);
-            doc.setFontSize(12);
-            const lines = doc.splitTextToSize(item.personality || 'N/A', 170);
-            doc.text(lines, 20, 70);
-            
-            doc.setFontSize(14);
-            doc.text('Λεπτομέρειες & Συμβουλή:', 20, 100);
-            doc.setFontSize(12);
-            const lines2 = doc.splitTextToSize((item.openHand || '') + ' ' + (item.advice || ''), 170);
-            doc.text(lines2, 20, 110);
-            
-            doc.setFontSize(14);
-            doc.text('Στατιστικά:', 20, 140);
-            doc.setFontSize(12);
-            let statsY = 150;
-            for (const [k,v] of Object.entries(item.stats || {})) {
-                doc.text(`${k}: ${v}`, 20, statsY);
-                statsY += 8;
-            }
-            
-            doc.save(`HandMaster_${item.dateStr}.pdf`);
-        }
-
-        // --- Reset ---
-        function resetAll() {
-            document.getElementById('result-area').style.display = 'none';
-            document.getElementById('loading').style.display = 'none';
-            currentResult = null;
-            coffeeCaptured = false;
-            coffeeFrame = null;
-            document.getElementById('analyzeHandBtn').disabled = true;
-            document.getElementById('analyzeCoffeeBtn').disabled = true;
-            document.getElementById('startHandBtn').disabled = false;
-            document.getElementById('startCoffeeBtn').disabled = false;
-            document.getElementById('startHandBtn').innerText = "📷 Εκκίνηση";
-            document.getElementById('startCoffeeBtn').innerText = "📷 Εκκίνηση";
-            document.getElementById('startHandBtn').style.background = "#c48a4a";
-            document.getElementById('startCoffeeBtn').style.background = "#c48a4a";
-            ctxHand.clearRect(0, 0, overlayHand.width, overlayHand.height);
-            ctxCoffee.clearRect(0, 0, overlayCoffee.width, overlayCoffee.height);
-            handLandmarks = null;
-        }
-
-        // --- Drawing Helpers ---
-        function drawConnectors(ctx, lm, conn, style) {
-            ctx.strokeStyle = style.color || 'white';
-            ctx.lineWidth = style.lineWidth || 2;
-            for (const [i,j] of conn) {
-                ctx.beginPath();
-                ctx.moveTo(lm[i].x * overlayHand.width, lm[i].y * overlayHand.height);
-                ctx.lineTo(lm[j].x * overlayHand.width, lm[j].y * overlayHand.height);
-                ctx.stroke();
-            }
-        }
-        function drawLandmarks(ctx, lm, style) {
-            ctx.fillStyle = style.color || 'white';
-            for (const p of lm) {
-                ctx.beginPath();
-                ctx.arc(p.x * overlayHand.width, p.y * overlayHand.height, style.radius || 3, 0, 2*Math.PI);
-                ctx.fill();
-            }
-        }
-        const HAND_CONNECTIONS = [
-            [0,1],[1,2],[2,3],[3,4],
-            [0,5],[5,6],[6,7],[7,8],
-            [0,9],[9,10],[10,11],[11,12],
-            [0,13],[13,14],[14,15],[15,16],
-            [0,17],[17,18],[18,19],[19,20],
-            [5,9],[9,13],[13,17]
-        ];
-
-        // --- Initialize History ---
-        window.onload = function() {
-            const history = JSON.parse(localStorage.getItem('handHistory') || '[]');
-            if (history.length > 0) {
-                renderHistory();
-                document.getElementById('history-area').style.display = 'block';
-            }
-        };
-    </script>
-</body>
-</html>
+            let history = JSON.parse(l
