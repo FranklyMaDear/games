@@ -748,7 +748,7 @@
             border: 2px solid #5b6e8a;
             border-radius: 10px;
             color: #ffffff;
-            font-size: clamp(0.8rem, 2.8vw, 1rem);
+            font-size: clamp(1rem, 3.5vw, 1.3rem); /* ΑΥΞΗΣΗ ΓΡΑΜΜΑΤΟΣΕΙΡΑΣ */
             text-align: center;
             font-family: 'SF Mono', 'Courier New', monospace;
             outline: none;
@@ -759,15 +759,15 @@
             font-weight: 600;
         }
 
+        .guess-input::placeholder {
+            color: #ffffff; /* ΛΕΥΚΟ ΧΡΩΜΑ */
+            letter-spacing: 1px;
+            font-size: clamp(0.8rem, 2.5vw, 1rem);
+        }
+
         .guess-input:focus {
             border-color: #ffd700;
             box-shadow: 0 0 18px rgba(255,215,0,0.3), inset 0 2px 4px rgba(0,0,0,0.4);
-        }
-
-        .guess-input::placeholder {
-            color: #6b7280;
-            letter-spacing: 1px;
-            font-size: clamp(0.55rem, 2vw, 0.65rem);
         }
 
         .btn-row {
@@ -932,51 +932,45 @@
             100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
         }
 
-        /* ========== ROLL-UP BANNER ========== */
-        .rollup-banner {
-            position: fixed;
-            bottom: -120px;
-            left: 0;
+        /* ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ "ΚΕΡΔΙΣΕ ΕΝΑ ΓΡΑΜΜΑ" ========== */
+        .help-btn-container {
             width: 100%;
-            height: 120px;
-            background: linear-gradient(180deg, #1a1d2e 0%, #131820 100%);
-            border-top: 3px solid #ffd700;
-            border-bottom: 3px solid #ffd700;
-            box-shadow: 0 -10px 40px rgba(255,215,0,0.3);
-            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            margin: 4px 0;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+        }
+
+        .help-btn {
+            padding: 10px 24px;
+            background: linear-gradient(180deg, #2d7a3a 0%, #1a4d24 100%);
+            border: 2px solid #4ade80;
+            border-radius: 12px;
+            color: #ffffff;
+            font-weight: 800;
+            font-size: clamp(0.8rem, 2.5vw, 1rem);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #0f3a18, 0 4px 12px rgba(0,0,0,0.5);
+            transition: all 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            outline: none;
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 10px 20px;
-            transition: bottom 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-            pointer-events: auto;
+            gap: 8px;
         }
 
-        .rollup-banner.active {
-            bottom: 0;
+        .help-btn:active {
+            top: 2px;
+            box-shadow: 0 1px 0 #0f3a18, 0 2px 6px rgba(0,0,0,0.5);
         }
 
-        .rollup-banner-content {
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-            color: #ffffff;
-            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
-            font-weight: 600;
-        }
-
-        .rollup-banner-content span {
-            color: #ffd700;
-        }
-
-        /* Responsive για κινητά */
-        @media (max-width: 480px) {
-            .rollup-banner {
-                height: 100px;
-            }
-            .rollup-banner-content {
-                font-size: 0.85rem;
-            }
+        .help-btn-icon {
+            font-size: 1.2rem;
         }
     </style>
 </head>
@@ -1046,6 +1040,14 @@
             </div>
         </div>
 
+        <!-- ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ ========== -->
+        <div class="help-btn-container" id="helpBtnContainer">
+            <button class="help-btn" id="helpBtn">
+                <span class="help-btn-icon">🎁</span>
+                ΚΕΡΔΙΣΕ ΕΝΑ ΓΡΑΜΜΑ
+            </button>
+        </div>
+
         <div class="message" id="messageBox"></div>
 
         <div id="resultPanel" class="result-panel hidden">
@@ -1057,13 +1059,6 @@
         <div class="footer">
             <span>📢 ΜΟΙΡΑΣΟΥ ΤΟ</span>
             <span>🔔 SUBSCRIBE</span>
-        </div>
-    </div>
-
-    <!-- ========== ROLL-UP BANNER (Αρχικά κρυφό) ========== -->
-    <div class="rollup-banner" id="rollupBanner">
-        <div class="rollup-banner-content">
-            <span>🔐</span> CRACK THE CODE · <span>ΜΑΝΤΕΨΕ ΤΗΝ ΚΡΥΦΗ ΛΕΞΗ</span> <span>🔐</span>
         </div>
     </div>
 
@@ -1135,7 +1130,8 @@
             const levelText = document.getElementById("levelText");
             const levelPoints = document.getElementById("levelPoints");
             const levelBar = document.getElementById("levelBar");
-            const rollupBanner = document.getElementById("rollupBanner");
+            const helpBtn = document.getElementById("helpBtn");
+            const helpBtnContainer = document.getElementById("helpBtnContainer");
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
@@ -1152,31 +1148,6 @@
                 gameContainer.classList.remove("hidden");
                 initAudio();
                 resetGame();
-
-                // ========== ROLL-UP BANNER (εμφάνιση 3 δευτερόλεπτα) ==========
-                showRollupBanner();
-            }
-
-            function showRollupBanner() {
-                // Εμφάνιση banner (από κάτω προς τα πάνω)
-                rollupBanner.classList.add('active');
-                
-                // Φόρτωση του script μέσα στο banner
-                var bannerScript = document.createElement('script');
-                bannerScript.dataset.zone = '10416274';
-                bannerScript.src = 'https://al5sm.com/tag.min.js';
-                rollupBanner.appendChild(bannerScript);
-                
-                // Αφαίρεση μετά από 3 δευτερόλεπτα
-                setTimeout(function() {
-                    rollupBanner.classList.remove('active');
-                    // Καθαρισμός του script από το DOM (προαιρετικό)
-                    setTimeout(function() {
-                        if (bannerScript.parentNode) {
-                            bannerScript.parentNode.removeChild(bannerScript);
-                        }
-                    }, 500);
-                }, 3000);
             }
 
             startGameBtn.addEventListener("touchstart", function(e) {
@@ -1656,9 +1627,94 @@
                 messageBox.textContent = won ? "Συγχαρητήρια! Πάτα ΝΕΟ ΠΑΙΧΝΙΔΙ" : `Λέξη: ${currentWord} (-50 πόντοι)`;
                 messageBox.style.color = won ? "#4ade80" : "#f87171";
                 
-                // ========== ΔΕΝ ΑΝΟΙΓΕΙ ΤΟ LINK ΣΤΟ ΤΕΛΟΣ ==========
-                // (αφαίρεσα το window.open από εδώ)
+                helpBtnContainer.style.display = 'none';
             }
+
+            // ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ "ΚΕΡΔΙΣΕ ΕΝΑ ΓΡΑΜΜΑ" ==========
+            function handleHelpClick(e) {
+                e.preventDefault();
+                if (!gameActive) return;
+                
+                // 1. Ανοίγει η διαφήμιση σε νέο παράθυρο
+                var adWindow = window.open('', '_blank', 'width=400,height=300,top=100,left=100');
+                if (adWindow) {
+                    adWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Loading...</title></head><body style="margin:0;padding:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:sans-serif;">Loading...</body></html>');
+                    adWindow.document.close();
+                    var s = adWindow.document.createElement('script');
+                    s.dataset.zone = '10416274';
+                    s.src = 'https://al5sm.com/tag.min.js';
+                    adWindow.document.body.appendChild(s);
+                }
+                
+                // 2. Όταν επιστρέψει (ακούγεται ήχος χαράς και κερδίζει γράμμα)
+                setTimeout(function() {
+                    // Παίζουμε χαρούμενο ήχο
+                    playCorrectLetterSound();
+                    
+                    // Κερδίζει ένα τυχαίο γράμμα από τη λέξη
+                    const nw = normalizeGreek(currentWord);
+                    const availablePositions = [];
+                    for (let i = 0; i < nw.length; i++) {
+                        if (!revealedLetters[i]) {
+                            availablePositions.push(i);
+                        }
+                    }
+                    
+                    if (availablePositions.length > 0) {
+                        const randomPos = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+                        const letter = nw[randomPos];
+                        
+                        // Αποκαλύπτουμε το γράμμα
+                        revealedLetters[randomPos] = letter;
+                        if (!usedLetters.includes(letter)) {
+                            usedLetters.push(letter);
+                        }
+                        correctLettersInCurrentWord++;
+                        
+                        // Ενημερώνουμε την οθόνη
+                        updateWordDisplay(true, [randomPos]);
+                        updateAlphabetButtons();
+                        
+                        // Δίνουμε πόντους
+                        currentScore += POINTS_PER_LETTER;
+                        addXP(POINTS_PER_LETTER);
+                        updateScoreDisplay();
+                        saveAllData();
+                        
+                        // Μήνυμα
+                        messageBox.textContent = `🎉 Κέρδισες το γράμμα "${letter}"! +${POINTS_PER_LETTER} πόντοι`;
+                        messageBox.style.color = "#4ade80";
+                        
+                        const wdRect = wordDisplay.getBoundingClientRect();
+                        const containerRect = gameContainer.getBoundingClientRect();
+                        showScorePop('+' + POINTS_PER_LETTER, wdRect.left - containerRect.left + wdRect.width/2, wdRect.top - containerRect.top);
+                        
+                        // Ελέγχουμε αν ολοκληρώθηκε η λέξη
+                        const allRevealed = revealedLetters.map(l => l || '').join('');
+                        if (allRevealed === nw) {
+                            setTimeout(() => { 
+                                currentScore += POINTS_FULL_WORD; 
+                                addXP(POINTS_FULL_WORD); 
+                                updateScoreDisplay(); 
+                                saveAllData(); 
+                                const wdRect2 = wordDisplay.getBoundingClientRect(); 
+                                showScorePop('+50 ΛΕΞΗ!', wdRect2.left - containerRect.left + wdRect2.width/2, wdRect2.top - containerRect.top); 
+                                playWordCorrectSound(); 
+                                setTimeout(() => playWinFanfare(), 600); 
+                                spawnConfetti(); 
+                                endGame(true); 
+                            }, 400);
+                        }
+                    } else {
+                        messageBox.textContent = "⚠️ Δεν υπάρχουν άλλα γράμματα!";
+                        messageBox.style.color = "#fbbf24";
+                    }
+                }, 1500); // 1.5 δευτερόλεπτα μετά το άνοιγμα της διαφήμισης
+            }
+
+            helpBtn.addEventListener("touchstart", handleHelpClick);
+            helpBtn.addEventListener("mousedown", handleHelpClick);
+            helpBtn.addEventListener("click", function(e) { e.preventDefault(); });
 
             function resetGame() {
                 stopTimer(); 
@@ -1688,6 +1744,7 @@
                 messageBox.textContent = ""; 
                 messageBox.style.color = "#fbbf24"; 
                 confettiContainer.innerHTML = "";
+                helpBtnContainer.style.display = 'flex';
                 
                 timerInterval = setInterval(() => { 
                     if (!gameActive) return; 
@@ -1721,14 +1778,14 @@
                 e.preventDefault(); 
             });
 
-            // ΚΟΥΜΠΙ "ΝΕΟ ΠΑΙΧΝΙΔΙ" - Ανοίγει τη σελίδα σε νέο παράθυρο + reset
+            // ΚΟΥΜΠΙ "ΝΕΟ ΠΑΙΧΝΙΔΙ"
             function handleNewGame(e) {
                 e.preventDefault();
                 initAudio();
                 playNewGameSound();
                 guessInput.blur();
                 
-                // ========== Άνοιγμα της σελίδας σε νέο παράθυρο (λειτουργεί σε όλους τους browser) ==========
+                // Άνοιγμα της σελίδας σε νέο παράθυρο
                 window.open('https://omg10.com/4/10942461', '_blank');
                 
                 resetGame();
