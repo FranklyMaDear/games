@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="el">
 <head>
@@ -975,68 +974,85 @@
             font-size: 1.2rem;
         }
 
-        /* ========== LEVEL 2 CONTEST POPUP ========== */
-        .contest-popup {
+        /* ========== ROLL-UP BANNER (εμφανίζεται κάθε φορά που κερδίζει ή χάνει) ========== */
+        .rollup-banner {
             position: fixed;
-            top: 0;
+            bottom: -600px;
             left: 0;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            background: rgba(0,0,0,0.9);
-            display: none;
+            width: 100%;
+            height: auto;
+            max-height: 90vh;
+            background: linear-gradient(180deg, #1a1d2e 0%, #0a0e14 100%);
+            border-top: 4px solid #ffd700;
+            border-bottom: 4px solid #ffd700;
+            box-shadow: 0 -20px 60px rgba(255,215,0,0.3);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 9998;
             padding: 20px;
+            transition: bottom 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: auto;
+            overflow-y: auto;
         }
 
-        .contest-popup.active {
-            display: flex;
+        .rollup-banner.active {
+            bottom: 0;
         }
 
-        .contest-popup-content {
-            background: #131820;
-            border: 3px solid #ffd700;
-            border-radius: 20px;
-            padding: 20px;
-            max-width: 500px;
+        .rollup-banner-content {
             width: 100%;
-            box-shadow: 0 0 60px rgba(255,215,0,0.4);
+            max-width: 500px;
+            text-align: center;
+            padding: 10px;
         }
 
-        .contest-popup-content h2 {
+        .rollup-banner-content h2 {
             color: #ffd700;
             font-size: clamp(1.1rem, 3.5vw, 1.5rem);
-            text-align: center;
             margin-bottom: 15px;
+            text-shadow: 0 0 20px rgba(255,215,0,0.3);
         }
 
-        .contest-popup-content iframe {
+        .rollup-banner-content iframe {
             width: 100%;
             height: 300px;
             border: none;
             border-radius: 12px;
+            background: transparent;
         }
 
-        .contest-popup-close {
+        .rollup-banner-close {
             display: block;
             width: 100%;
-            margin-top: 15px;
-            padding: 12px;
+            max-width: 500px;
+            margin: 15px auto 0;
+            padding: 14px;
             background: linear-gradient(180deg, #4b5563 0%, #374151 100%);
             border: 2px solid #6b7280;
-            border-radius: 12px;
+            border-radius: 14px;
             color: #ffffff;
-            font-weight: 700;
+            font-weight: 800;
             font-size: clamp(0.9rem, 2.5vw, 1.1rem);
             cursor: pointer;
             transition: all 0.2s ease;
             text-align: center;
+            letter-spacing: 1px;
         }
 
-        .contest-popup-close:active {
+        .rollup-banner-close:active {
             transform: scale(0.95);
+        }
+
+        /* Responsive για κινητά */
+        @media (max-width: 480px) {
+            .rollup-banner-content iframe {
+                height: 250px;
+            }
+            .rollup-banner {
+                padding: 15px;
+            }
         }
     </style>
 </head>
@@ -1056,12 +1072,12 @@
         <div class="splash-footer">© 2025 CRACK THE CODE</div>
     </div>
 
-    <!-- ========== LEVEL 2 CONTEST POPUP ========== -->
-    <div class="contest-popup" id="contestPopup">
-        <div class="contest-popup-content">
+    <!-- ========== ROLL-UP BANNER (Αρχικά κρυφό) ========== -->
+    <div class="rollup-banner" id="rollupBanner">
+        <div class="rollup-banner-content">
             <h2>🎉 ΣΥΓΧΑΡΗΤΗΡΙΑ!<br>ΔΗΛΩΣΕ ΣΥΜΜΕΤΟΧΗ &amp; ΜΠΕΣ ΣΤΗΝ ΚΛΗΡΩΣΗ</h2>
             <iframe data-tally-src="https://tally.so/embed/44jy95?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1" loading="lazy" width="100%" height="300" frameborder="0" marginheight="0" marginwidth="0" title="Διαγωνισμός"></iframe>
-            <button class="contest-popup-close" id="contestClose">ΣΥΝΕΧΙΣΤΕ ΤΟ ΠΑΙΧΝΙΔΙ</button>
+            <button class="rollup-banner-close" id="rollupClose">ΣΥΝΕΧΙΣΤΕ ΤΟ ΠΑΙΧΝΙΔΙ</button>
         </div>
     </div>
 
@@ -1183,7 +1199,7 @@
             let currentLevel = 1;
             let currentXP = 0;
             let correctLettersInCurrentWord = 0;
-            let contestShown = false;
+            let rollupShown = false;
 
             const splashScreen = document.getElementById("splashScreen");
             const gameContainer = document.getElementById("gameContainer");
@@ -1208,8 +1224,8 @@
             const levelBar = document.getElementById("levelBar");
             const helpBtn = document.getElementById("helpBtn");
             const helpBtnContainer = document.getElementById("helpBtnContainer");
-            const contestPopup = document.getElementById("contestPopup");
-            const contestClose = document.getElementById("contestClose");
+            const rollupBanner = document.getElementById("rollupBanner");
+            const rollupClose = document.getElementById("rollupClose");
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
@@ -1219,32 +1235,28 @@
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }
 
-            // ========== LEVEL 2 CONTEST POPUP ==========
-            function checkContestPopup() {
-                if (contestShown) return;
-                if (currentLevel >= 2) {
-                    // Ελέγχουμε αν έχει ήδη εμφανιστεί
-                    var alreadyShown = localStorage.getItem('contestPopupShown');
-                    if (alreadyShown === 'true') {
-                        contestShown = true;
-                        return;
-                    }
-                    
-                    // Εμφανίζουμε το popup
-                    contestPopup.classList.add('active');
-                    contestShown = true;
-                    localStorage.setItem('contestPopupShown', 'true');
-                    
-                    // Φόρτωση του Tally script
-                    var tallyScript = document.createElement('script');
-                    tallyScript.textContent = 'var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector(\'script[src="'+w+'"]\')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}';
-                    document.body.appendChild(tallyScript);
-                }
+            // ========== ROLL-UP BANNER (εμφανίζεται σε κέρδος ή ήττα) ==========
+            function showRollupBanner() {
+                if (rollupShown) return;
+                rollupShown = true;
+                
+                // Εμφάνιση banner (από κάτω προς τα πάνω)
+                rollupBanner.classList.add('active');
+                
+                // Φόρτωση του Tally script
+                var tallyScript = document.createElement('script');
+                tallyScript.textContent = 'var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector(\'script[src="'+w+'"]\')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}';
+                document.body.appendChild(tallyScript);
+                
+                // Αποθήκευση για να μην ξαναεμφανιστεί
+                localStorage.setItem('rollupBannerShown', 'true');
             }
 
-            contestClose.addEventListener('click', function(e) {
+            rollupClose.addEventListener('click', function(e) {
                 e.preventDefault();
-                contestPopup.classList.remove('active');
+                rollupBanner.classList.remove('active');
+                // Επιτρέπουμε να ξαναεμφανιστεί σε επόμενο κέρδος/ήττα
+                rollupShown = false;
             });
 
             // ========== ΕΝΑΡΞΗ ΠΑΙΧΝΙΔΙΟΥ ==========
@@ -1305,11 +1317,6 @@
                 const progress = Math.min((currentXP / XP_PER_LEVEL) * 100, 100);
                 levelBar.style.width = progress + '%';
                 levelPoints.textContent = currentXP + ' / ' + XP_PER_LEVEL + ' XP';
-                
-                // Έλεγχος για LEVEL 2
-                if (currentLevel >= 2) {
-                    checkContestPopup();
-                }
             }
 
             function addXP(amount) {
@@ -1739,6 +1746,9 @@
                 messageBox.style.color = won ? "#4ade80" : "#f87171";
                 
                 helpBtnContainer.style.display = 'none';
+
+                // ========== ΕΜΦΑΝΙΣΗ ROLL-UP BANNER ΣΕ ΚΕΡΔΟΣ Ή ΗΤΤΑ ==========
+                showRollupBanner();
             }
 
             // ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ "ΚΕΡΔΙΣΕ ΜΙΑ ΠΡΟΣΠΑΘΕΙΑ" ==========
@@ -1810,6 +1820,10 @@
                 messageBox.style.color = "#fbbf24"; 
                 confettiContainer.innerHTML = "";
                 helpBtnContainer.style.display = 'flex';
+                
+                // Αν το rollup banner είναι ανοιχτό, το κλείνουμε
+                rollupBanner.classList.remove('active');
+                rollupShown = false;
                 
                 timerInterval = setInterval(() => { 
                     if (!gameActive) return; 
@@ -1943,4 +1957,3 @@
     </script>
 </body>
 </html>
-```
