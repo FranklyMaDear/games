@@ -1233,6 +1233,8 @@
             const MAX_LETTERS_PER_ROW = 10;
             const FONT_RATIO = 0.55;
 
+            const AD_LINK = 'https://omg10.com/4/10274068';
+
             let currentWord = "";
             let currentHint = "";
             let gameActive = false;
@@ -1279,143 +1281,159 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
 
+            // ========== AD WATCH TRACKING ==========
+            let pendingReward = null; // 'newGame' or 'extraAttempt'
+
+            function openAdAndReward(rewardType) {
+                pendingReward = rewardType;
+                window.open(AD_LINK, '_blank');
+            }
+
+            function handleVisibilityChange() {
+                if (!document.hidden && pendingReward) {
+                    const reward = pendingReward;
+                    pendingReward = null;
+
+                    if (reward === 'newGame') {
+                        performNewGame();
+                    } else if (reward === 'extraAttempt') {
+                        performExtraAttempt();
+                    }
+                }
+            }
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('focus', function() {
+                if (!document.hidden && pendingReward) {
+                    const reward = pendingReward;
+                    pendingReward = null;
+                    if (reward === 'newGame') {
+                        performNewGame();
+                    } else if (reward === 'extraAttempt') {
+                        performExtraAttempt();
+                    }
+                }
+            });
+
+            // ========== PERFORM NEW GAME ==========
+            function performNewGame() {
+                stopTimer();
+                const obj = getRandomWord();
+                currentWord = obj.word;
+                currentHint = obj.hint;
+                gameActive = true;
+                timeSeconds = START_TIME;
+                wrongAttempts = 0;
+                usedLetters = [];
+                isSpinning = false;
+                correctLettersInCurrentWord = 0;
+                const nw = normalizeGreek(currentWord);
+                revealedLetters = new Array(nw.length).fill("");
+                
+                timerDisplay.textContent = formatTime(timeSeconds);
+                timerDisplay.style.color = "#ffffff";
+                hintText.textContent = "💡 " + currentHint;
+                updateWordDisplay();
+                createAlphabetButtons();
+                updateAlphabetButtons();
+                createAttemptDots();
+                guessInput.value = "";
+                guessInput.disabled = false;
+                submitBtn.disabled = false;
+                resultPanel.classList.add("hidden");
+                messageBox.textContent = "";
+                messageBox.style.color = "#fbbf24";
+                confettiContainer.innerHTML = "";
+                helpBtnContainer.style.display = 'flex';
+                rollupBanner.classList.remove('active');
+                rollupShown = false;
+                
+                timerInterval = setInterval(() => {
+                    if (!gameActive) return;
+                    timeSeconds--;
+                    timerDisplay.textContent = formatTime(timeSeconds);
+                    timerDisplay.style.color = timeSeconds <= 30 ? "#f87171" : "#ffffff";
+                    if (timeSeconds <= 0) {
+                        timeSeconds = 0;
+                        timerDisplay.textContent = "0:00";
+                        endGame(false, "time");
+                    }
+                }, 1000);
+                
+                window.scrollTo(0, 0);
+                guessInput.blur();
+                setTimeout(() => guessInput.focus(), 100);
+                
+                playNewGameSound();
+            }
+
+            // ========== PERFORM EXTRA ATTEMPT ==========
+            function performExtraAttempt() {
+                if (!gameActive) {
+                    messageBox.textContent = "⚠️ Δεν υπάρχει ενεργό παιχνίδι!";
+                    messageBox.style.color = "#fbbf24";
+                    return;
+                }
+                if (wrongAttempts > 0) {
+                    wrongAttempts--;
+                    updateAttemptDots();
+                    playCorrectLetterSound();
+                    messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
+                    messageBox.style.color = "#4ade80";
+                    
+                    if (!gameActive) {
+                        gameActive = true;
+                        guessInput.disabled = false;
+                        submitBtn.disabled = false;
+                    }
+                } else {
+                    messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
+                    messageBox.style.color = "#fbbf24";
+                }
+            }
+
+            // ========== BUTTON HANDLERS ==========
+            newGameBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('newGame');
+            });
+            newGameBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('newGame');
+            });
+            newGameBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+            });
+
+            helpBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('extraAttempt');
+            });
+            helpBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('extraAttempt');
+            });
+            helpBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+            });
+
+            // ========== REST OF THE GAME CODE ==========
             function initAudio() {
                 if (!audioCtx) audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }
 
-            // ========== ROLL-UP BANNER (εμφανίζεται σε level up) ==========
-            function showRollupBanner() {
-                if (rollupShown) return;
-                rollupShown = true;
-                
-                rollupBanner.classList.add('active');
-                
-                var tallyScript = document.createElement('script');
-                tallyScript.src = 'https://tally.so/widgets/embed.js';
-                tallyScript.async = true;
-                document.body.appendChild(tallyScript);
-            }
-
-            rollupClose.addEventListener('click', function(e) {
-                e.preventDefault();
-                rollupBanner.classList.remove('active');
-                rollupShown = false;
-            });
-
-            // ========== ΕΝΑΡΞΗ ΠΑΙΧΝΙΔΙΟΥ ==========
-            function startGame() {
-                playStartSound();
-                splashScreen.classList.add("hidden");
-                gameContainer.classList.remove("hidden");
-                initAudio();
-                resetGame();
-            }
-
-            startGameBtn.addEventListener("touchstart", function(e) {
-                e.preventDefault();
-                startGame();
-            });
-            startGameBtn.addEventListener("mousedown", function(e) {
-                e.preventDefault();
-                startGame();
-            });
-            startGameBtn.addEventListener("click", function(e) {
-                e.preventDefault();
-                startGame();
-            });
-
-            function loadSavedData() {
-                try { 
-                    highScore = parseInt(localStorage.getItem(STORAGE_KEY_HIGHSCORE), 10) || 0; 
-                    currentLevel = parseInt(localStorage.getItem(STORAGE_KEY_LEVEL), 10) || 1; 
-                    currentXP = parseInt(localStorage.getItem(STORAGE_KEY_XP), 10) || 0; 
-                    currentScore = parseInt(localStorage.getItem(STORAGE_KEY_SCORE), 10) || 0; 
-                } catch(e) { 
-                    highScore = 0; currentLevel = 1; currentXP = 0; currentScore = 0; 
-                }
-                highScoreDisplay.textContent = highScore;
-                updateScoreDisplay(); 
-                updateLevelDisplay();
-            }
-
-            function saveAllData() {
-                try { 
-                    localStorage.setItem(STORAGE_KEY_HIGHSCORE, highScore); 
-                    localStorage.setItem(STORAGE_KEY_LEVEL, currentLevel); 
-                    localStorage.setItem(STORAGE_KEY_XP, currentXP); 
-                    localStorage.setItem(STORAGE_KEY_SCORE, currentScore); 
-                } catch(e) {}
-            }
-
-            function updateScoreDisplay() {
-                scoreDisplay.textContent = currentScore;
-                if (currentScore > highScore) { 
-                    highScore = currentScore; 
-                    highScoreDisplay.textContent = highScore; 
-                }
-            }
-
-            function updateLevelDisplay() {
-                levelText.textContent = '🏅 LEVEL ' + currentLevel;
-                const progress = Math.min((currentXP / XP_PER_LEVEL) * 100, 100);
-                levelBar.style.width = progress + '%';
-                levelPoints.textContent = currentXP + ' / ' + XP_PER_LEVEL + ' XP';
-            }
-
-            function addXP(amount) {
-                currentXP += amount; 
-                let leveledUp = false;
-                while (currentXP >= XP_PER_LEVEL) { 
-                    currentXP -= XP_PER_LEVEL; 
-                    currentLevel++; 
-                    leveledUp = true; 
-                }
-                updateLevelDisplay();
-                if (leveledUp) { 
-                    playLevelUpSound(); 
-                    showScorePop('⬆ LEVEL ' + currentLevel + '!', gameContainer.clientWidth/2, gameContainer.clientHeight/3); 
-                    messageBox.textContent = '🎉 ΑΝΕΒΗΚΕΣ LEVEL ' + currentLevel + '!'; 
-                    messageBox.style.color = '#ffd700'; 
-                    
-                    showRollupBanner();
-                }
-                saveAllData();
-            }
-
-            function showScorePop(text, x, y) {
-                const pop = document.createElement('span'); 
-                pop.className = 'score-pop'; 
-                pop.textContent = text;
-                pop.style.left = x + 'px'; 
-                pop.style.top = y + 'px';
-                gameContainer.appendChild(pop); 
-                setTimeout(() => pop.remove(), 1200);
-            }
-
-            function spawnConfetti() {
-                const colors = ['#ffd700','#f5d78c','#4ade80','#58a6ff','#f85149','#d2991d','#bc8cff','#ff7b72'];
-                const fragment = document.createDocumentFragment();
-                for (let i = 0; i < 60; i++) { 
-                    const piece = document.createElement('div'); 
-                    piece.className = 'confetti-piece'; 
-                    piece.style.left = Math.random() * 100 + '%'; 
-                    piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]; 
-                    piece.style.animationDelay = Math.random() * 1.5 + 's'; 
-                    piece.style.animationDuration = (Math.random() * 2.5 + 2.5) + 's'; 
-                    fragment.appendChild(piece); 
-                }
-                confettiContainer.appendChild(fragment); 
-                setTimeout(() => { confettiContainer.innerHTML = ''; }, 3500);
-            }
-
             function getRandomWord() {
                 if (usedWordIndices.length >= SECRET_WORDS.length) usedWordIndices = [];
                 let randomIndex;
-                do { 
-                    randomIndex = Math.floor(Math.random() * SECRET_WORDS.length); 
+                do {
+                    randomIndex = Math.floor(Math.random() * SECRET_WORDS.length);
                 } while (usedWordIndices.includes(randomIndex));
-                usedWordIndices.push(randomIndex); 
+                usedWordIndices.push(randomIndex);
                 return SECRET_WORDS[randomIndex];
             }
 
@@ -1423,105 +1441,105 @@
                 return text.toUpperCase().replace(/Ά/g,"Α").replace(/Έ/g,"Ε").replace(/Ή/g,"Η").replace(/Ί/g,"Ι").replace(/Ό/g,"Ο").replace(/Ύ/g,"Υ").replace(/Ώ/g,"Ω").replace(/Ϊ/g,"Ι").replace(/Ϋ/g,"Υ").replace(/\s+/g,"");
             }
 
-            function formatTime(sec) { 
-                const m = Math.floor(sec / 60); 
-                const s = sec % 60; 
-                return `${m}:${s < 10 ? '0' : ''}${s}`; 
+            function formatTime(sec) {
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return `${m}:${s < 10 ? '0' : ''}${s}`;
             }
-            
-            function stopTimer() { 
-                if (timerInterval) { 
-                    clearInterval(timerInterval); 
-                    timerInterval = null; 
-                } 
+
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
             }
 
             function createAttemptDots() {
                 attemptsDots.innerHTML = "";
-                for (let i = 0; i < MAX_ATTEMPTS; i++) { 
-                    const dot = document.createElement("span"); 
-                    dot.className = "attempt-dot"; 
-                    if (i < wrongAttempts) dot.classList.add("lost"); 
-                    attemptsDots.appendChild(dot); 
+                for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                    const dot = document.createElement("span");
+                    dot.className = "attempt-dot";
+                    if (i < wrongAttempts) dot.classList.add("lost");
+                    attemptsDots.appendChild(dot);
                 }
             }
 
             function updateAttemptDots() {
                 const dots = attemptsDots.querySelectorAll(".attempt-dot");
-                dots.forEach((dot, index) => { 
-                    if (index < wrongAttempts) dot.classList.add("lost"); 
-                    else dot.classList.remove("lost"); 
+                dots.forEach((dot, index) => {
+                    if (index < wrongAttempts) dot.classList.add("lost");
+                    else dot.classList.remove("lost");
                 });
             }
 
             function spinAllSlots(callback) {
-                if (isSpinning) return; 
-                isSpinning = true; 
+                if (isSpinning) return;
+                isSpinning = true;
                 playSpinSound();
                 const allSlots = wordDisplay.querySelectorAll(".word-slot:not(.space)");
                 const allLetters = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ";
                 allSlots.forEach((slot) => {
-                    const inner = slot.querySelector(".slot-inner"); 
+                    const inner = slot.querySelector(".slot-inner");
                     if (!inner) return;
-                    slot.classList.add("spinning"); 
-                    let spinCount = 0; 
+                    slot.classList.add("spinning");
+                    let spinCount = 0;
                     const maxSpins = 8;
-                    const spinInterval = setInterval(() => { 
-                        inner.textContent = allLetters[Math.floor(Math.random() * allLetters.length)]; 
-                        spinCount++; 
-                        if (spinCount >= maxSpins) { 
-                            clearInterval(spinInterval); 
-                            slot.classList.remove("spinning"); 
-                        } 
+                    const spinInterval = setInterval(() => {
+                        inner.textContent = allLetters[Math.floor(Math.random() * allLetters.length)];
+                        spinCount++;
+                        if (spinCount >= maxSpins) {
+                            clearInterval(spinInterval);
+                            slot.classList.remove("spinning");
+                        }
                     }, 50);
                 });
-                setTimeout(() => { 
-                    isSpinning = false; 
-                    updateWordDisplay(); 
-                    if (callback) callback(); 
+                setTimeout(() => {
+                    isSpinning = false;
+                    updateWordDisplay();
+                    if (callback) callback();
                 }, 500);
             }
 
             function createAlphabetButtons() {
                 alphabetContainer.innerHTML = "";
                 KEYBOARD_ROWS.forEach((row) => {
-                    const rowDiv = document.createElement("div"); 
+                    const rowDiv = document.createElement("div");
                     rowDiv.className = "keyboard-row";
                     row.forEach(letter => {
-                        const btn = document.createElement("button"); 
-                        btn.className = "letter-btn"; 
-                        btn.textContent = letter; 
+                        const btn = document.createElement("button");
+                        btn.className = "letter-btn";
+                        btn.textContent = letter;
                         btn.setAttribute("type", "button");
                         
-                        btn.addEventListener("touchstart", function(e) { 
-                            e.preventDefault(); 
-                            e.stopPropagation(); 
-                            btn.classList.add("pressed"); 
-                            initAudio(); 
-                            handleLetterClick(letter, btn); 
+                        btn.addEventListener("touchstart", function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            btn.classList.add("pressed");
+                            initAudio();
+                            handleLetterClick(letter, btn);
                         }, { passive: false });
-                        btn.addEventListener("touchend", function(e) { 
-                            e.preventDefault(); 
-                            btn.classList.remove("pressed"); 
+                        btn.addEventListener("touchend", function(e) {
+                            e.preventDefault();
+                            btn.classList.remove("pressed");
                         });
-                        btn.addEventListener("touchcancel", function(e) { 
-                            btn.classList.remove("pressed"); 
+                        btn.addEventListener("touchcancel", function(e) {
+                            btn.classList.remove("pressed");
                         });
-                        btn.addEventListener("mousedown", function(e) { 
-                            e.preventDefault(); 
-                            btn.classList.add("pressed"); 
-                            initAudio(); 
-                            handleLetterClick(letter, btn); 
+                        btn.addEventListener("mousedown", function(e) {
+                            e.preventDefault();
+                            btn.classList.add("pressed");
+                            initAudio();
+                            handleLetterClick(letter, btn);
                         });
-                        btn.addEventListener("mouseup", function(e) { 
-                            btn.classList.remove("pressed"); 
+                        btn.addEventListener("mouseup", function(e) {
+                            btn.classList.remove("pressed");
                         });
-                        btn.addEventListener("mouseleave", function(e) { 
-                            btn.classList.remove("pressed"); 
+                        btn.addEventListener("mouseleave", function(e) {
+                            btn.classList.remove("pressed");
                         });
-                        btn.addEventListener("click", function(e) { 
-                            e.preventDefault(); 
-                            e.stopPropagation(); 
+                        btn.addEventListener("click", function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
                         });
                         
                         rowDiv.appendChild(btn);
@@ -1531,70 +1549,68 @@
             }
 
             function updateAlphabetButtons() {
-                const allButtons = alphabetContainer.querySelectorAll(".letter-btn"); 
+                const allButtons = alphabetContainer.querySelectorAll(".letter-btn");
                 const nw = normalizeGreek(currentWord);
-                allButtons.forEach(btn => { 
-                    const l = btn.textContent; 
-                    btn.classList.remove("used-correct", "used-wrong", "pressed"); 
-                    if (usedLetters.includes(l)) btn.classList.add(nw.includes(l) ? "used-correct" : "used-wrong"); 
+                allButtons.forEach(btn => {
+                    const l = btn.textContent;
+                    btn.classList.remove("used-correct", "used-wrong", "pressed");
+                    if (usedLetters.includes(l)) btn.classList.add(nw.includes(l) ? "used-correct" : "used-wrong");
                 });
             }
 
             function handleLetterClick(letter, btn) {
                 if (!gameActive || usedLetters.includes(letter) || isSpinning) return;
-                usedLetters.push(letter); 
-                const nw = normalizeGreek(currentWord); 
+                usedLetters.push(letter);
+                const nw = normalizeGreek(currentWord);
                 const positions = [];
-                for (let i = 0; i < nw.length; i++) { 
-                    if (nw[i] === letter) positions.push(i); 
+                for (let i = 0; i < nw.length; i++) {
+                    if (nw[i] === letter) positions.push(i);
                 }
                 
                 spinAllSlots(() => {
                     if (positions.length > 0) {
-                        playCorrectLetterSound(); 
+                        playCorrectLetterSound();
                         const pointsEarned = positions.length * POINTS_PER_LETTER;
-                        currentScore += pointsEarned; 
-                        addXP(pointsEarned); 
+                        currentScore += pointsEarned;
+                        addXP(pointsEarned);
                         correctLettersInCurrentWord += positions.length;
                         positions.forEach(pos => { revealedLetters[pos] = letter; });
-                        updateWordDisplay(true, positions); 
-                        updateAlphabetButtons(); 
-                        updateScoreDisplay(); 
+                        updateWordDisplay(true, positions);
+                        updateAlphabetButtons();
+                        updateScoreDisplay();
                         saveAllData();
                         
-                        const rect = btn.getBoundingClientRect(); 
+                        const rect = btn.getBoundingClientRect();
                         const containerRect = gameContainer.getBoundingClientRect();
                         showScorePop('+' + pointsEarned, rect.left - containerRect.left + rect.width/2, rect.top - containerRect.top);
-                        messageBox.textContent = `✅ Το "${letter}" βρέθηκε! +${pointsEarned}`; 
+                        messageBox.textContent = `✅ Το "${letter}" βρέθηκε! +${pointsEarned}`;
                         messageBox.style.color = "#4ade80";
                         
                         const allRevealed = revealedLetters.map(l => l || '').join('');
                         if (allRevealed === nw) {
-                            setTimeout(() => { 
-                                currentScore += POINTS_FULL_WORD; 
-                                addXP(POINTS_FULL_WORD); 
-                                updateScoreDisplay(); 
-                                saveAllData(); 
-                                const wdRect = wordDisplay.getBoundingClientRect(); 
-                                showScorePop('+50 ΛΕΞΗ!', wdRect.left - containerRect.left + wdRect.width/2, wdRect.top - containerRect.top); 
-                                playWordCorrectSound(); 
-                                setTimeout(() => playWinFanfare(), 600); 
-                                spawnConfetti(); 
-                                endGame(true); 
+                            setTimeout(() => {
+                                currentScore += POINTS_FULL_WORD;
+                                addXP(POINTS_FULL_WORD);
+                                updateScoreDisplay();
+                                saveAllData();
+                                const wdRect = wordDisplay.getBoundingClientRect();
+                                showScorePop('+50 ΛΕΞΗ!', wdRect.left - containerRect.left + wdRect.width/2, wdRect.top - containerRect.top);
+                                playWordCorrectSound();
+                                setTimeout(() => playWinFanfare(), 600);
+                                spawnConfetti();
+                                endGame(true);
                             }, 400);
                         }
                     } else {
-                        playWrongLetterSound(); 
-                        wrongAttempts++; 
-                        updateAttemptDots(); 
-                        updateAlphabetButtons(); 
+                        playWrongLetterSound();
+                        wrongAttempts++;
+                        updateAttemptDots();
+                        updateAlphabetButtons();
                         flashAllSlots();
-                        
                         currentScore = Math.max(0, currentScore - POINTS_PENALTY_WRONG_LETTER);
                         updateScoreDisplay();
                         saveAllData();
-                        
-                        messageBox.textContent = `❌ Το "${letter}" δεν υπάρχει! -5 πόντοι (${wrongAttempts}/${MAX_ATTEMPTS})`; 
+                        messageBox.textContent = `❌ Το "${letter}" δεν υπάρχει! -${POINTS_PENALTY_WRONG_LETTER} πόντοι (${wrongAttempts}/${MAX_ATTEMPTS})`;
                         messageBox.style.color = "#f87171";
                         if (wrongAttempts >= MAX_ATTEMPTS) setTimeout(() => endGame(false, "attempts"), 400);
                     }
@@ -1602,59 +1618,59 @@
             }
 
             function flashAllSlots() {
-                wordDisplay.querySelectorAll(".word-slot:not(.space)").forEach(slot => { 
-                    slot.classList.add("wrong-flash"); 
-                    setTimeout(() => slot.classList.remove("wrong-flash"), 500); 
+                wordDisplay.querySelectorAll(".word-slot:not(.space)").forEach(slot => {
+                    slot.classList.add("wrong-flash");
+                    setTimeout(() => slot.classList.remove("wrong-flash"), 500);
                 });
             }
 
             function updateWordDisplay(animate = false, highlightPositions = []) {
-                wordDisplay.innerHTML = ""; 
-                const displayWord = currentWord.toUpperCase(); 
+                wordDisplay.innerHTML = "";
+                const displayWord = currentWord.toUpperCase();
                 const words = displayWord.split(" ");
-                const wordLengths = words.map(w => normalizeGreek(w).length); 
+                const wordLengths = words.map(w => normalizeGreek(w).length);
                 const maxWordLength = Math.max(...wordLengths);
-                const containerWidth = wordDisplay.clientWidth - 16; 
+                const containerWidth = wordDisplay.clientWidth - 16;
                 const gapPerSlot = 6;
                 
                 let slotSize;
-                if (maxWordLength > MAX_LETTERS_PER_ROW) { 
-                    slotSize = Math.floor((containerWidth - (maxWordLength - 1) * gapPerSlot) / maxWordLength); 
-                    slotSize = Math.max(slotSize, 24); 
-                    slotSize = Math.min(slotSize, 52); 
-                } else { 
-                    slotSize = Math.floor((containerWidth - (MAX_LETTERS_PER_ROW - 1) * gapPerSlot) / MAX_LETTERS_PER_ROW); 
-                    slotSize = Math.max(slotSize, 30); 
-                    slotSize = Math.min(slotSize, 52); 
+                if (maxWordLength > MAX_LETTERS_PER_ROW) {
+                    slotSize = Math.floor((containerWidth - (maxWordLength - 1) * gapPerSlot) / maxWordLength);
+                    slotSize = Math.max(slotSize, 24);
+                    slotSize = Math.min(slotSize, 52);
+                } else {
+                    slotSize = Math.floor((containerWidth - (MAX_LETTERS_PER_ROW - 1) * gapPerSlot) / MAX_LETTERS_PER_ROW);
+                    slotSize = Math.max(slotSize, 30);
+                    slotSize = Math.min(slotSize, 52);
                 }
                 
                 const fontSize = Math.floor(slotSize * FONT_RATIO);
                 
-                const rows = []; 
-                let currentRow = []; 
+                const rows = [];
+                let currentRow = [];
                 let currentRowLetters = 0;
                 
                 for (let w = 0; w < words.length; w++) {
-                    const wordLen = normalizeGreek(words[w]).length; 
-                    const spaceNeeded = currentRow.length > 0 ? 1 : 0; 
+                    const wordLen = normalizeGreek(words[w]).length;
+                    const spaceNeeded = currentRow.length > 0 ? 1 : 0;
                     const totalNeeded = currentRowLetters + spaceNeeded + wordLen;
                     
-                    if (totalNeeded <= MAX_LETTERS_PER_ROW && wordLen <= MAX_LETTERS_PER_ROW) { 
-                        if (currentRow.length > 0) { 
-                            currentRow.push({ type: "space" }); 
-                            currentRowLetters += 1; 
+                    if (totalNeeded <= MAX_LETTERS_PER_ROW && wordLen <= MAX_LETTERS_PER_ROW) {
+                        if (currentRow.length > 0) {
+                            currentRow.push({ type: "space" });
+                            currentRowLetters += 1;
                         }
-                        currentRow.push({ type: "word", wordIndex: w }); 
-                        currentRowLetters += wordLen; 
-                    } else { 
+                        currentRow.push({ type: "word", wordIndex: w });
+                        currentRowLetters += wordLen;
+                    } else {
                         if (currentRow.length > 0) rows.push(currentRow);
-                        currentRow = [{ type: "word", wordIndex: w }]; 
-                        currentRowLetters = wordLen; 
+                        currentRow = [{ type: "word", wordIndex: w }];
+                        currentRowLetters = wordLen;
                     }
                 }
                 if (currentRow.length > 0) rows.push(currentRow);
                 
-                let globalLetterIndex = 0; 
+                let globalLetterIndex = 0;
                 const wordStartIndices = [];
                 for (let w = 0; w < words.length; w++) {
                     wordStartIndices[w] = globalLetterIndex;
@@ -1662,33 +1678,33 @@
                 }
                 
                 rows.forEach((rowItems) => {
-                    let rowMaxLen = 0; 
-                    let totalLettersInRow = 0; 
+                    let rowMaxLen = 0;
+                    let totalLettersInRow = 0;
                     let spaceCount = 0;
-                    rowItems.forEach(item => { 
-                        if (item.type === "word") { 
-                            rowMaxLen = Math.max(rowMaxLen, normalizeGreek(words[item.wordIndex]).length); 
-                            totalLettersInRow += normalizeGreek(words[item.wordIndex]).length; 
-                        } else spaceCount++; 
+                    rowItems.forEach(item => {
+                        if (item.type === "word") {
+                            rowMaxLen = Math.max(rowMaxLen, normalizeGreek(words[item.wordIndex]).length);
+                            totalLettersInRow += normalizeGreek(words[item.wordIndex]).length;
+                        } else spaceCount++;
                     });
                     
-                    const totalSlots = totalLettersInRow + spaceCount; 
+                    const totalSlots = totalLettersInRow + spaceCount;
                     let rowSlotSize = slotSize;
-                    if (rowMaxLen > MAX_LETTERS_PER_ROW || totalSlots > MAX_LETTERS_PER_ROW) { 
-                        rowSlotSize = Math.floor((containerWidth - (rowMaxLen - 1) * gapPerSlot) / rowMaxLen); 
-                        rowSlotSize = Math.max(rowSlotSize, 24); 
-                        rowSlotSize = Math.min(rowSlotSize, 52); 
+                    if (rowMaxLen > MAX_LETTERS_PER_ROW || totalSlots > MAX_LETTERS_PER_ROW) {
+                        rowSlotSize = Math.floor((containerWidth - (rowMaxLen - 1) * gapPerSlot) / rowMaxLen);
+                        rowSlotSize = Math.max(rowSlotSize, 24);
+                        rowSlotSize = Math.min(rowSlotSize, 52);
                     }
                     const rowFontSize = Math.floor(rowSlotSize * FONT_RATIO);
                     
-                    const rowDiv = document.createElement("div"); 
+                    const rowDiv = document.createElement("div");
                     rowDiv.className = "word-row";
                     
                     rowItems.forEach((item) => {
-                        if (item.type === "space") { 
-                            const spaceEl = document.createElement("span"); 
-                            spaceEl.className = "word-slot space"; 
-                            rowDiv.appendChild(spaceEl); 
+                        if (item.type === "space") {
+                            const spaceEl = document.createElement("span");
+                            spaceEl.className = "word-slot space";
+                            rowDiv.appendChild(spaceEl);
                         } else {
                             const w = item.wordIndex;
                             const word = words[w];
@@ -1696,21 +1712,21 @@
                             
                             for (let i = 0; i < word.length; i++) {
                                 const letterIndex = startIdx + i;
-                                const slot = document.createElement("span"); 
+                                const slot = document.createElement("span");
                                 slot.className = "word-slot";
-                                slot.style.width = rowSlotSize + "px"; 
+                                slot.style.width = rowSlotSize + "px";
                                 slot.style.height = (rowSlotSize * 1.35) + "px";
-                                slot.style.fontSize = rowFontSize + "px"; 
+                                slot.style.fontSize = rowFontSize + "px";
                                 slot.style.minWidth = rowSlotSize + "px";
                                 
-                                const inner = document.createElement("span"); 
+                                const inner = document.createElement("span");
                                 inner.className = "slot-inner";
-                                inner.textContent = revealedLetters[letterIndex] || "_"; 
+                                inner.textContent = revealedLetters[letterIndex] || "_";
                                 slot.appendChild(inner);
                                 
-                                if (animate && highlightPositions.includes(letterIndex)) { 
-                                    slot.classList.add("revealed"); 
-                                    setTimeout(() => slot.classList.remove("revealed"), 400); 
+                                if (animate && highlightPositions.includes(letterIndex)) {
+                                    slot.classList.add("revealed");
+                                    setTimeout(() => slot.classList.remove("revealed"), 400);
                                 }
                                 rowDiv.appendChild(slot);
                             }
@@ -1721,47 +1737,47 @@
             }
 
             function checkFullGuess() {
-                if (!gameActive || isSpinning) return; 
+                if (!gameActive || isSpinning) return;
                 initAudio();
-                const guess = normalizeGreek(guessInput.value.trim()); 
+                const guess = normalizeGreek(guessInput.value.trim());
                 const nw = normalizeGreek(currentWord);
-                if (guess === "") { 
-                    messageBox.textContent = "Γράψε μια λέξη!"; 
-                    messageBox.style.color = "#fbbf24"; 
-                    return; 
+                if (guess === "") {
+                    messageBox.textContent = "Γράψε μια λέξη!";
+                    messageBox.style.color = "#fbbf24";
+                    return;
                 }
                 
                 spinAllSlots(() => {
                     if (guess === nw) {
-                        const remaining = nw.length - correctLettersInCurrentWord; 
+                        const remaining = nw.length - correctLettersInCurrentWord;
                         const totalPoints = remaining * POINTS_PER_LETTER + POINTS_FULL_WORD;
-                        currentScore += totalPoints; 
-                        addXP(totalPoints); 
-                        updateScoreDisplay(); 
+                        currentScore += totalPoints;
+                        addXP(totalPoints);
+                        updateScoreDisplay();
                         saveAllData();
                         
-                        for (let i = 0; i < nw.length; i++) { 
-                            if (!revealedLetters[i]) { 
-                                revealedLetters[i] = nw[i]; 
-                                if (!usedLetters.includes(nw[i])) usedLetters.push(nw[i]); 
-                            } 
+                        for (let i = 0; i < nw.length; i++) {
+                            if (!revealedLetters[i]) {
+                                revealedLetters[i] = nw[i];
+                                if (!usedLetters.includes(nw[i])) usedLetters.push(nw[i]);
+                            }
                         }
-                        updateWordDisplay(true); 
+                        updateWordDisplay(true);
                         updateAlphabetButtons();
-                        const wdRect = wordDisplay.getBoundingClientRect(); 
+                        const wdRect = wordDisplay.getBoundingClientRect();
                         showScorePop('+' + totalPoints, wdRect.left + wdRect.width/2, wdRect.top);
-                        playWordCorrectSound(); 
-                        setTimeout(() => playWinFanfare(), 600); 
-                        spawnConfetti(); 
+                        playWordCorrectSound();
+                        setTimeout(() => playWinFanfare(), 600);
+                        spawnConfetti();
                         endGame(true);
                     } else {
-                        playWordWrongSound(); 
-                        wrongAttempts++; 
-                        updateAttemptDots(); 
+                        playWordWrongSound();
+                        wrongAttempts++;
+                        updateAttemptDots();
                         flashAllSlots();
-                        messageBox.textContent = `Λάθος! (${wrongAttempts}/${MAX_ATTEMPTS})`; 
+                        messageBox.textContent = `Λάθος! (${wrongAttempts}/${MAX_ATTEMPTS})`;
                         messageBox.style.color = "#f87171";
-                        guessInput.value = ""; 
+                        guessInput.value = "";
                         guessInput.focus();
                         if (wrongAttempts >= MAX_ATTEMPTS) setTimeout(() => endGame(false, "attempts"), 400);
                     }
@@ -1769,192 +1785,31 @@
             }
 
             function endGame(won, reason = "time") {
-                if (!gameActive) return; 
-                gameActive = false; 
+                if (!gameActive) return;
+                gameActive = false;
                 stopTimer();
-                if (!won) { 
-                    currentScore = Math.max(0, currentScore - POINTS_PENALTY_LOSS); 
-                    updateScoreDisplay(); 
-                    saveAllData(); 
-                    showScorePop('-50', wordDisplay.getBoundingClientRect().left, wordDisplay.getBoundingClientRect().top); 
+                if (!won) {
+                    currentScore = Math.max(0, currentScore - POINTS_PENALTY_LOSS);
+                    updateScoreDisplay();
+                    saveAllData();
+                    showScorePop('-50', wordDisplay.getBoundingClientRect().left, wordDisplay.getBoundingClientRect().top);
                 }
                 const nw = normalizeGreek(currentWord);
                 for (let i = 0; i < nw.length; i++) revealedLetters[i] = nw[i];
-                updateWordDisplay(); 
+                updateWordDisplay();
                 updateAlphabetButtons();
-                guessInput.disabled = true; 
-                submitBtn.disabled = true; 
-                resultPanel.classList.remove("hidden"); 
+                guessInput.disabled = true;
+                submitBtn.disabled = true;
+                resultPanel.classList.remove("hidden");
                 saveAllData();
                 resultEmoji.textContent = won ? "🎉" : (reason === "attempts" ? "💔" : "⏰");
                 resultText.textContent = won ? "ΤΟ ΒΡΗΚΕΣ!" : (reason === "attempts" ? "ΤΕΛΟΣ ΠΡΟΣΠΑΘΕΙΩΝ" : "ΤΕΛΟΣ ΧΡΟΝΟΥ");
-                messageBox.textContent = won ? "Συγχαρητήρια! Πάτα ΝΕΟ ΠΑΙΧΝΙΔΙ" : `Λέξη: ${currentWord} (-50 πόντοι)`;
+                messageBox.textContent = won ? "Συγχαρητήρια! Πάτα ΝΕΟ ΠΑΙΧΝΙΔΙ" : `Λέξη: ${currentWord} (-${POINTS_PENALTY_LOSS} πόντοι)`;
                 messageBox.style.color = won ? "#4ade80" : "#f87171";
-                
                 helpBtnContainer.style.display = 'none';
             }
 
-            // ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ "ΚΕΡΔΙΣΕ ΜΙΑ ΠΡΟΣΠΑΘΕΙΑ" (ΔΙΟΡΘΩΜΕΝΟ) ==========
-            function handleHelpClick(e) {
-                e.preventDefault();
-                if (!gameActive) return;
-                
-                // Ανοίγουμε τη διαφήμιση
-                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
-                
-                // Ελέγχουμε αν το παράθυρο άνοιξε
-                if (!newWindow || newWindow.closed || newWindow.location.href === 'about:blank') {
-                    // Δεν άνοιξε -> αποκλεισμός -> ΔΕΝ κάνουμε τίποτα
-                    messageBox.textContent = "⚠️ Η διαφήμιση αποκλείστηκε. Δεν κέρδισες προσπάθεια.";
-                    messageBox.style.color = "#f87171";
-                    return;
-                }
-                
-                // Αν άνοιξε, περιμένουμε 2 δευτερόλεπτα και δίνουμε την προσπάθεια
-                setTimeout(function() {
-                    playCorrectLetterSound();
-                    
-                    if (wrongAttempts > 0) {
-                        wrongAttempts--;
-                        updateAttemptDots();
-                        messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
-                        messageBox.style.color = "#4ade80";
-                        
-                        if (!gameActive) {
-                            gameActive = true;
-                            guessInput.disabled = false;
-                            submitBtn.disabled = false;
-                        }
-                    } else {
-                        messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
-                        messageBox.style.color = "#fbbf24";
-                    }
-                }, 2000);
-            }
-
-            helpBtn.addEventListener("touchstart", handleHelpClick);
-            helpBtn.addEventListener("mousedown", handleHelpClick);
-            helpBtn.addEventListener("click", function(e) { e.preventDefault(); });
-
-            // ========== ΚΟΥΜΠΙ "ΝΕΟ ΠΑΙΧΝΙΔΙ" (ΔΙΟΡΘΩΜΕΝΟ) ==========
-            function handleNewGame(e) {
-                e.preventDefault();
-                initAudio();
-                guessInput.blur();
-                
-                // Ανοίγουμε τη διαφήμιση
-                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
-                
-                // Ελέγχουμε αν το παράθυρο άνοιξε
-                if (!newWindow || newWindow.closed || newWindow.location.href === 'about:blank') {
-                    // Δεν άνοιξε -> αποκλεισμός -> ΔΕΝ κάνουμε τίποτα
-                    messageBox.textContent = "⚠️ Η διαφήμιση αποκλείστηκε. Το παιχνίδι δεν άλλαξε.";
-                    messageBox.style.color = "#f87171";
-                    return;
-                }
-                
-                // Αν άνοιξε, περιμένουμε 2 δευτερόλεπτα και κάνουμε reset
-                setTimeout(function() {
-                    playNewGameSound();
-                    resetGame();
-                }, 2000);
-            }
-
-            newGameBtn.addEventListener("touchstart", handleNewGame);
-            newGameBtn.addEventListener("mousedown", handleNewGame);
-            newGameBtn.addEventListener("click", function(e) { e.preventDefault(); });
-
-            function resetGame() {
-                stopTimer(); 
-                const obj = getRandomWord();
-                currentWord = obj.word; 
-                currentHint = obj.hint;
-                gameActive = true; 
-                timeSeconds = START_TIME; 
-                wrongAttempts = 0; 
-                usedLetters = []; 
-                isSpinning = false; 
-                correctLettersInCurrentWord = 0;
-                const nw = normalizeGreek(currentWord); 
-                revealedLetters = new Array(nw.length).fill("");
-                
-                timerDisplay.textContent = formatTime(timeSeconds); 
-                timerDisplay.style.color = "#ffffff";
-                hintText.textContent = "💡 " + currentHint;
-                updateWordDisplay(); 
-                createAlphabetButtons(); 
-                updateAlphabetButtons(); 
-                createAttemptDots();
-                guessInput.value = ""; 
-                guessInput.disabled = false; 
-                submitBtn.disabled = false;
-                resultPanel.classList.add("hidden"); 
-                messageBox.textContent = ""; 
-                messageBox.style.color = "#fbbf24"; 
-                confettiContainer.innerHTML = "";
-                helpBtnContainer.style.display = 'flex';
-                
-                rollupBanner.classList.remove('active');
-                rollupShown = false;
-                
-                timerInterval = setInterval(() => { 
-                    if (!gameActive) return; 
-                    timeSeconds--; 
-                    timerDisplay.textContent = formatTime(timeSeconds); 
-                    timerDisplay.style.color = timeSeconds <= 30 ? "#f87171" : "#ffffff"; 
-                    if (timeSeconds <= 0) { 
-                        timeSeconds = 0; 
-                        timerDisplay.textContent = "0:00"; 
-                        endGame(false, "time"); 
-                    } 
-                }, 1000);
-                
-                window.scrollTo(0, 0); 
-                guessInput.blur(); 
-                setTimeout(() => guessInput.focus(), 100);
-            }
-
-            // ========== EVENT LISTENERS ==========
-            submitBtn.addEventListener("touchstart", function(e) { 
-                e.preventDefault(); 
-                initAudio(); 
-                checkFullGuess(); 
-            });
-            submitBtn.addEventListener("mousedown", function(e) { 
-                e.preventDefault(); 
-                initAudio(); 
-                checkFullGuess(); 
-            });
-            submitBtn.addEventListener("click", function(e) { 
-                e.preventDefault(); 
-            });
-
-            guessInput.addEventListener("keydown", function(e) { 
-                if (e.key === "Enter") { 
-                    e.preventDefault(); 
-                    initAudio(); 
-                    checkFullGuess(); 
-                } 
-            });
-            guessInput.addEventListener("input", function(e) { 
-                e.target.value = e.target.value.toUpperCase().replace(/[^Α-ΩΆΈΉΊΌΎΏΪΫ\s]/g, ""); 
-            });
-            guessInput.addEventListener("focus", function() { 
-                window.scrollTo(0, 0); 
-            });
-
-            loadSavedData(); 
-            createAttemptDots(); 
-            createAlphabetButtons();
-
-            window.addEventListener('resize', () => { 
-                if (!gameContainer.classList.contains("hidden")) updateWordDisplay(); 
-            });
-            document.addEventListener('touchmove', function(e) { 
-                if (e.target.tagName !== 'INPUT') e.preventDefault(); 
-            }, { passive: false });
-
-            // ========== ΗΧΟΙ ==========
+            // ========== SOUNDS ==========
             function playStartSound() {
                 initAudio();
                 if (!audioCtx) return;
@@ -2008,6 +1863,219 @@
                 if (!audioCtx) return;
                 try { const now = audioCtx.currentTime; [392, 523.25, 659.25, 783.99].forEach((freq, i) => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + i * 0.12); gain.gain.setValueAtTime(0.2, now + i * 0.12); gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.3); }); } catch(e) {}
             }
+
+            // ========== LEVEL / XP / SCORE ==========
+            function loadSavedData() {
+                try {
+                    highScore = parseInt(localStorage.getItem(STORAGE_KEY_HIGHSCORE), 10) || 0;
+                    currentLevel = parseInt(localStorage.getItem(STORAGE_KEY_LEVEL), 10) || 1;
+                    currentXP = parseInt(localStorage.getItem(STORAGE_KEY_XP), 10) || 0;
+                    currentScore = parseInt(localStorage.getItem(STORAGE_KEY_SCORE), 10) || 0;
+                } catch(e) {
+                    highScore = 0; currentLevel = 1; currentXP = 0; currentScore = 0;
+                }
+                highScoreDisplay.textContent = highScore;
+                updateScoreDisplay();
+                updateLevelDisplay();
+            }
+
+            function saveAllData() {
+                try {
+                    localStorage.setItem(STORAGE_KEY_HIGHSCORE, highScore);
+                    localStorage.setItem(STORAGE_KEY_LEVEL, currentLevel);
+                    localStorage.setItem(STORAGE_KEY_XP, currentXP);
+                    localStorage.setItem(STORAGE_KEY_SCORE, currentScore);
+                } catch(e) {}
+            }
+
+            function updateScoreDisplay() {
+                scoreDisplay.textContent = currentScore;
+                if (currentScore > highScore) {
+                    highScore = currentScore;
+                    highScoreDisplay.textContent = highScore;
+                }
+            }
+
+            function updateLevelDisplay() {
+                levelText.textContent = '🏅 LEVEL ' + currentLevel;
+                const progress = Math.min((currentXP / XP_PER_LEVEL) * 100, 100);
+                levelBar.style.width = progress + '%';
+                levelPoints.textContent = currentXP + ' / ' + XP_PER_LEVEL + ' XP';
+            }
+
+            function addXP(amount) {
+                currentXP += amount;
+                let leveledUp = false;
+                while (currentXP >= XP_PER_LEVEL) {
+                    currentXP -= XP_PER_LEVEL;
+                    currentLevel++;
+                    leveledUp = true;
+                }
+                updateLevelDisplay();
+                if (leveledUp) {
+                    playLevelUpSound();
+                    showScorePop('⬆ LEVEL ' + currentLevel + '!', gameContainer.clientWidth/2, gameContainer.clientHeight/3);
+                    messageBox.textContent = '🎉 ΑΝΕΒΗΚΕΣ LEVEL ' + currentLevel + '!';
+                    messageBox.style.color = '#ffd700';
+                    showRollupBanner();
+                }
+                saveAllData();
+            }
+
+            function showScorePop(text, x, y) {
+                const pop = document.createElement('span');
+                pop.className = 'score-pop';
+                pop.textContent = text;
+                pop.style.left = x + 'px';
+                pop.style.top = y + 'px';
+                gameContainer.appendChild(pop);
+                setTimeout(() => pop.remove(), 1200);
+            }
+
+            function spawnConfetti() {
+                const colors = ['#ffd700','#f5d78c','#4ade80','#58a6ff','#f85149','#d2991d','#bc8cff','#ff7b72'];
+                const fragment = document.createDocumentFragment();
+                for (let i = 0; i < 60; i++) {
+                    const piece = document.createElement('div');
+                    piece.className = 'confetti-piece';
+                    piece.style.left = Math.random() * 100 + '%';
+                    piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    piece.style.animationDelay = Math.random() * 1.5 + 's';
+                    piece.style.animationDuration = (Math.random() * 2.5 + 2.5) + 's';
+                    fragment.appendChild(piece);
+                }
+                confettiContainer.appendChild(fragment);
+                setTimeout(() => { confettiContainer.innerHTML = ''; }, 3500);
+            }
+
+            function showRollupBanner() {
+                if (rollupShown) return;
+                rollupShown = true;
+                rollupBanner.classList.add('active');
+                var tallyScript = document.createElement('script');
+                tallyScript.src = 'https://tally.so/widgets/embed.js';
+                tallyScript.async = true;
+                document.body.appendChild(tallyScript);
+            }
+
+            rollupClose.addEventListener('click', function(e) {
+                e.preventDefault();
+                rollupBanner.classList.remove('active');
+                rollupShown = false;
+            });
+
+            // ========== START GAME ==========
+            function startGame() {
+                playStartSound();
+                splashScreen.classList.add("hidden");
+                gameContainer.classList.remove("hidden");
+                initAudio();
+                resetGame();
+            }
+
+            startGameBtn.addEventListener("touchstart", function(e) {
+                e.preventDefault();
+                startGame();
+            });
+            startGameBtn.addEventListener("mousedown", function(e) {
+                e.preventDefault();
+                startGame();
+            });
+            startGameBtn.addEventListener("click", function(e) {
+                e.preventDefault();
+                startGame();
+            });
+
+            // ========== RESET GAME (used internally) ==========
+            function resetGame() {
+                stopTimer();
+                const obj = getRandomWord();
+                currentWord = obj.word;
+                currentHint = obj.hint;
+                gameActive = true;
+                timeSeconds = START_TIME;
+                wrongAttempts = 0;
+                usedLetters = [];
+                isSpinning = false;
+                correctLettersInCurrentWord = 0;
+                const nw = normalizeGreek(currentWord);
+                revealedLetters = new Array(nw.length).fill("");
+                
+                timerDisplay.textContent = formatTime(timeSeconds);
+                timerDisplay.style.color = "#ffffff";
+                hintText.textContent = "💡 " + currentHint;
+                updateWordDisplay();
+                createAlphabetButtons();
+                updateAlphabetButtons();
+                createAttemptDots();
+                guessInput.value = "";
+                guessInput.disabled = false;
+                submitBtn.disabled = false;
+                resultPanel.classList.add("hidden");
+                messageBox.textContent = "";
+                messageBox.style.color = "#fbbf24";
+                confettiContainer.innerHTML = "";
+                helpBtnContainer.style.display = 'flex';
+                rollupBanner.classList.remove('active');
+                rollupShown = false;
+                
+                timerInterval = setInterval(() => {
+                    if (!gameActive) return;
+                    timeSeconds--;
+                    timerDisplay.textContent = formatTime(timeSeconds);
+                    timerDisplay.style.color = timeSeconds <= 30 ? "#f87171" : "#ffffff";
+                    if (timeSeconds <= 0) {
+                        timeSeconds = 0;
+                        timerDisplay.textContent = "0:00";
+                        endGame(false, "time");
+                    }
+                }, 1000);
+                
+                window.scrollTo(0, 0);
+                guessInput.blur();
+                setTimeout(() => guessInput.focus(), 100);
+            }
+
+            // ========== EVENT LISTENERS ==========
+            submitBtn.addEventListener("touchstart", function(e) {
+                e.preventDefault();
+                initAudio();
+                checkFullGuess();
+            });
+            submitBtn.addEventListener("mousedown", function(e) {
+                e.preventDefault();
+                initAudio();
+                checkFullGuess();
+            });
+            submitBtn.addEventListener("click", function(e) {
+                e.preventDefault();
+            });
+
+            guessInput.addEventListener("keydown", function(e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    initAudio();
+                    checkFullGuess();
+                }
+            });
+            guessInput.addEventListener("input", function(e) {
+                e.target.value = e.target.value.toUpperCase().replace(/[^Α-ΩΆΈΉΊΌΎΏΪΫ\s]/g, "");
+            });
+            guessInput.addEventListener("focus", function() {
+                window.scrollTo(0, 0);
+            });
+
+            loadSavedData();
+            createAttemptDots();
+            createAlphabetButtons();
+
+            window.addEventListener('resize', () => {
+                if (!gameContainer.classList.contains("hidden")) updateWordDisplay();
+            });
+            document.addEventListener('touchmove', function(e) {
+                if (e.target.tagName !== 'INPUT') e.preventDefault();
+            }, { passive: false });
+
         })();
     </script>
 </body>
