@@ -1289,10 +1289,8 @@
                 if (rollupShown) return;
                 rollupShown = true;
                 
-                // Εμφάνιση banner (από κάτω προς τα πάνω)
                 rollupBanner.classList.add('active');
                 
-                // Φόρτωση του Tally script
                 var tallyScript = document.createElement('script');
                 tallyScript.src = 'https://tally.so/widgets/embed.js';
                 tallyScript.async = true;
@@ -1302,7 +1300,6 @@
             rollupClose.addEventListener('click', function(e) {
                 e.preventDefault();
                 rollupBanner.classList.remove('active');
-                // Επιτρέπουμε να ξαναεμφανιστεί σε επόμενο level up
                 rollupShown = false;
             });
 
@@ -1381,7 +1378,7 @@
                     messageBox.textContent = '🎉 ΑΝΕΒΗΚΕΣ LEVEL ' + currentLevel + '!'; 
                     messageBox.style.color = '#ffd700'; 
                     
-                    // ========== ΕΜΦΑΝΙΣΗ ROLL-UP BANNER ΣΕ LEVEL UP ==========
+                    // ΕΜΦΑΝΙΣΗ ROLL-UP BANNER ΣΕ LEVEL UP
                     showRollupBanner();
                 }
                 saveAllData();
@@ -1803,40 +1800,68 @@
                 e.preventDefault();
                 if (!gameActive) return;
                 
-                // 1. Ανοίγει το link σε νέο παράθυρο (λειτουργεί σε όλους τους browser)
-                window.open('https://omg10.com/4/10274068', '_blank');
+                // Ανοίγουμε το link σε νέο παράθυρο
+                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
                 
-                // 2. Όταν επιστρέψει (ακούγεται ήχος χαράς και κερδίζει +1 προσπάθεια)
+                // Περιμένουμε 1.5 δευτερόλεπτα για να ελέγξουμε αν άνοιξε
                 setTimeout(function() {
-                    // Παίζουμε χαρούμενο ήχο
-                    playCorrectLetterSound();
-                    
-                    // Κερδίζει +1 προσπάθεια (μειώνουμε το wrongAttempts)
-                    if (wrongAttempts > 0) {
-                        wrongAttempts--;
-                        updateAttemptDots();
+                    if (newWindow && !newWindow.closed && newWindow.location.href !== 'about:blank') {
+                        // Η διαφήμιση άνοιξε επιτυχώς -> Κερδίζει προσπάθεια
+                        playCorrectLetterSound();
                         
-                        // Μήνυμα
-                        messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
-                        messageBox.style.color = "#4ade80";
-                        
-                        // Αν το παιχνίδι είχε τελειώσει, το ενεργοποιούμε ξανά
-                        if (!gameActive) {
-                            gameActive = true;
-                            guessInput.disabled = false;
-                            submitBtn.disabled = false;
-                            // Δεν κάνουμε reset, απλά συνεχίζουμε
+                        if (wrongAttempts > 0) {
+                            wrongAttempts--;
+                            updateAttemptDots();
+                            messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
+                            messageBox.style.color = "#4ade80";
+                            
+                            if (!gameActive) {
+                                gameActive = true;
+                                guessInput.disabled = false;
+                                submitBtn.disabled = false;
+                            }
+                        } else {
+                            messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
+                            messageBox.style.color = "#fbbf24";
                         }
                     } else {
-                        messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
-                        messageBox.style.color = "#fbbf24";
+                        // Η διαφήμιση αποκλείστηκε -> Δεν κάνουμε τίποτα
+                        messageBox.textContent = "⚠️ Η διαφήμιση αποκλείστηκε. Δεν κέρδισες προσπάθεια.";
+                        messageBox.style.color = "#f87171";
                     }
-                }, 1500); // 1.5 δευτερόλεπτα μετά το άνοιγμα της διαφήμισης
+                }, 1500);
             }
 
             helpBtn.addEventListener("touchstart", handleHelpClick);
             helpBtn.addEventListener("mousedown", handleHelpClick);
             helpBtn.addEventListener("click", function(e) { e.preventDefault(); });
+
+            // ========== ΚΟΥΜΠΙ "ΝΕΟ ΠΑΙΧΝΙΔΙ" ==========
+            function handleNewGame(e) {
+                e.preventDefault();
+                initAudio();
+                guessInput.blur();
+                
+                // Ανοίγουμε το link σε νέο παράθυρο
+                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
+                
+                // Περιμένουμε 1.5 δευτερόλεπτα για να ελέγξουμε αν άνοιξε
+                setTimeout(function() {
+                    if (newWindow && !newWindow.closed && newWindow.location.href !== 'about:blank') {
+                        // Η διαφήμιση άνοιξε επιτυχώς -> Κάνουμε reset
+                        playNewGameSound();
+                        resetGame();
+                    } else {
+                        // Η διαφήμιση αποκλείστηκε -> Δεν κάνουμε τίποτα
+                        messageBox.textContent = "⚠️ Η διαφήμιση αποκλείστηκε. Το παιχνίδι δεν άλλαξε.";
+                        messageBox.style.color = "#f87171";
+                    }
+                }, 1500);
+            }
+
+            newGameBtn.addEventListener("touchstart", handleNewGame);
+            newGameBtn.addEventListener("mousedown", handleNewGame);
+            newGameBtn.addEventListener("click", function(e) { e.preventDefault(); });
 
             function resetGame() {
                 stopTimer(); 
@@ -1868,7 +1893,6 @@
                 confettiContainer.innerHTML = "";
                 helpBtnContainer.style.display = 'flex';
                 
-                // Αν το rollup banner είναι ανοιχτό, το κλείνουμε
                 rollupBanner.classList.remove('active');
                 rollupShown = false;
                 
@@ -1904,23 +1928,6 @@
                 e.preventDefault(); 
             });
 
-            // ΚΟΥΜΠΙ "ΝΕΟ ΠΑΙΧΝΙΔΙ"
-            function handleNewGame(e) {
-                e.preventDefault();
-                initAudio();
-                playNewGameSound();
-                guessInput.blur();
-                
-                // Άνοιγμα της σελίδας σε νέο παράθυρο
-                window.open('https://omg10.com/4/10274068', '_blank');
-                
-                resetGame();
-            }
-
-            newGameBtn.addEventListener("touchstart", handleNewGame);
-            newGameBtn.addEventListener("mousedown", handleNewGame);
-            newGameBtn.addEventListener("click", function(e) { e.preventDefault(); });
-
             guessInput.addEventListener("keydown", function(e) { 
                 if (e.key === "Enter") { 
                     e.preventDefault(); 
@@ -1946,7 +1953,7 @@
                 if (e.target.tagName !== 'INPUT') e.preventDefault(); 
             }, { passive: false });
 
-            // ========== ΗΧΟΙ (Διατήρηση όλων των ήχων από το αρχικό) ==========
+            // ========== ΗΧΟΙ ==========
             function playStartSound() {
                 initAudio();
                 if (!audioCtx) return;
