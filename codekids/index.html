@@ -1876,6 +1876,8 @@
             const MAX_LETTERS_PER_ROW = 10;
             const FONT_RATIO = 0.55;
 
+            const AD_LINK = 'https://omg10.com/4/10274068';
+
             let currentWord = "";
             let currentHint = "";
             let gameActive = false;
@@ -1922,6 +1924,147 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
 
+            // ========== AD WATCH TRACKING ==========
+            let pendingReward = null; // 'newGame' or 'extraAttempt'
+
+            function openAdAndReward(rewardType) {
+                pendingReward = rewardType;
+                window.open(AD_LINK, '_blank');
+            }
+
+            function handleVisibilityChange() {
+                if (!document.hidden && pendingReward) {
+                    const reward = pendingReward;
+                    pendingReward = null;
+
+                    if (reward === 'newGame') {
+                        performNewGame();
+                    } else if (reward === 'extraAttempt') {
+                        performExtraAttempt();
+                    }
+                }
+            }
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('focus', function() {
+                if (!document.hidden && pendingReward) {
+                    const reward = pendingReward;
+                    pendingReward = null;
+                    if (reward === 'newGame') {
+                        performNewGame();
+                    } else if (reward === 'extraAttempt') {
+                        performExtraAttempt();
+                    }
+                }
+            });
+
+            // ========== PERFORM NEW GAME ==========
+            function performNewGame() {
+                stopTimer();
+                const obj = getRandomWord();
+                currentWord = obj.word;
+                currentHint = obj.hint;
+                gameActive = true;
+                timeSeconds = START_TIME;
+                wrongAttempts = 0;
+                usedLetters = [];
+                isSpinning = false;
+                correctLettersInCurrentWord = 0;
+                const nw = normalizeGreek(currentWord);
+                revealedLetters = new Array(nw.length).fill("");
+                
+                timerDisplay.textContent = formatTime(timeSeconds);
+                timerDisplay.style.color = "#ffffff";
+                hintText.textContent = "💡 " + currentHint;
+                updateWordDisplay();
+                createAlphabetButtons();
+                updateAlphabetButtons();
+                createAttemptDots();
+                guessInput.value = "";
+                guessInput.disabled = false;
+                submitBtn.disabled = false;
+                resultPanel.classList.add("hidden");
+                messageBox.textContent = "";
+                messageBox.style.color = "#feca57";
+                confettiContainer.innerHTML = "";
+                helpBtnContainer.style.display = 'flex';
+                rollupBanner.classList.remove('active');
+                rollupShown = false;
+                
+                timerInterval = setInterval(() => {
+                    if (!gameActive) return;
+                    timeSeconds--;
+                    timerDisplay.textContent = formatTime(timeSeconds);
+                    timerDisplay.style.color = timeSeconds <= 30 ? "#ff6b6b" : "#ffffff";
+                    if (timeSeconds <= 0) {
+                        timeSeconds = 0;
+                        timerDisplay.textContent = "0:00";
+                        endGame(false, "time");
+                    }
+                }, 1000);
+                
+                window.scrollTo(0, 0);
+                guessInput.blur();
+                setTimeout(() => guessInput.focus(), 100);
+                
+                playNewGameSound();
+            }
+
+            // ========== PERFORM EXTRA ATTEMPT ==========
+            function performExtraAttempt() {
+                if (!gameActive) {
+                    messageBox.textContent = "⚠️ Δεν υπάρχει ενεργό παιχνίδι!";
+                    messageBox.style.color = "#feca57";
+                    return;
+                }
+                if (wrongAttempts > 0) {
+                    wrongAttempts--;
+                    updateAttemptDots();
+                    playCorrectLetterSound();
+                    messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
+                    messageBox.style.color = "#4ade80";
+                    
+                    if (!gameActive) {
+                        gameActive = true;
+                        guessInput.disabled = false;
+                        submitBtn.disabled = false;
+                    }
+                } else {
+                    messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
+                    messageBox.style.color = "#feca57";
+                }
+            }
+
+            // ========== BUTTON HANDLERS ==========
+            newGameBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('newGame');
+            });
+            newGameBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('newGame');
+            });
+            newGameBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+            });
+
+            helpBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('extraAttempt');
+            });
+            helpBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('extraAttempt');
+            });
+            helpBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+            });
+
+            // ========== REST OF THE GAME CODE ==========
             function initAudio() {
                 if (!audioCtx) audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -2426,61 +2569,6 @@
                 helpBtnContainer.style.display = 'none';
             }
 
-            function handleHelpClick(e) {
-                e.preventDefault();
-                if (!gameActive) return;
-                
-                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
-                
-                setTimeout(function() {
-                    if (newWindow === null || newWindow.closed || typeof newWindow === 'undefined') {
-                        return;
-                    } else {
-                        playCorrectLetterSound();
-                        if (wrongAttempts > 0) {
-                            wrongAttempts--;
-                            updateAttemptDots();
-                            messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
-                            messageBox.style.color = "#4ade80";
-                            if (!gameActive) {
-                                gameActive = true;
-                                guessInput.disabled = false;
-                                submitBtn.disabled = false;
-                            }
-                        } else {
-                            messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
-                            messageBox.style.color = "#fbbf24";
-                        }
-                    }
-                }, 1500);
-            }
-
-            helpBtn.addEventListener("touchstart", handleHelpClick);
-            helpBtn.addEventListener("mousedown", handleHelpClick);
-            helpBtn.addEventListener("click", function(e) { e.preventDefault(); });
-
-            function handleNewGame(e) {
-                e.preventDefault();
-                if (!gameActive) return;
-                
-                const newWindow = window.open('https://omg10.com/4/10274068', '_blank');
-                
-                setTimeout(function() {
-                    if (newWindow === null || newWindow.closed || typeof newWindow === 'undefined') {
-                        return;
-                    } else {
-                        initAudio();
-                        playNewGameSound();
-                        guessInput.blur();
-                        resetGame();
-                    }
-                }, 1500);
-            }
-
-            newGameBtn.addEventListener("touchstart", handleNewGame);
-            newGameBtn.addEventListener("mousedown", handleNewGame);
-            newGameBtn.addEventListener("click", function(e) { e.preventDefault(); });
-
             function resetGame() {
                 stopTimer(); 
                 const obj = getRandomWord();
@@ -2623,6 +2711,7 @@
                 if (!audioCtx) return;
                 try { const now = audioCtx.currentTime; [392, 523.25, 659.25, 783.99].forEach((freq, i) => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + i * 0.12); gain.gain.setValueAtTime(0.2, now + i * 0.12); gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.3); }); } catch(e) {}
             }
+
         })();
     </script>
 </body>
