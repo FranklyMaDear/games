@@ -1,4 +1,4 @@
-const SECRET_WORDS_EN = [
+const SECRET_WORDS = [
     // ==================== 100 ENGLISH WORDS & PHRASES ====================
     { word: "AMBIVALENT", hint: "Having mixed feelings about something" },
     { word: "IGNORAMUS", hint: "An ignorant or stupid person" },
