@@ -1284,38 +1284,41 @@
             let audioCtx;
 
             // ========== AD WATCH TRACKING ==========
-            // Reward only if ad is viewed (i.e. when the popup window is closed)
-            // We use a focus listener: when the main window regains focus after opening the ad,
-            // we assume the user returned from the ad page.
-            let pendingReward = null; // 'newGame' or 'extraAttempt'
+            let pendingReward = null;
 
             function openAdAndReward(rewardType) {
-                // Store the reward type
                 pendingReward = rewardType;
-                // Open the ad link (Safari will open a new window)
-                window.open(AD_LINK, '_blank');
-                // The reward will be granted when the user returns to the game window
+                
+                // Ανοίγουμε τη διαφήμιση ΑΜΕΣΑ (χωρίς setTimeout)
+                const popup = window.open(AD_LINK, '_blank');
+
+                // Αν ο χρήστης αποκλείσει το popup, το popup θα είναι null
+                if (!popup) {
+                    // Δεν κάνουμε καμία ενέργεια στο παιχνίδι
+                    pendingReward = null;
+                    messageBox.textContent = "⚠️ Please allow pop-ups to continue.";
+                    messageBox.style.color = "#f87171";
+                    return;
+                }
+
+                // Το popup άνοιξε κανονικά – περιμένουμε τον χρήστη να επιστρέψει
+                // Η ανταμοιβή θα δοθεί στο handleVisibilityChange
             }
 
-            // Listen for visibility change / focus to detect return from ad
             function handleVisibilityChange() {
                 if (!document.hidden && pendingReward) {
-                    // User has returned from the ad
                     const reward = pendingReward;
-                    pendingReward = null; // clear so it doesn't trigger again
+                    pendingReward = null;
 
                     if (reward === 'newGame') {
-                        // Perform new game action
                         performNewGame();
                     } else if (reward === 'extraAttempt') {
-                        // Perform extra attempt action
                         performExtraAttempt();
                     }
                 }
             }
 
             document.addEventListener('visibilitychange', handleVisibilityChange);
-            // Also use focus as a fallback
             window.addEventListener('focus', function() {
                 if (!document.hidden && pendingReward) {
                     const reward = pendingReward;
@@ -1326,6 +1329,21 @@
                         performExtraAttempt();
                     }
                 }
+            });
+
+            // ========== BUTTON HANDLERS ==========
+            // NEW GAME BUTTON: open ad, reward only if viewed
+            newGameBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('newGame');
+            });
+
+            // HELP BUTTON (EARN EXTRA ATTEMPT): open ad, reward only if viewed
+            helpBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                openAdAndReward('extraAttempt');
             });
 
             // ========== PERFORM NEW GAME ==========
@@ -1410,38 +1428,7 @@
                 }
             }
 
-            // ========== BUTTON HANDLERS ==========
-            // NEW GAME BUTTON: open ad, reward only if viewed
-            newGameBtn.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('newGame');
-            });
-            newGameBtn.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('newGame');
-            });
-            newGameBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-            });
-
-            // HELP BUTTON (EARN EXTRA ATTEMPT): open ad, reward only if viewed
-            helpBtn.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('extraAttempt');
-            });
-            helpBtn.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('extraAttempt');
-            });
-            helpBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-            });
-
-            // ========== REST OF THE GAME CODE (unchanged) ==========
+            // ========== REST OF THE GAME CODE ==========
             function initAudio() {
                 if (!audioCtx) audioCtx = new AudioContext();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1993,15 +1980,7 @@
                 resetGame();
             }
 
-            startGameBtn.addEventListener("touchstart", function(e) {
-                e.preventDefault();
-                startGame();
-            });
-            startGameBtn.addEventListener("mousedown", function(e) {
-                e.preventDefault();
-                startGame();
-            });
-            startGameBtn.addEventListener("click", function(e) {
+            startGameBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 startGame();
             });
@@ -2057,18 +2036,10 @@
             }
 
             // ========== EVENT LISTENERS ==========
-            submitBtn.addEventListener("touchstart", function(e) {
+            submitBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 initAudio();
                 checkFullGuess();
-            });
-            submitBtn.addEventListener("mousedown", function(e) {
-                e.preventDefault();
-                initAudio();
-                checkFullGuess();
-            });
-            submitBtn.addEventListener("click", function(e) {
-                e.preventDefault();
             });
 
             guessInput.addEventListener("keydown", function(e) {
