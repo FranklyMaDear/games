@@ -1314,44 +1314,62 @@
                     link = AD_LINK_LETTER;
                 }
                 
+                // Ανοίγουμε τη διαφήμιση σε νέο παράθυρο
                 const popup = window.open(link, '_blank');
 
+                // Αν το pop-up δεν άνοιξε (blocked), ενημερώνουμε και συνεχίζουμε
                 if (!popup) {
+                    messageBox.textContent = "⚠️ Please allow pop-ups to continue. (Reward given anyway)";
+                    messageBox.style.color = "#fbbf24";
+                    // Δίνουμε την ανταμοιβή ούτως ή άλλως
+                    if (rewardType === 'newGame') {
+                        performNewGame();
+                    } else if (rewardType === 'extraAttempt') {
+                        performExtraAttempt();
+                    } else if (rewardType === 'letter') {
+                        performGiveLetter();
+                    }
                     pendingReward = null;
-                    messageBox.textContent = "⚠️ Please allow pop-ups to continue.";
-                    messageBox.style.color = "#f87171";
                     return;
                 }
+
+                // Το pop-up άνοιξε – περιμένουμε να κλείσει
+                gameActive = false;
+                guessInput.disabled = true;
+                submitBtn.disabled = true;
+                messageBox.textContent = "⏳ Please allow the ad to open... (Reward will be given after)";
+                messageBox.style.color = "#fbbf24";
+
+                // Ελέγχουμε κάθε 500ms αν έκλεισε το pop-up
+                const checkPopup = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkPopup);
+                        // Δίνουμε την ανταμοιβή
+                        if (rewardType === 'newGame') {
+                            performNewGame();
+                        } else if (rewardType === 'extraAttempt') {
+                            performExtraAttempt();
+                        } else if (rewardType === 'letter') {
+                            performGiveLetter();
+                        }
+                        // Ενεργοποιούμε ξανά το παιχνίδι
+                        gameActive = true;
+                        guessInput.disabled = false;
+                        submitBtn.disabled = false;
+                        messageBox.textContent = "✅ Reward given!";
+                        messageBox.style.color = "#4ade80";
+                        pendingReward = null;
+                    }
+                }, 500);
             }
 
             function handleVisibilityChange() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
-                    } else if (reward === 'letter') {
-                        performGiveLetter();
-                    }
-                }
+                // Δεν χρειάζεται πλέον γιατί το χειριζόμαστε με το checkPopup
             }
 
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('focus', function() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
-                    } else if (reward === 'letter') {
-                        performGiveLetter();
-                    }
-                }
+                // Δεν χρειάζεται πλέον
             });
 
             // ========== BUTTON HANDLERS ==========
