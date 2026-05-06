@@ -32,7 +32,7 @@
     <meta name="apple-mobile-web-app-title" content="CRACK THE CODE">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#131820">
-    
+
     <style>
         :root {
             --bg-dark: #0a0e14;
@@ -933,25 +933,27 @@
             100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
         }
 
-        /* ========== HELP BUTTON "EARN AN EXTRA ATTEMPT" ========== */
+        /* ========== HELP BUTTONS CONTAINER ========== */
         .help-btn-container {
             width: 100%;
             display: flex;
             justify-content: center;
+            gap: 6px;
             margin: 4px 0;
             position: relative;
             z-index: 1;
             flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
         .help-btn {
-            padding: 12px 24px;
+            padding: 10px 16px;
             background: linear-gradient(180deg, #2d7a3a 0%, #1a4d24 100%);
             border: 3px solid #4ade80;
             border-radius: 14px;
             color: #ffffff;
             font-weight: 800;
-            font-size: clamp(0.8rem, 2.5vw, 1rem);
+            font-size: clamp(0.7rem, 2.2vw, 0.85rem);
             letter-spacing: 1px;
             text-transform: uppercase;
             cursor: pointer;
@@ -962,7 +964,10 @@
             outline: none;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            flex: 1;
+            min-width: 80px;
+            max-width: 150px;
         }
 
         .help-btn:active {
@@ -974,11 +979,9 @@
             font-size: 1.2rem;
         }
 
-        /* ========== NO ADS BUTTON ========== */
-        #noAdsBtn {
-            background: linear-gradient(180deg, #9333ea 0%, #6b21a8 100%);
-            border-color: #a855f7;
-            margin-left: 6px;
+        .help-btn-letter {
+            background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
+            border-color: #a78bfa;
         }
 
         /* ========== ROLL-UP BANNER (appears every time you level up) ========== */
@@ -1188,17 +1191,15 @@
             </div>
         </div>
 
-        <!-- ========== HELP BUTTON ========== -->
+        <!-- ========== HELP BUTTONS ========== -->
         <div class="help-btn-container" id="helpBtnContainer">
             <button class="help-btn" id="helpBtn">
                 <span class="help-btn-icon">🎁</span>
-                EARN AN EXTRA ATTEMPT
+                +1 ATTEMPT
             </button>
-            
-            <!-- ========== NO ADS BUTTON ========== -->
-            <button class="help-btn" id="noAdsBtn">
-                <span class="help-btn-icon">🚫</span>
-                NO ADS (5 ⭐)
+            <button class="help-btn help-btn-letter" id="letterBtn">
+                <span class="help-btn-icon">🔤</span>
+                GIVE ME A LETTER
             </button>
         </div>
 
@@ -1248,7 +1249,9 @@
             const MAX_LETTERS_PER_ROW = 10;
             const FONT_RATIO = 0.55;
 
-            const AD_LINK = 'https://omg10.com/4/10274068';
+            const AD_LINK_NEW_GAME = 'https://omg10.com/4/10000601';
+            const AD_LINK_EXTRA_ATTEMPT = 'https://omg10.com/4/10942461';
+            const AD_LINK_LETTER = 'https://omg10.com/4/10942461'; // Αν θες διαφορετικό link, άλλαξέ το
 
             let currentWord = "";
             let currentHint = "";
@@ -1289,7 +1292,7 @@
             const levelPoints = document.getElementById("levelPoints");
             const levelBar = document.getElementById("levelBar");
             const helpBtn = document.getElementById("helpBtn");
-            const noAdsBtn = document.getElementById("noAdsBtn");
+            const letterBtn = document.getElementById("letterBtn");
             const helpBtnContainer = document.getElementById("helpBtnContainer");
             const rollupBanner = document.getElementById("rollupBanner");
             const rollupClose = document.getElementById("rollupClose");
@@ -1297,63 +1300,21 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
 
-            // ========== NO ADS (Telegram Stars) ==========
-            let hasPaidNoAds = false;
-
-            function checkNoAdsStatus() {
-                try {
-                    const saved = localStorage.getItem('noAdsStatus');
-                    if (saved === 'true') hasPaidNoAds = true;
-                } catch(e) {}
-            }
-
-            function showNoAdsPayment() {
-                if (hasPaidNoAds) {
-                    messageBox.textContent = "✅ You have already removed ads!";
-                    messageBox.style.color = "#4ade80";
-                    return;
-                }
-                
-                Telegram.WebApp.openInvoice({
-                    title: "🚫 Remove Ads (Permanent)",
-                    description: "Unlock the game without ads forever",
-                    payload: "no_ads_payment",
-                    currency: "XTR",
-                    prices: [{ label: "No Ads (permanent)", amount: 5 }] // 5 Stars = 0.50€
-                });
-            }
-
-            // Ακούμε το αποτέλεσμα της πληρωμής
-            Telegram.WebApp.onEvent('invoiceClosed', function(event) {
-                if (event.status === 'paid') {
-                    hasPaidNoAds = true;
-                    try {
-                        localStorage.setItem('noAdsStatus', 'true');
-                    } catch(e) {}
-                    messageBox.textContent = "🎉 Ads removed permanently! Thank you!";
-                    messageBox.style.color = "#4ade80";
-                    spawnConfetti();
-                }
-            });
-
             // ========== AD WATCH TRACKING ==========
             let pendingReward = null;
 
             function openAdAndReward(rewardType) {
-                // Αν έχει πληρώσει για No Ads, δεν ανοίγει διαφήμιση
-                if (hasPaidNoAds) {
-                    if (rewardType === 'newGame') {
-                        performNewGame();
-                    } else if (rewardType === 'extraAttempt') {
-                        performExtraAttempt();
-                    }
-                    return;
+                pendingReward = rewardType;
+                let link = '';
+                if (rewardType === 'newGame') {
+                    link = AD_LINK_NEW_GAME;
+                } else if (rewardType === 'extraAttempt') {
+                    link = AD_LINK_EXTRA_ATTEMPT;
+                } else if (rewardType === 'letter') {
+                    link = AD_LINK_LETTER;
                 }
                 
-                pendingReward = rewardType;
-                
-                // Ανοίγουμε τη διαφήμιση
-                const popup = window.open(AD_LINK, '_blank');
+                const popup = window.open(link, '_blank');
 
                 if (!popup) {
                     pendingReward = null;
@@ -1372,6 +1333,8 @@
                         performNewGame();
                     } else if (reward === 'extraAttempt') {
                         performExtraAttempt();
+                    } else if (reward === 'letter') {
+                        performGiveLetter();
                     }
                 }
             }
@@ -1385,35 +1348,36 @@
                         performNewGame();
                     } else if (reward === 'extraAttempt') {
                         performExtraAttempt();
+                    } else if (reward === 'letter') {
+                        performGiveLetter();
                     }
                 }
             });
 
             // ========== BUTTON HANDLERS ==========
-            // NEW GAME BUTTON: open ad, reward only if viewed
+            // NEW GAME BUTTON
             newGameBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 initAudio();
                 openAdAndReward('newGame');
             });
 
-            // HELP BUTTON (EARN EXTRA ATTEMPT): open ad, reward only if viewed
+            // EXTRA ATTEMPT BUTTON
             helpBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 initAudio();
                 openAdAndReward('extraAttempt');
             });
 
-            // NO ADS BUTTON
-            noAdsBtn.addEventListener('click', function(e) {
+            // GIVE ME A LETTER BUTTON
+            letterBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 initAudio();
-                showNoAdsPayment();
+                openAdAndReward('letter');
             });
 
             // ========== PERFORM NEW GAME ==========
             function performNewGame() {
-                // Reset the game (exactly like the original resetGame)
                 stopTimer();
                 const obj = getRandomWord();
                 currentWord = obj.word;
@@ -1461,7 +1425,6 @@
                 guessInput.blur();
                 setTimeout(() => guessInput.focus(), 100);
                 
-                // Play sound
                 playNewGameSound();
             }
 
@@ -1472,16 +1435,12 @@
                     messageBox.style.color = "#fbbf24";
                     return;
                 }
-                // Only if wrongAttempts > 0
                 if (wrongAttempts > 0) {
                     wrongAttempts--;
                     updateAttemptDots();
-                    // Add a happy sound
                     playCorrectLetterSound();
-                    messageBox.textContent = `🎉 You earned +1 attempt! (${MAX_ATTEMPTS - wrongAttempts} remaining)`;
+                    messageBox.textContent = `🎉 +1 attempt! (${MAX_ATTEMPTS - wrongAttempts} remaining)`;
                     messageBox.style.color = "#4ade80";
-                    
-                    // If game was ended, reactivate
                     if (!gameActive) {
                         gameActive = true;
                         guessInput.disabled = false;
@@ -1490,6 +1449,72 @@
                 } else {
                     messageBox.textContent = "⚠️ You already have all attempts!";
                     messageBox.style.color = "#fbbf24";
+                }
+            }
+
+            // ========== PERFORM GIVE LETTER ==========
+            function performGiveLetter() {
+                if (!gameActive) {
+                    messageBox.textContent = "⚠️ No active game!";
+                    messageBox.style.color = "#fbbf24";
+                    return;
+                }
+                
+                const nw = normalizeEnglish(currentWord);
+                // Βρες γράμματα που δεν έχουν αποκαλυφθεί ακόμα
+                let availableIndices = [];
+                for (let i = 0; i < nw.length; i++) {
+                    if (!revealedLetters[i] || revealedLetters[i] === '') {
+                        availableIndices.push(i);
+                    }
+                }
+                
+                if (availableIndices.length === 0) {
+                    messageBox.textContent = "⚠️ All letters already revealed!";
+                    messageBox.style.color = "#fbbf24";
+                    return;
+                }
+                
+                // Διάλεξε τυχαίο γράμμα
+                const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+                const letter = nw[randomIndex];
+                
+                // Αποκάλυψε το
+                revealedLetters[randomIndex] = letter;
+                if (!usedLetters.includes(letter)) {
+                    usedLetters.push(letter);
+                }
+                correctLettersInCurrentWord++;
+                
+                // Ενημέρωσε την οθόνη
+                updateWordDisplay(true, [randomIndex]);
+                updateAlphabetButtons();
+                
+                // Πόντοι
+                const pointsEarned = POINTS_PER_LETTER;
+                currentScore += pointsEarned;
+                addXP(pointsEarned);
+                updateScoreDisplay();
+                saveAllData();
+                
+                playCorrectLetterSound();
+                messageBox.textContent = `🔤 Letter "${letter}" revealed! +${pointsEarned} points`;
+                messageBox.style.color = "#4ade80";
+                
+                // Έλεγξε αν βρέθηκε όλη η λέξη
+                const allRevealed = revealedLetters.map(l => l || '').join('');
+                if (allRevealed === nw) {
+                    setTimeout(() => {
+                        currentScore += POINTS_FULL_WORD;
+                        addXP(POINTS_FULL_WORD);
+                        updateScoreDisplay();
+                        saveAllData();
+                        showScorePop('+50 WORD!', wordDisplay.getBoundingClientRect().left, wordDisplay.getBoundingClientRect().top);
+                        playWordCorrectSound();
+                        setTimeout(() => playWinFanfare(), 600);
+                        spawnConfetti();
+                        endGame(true);
+                    }, 400);
                 }
             }
 
@@ -1949,7 +1974,6 @@
                 highScoreDisplay.textContent = highScore;
                 updateScoreDisplay();
                 updateLevelDisplay();
-                checkNoAdsStatus();
             }
 
             function saveAllData() {
@@ -2043,63 +2067,13 @@
                 splashScreen.classList.add("hidden");
                 gameContainer.classList.remove("hidden");
                 initAudio();
-                resetGame();
+                performNewGame(); // <-- ΔΙΟΡΘΩΣΗ: Αντί για resetGame()
             }
 
             startGameBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 startGame();
             });
-
-            // ========== RESET GAME (used internally) ==========
-            function resetGame() {
-                stopTimer();
-                const obj = getRandomWord();
-                currentWord = obj.word;
-                currentHint = obj.hint;
-                gameActive = true;
-                timeSeconds = START_TIME;
-                wrongAttempts = 0;
-                usedLetters = [];
-                isSpinning = false;
-                correctLettersInCurrentWord = 0;
-                const nw = normalizeEnglish(currentWord);
-                revealedLetters = new Array(nw.length).fill("");
-                
-                timerDisplay.textContent = formatTime(timeSeconds);
-                timerDisplay.style.color = "#ffffff";
-                hintText.textContent = "💡 " + currentHint;
-                updateWordDisplay();
-                createAlphabetButtons();
-                updateAlphabetButtons();
-                createAttemptDots();
-                guessInput.value = "";
-                guessInput.disabled = false;
-                submitBtn.disabled = false;
-                resultPanel.classList.add("hidden");
-                messageBox.textContent = "";
-                messageBox.style.color = "#fbbf24";
-                confettiContainer.innerHTML = "";
-                helpBtnContainer.style.display = 'flex';
-                rollupBanner.classList.remove('active');
-                rollupShown = false;
-                
-                timerInterval = setInterval(() => {
-                    if (!gameActive) return;
-                    timeSeconds--;
-                    timerDisplay.textContent = formatTime(timeSeconds);
-                    timerDisplay.style.color = timeSeconds <= 30 ? "#f87171" : "#ffffff";
-                    if (timeSeconds <= 0) {
-                        timeSeconds = 0;
-                        timerDisplay.textContent = "0:00";
-                        endGame(false, "time");
-                    }
-                }, 1000);
-                
-                window.scrollTo(0, 0);
-                guessInput.blur();
-                setTimeout(() => guessInput.focus(), 100);
-            }
 
             // ========== EVENT LISTENERS ==========
             submitBtn.addEventListener('click', function(e) {
