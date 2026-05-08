@@ -32,6 +32,9 @@
     <meta name="apple-mobile-web-app-title" content="CRACK THE CODE">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#131820">
+
+    <!-- ========== MONETAG SDK ========== -->
+    <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
     
     <style>
         :root {
@@ -974,6 +977,32 @@
             font-size: 1.2rem;
         }
 
+        /* ========== ΣΤΡΟΓΓΥΛΟ ΚΟΥΜΠΙ ΑΝΑΝΕΩΣΗΣ (δίπλα στο help-btn) ========== */
+        .refresh-btn-circle {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(180deg, #ff6b6b 0%, #c44545 100%);
+            border: 2px solid #ff9999;
+            color: #ffffff;
+            font-size: 22px;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #8b3030, 0 3px 10px rgba(0,0,0,0.3);
+            transition: all 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .refresh-btn-circle:active {
+            top: 2px;
+            box-shadow: 0 1px 0 #8b3030, 0 2px 5px rgba(0,0,0,0.3);
+            transform: scale(0.95);
+        }
+
         /* ========== ROLL-UP BANNER (εμφανίζεται κάθε φορά που περνάει Level) ========== */
         .rollup-banner {
             position: fixed;
@@ -1181,11 +1210,14 @@
             </div>
         </div>
 
-        <!-- ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ ========== -->
+        <!-- ========== ΚΟΥΜΠΙ ΒΟΗΘΕΙΑΣ & ΑΝΑΝΕΩΣΗΣ ========== -->
         <div class="help-btn-container" id="helpBtnContainer">
             <button class="help-btn" id="helpBtn">
                 <span class="help-btn-icon">🎁</span>
                 ΚΕΡΔΙΣΕ ΜΙΑ ΠΡΟΣΠΑΘΕΙΑ
+            </button>
+            <button class="refresh-btn-circle" id="refreshBtnCircle" title="Ανανέωση">
+                ↻
             </button>
         </div>
 
@@ -1233,11 +1265,6 @@
             const MAX_LETTERS_PER_ROW = 10;
             const FONT_RATIO = 0.55;
 
-            // Νέες διευθύνσεις για τα κουμπιά
-            const AD_LINK_NEW_GAME = 'https://omg10.com/4/10000601';
-            const AD_LINK_EXTRA_ATTEMPT = 'https://omg10.com/4/10942461';
-            const AD_LINK_LEVEL_UP = 'https://omg10.com/4/9967690';
-
             let currentWord = "";
             let currentHint = "";
             let gameActive = false;
@@ -1280,71 +1307,53 @@
             const helpBtnContainer = document.getElementById("helpBtnContainer");
             const rollupBanner = document.getElementById("rollupBanner");
             const rollupClose = document.getElementById("rollupClose");
+            const refreshBtnCircle = document.getElementById("refreshBtnCircle");
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
 
-            // ========== AD WATCH TRACKING ==========
-            let pendingReward = null; // 'newGame' or 'extraAttempt'
+            // ========== MONETAG WRAPPER ==========
+            function callMonetagAd() {
+                return new Promise((resolve, reject) => {
+                    if (typeof show_10979429 === 'function') {
+                        show_10979429().then(resolve).catch(reject);
+                    } else {
+                        setTimeout(() => {
+                            if (typeof show_10979429 === 'function') {
+                                show_10979429().then(resolve).catch(reject);
+                            } else {
+                                resolve();
+                            }
+                        }, 500);
+                    }
+                });
+            }
 
-            function openAdAndReward(rewardType) {
-                pendingReward = rewardType;
-                let link = '';
-                if (rewardType === 'newGame') {
-                    link = AD_LINK_NEW_GAME;
-                } else if (rewardType === 'extraAttempt') {
-                    link = AD_LINK_EXTRA_ATTEMPT;
-                }
-                const popup = window.open(link, '_blank');
-                if (!popup) {
-                    pendingReward = null;
-                    messageBox.textContent = "⚠️ Παρακαλώ επιτρέψτε τα pop-ups για να συνεχίσετε.";
+            // ========== REWARD FUNCTIONS ==========
+            function rewardExtraAttempt() {
+                if (!gameActive) {
+                    messageBox.textContent = "⚠️ Δεν υπάρχει ενεργό παιχνίδι!";
                     messageBox.style.color = "#fbbf24";
                     return;
                 }
-            }
-
-            function handleVisibilityChange() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
+                if (wrongAttempts > 0) {
+                    wrongAttempts--;
+                    updateAttemptDots();
+                    playCorrectLetterSound();
+                    messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
+                    messageBox.style.color = "#4ade80";
+                    if (!gameActive) {
+                        gameActive = true;
+                        guessInput.disabled = false;
+                        submitBtn.disabled = false;
                     }
+                } else {
+                    messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
+                    messageBox.style.color = "#fbbf24";
                 }
             }
 
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('focus', function() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
-                    }
-                }
-            });
-
-            // ========== BUTTON HANDLERS ==========
-            newGameBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('newGame');
-            });
-
-            helpBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('extraAttempt');
-            });
-
-            // ========== PERFORM NEW GAME ==========
-            function performNewGame() {
+            function rewardNewGame() {
                 stopTimer();
                 const obj = getRandomWord();
                 currentWord = obj.word;
@@ -1391,34 +1400,50 @@
                 window.scrollTo(0, 0);
                 guessInput.blur();
                 setTimeout(() => guessInput.focus(), 100);
-                
                 playNewGameSound();
             }
 
-            // ========== PERFORM EXTRA ATTEMPT ==========
-            function performExtraAttempt() {
-                if (!gameActive) {
-                    messageBox.textContent = "⚠️ Δεν υπάρχει ενεργό παιχνίδι!";
-                    messageBox.style.color = "#fbbf24";
-                    return;
-                }
-                if (wrongAttempts > 0) {
-                    wrongAttempts--;
-                    updateAttemptDots();
-                    playCorrectLetterSound();
-                    messageBox.textContent = `🎉 Κέρδισες +1 προσπάθεια! (${MAX_ATTEMPTS - wrongAttempts} απομένουν)`;
-                    messageBox.style.color = "#4ade80";
-                    
-                    if (!gameActive) {
-                        gameActive = true;
-                        guessInput.disabled = false;
-                        submitBtn.disabled = false;
-                    }
-                } else {
-                    messageBox.textContent = "⚠️ Έχεις ήδη όλες τις προσπάθειες!";
-                    messageBox.style.color = "#fbbf24";
-                }
-            }
+            // ========== BUTTON HANDLERS (MONETAG) ==========
+            newGameBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                callMonetagAd().then(() => {
+                    rewardNewGame();
+                }).catch(() => {
+                    rewardNewGame();
+                });
+            });
+
+            helpBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                callMonetagAd().then(() => {
+                    rewardExtraAttempt();
+                }).catch(() => {
+                    rewardExtraAttempt();
+                });
+            });
+
+            // ========== ΣΤΡΟΓΓΥΛΟ ΚΟΥΜΠΙ ΑΝΑΝΕΩΣΗΣ (με διαφήμιση) ==========
+            refreshBtnCircle.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                callMonetagAd().then(() => {
+                    // Μετά τη διαφήμιση, επιστρέφουμε στο splash screen
+                    stopTimer();
+                    gameActive = false;
+                    splashScreen.classList.remove("hidden");
+                    gameContainer.classList.add("hidden");
+                    document.body.style.overflow = '';
+                }).catch(() => {
+                    // Αν αποτύχει η διαφήμιση, πάμε κατευθείαν στο splash
+                    stopTimer();
+                    gameActive = false;
+                    splashScreen.classList.remove("hidden");
+                    gameContainer.classList.add("hidden");
+                    document.body.style.overflow = '';
+                });
+            });
 
             // ========== REST OF THE GAME CODE ==========
             function initAudio() {
