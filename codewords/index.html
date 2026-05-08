@@ -32,6 +32,9 @@
     <meta name="apple-mobile-web-app-title" content="CRACK THE CODE">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#131820">
+
+    <!-- ========== MONETAG SDK ========== -->
+    <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
     
     <style>
         :root {
@@ -1119,18 +1122,6 @@
         <div class="splash-footer">© 2025 CRACK THE CODE</div>
     </div>
 
-    <!-- ========== ROLL-UP BANNER (Initially hidden) ========== -->
-    <div class="rollup-banner" id="rollupBanner">
-        <div class="rollup-banner-inner">
-            <div class="rollup-banner-title">🎉 Register for the Competitions</div>
-            <div class="rollup-banner-subtitle">⭐ Every Level you win gives you one chance</div>
-            <div class="rollup-banner-iframe-container">
-                <iframe data-tally-src="https://tally.so/r/44jy95?transparentBackground=1" width="100%" height="100%" frameborder="0" marginheight="0" marginwidth="0" title="Crack The Code"></iframe>
-            </div>
-            <button class="rollup-banner-close" id="rollupClose">CONTINUE PLAYING</button>
-        </div>
-    </div>
-
     <!-- ========== MAIN GAME ========== -->
     <div class="game-container hidden" id="gameContainer">
         <div class="title-section">
@@ -1214,6 +1205,9 @@
                 return;
             }
 
+            // ========== TELEGRAM BOT TOKEN (for future use) ==========
+            const TELEGRAM_BOT_TOKEN = '8481234553:AAHBPYsj3KIs-qjDHUWLBpr4v92PLw4FCH8';
+
             // ========== ENGLISH QWERTY KEYBOARD ==========
             const KEYBOARD_ROWS = [
                 "QWERTYUIOP".split(""),
@@ -1234,8 +1228,6 @@
             const XP_PER_LEVEL = 1000;
             const MAX_LETTERS_PER_ROW = 10;
             const FONT_RATIO = 0.55;
-
-            const AD_LINK = 'https://omg10.com/4/10274068';
 
             let currentWord = "";
             let currentHint = "";
@@ -1283,72 +1275,31 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             let audioCtx;
 
-            // ========== AD WATCH TRACKING ==========
-            let pendingReward = null;
-
-            function openAdAndReward(rewardType) {
-                pendingReward = rewardType;
-                
-                // Ανοίγουμε τη διαφήμιση ΑΜΕΣΑ (χωρίς setTimeout)
-                const popup = window.open(AD_LINK, '_blank');
-
-                // Αν ο χρήστης αποκλείσει το popup, το popup θα είναι null
-                if (!popup) {
-                    // Δεν κάνουμε καμία ενέργεια στο παιχνίδι
-                    pendingReward = null;
-                    messageBox.textContent = "⚠️ Please allow pop-ups to continue.";
-                    messageBox.style.color = "#f87171";
+            // ========== MONETAG REWARD FUNCTIONS ==========
+            function rewardExtraAttempt() {
+                if (!gameActive) {
+                    messageBox.textContent = "⚠️ No active game!";
+                    messageBox.style.color = "#fbbf24";
                     return;
                 }
-
-                // Το popup άνοιξε κανονικά – περιμένουμε τον χρήστη να επιστρέψει
-                // Η ανταμοιβή θα δοθεί στο handleVisibilityChange
-            }
-
-            function handleVisibilityChange() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
+                if (wrongAttempts > 0) {
+                    wrongAttempts--;
+                    updateAttemptDots();
+                    playCorrectLetterSound();
+                    messageBox.textContent = `🎉 +1 attempt! (${MAX_ATTEMPTS - wrongAttempts} remaining)`;
+                    messageBox.style.color = "#4ade80";
+                    if (!gameActive) {
+                        gameActive = true;
+                        guessInput.disabled = false;
+                        submitBtn.disabled = false;
                     }
+                } else {
+                    messageBox.textContent = "⚠️ You already have all attempts!";
+                    messageBox.style.color = "#fbbf24";
                 }
             }
 
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('focus', function() {
-                if (!document.hidden && pendingReward) {
-                    const reward = pendingReward;
-                    pendingReward = null;
-                    if (reward === 'newGame') {
-                        performNewGame();
-                    } else if (reward === 'extraAttempt') {
-                        performExtraAttempt();
-                    }
-                }
-            });
-
-            // ========== BUTTON HANDLERS ==========
-            // NEW GAME BUTTON: open ad, reward only if viewed
-            newGameBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('newGame');
-            });
-
-            // HELP BUTTON (EARN EXTRA ATTEMPT): open ad, reward only if viewed
-            helpBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                initAudio();
-                openAdAndReward('extraAttempt');
-            });
-
-            // ========== PERFORM NEW GAME ==========
-            function performNewGame() {
-                // Reset the game (exactly like the original resetGame)
+            function rewardNewGame() {
                 stopTimer();
                 const obj = getRandomWord();
                 currentWord = obj.word;
@@ -1395,38 +1346,41 @@
                 window.scrollTo(0, 0);
                 guessInput.blur();
                 setTimeout(() => guessInput.focus(), 100);
-                
-                // Play sound
                 playNewGameSound();
             }
 
-            // ========== PERFORM EXTRA ATTEMPT ==========
-            function performExtraAttempt() {
-                if (!gameActive) {
-                    messageBox.textContent = "⚠️ No active game!";
-                    messageBox.style.color = "#fbbf24";
-                    return;
-                }
-                // Only if wrongAttempts > 0
-                if (wrongAttempts > 0) {
-                    wrongAttempts--;
-                    updateAttemptDots();
-                    // Add a happy sound
-                    playCorrectLetterSound();
-                    messageBox.textContent = `🎉 You earned +1 attempt! (${MAX_ATTEMPTS - wrongAttempts} remaining)`;
-                    messageBox.style.color = "#4ade80";
-                    
-                    // If game was ended, reactivate
-                    if (!gameActive) {
-                        gameActive = true;
-                        guessInput.disabled = false;
-                        submitBtn.disabled = false;
-                    }
+            // ========== BUTTON HANDLERS (MONETAG) ==========
+            // NEW GAME BUTTON: Rewarded Popup
+            newGameBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                if (typeof show_10979429 === 'function') {
+                    show_10979429('pop').then(() => {
+                        rewardNewGame();
+                    }).catch(e => {
+                        messageBox.textContent = "⚠️ Ad not completed. Try again.";
+                        messageBox.style.color = "#f87171";
+                    });
                 } else {
-                    messageBox.textContent = "⚠️ You already have all attempts!";
-                    messageBox.style.color = "#fbbf24";
+                    rewardNewGame();
                 }
-            }
+            });
+
+            // HELP BUTTON (EARN EXTRA ATTEMPT): Rewarded Interstitial
+            helpBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                initAudio();
+                if (typeof show_10979429 === 'function') {
+                    show_10979429().then(() => {
+                        rewardExtraAttempt();
+                    }).catch(e => {
+                        messageBox.textContent = "⚠️ Ad not completed. Try again.";
+                        messageBox.style.color = "#f87171";
+                    });
+                } else {
+                    rewardExtraAttempt();
+                }
+            });
 
             // ========== REST OF THE GAME CODE ==========
             function initAudio() {
@@ -1959,10 +1913,10 @@
                 if (rollupShown) return;
                 rollupShown = true;
                 rollupBanner.classList.add('active');
-                var tallyScript = document.createElement('script');
-                tallyScript.src = 'https://tally.so/widgets/embed.js';
-                tallyScript.async = true;
-                document.body.appendChild(tallyScript);
+                // Remove Tally iframe since it was removed
+                const iframe = rollupBanner.querySelector('iframe');
+                if (iframe) iframe.remove();
+                // Optional: add your own content here
             }
 
             rollupClose.addEventListener('click', function(e) {
