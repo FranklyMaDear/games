@@ -1242,9 +1242,16 @@
 
     <script>
         (function() {
+            // Ensure SECRET_WORDS is defined (fallback if words.js fails)
             if (typeof SECRET_WORDS === 'undefined') {
-                alert('Σφάλμα: Το αρχείο words.js δεν φορτώθηκε σωστά!');
-                return;
+                console.warn('SECRET_WORDS not found, using fallback list.');
+                window.SECRET_WORDS = [
+                    { word: "ΚΡΥΠΤΟΓΡΑΦΗΣΗ", hint: "Κωδικοποίηση μηνυμάτων" },
+                    { word: "ΠΑΖΛ", hint: "Παιχνίδι λογικής" },
+                    { word: "ΛΕΞΗ", hint: "Μονάδα γλώσσας" },
+                    { word: "ΚΩΔΙΚΑΣ", hint: "Μυστικό σύστημα" },
+                    { word: "ΑΙΝΙΓΜΑ", hint: "Κάτι που θέλει λύση" }
+                ];
             }
 
             const KEYBOARD_ROWS = [
@@ -1431,14 +1438,12 @@
                 e.preventDefault();
                 initAudio();
                 callMonetagAd().then(() => {
-                    // Μετά τη διαφήμιση, επιστρέφουμε στο splash screen
                     stopTimer();
                     gameActive = false;
                     splashScreen.classList.remove("hidden");
                     gameContainer.classList.add("hidden");
                     document.body.style.overflow = '';
                 }).catch(() => {
-                    // Αν αποτύχει η διαφήμιση, πάμε κατευθείαν στο splash
                     stopTimer();
                     gameActive = false;
                     splashScreen.classList.remove("hidden");
@@ -1996,7 +2001,51 @@
                 splashScreen.classList.add("hidden");
                 gameContainer.classList.remove("hidden");
                 initAudio();
-                performNewGame();
+                // Ensure we have a word ready
+                if (!gameActive) {
+                    const obj = getRandomWord();
+                    currentWord = obj.word;
+                    currentHint = obj.hint;
+                    gameActive = true;
+                    timeSeconds = START_TIME;
+                    wrongAttempts = 0;
+                    usedLetters = [];
+                    isSpinning = false;
+                    correctLettersInCurrentWord = 0;
+                    const nw = normalizeGreek(currentWord);
+                    revealedLetters = new Array(nw.length).fill("");
+                    timerDisplay.textContent = formatTime(timeSeconds);
+                    timerDisplay.style.color = "#ffffff";
+                    hintText.textContent = "💡 " + currentHint;
+                    updateWordDisplay();
+                    createAlphabetButtons();
+                    updateAlphabetButtons();
+                    createAttemptDots();
+                    guessInput.value = "";
+                    guessInput.disabled = false;
+                    submitBtn.disabled = false;
+                    resultPanel.classList.add("hidden");
+                    messageBox.textContent = "";
+                    messageBox.style.color = "#fbbf24";
+                    confettiContainer.innerHTML = "";
+                    helpBtnContainer.style.display = 'flex';
+                    rollupBanner.classList.remove('active');
+                    rollupShown = false;
+                    timerInterval = setInterval(() => {
+                        if (!gameActive) return;
+                        timeSeconds--;
+                        timerDisplay.textContent = formatTime(timeSeconds);
+                        timerDisplay.style.color = timeSeconds <= 30 ? "#f87171" : "#ffffff";
+                        if (timeSeconds <= 0) {
+                            timeSeconds = 0;
+                            timerDisplay.textContent = "0:00";
+                            endGame(false, "time");
+                        }
+                    }, 1000);
+                    window.scrollTo(0, 0);
+                    guessInput.blur();
+                    setTimeout(() => guessInput.focus(), 100);
+                }
             }
 
             startGameBtn.addEventListener("click", function(e) {
