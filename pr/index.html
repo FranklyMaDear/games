@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
-    <title>🧿 HandMaster Pro - Πλήρης Ανάλυση</title>
+    <title>🧿 HandMaster Pro - Αυτόματη Ανάλυση Χεριού</title>
     
     <!-- ========== MONETAG SDK ========== -->
     <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
@@ -37,10 +37,10 @@
         .mode-btn { padding: 10px 20px; border: 2px solid #444; border-radius: 30px; background: transparent; color: #aaa; cursor: pointer; transition: 0.3s; }
         .mode-btn.active { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.1); }
 
-        #user-inputs { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 15px 0; }
-        .input-group { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 8px 15px; border-radius: 20px; border: 1px solid #444; }
+        #user-inputs { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 15px 0; width: 100%; }
+        .input-group { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 8px 15px; border-radius: 20px; border: 1px solid #444; flex: 1 1 auto; min-width: 120px; justify-content: center; }
         .input-group label { color: #aaa; font-size: 14px; }
-        select, input { padding: 8px 15px; border-radius: 20px; border: none; background: #333; color: white; font-size: 14px; }
+        select, input { padding: 8px 15px; border-radius: 20px; border: none; background: #333; color: white; font-size: 14px; width: 100%; max-width: 120px; }
         input[type="number"] { width: 70px; }
 
         #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
@@ -67,12 +67,24 @@
         .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db; }
         .history-actions { display: flex; gap: 5px; margin-top: 5px; }
         .history-actions button { padding: 5px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; }
+
+        /* Οδηγίες */
+        .instructions {
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #FFD700;
+            color: #eee;
+            font-size: 14px;
+        }
+        .instructions strong { color: #FFD700; }
     </style>
 </head>
 <body>
     <div id="container">
         <h1>🧿 HandMaster Pro</h1>
-        <p style="color:#aaa;">Ανέβασε φωτογραφία χεριού ή φλιτζανιού για πλήρη ανάλυση</p>
+        <p style="color:#aaa;">Αυτόματη Ανάλυση Χεριού & Φλιτζανιού</p>
 
         <!-- Επιλογή Ηλικίας & Ζωδίου (μόνο για χέρι) -->
         <div id="user-inputs">
@@ -112,6 +124,10 @@
             <div id="upload-type"></div>
             <img id="upload-preview">
             <div id="auto-status" style="margin-top:10px; color:#2ecc71; font-weight:bold; display:none;">⏳ Αυτόματη ανάλυση σε εξέλιξη...</div>
+            <div class="instructions">
+                <strong>📌 Οδηγίες:</strong> Πατήστε το κουμπί <strong>Κάμερα</strong> και τοποθετήστε το χέρι μπροστά στην Οθόνη. 
+                Η ανάλυση θα γίνει <strong>αυτόματα!</strong> ή ανεβάστε φωτογραφία.
+            </div>
         </div>
 
         <!-- Camera -->
@@ -122,8 +138,9 @@
 
         <div class="controls">
             <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Κάμερα</button>
-            <button class="btn btn-green" id="analyzeBtn" onclick="analyzeWithAd()" disabled>🔍 Ανάλυση</button>
-            <button class="btn btn-red" onclick="resetAll()">⟳ Reset</button>
+            <!-- Το κουμπί Ανάλυση αντικαθίσταται από το κουμπί Ανανέωσης -->
+            <button class="btn btn-red" id="refreshBtn" onclick="refreshWithAd()">🔄 Ανανέωση</button>
+            <button class="btn btn-green" id="analyzeBtn" style="display:none;">🔍 Ανάλυση</button>
         </div>
 
         <div id="loading">⏳ Αναλύω...</div>
@@ -158,6 +175,7 @@
         let capturedPhoto = null;
         let uploadedImage = null;
         let autoAnalyzePending = false;
+        let analysisDone = false;
 
         overlay.width = 500; overlay.height = 500;
 
@@ -176,13 +194,17 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 landmarksData = results.multiHandLandmarks[0];
                 drawHand(landmarksData);
-                document.getElementById('analyzeBtn').disabled = false;
                 document.getElementById('startBtn').disabled = true;
-                capturePhoto();
+                // Αυτόματη ανάλυση μόλις εντοπιστεί χέρι
+                if (!analysisDone && currentMode === 'hand') {
+                    analysisDone = true;
+                    performAnalysis();
+                }
             } else {
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
                 landmarksData = null;
-                document.getElementById('analyzeBtn').disabled = true;
+                // Αν το χέρι φύγει, επιτρέπουμε νέα ανάλυση
+                analysisDone = false;
             }
         });
 
@@ -202,11 +224,9 @@
             document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
             if (mode === 'hand') {
                 document.getElementById('handModeBtn').classList.add('active');
-                // Δείχνουμε ηλικία/ζώδιο
                 document.getElementById('user-inputs').style.display = 'flex';
             } else {
                 document.getElementById('coffeeModeBtn').classList.add('active');
-                // Κρύβουμε ηλικία/ζώδιο
                 document.getElementById('user-inputs').style.display = 'none';
             }
             resetAll();
@@ -248,19 +268,14 @@
                     if (data[i] > 150 && data[i+1] > 100 && data[i+2] > 70) skin++;
                 }
                 
-                // Αν το mode είναι ήδη επιλεγμένο, το σεβόμαστε, αλλιώς αυτόματο
-                if (currentMode === 'hand' || currentMode === 'coffee') {
-                    // το mode έχει ήδη οριστεί
+                currentMode = brown > skin ? 'coffee' : 'hand';
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                if (currentMode === 'hand') {
+                    document.getElementById('handModeBtn').classList.add('active');
+                    document.getElementById('user-inputs').style.display = 'flex';
                 } else {
-                    currentMode = brown > skin ? 'coffee' : 'hand';
-                    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-                    if (currentMode === 'hand') {
-                        document.getElementById('handModeBtn').classList.add('active');
-                        document.getElementById('user-inputs').style.display = 'flex';
-                    } else {
-                        document.getElementById('coffeeModeBtn').classList.add('active');
-                        document.getElementById('user-inputs').style.display = 'none';
-                    }
+                    document.getElementById('coffeeModeBtn').classList.add('active');
+                    document.getElementById('user-inputs').style.display = 'none';
                 }
                 document.getElementById('upload-type').innerText = `🔍 Ανιχνεύτηκε: ${currentMode === 'hand' ? '✋ Χέρι' : '☕ Φλιτζάνι'}`;
                 
@@ -269,9 +284,9 @@
                 setTimeout(() => {
                     let result;
                     if (currentMode === 'hand') {
-                        result = analyzeHandFromImage();
+                        result = analyzeHand(); // Χρησιμοποιεί την πλήρη ανάλυση χεριού
                     } else {
-                        result = analyzeCoffeeFromImage();
+                        result = analyzeCoffee();
                     }
                     displayResult(result);
                     analysisResult = result;
@@ -300,70 +315,69 @@
             });
         }
 
-        function capturePhoto() {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            capturedPhoto = canvas.toDataURL('image/png');
-        }
-
-        // --- Ανάλυση Χεριού ---
-        function analyzeHandFromImage() {
+        // --- Πλήρης Ανάλυση Χεριού (βασισμένη στο PDF) ---
+        function analyzeHand() {
             const age = parseInt(document.getElementById('user-age').value) || 30;
             const zodiac = document.getElementById('zodiac').value;
             
-            const mid = 1 + (Math.random() * 0.3 - 0.15);
-            const ring = 1 + (Math.random() * 0.3 - 0.15);
-            const thumb = 0.12 + Math.random() * 0.08;
-            
-            const elements = ["🌍 Γη", "💨 Αέρας", "🔥 Φωτιά", "💧 Νερό"];
-            const element = elements[Math.floor(Math.random() * elements.length)];
-            const elementDescs = {
-                "🌍 Γη": "Πρακτικότητα, λογική, σταθερότητα. Είστε προσγειωμένος/η, με ισχυρή σύνδεση με την πραγματικότητα.",
-                "💨 Αέρας": "Διανόηση, επικοινωνία, ανησυχία. Αγαπάτε τη γνώση, την ομιλία και τις νέες ιδέες.",
-                "🔥 Φωτιά": "Ενέργεια, πάθος, παρορμητισμός. Είστε γεμάτοι ζωή, δράση και ενθουσιασμό.",
-                "💧 Νερό": "Διαίσθηση, δημιουργικότητα, συναισθηματική ευαισθησία. Έχετε βαθιά συναισθήματα και καλλιτεχνική φύση."
-            };
-            
-            const mountDescs = [
+            // ----- Γραμμή Ζωής (Προσομοίωση) -----
+            const lifeLineTypes = [
+                { type: "Μακριά & Βαθιά", desc: "Καλή υγεία, ενεργητικότητα, ζωτικότητα, ισορροπία ψυχοσυναισθηματική." },
+                { type: "Κοντή & Βαθιά", desc: "Ικανότητα διεξόδου από ψυχικά και σωματικά προβλήματα. Οι άνθρωποι γύρω σου σε ελέγχουν." },
+                { type: "Αχνή", desc: "Χαμηλά επίπεδα ενέργειας και έλλειψη περιπέτειας / τόλμης και ρίσκου στη ζωή!" },
+                { type: "Διακεκομμένη", desc: "Αγώνες, απώλειες, απρόσμενες αλλαγές. Ξεπερνάς γρήγορα τα προβλήματα. Δύσκολη παιδική ηλικία." },
+                { type: "Αλυσιδωτή", desc: "Η ζωή σου σε οδηγεί σε πολλές κατευθύνσεις, μεγάλες αλλαγές. Πολλές ευαισθησίες." },
+                { type: "Διχαλωτή", desc: "Φήμη, δόξα, αναγνώριση, πολλά ταξίδια και ξαφνική αλλαγή ζωής!" },
+                { type: "Διπλή", desc: "Δίδυμα ή τρίδυμα αδέρφια. Γερή κράση ή 'διπλή' ζωή." }
+            ];
+            const lifeLine = lifeLineTypes[Math.floor(Math.random() * lifeLineTypes.length)];
+
+            // ----- Γραμμή Καρδιάς (Προσομοίωση) -----
+            const heartLineTypes = [
+                { type: "Μακριά", desc: "Ζεστό και δοτικό άτομο. Εξιδανικεύεις τις σχέσεις. Συναισθηματική εξάρτηση από γονείς." },
+                { type: "Κοντή", desc: "Κλείνεσαι στον εαυτό σου, δεν εμπιστεύεσαι εύκολα. Εγωιστικό στις σχέσεις." },
+                { type: "Βαθιά", desc: "Μόνιμο άγχος για σχέσεις, ανασφάλειες και συναισθηματικές φοβίες." },
+                { type: "Κυματώδης", desc: "Κάνεις αρκετές ερωτικές σχέσεις, δυσκολεύεσαι να δεσμευτείς μόνιμα." },
+                { type: "Τοξωτή", desc: "Διαισθητικό άτομο με πολλές ευαισθησίες και αγάπη για τους ανθρώπους. Εκφράζεις εύκολα συναισθήματα." },
+                { type: "Διπλή", desc: "Συνδυάζεις απόλυτα τη λογική με το συναίσθημα." },
+                { type: "Τριπλή", desc: "Συνδυάζεις τις σωματικές, συναισθηματικές και πνευματικές σου ανάγκες." }
+            ];
+            const heartLine = heartLineTypes[Math.floor(Math.random() * heartLineTypes.length)];
+
+            // ----- Γραμμή Νου (Προσομοίωση) -----
+            const headLineTypes = [
+                { type: "Μακριά", desc: "Εξυπνάδα, καλή μνήμη, δεν αντιδράς υπερβολικά." },
+                { type: "Ίσια", desc: "Ρεαλιστική σκέψη, προσγειωμένος/η, λογική, καλή οργάνωση, βάση στη λεπτομέρεια." },
+                { type: "Κυματώδης", desc: "Μάχη ανάμεσα στη λογική και το συναίσθημα. Δεν πιστεύεις στις δυνάμεις σου." },
+                { type: "Αχνή", desc: "Δεν μπορείς εύκολα να συγκεντρωθείς, χάνεσαι σε φαντασίες." },
+                { type: "Σπασμένη", desc: "Διλήμματα, αναποφασιστικότητα, αδυναμία για πρωτοβουλίες." },
+                { type: "Αλυσιδωτή", desc: "Φοβάσαι να θέσεις στόχους, θέλεις πάντα καθοδήγηση." }
+            ];
+            const headLine = headLineTypes[Math.floor(Math.random() * headLineTypes.length)];
+
+            // ----- Λόφοι (Προσομοίωση) -----
+            const mounts = [
                 "🪐 Λόφος Δία ανεπτυγμένος: Ηγεσία, φιλοδοξία.",
                 "♄ Λόφος Κρόνου ανεπτυγμένος: Σοβαρότητα, υπευθυνότητα.",
                 "☀️ Λόφος Απόλλωνα ανεπτυγμένος: Δημιουργικότητα, δόξα.",
                 "☿ Λόφος Ερμή ανεπτυγμένος: Επικοινωνία, εμπόριο.",
                 "♀️ Λόφος Αφροδίτης ανεπτυγμένος: Αγάπη, πάθος."
             ];
-            const selectedMounts = mountDescs.slice(0, 2 + Math.floor(Math.random() * 3)).join(' ');
-            
+            const selectedMounts = mounts.slice(0, 2 + Math.floor(Math.random() * 3)).join(' ');
+
+            // ----- Ηλικιακή Ανάλυση -----
             let ageAnalysis = "";
             if (age < 25) {
-                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια περίοδο δυναμικής εξέλιξης και αλλαγών. Νέες ευκαιρίες και προκλήσεις σας περιμένουν.`;
+                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια περίοδο δυναμικής εξέλιξης και αλλαγών. Νέες ευκαιρίες σας περιμένουν.`;
             } else if (age < 40) {
-                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει ωριμότητα και σταθερότητα. Είστε σε μια φάση όπου οι αποφάσεις σας έχουν μακροπρόθεσμες συνέπειες.`;
+                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει ωριμότητα και σταθερότητα. Οι αποφάσεις σας έχουν μακροπρόθεσμες συνέπειες.`;
             } else if (age < 60) {
-                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει σοφία και εμπειρία. Η ζωτική σας ενέργεια είναι ακόμα ισχυρή, με έμφαση στην οικογένεια και την πνευματική ανάπτυξη.`;
+                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει σοφία και εμπειρία. Έμφαση στην οικογένεια και την πνευματική ανάπτυξη.`;
             } else {
-                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια πλούσια διαδρομή. Η εμπειρία και η γνώση που έχετε συσσωρεύσει είναι το μεγαλύτερο σας πλεονέκτημα.`;
+                ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια πλούσια διαδρομή. Η εμπειρία σας είναι το μεγαλύτερο πλεονέκτημα.`;
             }
-            
-            const fateLine = Math.random() > 0.3 ? "εμφανής" : "ασαφής";
-            const sunLine = Math.random() > 0.4 ? "εμφανής" : "ασαφής";
-            let careerAnalysis = "";
-            if (fateLine === "εμφανής") {
-                careerAnalysis += "📈 Γραμμή Μοίρας εμφανής: Η καριέρα σας επηρεάζεται από εξωτερικούς παράγοντες, αλλά έχετε σταθερή πορεία. ";
-            } else {
-                careerAnalysis += "📉 Γραμμή Μοίρας ασαφής: Έχετε ελευθερία επιλογών, η καριέρα σας εξαρτάται από εσάς. ";
-            }
-            if (sunLine === "εμφανής") {
-                careerAnalysis += "☀️ Γραμμή Ήλιου εμφανής: Δόξα, επιτυχία και καλλιτεχνικό ταλέντο. ";
-            }
-            
-            const mysticCross = Math.random() > 0.5 ? "εμφανής" : "μη εμφανής";
-            let intuitionAnalysis = "";
-            if (mysticCross === "εμφανής") {
-                intuitionAnalysis = "✝️ Μυστικός Σταυρός: Έντονη διαίσθηση, ενδιαφέρον για το μεταφυσικό. ";
-            }
-            
+
+            // ----- Σύνδεση με Ζώδιο -----
             const zodiacMap = {
                 "Κριός": "Παρορμητική φύση, ενέργεια. Συνδεδεμένος με τον Λόφο του Άρη.",
                 "Ταύρος": "Σταθερότητα & αντοχή. Συνδεδεμένος με τον Λόφο της Αφροδίτης.",
@@ -379,36 +393,31 @@
                 "Ιχθείς": "Ενσυναίσθηση & φαντασία. Συνδεδεμένος με τον Λόφο της Σελήνης."
             };
             const zodiacMatch = zodiacMap[zodiac] || "Συνδυασμός με το ζώδιο σου.";
-            
+
             return {
                 type: 'hand',
-                element: element,
-                elementDesc: elementDescs[element] || "",
+                lifeLine: lifeLine,
+                heartLine: heartLine,
+                headLine: headLine,
                 mountsDesc: selectedMounts,
                 ageAnalysis: ageAnalysis,
-                careerAnalysis: careerAnalysis,
-                intuitionAnalysis: intuitionAnalysis,
-                handDominance: "Δεξί χέρι (επίτευγμα) / Αριστερό (πεπρωμένο)",
                 zodiac: zodiac,
                 zodiacMatch: zodiacMatch,
                 userAge: age,
                 stats: {
-                    "Δείκτης/Μέσος": mid.toFixed(2),
-                    "Παράμεσος/Δείκτης": ring.toFixed(2),
-                    "Άνοιγμα παλάμης": thumb.toFixed(3),
-                    "Στοιχείο": element,
-                    "Γραμμή Μοίρας": fateLine,
-                    "Γραμμή Ήλιου": sunLine,
-                    "Μυστικός Σταυρός": mysticCross,
+                    "Γραμμή Ζωής": lifeLine.type,
+                    "Γραμμή Καρδιάς": heartLine.type,
+                    "Γραμμή Νου": headLine.type,
+                    "Λόφοι": "Ενεργοί",
                     "Ηλικία": age
                 },
                 date: new Date().toISOString(),
-                source: 'upload'
+                source: 'camera'
             };
         }
 
-        // --- Ανάλυση Φλιτζανιού ---
-        function analyzeCoffeeFromImage() {
+        // --- Ανάλυση Φλιτζανιού (Προσομοίωση) ---
+        function analyzeCoffee() {
             const age = parseInt(document.getElementById('user-age').value) || 30;
             
             const shapes = ["Τετράγωνο","Κύκλος","Σταυρός","Τρίγωνο","Σπιτάκι","Ψάρι","Πουλί","Τριαντάφυλλο","Πρόσωπο","Ευθεία Γραμμή"];
@@ -455,13 +464,13 @@
 
             let coffeeAgeAnalysis = "";
             if (age < 25) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια περίοδο δημιουργικής αναζήτησης και νέων εμπειριών.`;
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια περίοδο δημιουργικής αναζήτησης.`;
             } else if (age < 40) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σταθερότητα και ωριμότητα, με νέες ευκαιρίες στον ορίζοντα.`;
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σταθερότητα και ωριμότητα.`;
             } else if (age < 60) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σοφία και εμπειρία. Οι προβλέψεις είναι πιο σίγουρες.`;
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σοφία και εμπειρία.`;
             } else {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια μακρά και πλούσια διαδρομή. Η εμπειρία σας φωτίζει το μέλλον.`;
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια μακρά διαδρομή.`;
             }
             
             return {
@@ -482,6 +491,22 @@
             };
         }
 
+        // --- Εκτέλεση Ανάλυσης (Αυτόματη) ---
+        function performAnalysis() {
+            if (currentMode === 'hand') {
+                const result = analyzeHand();
+                displayResult(result);
+                analysisResult = result;
+            } else {
+                // Για τον καφέ, η ανάλυση γίνεται μέσω upload
+                if (uploadedImage) {
+                    const result = analyzeCoffee();
+                    displayResult(result);
+                    analysisResult = result;
+                }
+            }
+        }
+
         // --- Εμφάνιση Αποτελέσματος ---
         function displayResult(r) {
             const area = document.getElementById('result-area');
@@ -493,29 +518,25 @@
             area.style.display = 'block';
 
             if (r.type === 'hand') {
-                elementDisplay.innerHTML = `<strong>${r.element}</strong> — ${r.elementDesc}`;
+                elementDisplay.innerHTML = `<strong>✋ Ανάλυση Χεριού</strong>`;
                 elementDisplay.style.color = "#FFD700";
                 
                 ageDisplay.innerHTML = `📅 ${r.ageAnalysis}`;
                 
                 text.innerHTML = `
+                    <strong>🧬 Γραμμή Ζωής (${r.lifeLine.type}):</strong> ${r.lifeLine.desc}<br>
+                    <strong>❤️ Γραμμή Καρδιάς (${r.heartLine.type}):</strong> ${r.heartLine.desc}<br>
+                    <strong>🧠 Γραμμή Νου (${r.headLine.type}):</strong> ${r.headLine.desc}<br>
                     <strong>🪐 Λόφοι:</strong> ${r.mountsDesc}<br>
-                    <strong>📈 Καριέρα:</strong> ${r.careerAnalysis}<br>
-                    <strong>🔮 Διαίσθηση:</strong> ${r.intuitionAnalysis}<br>
-                    <strong>🖐️ Χέρι:</strong> ${r.handDominance}<br>
                     <hr style="border-color:#444;">
                     <strong>♈ ${r.zodiac}:</strong> ${r.zodiacMatch}
                 `;
                 
                 grid.innerHTML = `
-                    <div class="stat-item"><span class="badge">Δείκτης/Μέσος</span><br>${r.stats["Δείκτης/Μέσος"]}</div>
-                    <div class="stat-item"><span class="badge">Παράμεσος/Δείκτης</span><br>${r.stats["Παράμεσος/Δείκτης"]}</div>
-                    <div class="stat-item"><span class="badge">Άνοιγμα παλάμης</span><br>${r.stats["Άνοιγμα παλάμης"]}</div>
-                    <div class="stat-item"><span class="badge">Στοιχείο</span><br>${r.stats["Στοιχείο"]}</div>
-                    <div class="stat-item"><span class="badge">Γραμμή Μοίρας</span><br>${r.stats["Γραμμή Μοίρας"]}</div>
-                    <div class="stat-item"><span class="badge">Γραμμή Ήλιου</span><br>${r.stats["Γραμμή Ήλιου"]}</div>
-                    <div class="stat-item"><span class="badge">Μυστικός Σταυρός</span><br>${r.stats["Μυστικός Σταυρός"]}</div>
-                    <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.stats["Ηλικία"]}</div>
+                    <div class="stat-item"><span class="badge">Γραμμή Ζωής</span><br>${r.lifeLine.type}</div>
+                    <div class="stat-item"><span class="badge">Γραμμή Καρδιάς</span><br>${r.heartLine.type}</div>
+                    <div class="stat-item"><span class="badge">Γραμμή Νου</span><br>${r.headLine.type}</div>
+                    <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.userAge}</div>
                 `;
             } else {
                 elementDisplay.innerHTML = `<strong>☕ Ανάλυση Φλιτζανιού</strong>`;
@@ -524,22 +545,22 @@
                 ageDisplay.innerHTML = `📅 ${r.ageAnalysis}`;
                 
                 text.innerHTML = `
-                    <strong>☕ Σχήμα που εντοπίστηκε:</strong> ${r.shape}<br>
-                    <strong>📖 Ερμηνεία σχήματος:</strong> ${r.shapeInterpretation}<br>
+                    <strong>☕ Σχήμα:</strong> ${r.shape}<br>
+                    <strong>📖 Ερμηνεία:</strong> ${r.shapeInterpretation}<br>
                     <hr style="border-color:#444;">
-                    <strong>🔤 Γράμμα που εντοπίστηκε:</strong> ${r.letter}<br>
-                    <strong>📖 Ερμηνεία γράμματος:</strong> ${r.letterInterpretation}
+                    <strong>🔤 Γράμμα:</strong> ${r.letter}<br>
+                    <strong>📖 Ερμηνεία:</strong> ${r.letterInterpretation}
                 `;
                 
                 grid.innerHTML = `
-                    <div class="stat-item"><span class="badge">Σχήμα</span><br>${r.stats["Σχήμα"]}</div>
-                    <div class="stat-item"><span class="badge">Γράμμα</span><br>${r.stats["Γράμμα"]}</div>
-                    <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.stats["Ηλικία"]}</div>
+                    <div class="stat-item"><span class="badge">Σχήμα</span><br>${r.shape}</div>
+                    <div class="stat-item"><span class="badge">Γράμμα</span><br>${r.letter}</div>
+                    <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.userAge}</div>
                 `;
             }
         }
 
-        // --- Ανάλυση με Διαφήμιση (Monetag) ---
+        // --- Διαφήμιση & Ανανέωση ---
         function callMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_10979429 === 'function') {
@@ -556,40 +577,28 @@
             });
         }
 
-        function analyzeWithAd() {
-            if (currentMode === 'hand' && !landmarksData && !uploadedImage) {
-                alert("Δείξε το χέρι σου ή ανέβασε φωτογραφία!");
-                return;
-            }
-            if (currentMode === 'coffee' && !uploadedImage) {
-                alert("Ανέβασε φωτογραφία φλιτζανιού!");
-                return;
-            }
-
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('analyzeBtn').disabled = true;
-
-            // Προβολή διαφήμισης πριν την ανάλυση
+        function refreshWithAd() {
+            // Προβολή διαφήμισης
             callMonetagAd().then(() => {
-                performAnalysis();
+                resetAll();
             }).catch(() => {
-                performAnalysis();
+                resetAll();
             });
         }
 
-        function performAnalysis() {
-            setTimeout(() => {
-                let result;
-                if (currentMode === 'hand') {
-                    result = analyzeHandFromImage();
-                } else {
-                    result = analyzeCoffeeFromImage();
-                }
-                displayResult(result);
-                analysisResult = result;
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('analyzeBtn').disabled = false;
-            }, 300);
+        // --- Reset ---
+        function resetAll() {
+            document.getElementById('result-area').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').innerText = "📷 Κάμερα";
+            ctx.clearRect(0,0,overlay.width,overlay.height);
+            landmarksData = null;
+            analysisResult = null;
+            analysisDone = false;
+            document.getElementById('upload-preview').style.display = 'none';
+            document.getElementById('auto-status').style.display = 'none';
+            document.getElementById('upload-type').innerText = '';
         }
 
         // --- Ιστορικό & PDF ---
@@ -617,7 +626,7 @@
                 <div class="history-item">
                     <strong>#${i+1}</strong> <small>${item.dateStr}</small> (${item.source})<br>
                     ${item.type === 'hand' ? 
-                        `✋ ${item.element} | ♈ ${item.zodiac} | 📅 ${item.userAge} ετών` :
+                        `✋ ${item.lifeLine.type} | ♈ ${item.zodiac} | 📅 ${item.userAge} ετών` :
                         `☕ Σχήμα: ${item.shape} | Γράμμα: ${item.letter} | 📅 ${item.userAge} ετών`
                     }
                     <div class="history-actions">
@@ -648,8 +657,6 @@
             const h = JSON.parse(localStorage.getItem('history') || '[]');
             const item = h[i];
             if (!item) return;
-            const preview = document.createElement('div');
-            preview.style.display = 'block';
             const content = document.createElement('div');
             content.innerHTML = `
                 <div style="font-family:Arial; padding:20px; color:#111; background:white; max-width:500px; margin:auto; border-radius:15px;">
@@ -657,11 +664,10 @@
                     <p style="text-align:center; color:#555;">${item.dateStr}</p>
                     <hr>
                     ${item.type === 'hand' ? `
-                        <p><strong>🌍 Στοιχείο:</strong> ${item.element}</p>
-                        <p><strong>📅 Ηλικιακή ανάλυση:</strong> ${item.ageAnalysis}</p>
+                        <p><strong>🧬 Γραμμή Ζωής:</strong> ${item.lifeLine.type} — ${item.lifeLine.desc}</p>
+                        <p><strong>❤️ Γραμμή Καρδιάς:</strong> ${item.heartLine.type} — ${item.heartLine.desc}</p>
+                        <p><strong>🧠 Γραμμή Νου:</strong> ${item.headLine.type} — ${item.headLine.desc}</p>
                         <p><strong>♈ Ζώδιο:</strong> ${item.zodiac} — ${item.zodiacMatch}</p>
-                        <p><strong>📈 Καριέρα:</strong> ${item.careerAnalysis}</p>
-                        <p><strong>🔮 Διαίσθηση:</strong> ${item.intuitionAnalysis}</p>
                     ` : `
                         <p><strong>☕ Σχήμα:</strong> ${item.shape}</p>
                         <p><strong>📖 Ερμηνεία:</strong> ${item.shapeInterpretation}</p>
@@ -690,11 +696,10 @@
                     <p style="text-align:center; color:#555;">${now.toLocaleDateString('el-GR')}</p>
                     <hr>
                     ${analysisResult.type === 'hand' ? `
-                        <p><strong>🌍 Στοιχείο:</strong> ${analysisResult.element}</p>
-                        <p><strong>📅 Ηλικιακή ανάλυση:</strong> ${analysisResult.ageAnalysis}</p>
+                        <p><strong>🧬 Γραμμή Ζωής:</strong> ${analysisResult.lifeLine.type} — ${analysisResult.lifeLine.desc}</p>
+                        <p><strong>❤️ Γραμμή Καρδιάς:</strong> ${analysisResult.heartLine.type} — ${analysisResult.heartLine.desc}</p>
+                        <p><strong>🧠 Γραμμή Νου:</strong> ${analysisResult.headLine.type} — ${analysisResult.headLine.desc}</p>
                         <p><strong>♈ Ζώδιο:</strong> ${analysisResult.zodiac} — ${analysisResult.zodiacMatch}</p>
-                        <p><strong>📈 Καριέρα:</strong> ${analysisResult.careerAnalysis}</p>
-                        <p><strong>🔮 Διαίσθηση:</strong> ${analysisResult.intuitionAnalysis}</p>
                     ` : `
                         <p><strong>☕ Σχήμα:</strong> ${analysisResult.shape}</p>
                         <p><strong>📖 Ερμηνεία:</strong> ${analysisResult.shapeInterpretation}</p>
@@ -711,20 +716,6 @@
             const w = pdf.internal.pageSize.getWidth();
             pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, (canvas.height * w) / canvas.width);
             pdf.save(`HandMaster_${now.toISOString().slice(0,10)}.pdf`);
-        }
-
-        function resetAll() {
-            document.getElementById('result-area').style.display = 'none';
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('analyzeBtn').disabled = true;
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').innerText = "📷 Κάμερα";
-            ctx.clearRect(0,0,overlay.width,overlay.height);
-            landmarksData = null;
-            analysisResult = null;
-            document.getElementById('upload-preview').style.display = 'none';
-            document.getElementById('auto-status').style.display = 'none';
-            document.getElementById('upload-type').innerText = '';
         }
 
         function drawConnectors(ctx, lm, conn, style) {
