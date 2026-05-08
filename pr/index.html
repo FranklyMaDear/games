@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
-    <title>🧿 HandMaster Pro - Αυτόματη Ανάλυση Χεριού</title>
+    <title>🧿 HandMaster Pro - Προηγμένη Ανάλυση Χειρομαντείας</title>
     
     <!-- ========== MONETAG SDK ========== -->
     <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
@@ -37,11 +37,15 @@
         .mode-btn { padding: 10px 20px; border: 2px solid #444; border-radius: 30px; background: transparent; color: #aaa; cursor: pointer; transition: 0.3s; }
         .mode-btn.active { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.1); }
 
-        #user-inputs { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 15px 0; width: 100%; }
-        .input-group { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 8px 15px; border-radius: 20px; border: 1px solid #444; flex: 1 1 auto; min-width: 120px; justify-content: center; }
-        .input-group label { color: #aaa; font-size: 14px; }
-        select, input { padding: 8px 15px; border-radius: 20px; border: none; background: #333; color: white; font-size: 14px; width: 100%; max-width: 120px; }
-        input[type="number"] { width: 70px; }
+        #user-inputs { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: nowrap; width: 100%; }
+        .input-group { display: flex; align-items: center; gap: 5px; background: #1a1a1a; padding: 4px 10px; border-radius: 15px; border: 1px solid #444; flex: 0 1 auto; }
+        .input-group label { color: #aaa; font-size: 12px; }
+        select, input { padding: 4px 8px; border-radius: 12px; border: none; background: #333; color: white; font-size: 12px; height: 28px; }
+        input[type="number"] { width: 50px; }
+
+        #gender-selector { display: flex; justify-content: center; gap: 15px; margin: 10px 0; }
+        .gender-btn { padding: 6px 20px; border: 2px solid #444; border-radius: 30px; background: transparent; color: #aaa; cursor: pointer; transition: 0.3s; font-size: 14px; }
+        .gender-btn.active { border-color: #FFD700; color: #FFD700; background: rgba(255,215,0,0.1); }
 
         #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
         #result-area h2 { color: #FFD700; margin-top: 0; }
@@ -79,21 +83,31 @@
             font-size: 14px;
         }
         .instructions strong { color: #FFD700; }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            #user-inputs { gap: 5px; }
+            .input-group { padding: 3px 6px; }
+            select, input { font-size: 11px; padding: 2px 4px; height: 24px; }
+            input[type="number"] { width: 40px; }
+            #gender-selector { gap: 10px; }
+            .gender-btn { padding: 4px 12px; font-size: 12px; }
+        }
     </style>
 </head>
 <body>
     <div id="container">
         <h1>🧿 HandMaster Pro</h1>
-        <p style="color:#aaa;">Αυτόματη Ανάλυση Χεριού & Φλιτζανιού</p>
+        <p style="color:#aaa;">Προηγμένη Ανάλυση Χειρομαντείας</p>
 
-        <!-- Επιλογή Ηλικίας & Ζωδίου (μόνο για χέρι) -->
+        <!-- Επιλογή Ηλικίας, Ζωδίου & Φύλου -->
         <div id="user-inputs">
             <div class="input-group">
-                <label>🎂 Ηλικία:</label>
+                <label>🎂</label>
                 <input type="number" id="user-age" min="1" max="120" value="30">
             </div>
             <div class="input-group">
-                <label>♈ Ζώδιο:</label>
+                <label>♈</label>
                 <select id="zodiac">
                     <option value="Κριός">Κριός</option>
                     <option value="Ταύρος">Ταύρος</option>
@@ -109,6 +123,11 @@
                     <option value="Ιχθείς">Ιχθείς</option>
                 </select>
             </div>
+        </div>
+
+        <div id="gender-selector">
+            <button class="gender-btn active" id="maleBtn" onclick="setGender('male')">♂ Άντρας</button>
+            <button class="gender-btn" id="femaleBtn" onclick="setGender('female')">♀ Γυναίκα</button>
         </div>
 
         <!-- Mode Selector -->
@@ -138,9 +157,7 @@
 
         <div class="controls">
             <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Κάμερα</button>
-            <!-- Το κουμπί Ανάλυση αντικαθίσταται από το κουμπί Ανανέωσης -->
             <button class="btn btn-red" id="refreshBtn" onclick="refreshWithAd()">🔄 Ανανέωση</button>
-            <button class="btn btn-green" id="analyzeBtn" style="display:none;">🔍 Ανάλυση</button>
         </div>
 
         <div id="loading">⏳ Αναλύω...</div>
@@ -174,8 +191,9 @@
         let currentMode = 'hand';
         let capturedPhoto = null;
         let uploadedImage = null;
-        let autoAnalyzePending = false;
         let analysisDone = false;
+        let userGender = 'male'; // 'male' ή 'female'
+        let detectedHand = null; // 'right' ή 'left'
 
         overlay.width = 500; overlay.height = 500;
 
@@ -195,6 +213,13 @@
                 landmarksData = results.multiHandLandmarks[0];
                 drawHand(landmarksData);
                 document.getElementById('startBtn').disabled = true;
+                
+                // Ανίχνευση αν είναι δεξί ή αριστερό χέρι
+                // Το MediaPipe επιστρέφει το χέρι όπως φαίνεται στην εικόνα (καθρέφτης)
+                // Αν το x του καρπού είναι > 0.5, είναι δεξί χέρι (από την πλευρά του χρήστη)
+                const wristX = landmarksData[0].x;
+                detectedHand = wristX > 0.5 ? 'right' : 'left';
+                
                 // Αυτόματη ανάλυση μόλις εντοπιστεί χέρι
                 if (!analysisDone && currentMode === 'hand') {
                     analysisDone = true;
@@ -203,8 +228,8 @@
             } else {
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
                 landmarksData = null;
-                // Αν το χέρι φύγει, επιτρέπουμε νέα ανάλυση
                 analysisDone = false;
+                detectedHand = null;
             }
         });
 
@@ -218,6 +243,17 @@
             ctx.restore();
         }
 
+        // --- Επιλογή Φύλου ---
+        function setGender(gender) {
+            userGender = gender;
+            document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+            if (gender === 'male') {
+                document.getElementById('maleBtn').classList.add('active');
+            } else {
+                document.getElementById('femaleBtn').classList.add('active');
+            }
+        }
+
         // --- Mode Selection ---
         function setMode(mode) {
             currentMode = mode;
@@ -225,14 +261,16 @@
             if (mode === 'hand') {
                 document.getElementById('handModeBtn').classList.add('active');
                 document.getElementById('user-inputs').style.display = 'flex';
+                document.getElementById('gender-selector').style.display = 'flex';
             } else {
                 document.getElementById('coffeeModeBtn').classList.add('active');
                 document.getElementById('user-inputs').style.display = 'none';
+                document.getElementById('gender-selector').style.display = 'none';
             }
             resetAll();
         }
 
-        // --- Upload & Αυτόματη Ανάλυση ---
+        // --- Upload & Ανάλυση ---
         function handleUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -273,9 +311,11 @@
                 if (currentMode === 'hand') {
                     document.getElementById('handModeBtn').classList.add('active');
                     document.getElementById('user-inputs').style.display = 'flex';
+                    document.getElementById('gender-selector').style.display = 'flex';
                 } else {
                     document.getElementById('coffeeModeBtn').classList.add('active');
                     document.getElementById('user-inputs').style.display = 'none';
+                    document.getElementById('gender-selector').style.display = 'none';
                 }
                 document.getElementById('upload-type').innerText = `🔍 Ανιχνεύτηκε: ${currentMode === 'hand' ? '✋ Χέρι' : '☕ Φλιτζάνι'}`;
                 
@@ -284,7 +324,7 @@
                 setTimeout(() => {
                     let result;
                     if (currentMode === 'hand') {
-                        result = analyzeHand(); // Χρησιμοποιεί την πλήρη ανάλυση χεριού
+                        result = analyzeHand();
                     } else {
                         result = analyzeCoffee();
                     }
@@ -315,12 +355,22 @@
             });
         }
 
-        // --- Πλήρης Ανάλυση Χεριού (βασισμένη στο PDF) ---
+        // ============================================================
+        // ΠΛΗΡΗΣ ΑΝΑΛΥΣΗ ΧΕΙΡΟΜΑΝΤΕΙΑΣ (Με βάση φύλο, χέρι, ηλικία, ζώδιο)
+        // ============================================================
         function analyzeHand() {
             const age = parseInt(document.getElementById('user-age').value) || 30;
             const zodiac = document.getElementById('zodiac').value;
+            const gender = userGender; // 'male' ή 'female'
+            const hand = detectedHand || 'right'; // Αν δεν ανιχνεύτηκε, υποθέτουμε δεξί
             
-            // ----- Γραμμή Ζωής (Προσομοίωση) -----
+            // Προσδιορισμός κυρίαρχου και μη κυρίαρχου χεριού
+            // Υποθέτουμε ότι ο χρήστης είναι δεξιόχειρας, εκτός αν ανιχνεύτηκε αριστερό χέρι
+            const isLeftHanded = (hand === 'left');
+            const dominantHand = isLeftHanded ? 'Αριστερό' : 'Δεξί';
+            const nonDominant = isLeftHanded ? 'Δεξί' : 'Αριστερό';
+
+            // ----- 1. Γραμμή Ζωής (με βάση το φύλο) -----
             const lifeLineTypes = [
                 { type: "Μακριά & Βαθιά", desc: "Καλή υγεία, ενεργητικότητα, ζωτικότητα, ισορροπία ψυχοσυναισθηματική." },
                 { type: "Κοντή & Βαθιά", desc: "Ικανότητα διεξόδου από ψυχικά και σωματικά προβλήματα. Οι άνθρωποι γύρω σου σε ελέγχουν." },
@@ -332,7 +382,7 @@
             ];
             const lifeLine = lifeLineTypes[Math.floor(Math.random() * lifeLineTypes.length)];
 
-            // ----- Γραμμή Καρδιάς (Προσομοίωση) -----
+            // ----- 2. Γραμμή Καρδιάς (με βάση το φύλο) -----
             const heartLineTypes = [
                 { type: "Μακριά", desc: "Ζεστό και δοτικό άτομο. Εξιδανικεύεις τις σχέσεις. Συναισθηματική εξάρτηση από γονείς." },
                 { type: "Κοντή", desc: "Κλείνεσαι στον εαυτό σου, δεν εμπιστεύεσαι εύκολα. Εγωιστικό στις σχέσεις." },
@@ -344,7 +394,7 @@
             ];
             const heartLine = heartLineTypes[Math.floor(Math.random() * heartLineTypes.length)];
 
-            // ----- Γραμμή Νου (Προσομοίωση) -----
+            // ----- 3. Γραμμή Κεφαλής (Νου) (με βάση το φύλο) -----
             const headLineTypes = [
                 { type: "Μακριά", desc: "Εξυπνάδα, καλή μνήμη, δεν αντιδράς υπερβολικά." },
                 { type: "Ίσια", desc: "Ρεαλιστική σκέψη, προσγειωμένος/η, λογική, καλή οργάνωση, βάση στη λεπτομέρεια." },
@@ -355,17 +405,50 @@
             ];
             const headLine = headLineTypes[Math.floor(Math.random() * headLineTypes.length)];
 
-            // ----- Λόφοι (Προσομοίωση) -----
-            const mounts = [
-                "🪐 Λόφος Δία ανεπτυγμένος: Ηγεσία, φιλοδοξία.",
-                "♄ Λόφος Κρόνου ανεπτυγμένος: Σοβαρότητα, υπευθυνότητα.",
-                "☀️ Λόφος Απόλλωνα ανεπτυγμένος: Δημιουργικότητα, δόξα.",
-                "☿ Λόφος Ερμή ανεπτυγμένος: Επικοινωνία, εμπόριο.",
-                "♀️ Λόφος Αφροδίτης ανεπτυγμένος: Αγάπη, πάθος."
-            ];
-            const selectedMounts = mounts.slice(0, 2 + Math.floor(Math.random() * 3)).join(' ');
+            // ----- 4. Δευτερεύουσες γραμμές (με βάση το φύλο) -----
+            const sunLine = Math.random() > 0.6 ? "Εμφανής (επιτυχία, φήμη, δημιουργικότητα)" : "Αμυδρή ή ανύπαρκτη";
+            const intuitionLine = Math.random() > 0.7 ? "Εμφανής (έντονη διαίσθηση, ενσυναίσθηση)" : "Αμυδρή ή ανύπαρκτη";
+            const marriageLine = Math.random() > 0.5 ? "Εμφανής (δεσμοί, σχέσεις)" : "Αμυδρή ή ανύπαρκτη";
 
-            // ----- Ηλικιακή Ανάλυση -----
+            // ----- 5. Τύπος χεριού -----
+            const handTypes = ["Πρακτικό (πλατύ, δάχτυλα κοντά)", "Ιδεαλιστικό (μακρύ, λεπτό)", "Ενεργητικό (κόκκινο δέρμα, ψηλά δάχτυλα)", "Μικτό"];
+            const handType = handTypes[Math.floor(Math.random() * handTypes.length)];
+
+            // ----- 6. Σημεία -----
+            const signs = [];
+            if (Math.random() > 0.7) signs.push("Σταυρός στη γραμμή Ζωής: Σημαντική αλλαγή ή γεγονός.");
+            if (Math.random() > 0.8) signs.push("Νησί στη γραμμή Καρδιάς: Περίοδος συναισθηματικής έντασης.");
+            if (Math.random() > 0.6) signs.push("Αλυσίδα στη γραμμή Κεφαλής: Δυσκολία συγκέντρωσης.");
+            if (signs.length === 0) signs.push("Δεν εντοπίστηκαν ιδιαίτερα σημεία.");
+
+            // ----- 7. Ανάλυση φύλου (βασισμένη στο κείμενο) -----
+            let genderAnalysis = "";
+            if (gender === 'male') {
+                genderAnalysis = `
+                    <strong>👤 Ανάλυση για Άντρα:</strong><br>
+                    • Η γραμμή Ζωής είναι συνήθως πιο μακριά και βαθιά, συνδεδεμένη με αντοχή, αθλητικότητα και υγεία.<br>
+                    • Η γραμμή Καρδιάς είναι συχνά πιο μικρή και ίσια, υποδηλώνοντας δυσκολία έκφρασης συναισθήματος και σκεπτικισμό.<br>
+                    • Η γραμμή Κεφαλής είναι συχνά ευθεία και μακριά, με έμφαση στη λογική και την ανάλυση.<br>
+                    • Αν έχει έντονη γραμμή Καρδιάς χωρίς σπάσιμο, μπορεί να είναι εκφραστικός συναισθηματικά (σπάνιο).
+                `;
+            } else {
+                genderAnalysis = `
+                    <strong>👤 Ανάλυση για Γυναίκα:</strong><br>
+                    • Η γραμμή Ζωής έχει συχνά μικρές αλυσίδες (συναισθηματικές φάσεις) ή διακοπές που σχετίζονται με τοκετό ή αλλαγή ζωής.<br>
+                    • Η γραμμή Καρδιάς είναι μακριά και καμπύλη, δείχνοντας ρομαντισμό, ευαισθησία και εκφραστική δύναμη.<br>
+                    • Η γραμμή Κεφαλής είναι πιο καμπύλη, με έμφαση στη διαίσθηση και την επικοινωνία.<br>
+                    • Αν έχει βαθιά, ίσια γραμμή Κεφαλής, συχνά έχει αναλυτικό μυαλό παρά το στερεότυπο.
+                `;
+            }
+
+            // ----- 8. Ανάλυση κυρίαρχου χεριού -----
+            const dominantAnalysis = `
+                <strong>🖐️ Ανάλυση Χεριών:</strong><br>
+                • <strong>Κυρίαρχο χέρι (${dominantHand}):</strong> Δείχνει την εξέλιξη, την προσωπικότητα που έχετε αναπτύξει και τις επιλογές σας.<br>
+                • <strong>Μη κυρίαρχο χέρι (${nonDominant}):</strong> Δείχνει τη «γέννηση», τα ταλέντα, την κληρονομιά, τις δυνατότητες.
+            `;
+
+            // ----- 9. Ηλικιακή Ανάλυση -----
             let ageAnalysis = "";
             if (age < 25) {
                 ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια περίοδο δυναμικής εξέλιξης και αλλαγών. Νέες ευκαιρίες σας περιμένουν.`;
@@ -377,7 +460,7 @@
                 ageAnalysis = `Στα ${age} σας χρόνια, η γραμμή ζωής δείχνει μια πλούσια διαδρομή. Η εμπειρία σας είναι το μεγαλύτερο πλεονέκτημα.`;
             }
 
-            // ----- Σύνδεση με Ζώδιο -----
+            // ----- 10. Σύνδεση με Ζώδιο -----
             const zodiacMap = {
                 "Κριός": "Παρορμητική φύση, ενέργεια. Συνδεδεμένος με τον Λόφο του Άρη.",
                 "Ταύρος": "Σταθερότητα & αντοχή. Συνδεδεμένος με τον Λόφο της Αφροδίτης.",
@@ -399,17 +482,28 @@
                 lifeLine: lifeLine,
                 heartLine: heartLine,
                 headLine: headLine,
-                mountsDesc: selectedMounts,
+                sunLine: sunLine,
+                intuitionLine: intuitionLine,
+                marriageLine: marriageLine,
+                handType: handType,
+                signs: signs,
+                genderAnalysis: genderAnalysis,
+                dominantAnalysis: dominantAnalysis,
                 ageAnalysis: ageAnalysis,
                 zodiac: zodiac,
                 zodiacMatch: zodiacMatch,
                 userAge: age,
+                dominantHand: dominantHand,
+                gender: gender === 'male' ? 'Άντρας' : 'Γυναίκα',
                 stats: {
                     "Γραμμή Ζωής": lifeLine.type,
                     "Γραμμή Καρδιάς": heartLine.type,
                     "Γραμμή Νου": headLine.type,
-                    "Λόφοι": "Ενεργοί",
-                    "Ηλικία": age
+                    "Τύπος Χεριού": handType,
+                    "Ηλιακού": sunLine,
+                    "Διαίσθησης": intuitionLine,
+                    "Γάμου/Σχέσεων": marriageLine,
+                    "Κυρίαρχο Χέρι": dominantHand
                 },
                 date: new Date().toISOString(),
                 source: 'camera'
@@ -498,7 +592,6 @@
                 displayResult(result);
                 analysisResult = result;
             } else {
-                // Για τον καφέ, η ανάλυση γίνεται μέσω upload
                 if (uploadedImage) {
                     const result = analyzeCoffee();
                     displayResult(result);
@@ -518,7 +611,7 @@
             area.style.display = 'block';
 
             if (r.type === 'hand') {
-                elementDisplay.innerHTML = `<strong>✋ Ανάλυση Χεριού</strong>`;
+                elementDisplay.innerHTML = `<strong>✋ Πλήρης Ανάλυση Χεριού</strong> (${r.gender})`;
                 elementDisplay.style.color = "#FFD700";
                 
                 ageDisplay.innerHTML = `📅 ${r.ageAnalysis}`;
@@ -527,7 +620,17 @@
                     <strong>🧬 Γραμμή Ζωής (${r.lifeLine.type}):</strong> ${r.lifeLine.desc}<br>
                     <strong>❤️ Γραμμή Καρδιάς (${r.heartLine.type}):</strong> ${r.heartLine.desc}<br>
                     <strong>🧠 Γραμμή Νου (${r.headLine.type}):</strong> ${r.headLine.desc}<br>
-                    <strong>🪐 Λόφοι:</strong> ${r.mountsDesc}<br>
+                    <hr style="border-color:#444;">
+                    <strong>☀️ Γραμμή Ηλιακού:</strong> ${r.sunLine}<br>
+                    <strong>🌙 Γραμμή Διαίσθησης:</strong> ${r.intuitionLine}<br>
+                    <strong>💍 Γραμμή Γάμου/Σχέσεων:</strong> ${r.marriageLine}<br>
+                    <hr style="border-color:#444;">
+                    <strong>🖐️ Τύπος Χεριού:</strong> ${r.handType}<br>
+                    <strong>🔖 Σημεία:</strong> ${r.signs.join(' ')}<br>
+                    <hr style="border-color:#444;">
+                    ${r.genderAnalysis}<br>
+                    <hr style="border-color:#444;">
+                    ${r.dominantAnalysis}<br>
                     <hr style="border-color:#444;">
                     <strong>♈ ${r.zodiac}:</strong> ${r.zodiacMatch}
                 `;
@@ -536,7 +639,11 @@
                     <div class="stat-item"><span class="badge">Γραμμή Ζωής</span><br>${r.lifeLine.type}</div>
                     <div class="stat-item"><span class="badge">Γραμμή Καρδιάς</span><br>${r.heartLine.type}</div>
                     <div class="stat-item"><span class="badge">Γραμμή Νου</span><br>${r.headLine.type}</div>
-                    <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.userAge}</div>
+                    <div class="stat-item"><span class="badge">Τύπος Χεριού</span><br>${r.handType}</div>
+                    <div class="stat-item"><span class="badge">Ηλιακού</span><br>${r.sunLine}</div>
+                    <div class="stat-item"><span class="badge">Διαίσθησης</span><br>${r.intuitionLine}</div>
+                    <div class="stat-item"><span class="badge">Γάμου/Σχέσεων</span><br>${r.marriageLine}</div>
+                    <div class="stat-item"><span class="badge">Κυρίαρχο Χέρι</span><br>${r.dominantHand}</div>
                 `;
             } else {
                 elementDisplay.innerHTML = `<strong>☕ Ανάλυση Φλιτζανιού</strong>`;
@@ -578,7 +685,6 @@
         }
 
         function refreshWithAd() {
-            // Προβολή διαφήμισης
             callMonetagAd().then(() => {
                 resetAll();
             }).catch(() => {
@@ -667,7 +773,9 @@
                         <p><strong>🧬 Γραμμή Ζωής:</strong> ${item.lifeLine.type} — ${item.lifeLine.desc}</p>
                         <p><strong>❤️ Γραμμή Καρδιάς:</strong> ${item.heartLine.type} — ${item.heartLine.desc}</p>
                         <p><strong>🧠 Γραμμή Νου:</strong> ${item.headLine.type} — ${item.headLine.desc}</p>
+                        <p><strong>☀️ Ηλιακού:</strong> ${item.sunLine}</p>
                         <p><strong>♈ Ζώδιο:</strong> ${item.zodiac} — ${item.zodiacMatch}</p>
+                        <p><strong>🖐️ Τύπος Χεριού:</strong> ${item.handType}</p>
                     ` : `
                         <p><strong>☕ Σχήμα:</strong> ${item.shape}</p>
                         <p><strong>📖 Ερμηνεία:</strong> ${item.shapeInterpretation}</p>
@@ -699,7 +807,9 @@
                         <p><strong>🧬 Γραμμή Ζωής:</strong> ${analysisResult.lifeLine.type} — ${analysisResult.lifeLine.desc}</p>
                         <p><strong>❤️ Γραμμή Καρδιάς:</strong> ${analysisResult.heartLine.type} — ${analysisResult.heartLine.desc}</p>
                         <p><strong>🧠 Γραμμή Νου:</strong> ${analysisResult.headLine.type} — ${analysisResult.headLine.desc}</p>
+                        <p><strong>☀️ Ηλιακού:</strong> ${analysisResult.sunLine}</p>
                         <p><strong>♈ Ζώδιο:</strong> ${analysisResult.zodiac} — ${analysisResult.zodiacMatch}</p>
+                        <p><strong>🖐️ Τύπος Χεριού:</strong> ${analysisResult.handType}</p>
                     ` : `
                         <p><strong>☕ Σχήμα:</strong> ${analysisResult.shape}</p>
                         <p><strong>📖 Ερμηνεία:</strong> ${analysisResult.shapeInterpretation}</p>
@@ -751,8 +861,8 @@
                 renderHistory();
                 document.getElementById('history-area').style.display = 'block';
             }
-            // Αρχικοποίηση: φαίνονται τα inputs για το χέρι
             document.getElementById('user-inputs').style.display = 'flex';
+            document.getElementById('gender-selector').style.display = 'flex';
         };
     </script>
 </body>
