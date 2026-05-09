@@ -2,517 +2,375 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
-    <title>☕ Omen - Καφεμαντεία</title>
-    
-    <!-- ========== MONETAG SDK ========== -->
-    <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>☕ Omen - Ανάλυση Καφέ</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d0d0d; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        h1 { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.3); }
+        h1 { color: #FFD700; }
         #container { max-width: 700px; margin: 0 auto; }
         
-        #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #FFD700; box-shadow: 0 0 30px rgba(255,215,0,0.2); background: #111; }
-        video { width: 100%; display: block; transform: scaleX(-1); }
-        canvas#debugCanvas { display: none; }
-
-        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
-        .btn { padding: 12px 24px; border: none; border-radius: 30px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; flex: 1; min-width: 80px; }
-        .btn-gold { background: #FFD700; color: #111; }
-        .btn-gold:hover { background: #FFC107; transform: scale(1.03); }
-        .btn-green { background: #2ecc71; color: #fff; }
-        .btn-red { background: #e74c3c; color: #fff; }
-        .btn-blue { background: #3498db; color: #fff; }
-        .btn-purple { background: #9b59b6; color: #fff; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-        #user-inputs-row { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 10px 0; flex-wrap: wrap; width: 100%; }
-        .input-group { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 10px 16px; border-radius: 25px; border: 1px solid #444; flex: 0 1 auto; min-width: 140px; }
-        .input-group label { color: #aaa; font-size: 14px; }
-        input { padding: 6px 12px; border-radius: 20px; border: none; background: #333; color: white; font-size: 14px; height: 36px; }
-        input[type="number"] { width: 60px; }
-
-        #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
-        #result-area h2 { color: #FFD700; margin-top: 0; }
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-        .stat-item { background: #222; padding: 8px 12px; border-radius: 10px; }
-
-        .badge { display: inline-block; background: #FFD700; color: #111; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
-        #loading { display: none; margin: 15px; color: #aaa; }
-
-        #upload-section { margin: 20px 0; padding: 25px; border: 2px dashed #444; border-radius: 20px; background: #1a1a1a; }
-        #upload-section:hover { border-color: #FFD700; }
+        .upload-box { border: 2px dashed #FFD700; padding: 30px; border-radius: 20px; margin: 20px 0; cursor: pointer; background: #1a1a1a; }
+        .upload-box:hover { background: #222; }
         #file-input { display: none; }
-        .upload-label { padding: 15px 30px; background: #333; border-radius: 30px; cursor: pointer; display: inline-block; transition: 0.3s; font-size: 16px; }
-        .upload-label:hover { background: #444; }
-        #upload-preview { max-width: 100%; max-height: 300px; border-radius: 10px; margin: 10px 0; display: none; }
         
-        #contour-preview { display: none; margin: 10px 0; background: #111; border-radius: 10px; overflow: hidden; max-width: 300px; margin: 10px auto; }
-
-        #history-area { display: none; margin-top: 30px; text-align: left; }
-        #history-area h2 { color: #FFD700; }
-        .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db; }
-
-        .instructions { margin-top: 10px; padding: 12px; background: #1a1a1a; border-radius: 10px; border: 1px solid #FFD700; color: #eee; font-size: 14px; }
-        .instructions strong { color: #FFD700; }
+        #original-image { max-width: 100%; max-height: 400px; border-radius: 10px; margin: 10px 0; display: none; border: 2px solid #444; }
+        #processed-image { max-width: 100%; max-height: 400px; border-radius: 10px; margin: 10px 0; display: none; border: 2px solid #FFD700; }
+        
+        #analysis-result { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
+        
+        .shape-item { display: inline-block; background: #333; padding: 5px 15px; border-radius: 15px; margin: 5px; border: 1px solid #FFD700; }
+        
+        .btn { padding: 12px 24px; border: none; border-radius: 30px; font-weight: bold; font-size: 14px; cursor: pointer; background: #FFD700; color: #111; margin: 10px; }
+        .btn:hover { transform: scale(1.05); }
+        
+        .loading { display: none; color: #FFD700; margin: 15px; font-size: 18px; }
+        
+        #debug-info { color: #888; font-size: 12px; margin-top: 10px; }
     </style>
 </head>
 <body>
     <div id="container">
-        <h1>☕ Omen</h1>
-        <p style="color:#aaa;">Παραδοσιακή Καφεμαντεία - Πολίτικο Φλιτζάνι</p>
+        <h1>☕ Omen - Ανάγνωση Φλιτζανιού</h1>
+        <p style="color:#aaa;">Ανέβασε φωτογραφία και θα αναλύσω τα σχέδια του καφέ</p>
 
-        <div id="user-inputs-row">
-            <div class="input-group">
-                <label>🎂 Ηλικία (προαιρετικά)</label>
-                <input type="number" id="user-age" min="1" max="120" placeholder="π.χ. 30">
-            </div>
+        <div class="upload-box" onclick="document.getElementById('file-input').click()">
+            <div style="font-size: 48px;">☕</div>
+            <p>Πάτησε εδώ ή σύρε φωτογραφία</p>
+            <input type="file" id="file-input" accept="image/*" onchange="handleImageUpload(event)">
         </div>
 
-        <div id="upload-section">
-            <label for="file-input" class="upload-label">📁 Ανέβασε φωτογραφία</label>
-            <input type="file" id="file-input" accept="image/*" onchange="handleUpload(event)">
-            <div id="upload-type"></div>
-            <img id="upload-preview">
-            <canvas id="contour-preview"></canvas>
-            <div id="auto-status" style="margin-top:10px; color:#2ecc71; font-weight:bold; display:none;"></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
+            <img id="original-image" alt="Φωτογραφία φλιτζανιού">
+            <img id="processed-image" alt="Ανίχνευση σχημάτων">
+        </div>
+
+        <div class="loading" id="loading">⏳ Αναλύω τα σχέδια του καφέ...</div>
+
+        <div id="analysis-result">
+            <h2>🔮 Ανίχνευση Σχημάτων</h2>
+            <div id="shapes-found"></div>
+            <div id="interpretation" style="margin-top: 20px; font-size: 18px; line-height: 1.6;"></div>
+            <div id="position-analysis" style="margin-top: 15px; color: #aaa;"></div>
             
-            <div class="instructions">
-                <strong>📌 Οδηγίες:</strong> 
-                1️⃣ Πάτησε <strong>Κάμερα</strong> και τοποθέτησε το φλιτζάνι μπροστά στην κάμερα.
-                2️⃣ Πάτησε <strong>Σκανάρισμα</strong> για να τραβήξεις φωτογραφία.
-                3️⃣ Το σύστημα θα ανιχνεύσει τα περιγράμματα του καφέ και θα σου προτείνει ερμηνεία.
+            <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="exportReport()">📄 Αποθήκευση</button>
             </div>
         </div>
 
-        <div id="camera-wrapper">
-            <video id="webcam" playsinline></video>
-            <canvas id="capture-canvas" style="display:none;"></canvas>
-        </div>
-
-        <div class="controls">
-            <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Κάμερα</button>
-            <button class="btn btn-green" id="scanBtn" onclick="scanAndAnalyze()" disabled>📸 Σκανάρισμα</button>
-            <button class="btn btn-red" id="refreshBtn" onclick="refreshWithAd()">🔄 Ανανέωση</button>
-        </div>
-
-        <div id="loading">⏳ Αναλύω τον καφέ...</div>
-
-        <div id="result-area">
-            <h2>🔮 Ανάλυση Φλιτζανιού</h2>
-            <div id="element-display"></div>
-            <div id="age-display"></div>
-            <div id="result-text"></div>
-            <div class="stat-grid" id="stats-grid"></div>
-            <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
-                <button class="btn btn-blue" onclick="exportPDF()">📄 Αποθήκευση PDF</button>
-                <button class="btn btn-purple" onclick="saveToHistory()">💾 Ιστορικό</button>
-            </div>
-        </div>
-
-        <div id="history-area">
-            <h2>📚 Ιστορικό Αναλύσεων</h2>
-            <div id="history-list"></div>
-            <button class="btn btn-red" onclick="clearHistory()">🗑️ Διαγραφή Ιστορικού</button>
-        </div>
+        <div id="debug-info"></div>
     </div>
 
-    <script>
-        // ------------------- ΒΑΣΗ ΣΥΜΒΟΛΩΝ (ΑΠΟ ΤΙΣ ΦΩΤΟΓΡΑΦΙΕΣ) -------------------
-        const coffeeSymbols = {
-            // Γραμμές & Βασικά
-            "Ευθεία γραμμή": "Δρόμος, ταξίδι για κάποιο γεγονός με ευχάριστο τέλος.",
-            "Ευθεία διακοπτόμενη": "Ταξίδι μετ' εμποδίων ή αρρώστια.",
-            "Καμπύλη": "Σας ζηλεύουν και θα προσπαθήσουν να σας κάνουν κακό.",
-            "Καμπύλη διακεκομμένη": "Κακούς φίλους ή συγγενείς.",
-            "Κύκλος": "Καλά νέα. Χρήματα. Φίλοι. Αν οι κύκλοι είναι πολλοί: Πολλά χρήματα και μεγάλη επιτυχία.",
-            "Κύκλος με κουκίδες": "Απόκτηση παιδιού.",
-            "Σπιτάκι": "Γάμος και οικογενειακή ευτυχία.",
-            "Τρίγωνο": "Τύχη κυρίως στα οικονομικά.",
-            "Τετράγωνο": "Αφορά αποκλειστικά την ερωτική και αισθηματική σας ζωή.",
-            "Σταυρός": "Πολύ σοβαρό σημάδι. Σταυρός με πρόσωπο στο κάτω μέρος: Ευτυχισμένο γεγονός, γάμος.",
-            
-            // Ζώα & Πουλιά
-            "Ψάρι (Ένα)": "Επιτυχία και ευτυχία.",
-            "Ψάρια (Πολλά)": "Κακό σημάδι, κίνδυνος, αρρώστια.",
-            "Πουλί": "Ευχάριστα γεγονότα, νέες ειδήσεις.",
-            "Αγελάδα": "Ευχαρίστηση, πλούτος και γονιμότητα.",
-            "Ελέφαντας": "Η γνώμη σας θα βαραίνει. Σταθερότητα.",
-            "Λιοντάρι": "Ταξίδι με καλά αποτελέσματα.",
-            "Φίδι": "Εχθροί και δυσκολίες.",
-            "Γεράκι": "Κάποιος παραμονεύει.",
-            "Παγώνι": "Σημάδι καλό και ευχάριστο.",
-            "Πεταλούδα": "Σημάδι καλό και ευχάριστο.",
-            "Σκύλος": "Πιστοί φίλοι.",
-            "Κότα": "Θα κάνετε την πολυπόθητη πρόταση γάμου.",
-            
-            // Πρόσωπα & Θεότητες
-            "Αγγελός": "Σίγουρο ότι θα έχετε μια χαρούμενη είδηση.",
-            "Άγιος": "Τα πάντα για σας θα είναι ευλογημένα.",
-            "Άνθρωπος-πρόσωπο": "Καινούργια σχέση, ανάλογα με τη φορά.",
-            "Γυναίκα (Γυναικείο κεφάλι)": "Ερωτική/Αισθηματική ζωή. Αν είναι με χέρια κάτω: Εμπιστευτείτε την.",
-            "Ζευγάρι": "Ο σύντροφός σας έχει σχέση και με άλλη γυναίκα/άντρα.",
-            
-            // Αντικείμενα & Μέρη
-            "Εκκλησία ή Σπίτι": "Χαρά, προκοπή, ευτυχία και γάμος.",
-            "Δέντρα": "Εργασία, δουλειά και πλούτο.",
-            "Τριαντάφυλλο / Λουλούδι": "Υγεία και ευτυχία.",
-            "Βαγόνι": "Μεγάλο ταξίδι.",
-            "Βέλος": "Σκοπεύετε να παντρευτείτε.",
-            "Γέφυρα": "Κάποιος προσπαθεί να σας παρασύρει σε γελοίες υποσχέσεις.",
-            "Δαχτυλίδι": "Γάμος ή γάμοι.",
-            "Κλειδί": "Πολλές πόρτες θα ανοίξουν, λύση σε προβλήματα.",
-            "Κομπολόι": "Πολλές επιτυχίες.",
-            "Σημαία": "Μεγάλη επιτυχία.",
-            "Σκάλα": "Θα ανεβείτε κοινωνικά.",
-            "Σπαθί": "Εχθρούς.",
-            "Στεφάνι": "Σύντομα θα παντρευτείτε.",
-            "Ωρολόγιο": "Αλλαγή χρόνου ή σημαντικό ραντεβού."
-        };
-        
-        // Θέσεις στο φλιτζάνι
-        const positions = {
-            "Δεξί ημισφαίριο": "Το μήνυμα είναι θετικό και ευχάριστο.",
-            "Αριστερό ημισφαίριο": "Το μήνυμα δεν είναι ευχάριστο.",
-            "Κοντά στο χερούλι": "Τα γεγονότα θα συμβούν σύντομα.",
-            "Μακριά από το χερούλι": "Τα γεγονότα θα συμβούν αργά.",
-            "Πάνω μέρος (Άκρη)": "Το γεγονός είναι πολύ κοντά στο χρόνο.",
-            "Κάτω μέρος (Πάτος)": "Το γεγονός θα αργήσει πολύ να συμβεί."
-        };
+    <!-- Canvas για επεξεργασία -->
+    <canvas id="process-canvas" style="display:none;"></canvas>
 
-        // ------------------- ΜΗΧΑΝΙΣΜΟΣ ΑΝΑΛΥΣΗΣ -------------------
-        const video = document.getElementById('webcam');
-        let analysisResult = null;
-        let camera = null;
-        let currentImageData = null;
+    <script>
+        let originalImage = null;
         let detectedShapes = [];
 
-        // Εκκίνηση κάμερας
-        function startCamera() {
-            const btn = document.getElementById('startBtn');
-            btn.disabled = true;
-            btn.innerText = "⏳...";
-            
-            camera = new Camera(video, {
-                onFrame: async () => { /* Απαλή ροή βίντεο */ },
-                width: 600,
-                height: 600,
-                facingMode: 'environment'
-            });
-            
-            camera.start().then(() => {
-                btn.innerText = "✅ Έτοιμη";
-                btn.style.background = "#2ecc71";
-                btn.disabled = false;
-                document.getElementById('scanBtn').disabled = false;
-            }).catch(err => {
-                console.error("Camera error:", err);
-                btn.innerText = "📷 Κάμερα";
-                btn.style.background = "";
-                btn.disabled = false;
-                alert("Σφάλμα κάμερας: " + err);
-            });
-        }
-
-        // Ανίχνευση σχημάτων (περιγραμμάτων) από εικόνα
-        function detectContours(imageData, width, height) {
-            // Απλός αλγόριθμος ανίχνευσης περιγραμμάτων (Feature extraction for shape guess)
-            // Βρίσκουμε το "Anisotropic" threshold
+        // ------------------- ΑΝΙΧΝΕΥΣΗ ΣΧΗΜΑΤΩΝ -------------------
+        function detectShapes(imageData, width, height) {
             const data = imageData.data;
+            
+            // 1. Μετατροπή σε Grayscale
             let gray = [];
             for (let i = 0; i < data.length; i += 4) {
-                const g = (data[i] + data[i+1] + data[i+2]) / 3;
-                gray.push(g < 128 ? 0 : 255); // 0 για τον καφέ (σκοτεινό), 255 για το φόντο
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                const grayValue = 0.299 * r + 0.587 * g + 0.114 * b;
+                gray.push(grayValue);
             }
 
-            // Απλοποιημένο: Ψάχνουμε για "κλειστά" σχήματα. Για τον σκοπό μας, ελέγχουμε τον αριθμό των ομάδων.
-            // Στην πραγματικότητα θα χρειαζόσουν OpenCV.js. Εδώ κάνουμε προσέγγιση μέσω αριθμού κουκίδων.
-            // Αν ο χρήστης έχει πολλές διακεκομμένες γραμμές, μικρά σημεία.
-            // Αν έχει μεγάλα συμπαγή σχήματα, μεγάλες κουκίδες.
-            let blackPixels = 0;
+            // 2. Εφαρμογή Canny Edge Detection (απλοποιημένο)
+            // Θα χρησιμοποιήσουμε threshold για να βρούμε edges
+            const threshold = 60;
+            let edges = [];
             for (let i = 0; i < gray.length; i++) {
-                if (gray[i] === 0) blackPixels++;
+                // Απλό edge detection: φωτεινότητα vs γειτονικών
+                const x = i % width;
+                const y = Math.floor(i / width);
+                
+                if (x > 0 && x < width-1 && y > 0 && y < height-1) {
+                    const top = gray[i - width];
+                    const bottom = gray[i + width];
+                    const left = gray[i - 1];
+                    const right = gray[i + 1];
+                    
+                    const dx = Math.abs(right - left);
+                    const dy = Math.abs(bottom - top);
+                    const gradient = Math.sqrt(dx*dx + dy*dy);
+                    
+                    edges.push(gradient > threshold ? 255 : 0);
+                } else {
+                    edges.push(0);
+                }
             }
+
+            // 3. Συλλογή σημείων για σχήματα (απλή ομαδοποίηση)
+            // Θα ομαδοποιήσουμε τα pixels που είναι κοντά
+            let clusters = [];
+            let visited = new Array(edges.length).fill(false);
             
-            // Κατηγοριοποίηση κατά προσέγγιση
-            let shapeGuess = "Σύνθετο Σχέδιο";
-            let detectionMessage = "";
-            if (blackPixels > 10000) {
-                shapeGuess = "Συμπαγές σχήμα (Πιθανά ζώο, πρόσωπο ή σπίτι)";
-                detectionMessage = "Το φλιτζάνι έχει μεγάλα, συμπαγή σημάδια. Μπορεί να δείχνει σπίτι, ζώο ή άνθρωπο.";
-            } else if (blackPixels > 1000) {
-                shapeGuess = "Μεσαίο σχήμα (Κύκλοι ή γραμμές)";
-                detectionMessage = "Πολλά μικρότερα σημάδια και κουκίδες. Μπορεί να είναι κύκλοι, γραμμές ή ψάρια.";
-            } else if (blackPixels > 100) {
-                shapeGuess = "Αραιά σημάδια (Σταγόνες, διακεκομμένες)";
-                detectionMessage = "Λίγες κουκίδες και διακεκομμένες γραμμές. Συμβολίζει ταξίδια ή γεγονότα με εμπόδια.";
-            } else {
-                shapeGuess = "Καθαρό φλιτζάνι";
-                detectionMessage = "Δεν φαίνονται πολλά σημάδια στην κρούστα. Η ηρεμία και η γαλήνη κυριαρχούν.";
+            function getNeighbors(index) {
+                const x = index % width;
+                const y = Math.floor(index / width);
+                const neighbors = [];
+                const dirs = [-1, 1, -width, width, -width-1, -width+1, width-1, width+1];
+                for (let d of dirs) {
+                    const ni = index + d;
+                    if (ni >= 0 && ni < edges.length) {
+                        const nx = ni % width;
+                        const ny = Math.floor(ni / width);
+                        if (Math.abs(nx - x) <= 1 && Math.abs(ny - y) <= 1) {
+                            neighbors.push(ni);
+                        }
+                    }
+                }
+                return neighbors;
             }
-            
-            return { type: shapeGuess, message: detectionMessage, pixelCount: blackPixels };
+
+            for (let i = 0; i < edges.length; i++) {
+                if (edges[i] > 128 && !visited[i]) {
+                    // BFS για ομαδοποίηση
+                    let cluster = [];
+                    let queue = [i];
+                    visited[i] = true;
+                    
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+                        cluster.push(current);
+                        const neighbors = getNeighbors(current);
+                        for (let n of neighbors) {
+                            if (edges[n] > 128 && !visited[n]) {
+                                visited[n] = true;
+                                queue.push(n);
+                            }
+                        }
+                    }
+                    
+                    // Αν το cluster είναι αρκετά μεγάλο (πάνω από 20 pixels)
+                    if (cluster.length > 20) {
+                        // Υπολογισμός bounding box
+                        let minX = width, maxX = 0, minY = height, maxY = 0;
+                        for (let idx of cluster) {
+                            const x = idx % width;
+                            const y = Math.floor(idx / width);
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                        }
+                        
+                        const boxWidth = maxX - minX;
+                        const boxHeight = maxY - minY;
+                        const aspectRatio = boxWidth / boxHeight;
+                        
+                        // Κατηγοριοποίηση σχήματος
+                        let shapeType = "Σύνθετο Σχήμα";
+                        
+                        // Αν το πλάτος και ύψος είναι παρόμοια, είναι κύκλος ή τετράγωνο
+                        if (Math.abs(aspectRatio - 1) < 0.2) {
+                            if (boxWidth > 30 && boxHeight > 30) {
+                                shapeType = "Κύκλος";
+                            } else {
+                                shapeType = "Τετράγωνο";
+                            }
+                        } 
+                        // Αν είναι πολύ πιο μακρύ, είναι γραμμή
+                        else if (aspectRatio > 2 || aspectRatio < 0.5) {
+                            shapeType = "Γραμμή (Ευθεία)";
+                        }
+                        // Τρίγωνο: συνήθως έχει aspect ratio κοντά στο 1 αλλά με λιγότερα pixels
+                        else if (boxWidth > 15 && boxHeight > 15 && cluster.length < 100) {
+                            shapeType = "Τρίγωνο";
+                        }
+                        
+                        // Θέση σχήματος
+                        const centerX = (minX + maxX) / 2;
+                        const centerY = (minY + maxY) / 2;
+                        let position = "";
+                        if (centerY < height/3) position = "Πάνω μέρος";
+                        else if (centerY > 2*height/3) position = "Κάτω μέρος";
+                        else if (centerX < width/3) position = "Αριστερό ημισφαίριο";
+                        else if (centerX > 2*width/3) position = "Δεξί ημισφαίριο";
+                        else position = "Κέντρο";
+                        
+                        clusters.push({
+                            type: shapeType,
+                            count: cluster.length,
+                            position: position,
+                            centerX: centerX,
+                            centerY: centerY,
+                            width: boxWidth,
+                            height: boxHeight
+                        });
+                    }
+                }
+            }
+
+            return clusters;
         }
 
-        // Σκανάρισμα και επεξεργασία
-        function scanAndAnalyze() {
-            if (!camera) { alert("Πάτησε πρώτα 'Κάμερα'"); return; }
-            
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('scanBtn').disabled = true;
-            
-            // Λήψη από το βίντεο
-            const canvas = document.getElementById('capture-canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            
-            // Ανίχνευση σχημάτων
-            const shapeInfo = detectContours(imageData, canvas.width, canvas.height);
-            
-            // Επιλογή συμβόλου: Χρησιμοποιούμε τη θέση και το σχήμα + τυχαίο για λόγους διασκέδασης
-            const symbolKeys = Object.keys(coffeeSymbols);
-            
-            // Ανίχνευση: Αν το σχήμα είναι "Συμπαγές", δίνουμε μεγαλύτερη πιθανότητα σε ζώα/σπίτι.
-            let filteredKeys = symbolKeys;
-            if (shapeInfo.type.includes("Συμπαγές")) {
-                filteredKeys = symbolKeys.filter(k => 
-                    k.includes("σπίτ") || k.includes("ζώ") || k.includes("άνθρωπ") || 
-                    k.includes("τρίγωνο") || k.includes("τετράγωνο"));
-            } else if (shapeInfo.type.includes("Μεσαίο")) {
-                filteredKeys = symbolKeys.filter(k => 
-                    k.includes("κύκλος") || k.includes("γραμμή") || k.includes("ψάρι") || k.includes("δαχτυλίδι"));
-            } else if (shapeInfo.type.includes("Καθαρό")) {
-                filteredKeys = ["Κύκλος", "Ευθεία γραμμή", "Τριαντάφυλλο / Λουλούδι", "Πουλί", "Σταυρός"];
-            }
-            
-            if (filteredKeys.length === 0) filteredKeys = symbolKeys;
-            
-            const selectedSymbol = filteredKeys[Math.floor(Math.random() * filteredKeys.length)];
-            const interpretation = coffeeSymbols[selectedSymbol];
-            
-            // Θέση (τυχαία, αλλά μπορείς να την προσδιορίσεις από το pixel density)
-            const posKeys = Object.keys(positions);
-            const selectedPos = posKeys[Math.floor(Math.random() * posKeys.length)];
-            const posInterp = positions[selectedPos];
-            
-            const age = parseInt(document.getElementById('user-age').value) || null;
-            let ageStory = "";
-            if (age) {
-                if (age < 25) ageStory = `Στα ${age} σου χρόνια, το φλιτζάνι σου λέει ότι μπαίνεις σε μια περίοδο δημιουργικής αναζήτησης.`;
-                else if (age < 40) ageStory = `Στα ${age} σου χρόνια, η ζωή σου δείχνει σταθερότητα και ωριμότητα, με νέες ευκαιρίες.`;
-                else if (age < 60) ageStory = `Στα ${age} σου χρόνια, η εμπειρία σου είναι το μεγαλύτερο σου όπλο. Οι προβλέψεις είναι πιο σίγουρες.`;
-                else ageStory = `Στα ${age} σου χρόνια, το φλιτζάνι δείχνει σοφία και μια πλούσια διαδρομή ζωής.`;
-            }
+        // ------------------- ΒΑΣΗ ΕΡΜΗΝΕΙΩΝ -------------------
+        const interpretations = {
+            "Κύκλος": "Καλά νέα! Χρήματα, φίλοι, και μεγάλη επιτυχία.",
+            "Τετράγωνο": "Αφορά την ερωτική και αισθηματική σας ζωή. Νέες γνωριμίες.",
+            "Τρίγωνο": "Τύχη στα οικονομικά. Καλές επενδύσεις.",
+            "Γραμμή (Ευθεία)": "Δρόμος, ταξίδι, ή γεγονός με ευχάριστο τέλος.",
+            "Σύνθετο Σχήμα": "Πολύπλοκη κατάσταση που θα ξεκαθαρίσει σύντομα."
+        };
 
-            // Τελική αφήγηση
-            const narrative = `
-                🎯 Εντόπισα το σχήμα: <strong>${selectedSymbol}</strong><br><br>
-                📖 <strong>Ερμηνεία:</strong><br> "${interpretation}"<br><br>
-                📍 <strong>Θέση στο φλιτζάνι:</strong> ${selectedPos}<br>
-                💬 <strong>Ερμηνεία θέσης:</strong> ${posInterp}<br><br>
-                ${age ? `📅 <strong>Ηλικιακή ανάλυση:</strong> ${ageStory}<br><br>` : ""}
-                ${shapeInfo.message}<br><br>
-                <span style="color: #FFD700;">✨ Μυστικό μήνυμα:</span> Αν το σύμβολο βρίσκεται κοντά στο χερούλι, τα γεγονότα θα συμβούν γρήγορα.
-            `;
-
-            // Αποθήκευση αποτελεσμάτων
-            analysisResult = {
-                type: 'coffee',
-                symbol: selectedSymbol,
-                interpretation: interpretation,
-                position: selectedPos,
-                positionInterpretation: posInterp,
-                ageAnalysis: ageStory,
-                userAge: age,
-                fullNarrative: narrative,
-                date: new Date().toISOString(),
-                source: 'coffee'
+        function analyzeImage(imageSrc) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.getElementById('process-canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Ανίχνευση σχημάτων
+                const shapes = detectShapes(imageData, canvas.width, canvas.height);
+                detectedShapes = shapes;
+                
+                // Εμφάνιση των σχημάτων στην επεξεργασμένη εικόνα
+                const processedCanvas = document.createElement('canvas');
+                processedCanvas.width = canvas.width;
+                processedCanvas.height = canvas.height;
+                const pCtx = processedCanvas.getContext('2d');
+                pCtx.drawImage(canvas, 0, 0);
+                pCtx.strokeStyle = '#FFD700';
+                pCtx.lineWidth = 3;
+                
+                // Ζωγραφίζουμε bounding boxes γύρω από τα σχήματα που βρήκαμε
+                for (let shape of shapes) {
+                    // Υπολογισμός bounding box (προσεγγιστικά)
+                    const x = shape.centerX - shape.width/2;
+                    const y = shape.centerY - shape.height/2;
+                    pCtx.strokeRect(x, y, shape.width, shape.height);
+                    
+                    // Ετικέτα
+                    pCtx.fillStyle = '#FFD700';
+                    pCtx.font = '16px Arial';
+                    pCtx.fillText(shape.type, x, y - 5);
+                }
+                
+                const processedImg = document.getElementById('processed-image');
+                processedImg.src = processedCanvas.toDataURL();
+                processedImg.style.display = 'block';
+                
+                // Εμφάνιση αποτελεσμάτων
+                displayResults(shapes);
             };
-            
-            displayResult(analysisResult);
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('scanBtn').disabled = false;
+            img.src = imageSrc;
         }
 
-        // Εμφάνιση αποτελέσματος
-        function displayResult(r) {
-            const area = document.getElementById('result-area');
-            const text = document.getElementById('result-text');
-            const grid = document.getElementById('stats-grid');
-            const elementDisplay = document.getElementById('element-display');
-            const ageDisplay = document.getElementById('age-display');
-
-            area.style.display = 'block';
-
-            elementDisplay.innerHTML = `<strong>☕ Καφεμαντεία - Πολίτικο Φλιτζάνι</strong>`;
-            elementDisplay.style.color = "#FFD700";
+        function displayResults(shapes) {
+            const resultDiv = document.getElementById('analysis-result');
+            resultDiv.style.display = 'block';
             
-            ageDisplay.innerHTML = r.userAge ? `📅 ${r.ageAnalysis}` : `📅 (Δεν δόθηκε ηλικία)`;
+            const shapesDiv = document.getElementById('shapes-found');
+            const interpretDiv = document.getElementById('interpretation');
+            const positionDiv = document.getElementById('position-analysis');
             
-            text.innerHTML = r.fullNarrative;
+            if (shapes.length === 0) {
+                shapesDiv.innerHTML = "<p>Δεν εντοπίστηκαν σχήματα. Ο καφές είναι καθαρός ή η φωτογραφία είναι θολή.</p>";
+                interpretDiv.innerHTML = "Ηρεμία και γαλήνη. Δεν φαίνονται σημάδια, είναι μια περίοδος ηρεμίας.";
+                positionDiv.innerHTML = "";
+                return;
+            }
             
-            grid.innerHTML = `
-                <div class="stat-item"><span class="badge">Σύμβολο</span><br>${r.symbol}</div>
-                <div class="stat-item"><span class="badge">Θέση</span><br>${r.position}</div>
-                <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.userAge || "Δεν δόθηκε"}</div>
-                <div class="stat-item"><span class="badge">Πηγή</span><br>Πολίτικο Φλιτζάνι</div>
-            `;
+            // Εμφάνιση σχημάτων
+            let html = "<h3>🔍 Σχήματα που εντοπίστηκαν:</h3>";
+            for (let i = 0; i < shapes.length; i++) {
+                const s = shapes[i];
+                html += `<div class="shape-item">${s.type} (${s.position})</div>`;
+            }
+            shapesDiv.innerHTML = html;
+            
+            // Ερμηνεία
+            let mainInterpretation = "";
+            let positionsSummary = "";
+            
+            // Αν υπάρχουν πολλαπλά σχήματα, δίνουμε σύνθετη ερμηνεία
+            if (shapes.length === 1) {
+                const shape = shapes[0];
+                mainInterpretation = interpretations[shape.type] || "Ένα ενδιαφέρον σημάδι, δώστε προσοχή.";
+                positionsSummary = `Βρίσκεται στο <strong>${shape.position}</strong>.`;
+            } else {
+                mainInterpretation = "Πολλά σχήματα μαζί σημαίνουν ότι η ζωή σας είναι γεμάτη γεγονότα. ";
+                const types = shapes.map(s => s.type);
+                if (types.includes("Κύκλος") && types.includes("Τετράγωνο")) {
+                    mainInterpretation += "Συνδυασμός χρημάτων και ερωτικής τύχης. Θα έχετε επιτυχίες και στους δύο τομείς.";
+                } else if (types.includes("Τρίγωνο") && types.includes("Γραμμή (Ευθεία)")) {
+                    mainInterpretation += "Οικονομική τύχη και ταξίδια. Μια πολύ καλή περίοδος ξεκινά.";
+                } else {
+                    mainInterpretation += "Μια περίοδος γεμάτη προκλήσεις, αλλά και ευκαιρίες.";
+                }
+            }
+            
+            interpretDiv.innerHTML = `<strong>📖 Ερμηνεία:</strong><br>${mainInterpretation}`;
+            
+            // Ανάλυση θέσεων
+            let posHtml = "<strong>📍 Ανάλυση θέσεων:</strong><br>";
+            for (let s of shapes) {
+                posHtml += `${s.type} στο <strong>${s.position}</strong>.<br>`;
+            }
+            positionDiv.innerHTML = posHtml;
         }
 
-        // Upload handler
-        function handleUpload(event) {
+        // ------------------- ΔΙΑΧΕΙΡΙΣΗ UPLOAD -------------------
+        function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
             
+            document.getElementById('loading').style.display = 'block';
+            
             const reader = new FileReader();
             reader.onload = function(e) {
-                const uploadedImage = e.target.result;
-                const preview = document.getElementById('upload-preview');
-                preview.src = uploadedImage;
-                preview.style.display = 'block';
+                const imageSrc = e.target.result;
                 
-                // Φόρτωση εικόνας για ανάλυση (προσομοίωση)
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    
-                    // Ανάλυση
-                    const shapeInfo = detectContours(imageData, canvas.width, canvas.height);
-                    const symbolKeys = Object.keys(coffeeSymbols);
-                    const selectedSymbol = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
-                    const interpretation = coffeeSymbols[selectedSymbol];
-                    const posKeys = Object.keys(positions);
-                    const selectedPos = posKeys[Math.floor(Math.random() * posKeys.length)];
-                    const posInterp = positions[selectedPos];
-                    
-                    document.getElementById('auto-status').style.display = 'block';
-                    document.getElementById('auto-status').innerText = `✅ Έγινε ανάλυση! Σύμβολο: ${selectedSymbol}`;
-                    
-                    analysisResult = {
-                        type: 'coffee',
-                        symbol: selectedSymbol,
-                        interpretation: interpretation,
-                        position: selectedPos,
-                        positionInterpretation: posInterp,
-                        userAge: parseInt(document.getElementById('user-age').value) || null,
-                        fullNarrative: `
-                            🎯 Σύμβολο: <strong>${selectedSymbol}</strong><br>
-                            📖 Ερμηνεία: "${interpretation}"<br>
-                            📍 Θέση: ${selectedPos} (${posInterp})
-                        `,
-                        date: new Date().toISOString(),
-                        source: 'upload'
-                    };
-                    displayResult(analysisResult);
-                };
-                img.src = uploadedImage;
+                const originalImg = document.getElementById('original-image');
+                originalImg.src = imageSrc;
+                originalImg.style.display = 'block';
+                
+                // Ανάλυση εικόνας
+                setTimeout(() => {
+                    analyzeImage(imageSrc);
+                    document.getElementById('loading').style.display = 'none';
+                }, 500);
             };
             reader.readAsDataURL(file);
         }
 
-        // Refresh / Διαφήμιση
-        function refreshWithAd() {
-            if (typeof show_10979429 === 'function') {
-                show_10979429().then(() => resetAll()).catch(() => resetAll());
-            } else {
-                resetAll();
-            }
-        }
-
-        function resetAll() {
-            document.getElementById('result-area').style.display = 'none';
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').innerText = "📷 Κάμερα";
-            document.getElementById('scanBtn').disabled = true;
-            analysisResult = null;
-            document.getElementById('upload-preview').style.display = 'none';
-            document.getElementById('auto-status').style.display = 'none';
-            if(camera) {
-                camera.stop();
-                camera = null;
-            }
-            document.getElementById('startBtn').style.background = "";
-        }
-
-        // Ιστορικό & PDF (αντιγραφή από το προηγούμενο)
-        function saveToHistory() {
-            if (!analysisResult) { alert("Κάνε ανάλυση πρώτα!"); return; }
-            let h = JSON.parse(localStorage.getItem('history') || '[]');
-            h.push({
-                id: Date.now(),
-                ...analysisResult,
-                dateStr: new Date().toLocaleString('el-GR')
-            });
-            localStorage.setItem('history', JSON.stringify(h));
-            renderHistory();
-            alert("✅ Αποθηκεύτηκε!");
-        }
-
-        function renderHistory() {
-            const list = document.getElementById('history-list');
-            const h = JSON.parse(localStorage.getItem('history') || '[]');
-            if (!h.length) {
-                list.innerHTML = "<p style='color:#888;'>Δεν υπάρχουν αναλύσεις.</p>";
+        // ------------------- EXPORT REPORT -------------------
+        function exportReport() {
+            if (detectedShapes.length === 0) {
+                alert("Δεν υπάρχουν σχήματα για εξαγωγή.");
                 return;
             }
-            list.innerHTML = h.map((item, i) => `
-                <div class="history-item">
-                    <strong>#${i+1}</strong> <small>${item.dateStr}</small> (${item.source})<br>
-                    ☕ Σύμβολο: ${item.symbol} | 📅 ${item.userAge || "?"} ετών
-                </div>
-            `).join('');
-            document.getElementById('history-area').style.display = 'block';
-        }
-
-        function clearHistory() {
-            if (confirm("Διαγραφή όλου του ιστορικού;")) {
-                localStorage.removeItem('history');
-                renderHistory();
+            
+            let report = "☕ Omen - Αναφορά Ανάγνωσης Φλιτζανιού\n\n";
+            report += "Σχήματα που εντοπίστηκαν:\n";
+            for (let i = 0; i < detectedShapes.length; i++) {
+                const s = detectedShapes[i];
+                report += `- ${s.type} (${s.position})\n`;
             }
+            report += "\nΕρμηνεία:\n";
+            report += interpretations[detectedShapes[0].type] || "Σύνθετη ερμηνεία.";
+            
+            // Δημιουργία PDF
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Omen_Report_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
-
-        function exportPDF() {
-            if (!analysisResult) { alert("Κάνε ανάλυση πρώτα!"); return; }
-            const content = document.createElement('div');
-            content.innerHTML = `
-                <div style="font-family:Arial; padding:20px; color:#111; background:white; max-width:500px; margin:auto; border-radius:15px;">
-                    <h2 style="text-align:center; color:#B8860B;">☕ Omen</h2>
-                    <hr>
-                    <p><strong>Σύμβολο:</strong> ${analysisResult.symbol}</p>
-                    <p><strong>Ερμηνεία:</strong> ${analysisResult.interpretation}</p>
-                    <p><strong>Θέση:</strong> ${analysisResult.position}</p>
-                    ${analysisResult.userAge ? `<p><strong>Ηλικία:</strong> ${analysisResult.userAge}</p>` : ''}
-                    <hr>
-                    <p style="text-align:center; font-size:12px; color:#999;">Omen AI</p>
-                </div>
-            `;
-            html2canvas(content, { scale: 2 }).then(canvas => {
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p','mm','a4');
-                const w = pdf.internal.pageSize.getWidth();
-                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, (canvas.height * w) / canvas.width);
-                pdf.save(`Omen_${new Date().toISOString().slice(0,10)}.pdf`);
-            });
-        }
-
-        window.onload = function() {
-            renderHistory();
-        };
     </script>
 </body>
 </html>
