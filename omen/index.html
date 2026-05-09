@@ -137,7 +137,10 @@
     </div>
 
     <script>
-        // --- Camera Setup (Χωρίς Hand Detection) ---
+        // --- Ρύθμιση API (Το Replit σου) ---
+        const API_URL = "https://coffee-oracle-api--franklymadear.replit.app/analyze";
+
+        // --- Camera Setup ---
         const video = document.getElementById('webcam');
         let analysisResult = null;
         let uploadedImage = null;
@@ -185,15 +188,10 @@
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
-            capturedPhoto = canvas.toDataURL('image/png');
+            capturedPhoto = canvas.toDataURL('image/jpeg');
 
-            setTimeout(() => {
-                const result = analyzeCoffee();
-                displayResult(result);
-                analysisResult = result;
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('scanBtn').disabled = false;
-            }, 500);
+            // Στέλνουμε στο API
+            sendToAPI(capturedPhoto);
         }
 
         // --- Upload φωτογραφίας ---
@@ -211,173 +209,69 @@
                 document.getElementById('auto-status').style.display = 'block';
                 document.getElementById('auto-status').innerText = '⏳ Αυτόματη ανάλυση σε εξέλιξη...';
                 
-                setTimeout(() => {
-                    const result = analyzeCoffee();
-                    displayResult(result);
-                    analysisResult = result;
-                    document.getElementById('auto-status').innerText = '✅ Ανάλυση ολοκληρώθηκε!';
-                    document.getElementById('auto-status').style.color = '#2ecc71';
-                }, 500);
+                // Στέλνουμε στο API
+                sendToAPI(uploadedImage);
             };
             reader.readAsDataURL(file);
         }
 
-        // --- Βάση δεδομένων συμβόλων καφεμαντείας ---
-        function analyzeCoffee() {
-            const age = parseInt(document.getElementById('user-age').value) || 30;
-            
-            const coffeeSymbols = {
-                "Ευθεία γραμμή": "Δρόμος, ταξίδι για κάποιο γεγονός με ευχάριστο τέλος.",
-                "Ευθεία διακοπτόμενη γραμμή": "Ταξίδι μετ' εμποδίων ή αρρώστια.",
-                "Καμπύλη": "Σας ζηλεύουν και θα προσπαθήσουν να σας κάνουν κακό.",
-                "Καμπύλη διακεκομμένη": "Κακούς φίλους ή συγγενείς.",
-                "Κύκλος": "Καλά νέα. Χρήματα. Φίλοι. Αν οι κύκλοι είναι πολλοί: Πολλά χρήματα και μεγάλη επιτυχία.",
-                "Κύκλος με κουκίδες": "Απόκτηση παιδιού.",
-                "Σπιτάκι": "Γάμος και οικογενειακή ευτυχία.",
-                "Τρίγωνο": "Τύχη κυρίως στα οικονομικά.",
-                "Τετράγωνο": "Συμβολίζει αποκλειστικά την ερωτική και αισθηματική σας ζωή.",
-                "Σταυρός": "Πολύ σοβαρό σημάδι. Σταυρός με πρόσωπο στο κάτω μέρος: Ευτυχισμένο γεγονός, γάμος.",
-                "Τριαντάφυλλο": "Υγεία και ευτυχία.",
-                "Ζώα": "Ευτυχία.",
-                "Ψάρι": "Αν είναι ένα σημαίνει ευτυχία-επιτυχία. Αν είναι πολλά = Κακό σημάδι, κίνδυνος, αρρώστια.",
-                "Πουλιά": "Ευχάριστα γεγονότα.",
-                "Άνθρωπος-πρόσωπο": "Καινούργια σχέση.",
-                "Αγγελός": "Σίγουρο ότι θα έχετε μια χαρούμενη είδηση.",
-                "Αγελάδα": "Ευχαρίστηση και πλούτος.",
-                "Άγιος": "Τα πάντα για σας θα είναι ευλογημένα.",
-                "Αριθμοί": "Ο αριθμός 7 σημαίνει ότι θα περιμένετε πολύ μεγάλη τύχη.",
-                "Αστέρια (3)": "Ένα πολύ έμπιστο άτομο σας έχει βοηθήσει πολύ.",
-                "Αυγό": "Σημάδι κέρδους και γονιμότητας.",
-                "Βαγόνι": "Μεγάλο ταξίδι.",
-                "Βέλος": "Σκοπεύετε να παντρευτείτε.",
-                "Γεράκι": "Παραμονεύει κάποιος.",
-                "Γέφυρα": "Κάποιος προσπαθεί να σας παρασύρει σε γελοίες υποσχέσεις.",
-                "Γοργόνα": "Πολλά πράγματα, ανάλογα με τη θέση.",
-                "Γυναίκα": "Το σχήμα της γυναίκας έχει σχέση με την υγεία.",
-                "Δαχτυλίδι": "Γάμος ή γάμοι.",
-                "Δέντρα": "Εργασία, δουλειά και πλούτο.",
-                "Δράκος": "Καταστροφή σε οικονομικά.",
-                "Εκκλησία": "Χαρά, προκοπή και ευτυχία.",
-                "Έλατα": "Καλά νέα στην οικογένειά σας.",
-                "Ελέφαντας": "Η γνώμη σας θα βαραίνει.",
-                "Ζευγάρι": "Ο σύντροφός σας έχει σχέση και με άλλη γυναίκα.",
-                "Ήλιος": "Απόλυτη επιτυχία σε ό,τι επιχειρήσετε.",
-                "Θάλασσα": "Ήρεμη θάλασσα ή ταραγμένη, ανάλογα με την κρούστα.",
-                "Ιτιά": "Δυσάρεστη περίοδος που δεν θα κρατήσει πολύ.",
-                "Κάγκελα": "Εμπόδια και ατυχίες.",
-                "Καντήλι": "Μεγάλη ηρεμία και μέτρια οικονομική ζωή.",
-                "Καπέλο": "Αναβολή σοβαρών εργασιών.",
-                "Καρδιά": "Σοβαρός δεσμός και γάμος.",
-                "Κεραυνός": "Κάτι το ξαφνικό θα συμβεί.",
-                "Κλειδί": "Πολλές πόρτες θα ανοίξουν.",
-                "Κλωνάρι": "Θα ξαναφτιάξετε σχέσεις.",
-                "Κολιέ": "Όλα θα σας έλθουν όπως τα θέλετε.",
-                "Κομπολόι": "Πολλές επιτυχίες.",
-                "Κορνίζα": "Καλές ειδήσεις.",
-                "Κότα": "Θα κάνετε την πολυπόθητη πρόταση γάμου.",
-                "Κρέμα": "Πολλές ερωτικές περιπέτειες.",
-                "Κρόνος": "Ένα μεγάλο μυστικό θα σας αποκαλυφθεί.",
-                "Κύκνος": "Ειδήσεις που θα σας χαροποιήσουν.",
-                "Λαβύρινθος": "Μέγας κίνδυνος να σας μπλέξουν σε μεγάλες δυσκολίες.",
-                "Λαμπάδα": "Καλά νέα και ταξίδια.",
-                "Λιοντάρι": "Ταξίδι με καλά αποτελέσματα.",
-                "Μαχαίρι": "Εχθρεύεστε κάποιον χωρίς λόγο.",
-                "Μελισσούλα": "Αγωνία για αγαπημένο σας πρόσωπο.",
-                "Μήλο": "Κάποιος προσπαθεί να σας οδηγήσει σε καταστροφή.",
-                "Μπέρδεμα": "Περιμένετε περισσότερα από τη ζωή.",
-                "Μυρτιά": "Όμορφες στιγμές στο σπίτι.",
-                "Νόμισμα": "Δυσπιστία και γκρίνια.",
-                "Ξύλο": "Θα χάσετε κάτι.",
-                "Ομπρέλα": "Κάποιος προσπαθεί να σας κάνει κακό.",
-                "Παγώνι": "Σημάδι καλό και ευχάριστο.",
-                "Πανό": "Μεγάλη επιτυχία.",
-                "Πέταλο": "Σημάδι καλό και ευχάριστο.",
-                "Πλαίσιο": "Ευχάριστα γεγονότα.",
-                "Πουλί": "Ευχάριστα γεγονότα.",
-                "Πύραυλος": "Γρήγορο ταξίδι.",
-                "Πυραμίδα": "Επιτυχία σε ό,τι κάνετε.",
-                "Ρόδι": "Πολλά παιδιά.",
-                "Ρόδο": "Ερωτική επιτυχία.",
-                "Σαύρα": "Εχθρούς.",
-                "Σβούρα": "Γρήγορη αλλαγή.",
-                "Σημαία": "Μεγάλη επιτυχία.",
-                "Σκάλα": "Θα ανεβείτε κοινωνικά.",
-                "Σκελετός": "Προβλήματα υγείας.",
-                "Σπαθί": "Εχθρούς.",
-                "Σπείρα": "Πολλά λάθη.",
-                "Σπίτι": "Θα αγοράσετε σπίτι.",
-                "Στάχυ": "Πολλά χρήματα.",
-                "Στεφάνι": "Θα παντρευτείτε.",
-                "Στροφή": "Θα αλλάξετε πορεία.",
-                "Σχέδιο": "Θα κάνετε ένα σχέδιο.",
-                "Σχοινί": "Δυσκολίες.",
-                "Σωλήνας": "Ταξίδι.",
-                "Ταύρος": "Δύναμη.",
-                "Τέρας": "Εχθρούς.",
-                "Τραπέζι": "Μεγάλη γιορτή.",
-                "Τροχός": "Γρήγορη αλλαγή.",
-                "Τύμπανο": "Μεγάλη γιορτή.",
-                "Φάλαινα": "Επιτυχία.",
-                "Φίδι": "Εχθρούς.",
-                "Φλόγα": "Πάθος.",
-                "Φωτιά": "Πάθος.",
-                "Χέρι": "Βοήθεια.",
-                "Χορός": "Διασκέδαση.",
-                "Χριστός": "Ειρήνη.",
-                "Ψάρι": "Επιτυχία.",
-                "Ψαροκόκαλο": "Εχθρούς.",
-                "Ωρολόγιο": "Αλλαγή χρόνου."
-            };
-            const symbolKeys = Object.keys(coffeeSymbols);
-            const selectedSymbol = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
-            const interpretation = coffeeSymbols[selectedSymbol];
+        // --- Σύνδεση με το API του Replit ---
+        async function sendToAPI(base64Image) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
 
-            const positions = ["Αριστερό ημισφαίριο", "Δεξί ημισφαίριο", "Κοντά στο χερούλι", "Μακριά από το χερούλι", "Πάνω μέρος", "Κάτω μέρος"];
-            const position = positions[Math.floor(Math.random() * positions.length)];
-            let positionInterpretation = "";
-            if (position === "Αριστερό ημισφαίριο") {
-                positionInterpretation = "Το μήνυμα δεν είναι ευχάριστο.";
-            } else if (position === "Δεξί ημισφαίριο") {
-                positionInterpretation = "Το μήνυμα είναι θετικό.";
-            } else if (position === "Κοντά στο χερούλι") {
-                positionInterpretation = "Το γεγονός θα γίνει σύντομα.";
-            } else if (position === "Μακριά από το χερούλι") {
-                positionInterpretation = "Το γεγονός θα γίνει αργά.";
-            } else if (position === "Πάνω μέρος") {
-                positionInterpretation = "Το γεγονός θα γίνει γρήγορα.";
-            } else if (position === "Κάτω μέρος") {
-                positionInterpretation = "Το γεγονός θα γίνει αργά.";
-            }
+                if (!response.ok) {
+                    throw new Error("Σφάλμα API: " + response.status);
+                }
 
-            let coffeeAgeAnalysis = "";
-            if (age < 25) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια περίοδο δημιουργικής αναζήτησης και νέων εμπειριών.`;
-            } else if (age < 40) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σταθερότητα και ωριμότητα, με νέες ευκαιρίες στον ορίζοντα.`;
-            } else if (age < 60) {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σοφία και εμπειρία. Οι προβλέψεις είναι πιο σίγουρες.`;
-            } else {
-                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια μακρά και πλούσια διαδρομή. Η εμπειρία σας φωτίζει το μέλλον.`;
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Ενσωμάτωση ηλικίας
+                    const age = parseInt(document.getElementById('user-age').value) || 30;
+                    data.userAge = age;
+                    data.ageAnalysis = generateAgeAnalysis(age);
+                    data.positionInterpretation = generatePositionInterpretation(data.position);
+                    
+                    displayResult(data);
+                    analysisResult = data;
+                } else {
+                    alert("Σφάλμα ανάλυσης: " + data.error);
+                }
+            } catch (error) {
+                alert("Σφάλμα σύνδεσης με το API: " + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('scanBtn').disabled = false;
+                document.getElementById('auto-status').style.display = 'none';
             }
-            
-            return {
-                type: 'coffee',
-                symbol: selectedSymbol,
-                interpretation: interpretation,
-                position: position,
-                positionInterpretation: positionInterpretation,
-                ageAnalysis: coffeeAgeAnalysis,
-                userAge: age,
-                stats: {
-                    "Σύμβολο": selectedSymbol,
-                    "Θέση": position,
-                    "Ηλικία": age
-                },
-                date: new Date().toISOString(),
-                source: 'coffee'
-            };
         }
 
+        // --- Βοηθητικές συναρτήσεις ---
+        function generateAgeAnalysis(age) {
+            if (age < 25) return `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια περίοδο δημιουργικής αναζήτησης και νέων εμπειριών.`;
+            if (age < 40) return `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σταθερότητα και ωριμότητα, με νέες ευκαιρίες στον ορίζοντα.`;
+            if (age < 60) return `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σοφία και εμπειρία. Οι προβλέψεις είναι πιο σίγουρες.`;
+            return `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια μακρά και πλούσια διαδρομή. Η εμπειρία σας φωτίζει το μέλλον.`;
+        }
+
+        function generatePositionInterpretation(position) {
+            const posMap = {
+                "Αριστερό ημισφαίριο": "Το μήνυμα δεν είναι ευχάριστο.",
+                "Δεξί ημισφαίριο": "Το μήνυμα είναι θετικό.",
+                "Κοντά στο χερούλι": "Το γεγονός θα γίνει σύντομα.",
+                "Μακριά από το χερούλι": "Το γεγονός θα γίνει αργά.",
+                "Πάνω μέρος": "Το γεγονός θα γίνει γρήγορα.",
+                "Κάτω μέρος": "Το γεγονός θα γίνει αργά."
+            };
+            return posMap[position] || "Η θέση του συμβόλου έχει σημασία για την ερμηνεία.";
+        }
+
+        // --- Εμφάνιση αποτελέσματος ---
         function displayResult(r) {
             const area = document.getElementById('result-area');
             const text = document.getElementById('result-text');
@@ -409,6 +303,7 @@
             `;
         }
 
+        // --- Διαφήμιση ---
         function callMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_10979429 === 'function') {
@@ -445,6 +340,7 @@
             document.getElementById('upload-type').innerText = '';
         }
 
+        // --- Ιστορικό & PDF ---
         function saveToHistory() {
             if (!analysisResult) { alert("Κάνε ανάλυση πρώτα!"); return; }
             let h = JSON.parse(localStorage.getItem('history') || '[]');
