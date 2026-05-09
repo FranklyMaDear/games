@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
+    <title>🧿 HandMaster Pro - Καφεμαντεία</title>
+    
+    <!-- ========== MONETAG SDK ========== -->
+    <script src='//libtl.com/sdk.js' data-zone='10979429' data-sdk='show_10979429'></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d0d0d; color: #fff; margin: 0; padding: 20px; text-align: center; }
+        h1 { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.3); }
+        #container { max-width: 700px; margin: 0 auto; }
+        
+        #camera-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; border-radius: 20px; overflow: hidden; border: 3px solid #FFD700; box-shadow: 0 0 30px rgba(255,215,0,0.2); background: #111; }
+        video { width: 100%; display: block; transform: scaleX(-1); }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 20px 0; }
+        .btn { padding: 12px 24px; border: none; border-radius: 30px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; flex: 1; min-width: 80px; }
+        .btn-gold { background: #FFD700; color: #111; }
+        .btn-gold:hover { background: #FFC107; transform: scale(1.03); }
+        .btn-green { background: #2ecc71; color: #fff; }
+        .btn-red { background: #e74c3c; color: #fff; }
+        .btn-blue { background: #3498db; color: #fff; }
+        .btn-purple { background: #9b59b6; color: #fff; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        #user-inputs-row { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 10px 0; flex-wrap: wrap; width: 100%; }
+        .input-group { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 10px 16px; border-radius: 25px; border: 1px solid #444; flex: 0 1 auto; min-width: 140px; }
+        .input-group label { color: #aaa; font-size: 14px; }
+        input { padding: 6px 12px; border-radius: 20px; border: none; background: #333; color: white; font-size: 14px; height: 36px; }
+        input[type="number"] { width: 60px; }
+
+        #result-area { display: none; background: #1a1a1a; border-radius: 20px; padding: 20px; margin-top: 20px; border-left: 5px solid #FFD700; text-align: left; }
+        #result-area h2 { color: #FFD700; margin-top: 0; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .stat-item { background: #222; padding: 8px 12px; border-radius: 10px; }
+
+        .badge { display: inline-block; background: #FFD700; color: #111; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+        #loading { display: none; margin: 15px; color: #aaa; }
+
+        #upload-section { margin: 20px 0; padding: 25px; border: 2px dashed #444; border-radius: 20px; background: #1a1a1a; }
+        #upload-section:hover { border-color: #FFD700; }
+        #file-input { display: none; }
+        .upload-label { padding: 15px 30px; background: #333; border-radius: 30px; cursor: pointer; display: inline-block; transition: 0.3s; font-size: 16px; }
+        .upload-label:hover { background: #444; }
+        #upload-preview { max-width: 100%; max-height: 300px; border-radius: 10px; margin: 10px 0; display: none; }
+        #upload-type { margin: 10px 0; color: #FFD700; font-weight: bold; font-size: 16px; }
+
+        #age-display { margin: 15px 0; color: #FFD700; font-size: 18px; }
+        #element-display { margin: 10px 0; color: #aaa; font-size: 16px; }
+
+        #history-area { display: none; margin-top: 30px; text-align: left; }
+        #history-area h2 { color: #FFD700; }
+        .history-item { background: #1a1a1a; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db; }
+        .history-actions { display: flex; gap: 5px; margin-top: 5px; }
+        .history-actions button { padding: 5px 12px; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; }
+
+        .instructions {
+            margin-top: 10px;
+            padding: 12px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #FFD700;
+            color: #eee;
+            font-size: 14px;
+        }
+        .instructions strong { color: #FFD700; }
+
+        @media (max-width: 480px) {
+            #user-inputs-row { gap: 10px; }
+            .input-group { padding: 6px 12px; min-width: 100px; }
+            input { font-size: 13px; padding: 4px 8px; height: 32px; }
+            input[type="number"] { width: 50px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🧿 HandMaster Pro</h1>
+        <p style="color:#aaa;">Καφεμαντεία - Πολίτικο Φλιτζάνι</p>
+
+        <div id="user-inputs-row">
+            <div class="input-group">
+                <label>🎂</label>
+                <input type="number" id="user-age" min="1" max="120" value="30">
+            </div>
+        </div>
+
+        <div id="upload-section">
+            <label for="file-input" class="upload-label">📁 Ανέβασε φωτογραφία φλιτζανιού</label>
+            <input type="file" id="file-input" accept="image/*" onchange="handleUpload(event)">
+            <div id="upload-type"></div>
+            <img id="upload-preview">
+            <div id="auto-status" style="margin-top:10px; color:#2ecc71; font-weight:bold; display:none;">⏳ Αυτόματη ανάλυση σε εξέλιξη...</div>
+            <div class="instructions">
+                <strong>📌 Οδηγίες:</strong> Πατήστε το κουμπί <strong>Κάμερα</strong> και τοποθετήστε το φλιτζάνι μπροστά στην Οθόνη. 
+                <br>Στη συνέχεια πατήστε <strong>Σκανάρισμα</strong> για λήψη φωτογραφίας και ανάλυση, ή ανεβάστε φωτογραφία.
+            </div>
+        </div>
+
+        <div id="camera-wrapper">
+            <video id="webcam" playsinline></video>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-gold" id="startBtn" onclick="startCamera()">📷 Κάμερα</button>
+            <button class="btn btn-green" id="scanBtn" onclick="scanAndAnalyze()" disabled>📸 Σκανάρισμα & Ανάλυση</button>
+            <button class="btn btn-red" id="refreshBtn" onclick="refreshWithAd()">🔄 Ανανέωση</button>
+        </div>
+
+        <div id="loading">⏳ Αναλύω...</div>
+
+        <div id="result-area">
+            <h2>🔮 Ανάλυση Φλιτζανιού</h2>
+            <div id="element-display"></div>
+            <div id="age-display"></div>
+            <div id="result-text"></div>
+            <div class="stat-grid" id="stats-grid"></div>
+            <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
+                <button class="btn btn-blue" onclick="exportPDF()">📄 PDF</button>
+                <button class="btn btn-purple" onclick="saveToHistory()">💾 Αποθήκευση</button>
+            </div>
+        </div>
+
+        <div id="history-area">
+            <h2>📚 Ιστορικό Αναλύσεων</h2>
+            <div id="history-list"></div>
+            <button class="btn btn-red" onclick="clearHistory()">🗑️ Διαγραφή Ιστορικού</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Camera Setup (Χωρίς Hand Detection) ---
+        const video = document.getElementById('webcam');
+        let analysisResult = null;
+        let uploadedImage = null;
+        let camera = null;
+        let capturedPhoto = null;
+
+        // --- Εκκίνηση κάμερας ---
+        function startCamera() {
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.innerText = "⏳...";
+            camera = new Camera(video, {
+                onFrame: async () => {
+                    // Απλή ροή βίντεο χωρίς ανίχνευση
+                },
+                width: 500,
+                height: 500,
+                facingMode: 'environment'
+            });
+            camera.start().then(() => {
+                btn.innerText = "✅ Ready";
+                btn.style.background = "#2ecc71";
+                btn.disabled = false;
+                document.getElementById('scanBtn').disabled = false;
+            }).catch(err => {
+                console.error("Camera error:", err);
+                btn.innerText = "📷 Κάμερα";
+                btn.style.background = "";
+                btn.disabled = false;
+                alert("Σφάλμα κάμερας: " + err);
+            });
+        }
+
+        // --- Λήψη φωτογραφίας από κάμερα ---
+        function scanAndAnalyze() {
+            if (!camera) {
+                alert("Πατήστε πρώτα το κουμπί 'Κάμερα'");
+                return;
+            }
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('scanBtn').disabled = true;
+
+            // Λήψη φωτογραφίας
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            capturedPhoto = canvas.toDataURL('image/png');
+
+            setTimeout(() => {
+                const result = analyzeCoffee();
+                displayResult(result);
+                analysisResult = result;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('scanBtn').disabled = false;
+            }, 500);
+        }
+
+        // --- Upload φωτογραφίας ---
+        function handleUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImage = e.target.result;
+                const preview = document.getElementById('upload-preview');
+                preview.src = uploadedImage;
+                preview.style.display = 'block';
+                
+                document.getElementById('auto-status').style.display = 'block';
+                document.getElementById('auto-status').innerText = '⏳ Αυτόματη ανάλυση σε εξέλιξη...';
+                
+                setTimeout(() => {
+                    const result = analyzeCoffee();
+                    displayResult(result);
+                    analysisResult = result;
+                    document.getElementById('auto-status').innerText = '✅ Ανάλυση ολοκληρώθηκε!';
+                    document.getElementById('auto-status').style.color = '#2ecc71';
+                }, 500);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- Βάση δεδομένων συμβόλων καφεμαντείας ---
+        function analyzeCoffee() {
+            const age = parseInt(document.getElementById('user-age').value) || 30;
+            
+            const coffeeSymbols = {
+                "Ευθεία γραμμή": "Δρόμος, ταξίδι για κάποιο γεγονός με ευχάριστο τέλος.",
+                "Ευθεία διακοπτόμενη γραμμή": "Ταξίδι μετ' εμποδίων ή αρρώστια.",
+                "Καμπύλη": "Σας ζηλεύουν και θα προσπαθήσουν να σας κάνουν κακό.",
+                "Καμπύλη διακεκομμένη": "Κακούς φίλους ή συγγενείς.",
+                "Κύκλος": "Καλά νέα. Χρήματα. Φίλοι. Αν οι κύκλοι είναι πολλοί: Πολλά χρήματα και μεγάλη επιτυχία.",
+                "Κύκλος με κουκίδες": "Απόκτηση παιδιού.",
+                "Σπιτάκι": "Γάμος και οικογενειακή ευτυχία.",
+                "Τρίγωνο": "Τύχη κυρίως στα οικονομικά.",
+                "Τετράγωνο": "Συμβολίζει αποκλειστικά την ερωτική και αισθηματική σας ζωή.",
+                "Σταυρός": "Πολύ σοβαρό σημάδι. Σταυρός με πρόσωπο στο κάτω μέρος: Ευτυχισμένο γεγονός, γάμος.",
+                "Τριαντάφυλλο": "Υγεία και ευτυχία.",
+                "Ζώα": "Ευτυχία.",
+                "Ψάρι": "Αν είναι ένα σημαίνει ευτυχία-επιτυχία. Αν είναι πολλά = Κακό σημάδι, κίνδυνος, αρρώστια.",
+                "Πουλιά": "Ευχάριστα γεγονότα.",
+                "Άνθρωπος-πρόσωπο": "Καινούργια σχέση.",
+                "Αγγελός": "Σίγουρο ότι θα έχετε μια χαρούμενη είδηση.",
+                "Αγελάδα": "Ευχαρίστηση και πλούτος.",
+                "Άγιος": "Τα πάντα για σας θα είναι ευλογημένα.",
+                "Αριθμοί": "Ο αριθμός 7 σημαίνει ότι θα περιμένετε πολύ μεγάλη τύχη.",
+                "Αστέρια (3)": "Ένα πολύ έμπιστο άτομο σας έχει βοηθήσει πολύ.",
+                "Αυγό": "Σημάδι κέρδους και γονιμότητας.",
+                "Βαγόνι": "Μεγάλο ταξίδι.",
+                "Βέλος": "Σκοπεύετε να παντρευτείτε.",
+                "Γεράκι": "Παραμονεύει κάποιος.",
+                "Γέφυρα": "Κάποιος προσπαθεί να σας παρασύρει σε γελοίες υποσχέσεις.",
+                "Γοργόνα": "Πολλά πράγματα, ανάλογα με τη θέση.",
+                "Γυναίκα": "Το σχήμα της γυναίκας έχει σχέση με την υγεία.",
+                "Δαχτυλίδι": "Γάμος ή γάμοι.",
+                "Δέντρα": "Εργασία, δουλειά και πλούτο.",
+                "Δράκος": "Καταστροφή σε οικονομικά.",
+                "Εκκλησία": "Χαρά, προκοπή και ευτυχία.",
+                "Έλατα": "Καλά νέα στην οικογένειά σας.",
+                "Ελέφαντας": "Η γνώμη σας θα βαραίνει.",
+                "Ζευγάρι": "Ο σύντροφός σας έχει σχέση και με άλλη γυναίκα.",
+                "Ήλιος": "Απόλυτη επιτυχία σε ό,τι επιχειρήσετε.",
+                "Θάλασσα": "Ήρεμη θάλασσα ή ταραγμένη, ανάλογα με την κρούστα.",
+                "Ιτιά": "Δυσάρεστη περίοδος που δεν θα κρατήσει πολύ.",
+                "Κάγκελα": "Εμπόδια και ατυχίες.",
+                "Καντήλι": "Μεγάλη ηρεμία και μέτρια οικονομική ζωή.",
+                "Καπέλο": "Αναβολή σοβαρών εργασιών.",
+                "Καρδιά": "Σοβαρός δεσμός και γάμος.",
+                "Κεραυνός": "Κάτι το ξαφνικό θα συμβεί.",
+                "Κλειδί": "Πολλές πόρτες θα ανοίξουν.",
+                "Κλωνάρι": "Θα ξαναφτιάξετε σχέσεις.",
+                "Κολιέ": "Όλα θα σας έλθουν όπως τα θέλετε.",
+                "Κομπολόι": "Πολλές επιτυχίες.",
+                "Κορνίζα": "Καλές ειδήσεις.",
+                "Κότα": "Θα κάνετε την πολυπόθητη πρόταση γάμου.",
+                "Κρέμα": "Πολλές ερωτικές περιπέτειες.",
+                "Κρόνος": "Ένα μεγάλο μυστικό θα σας αποκαλυφθεί.",
+                "Κύκνος": "Ειδήσεις που θα σας χαροποιήσουν.",
+                "Λαβύρινθος": "Μέγας κίνδυνος να σας μπλέξουν σε μεγάλες δυσκολίες.",
+                "Λαμπάδα": "Καλά νέα και ταξίδια.",
+                "Λιοντάρι": "Ταξίδι με καλά αποτελέσματα.",
+                "Μαχαίρι": "Εχθρεύεστε κάποιον χωρίς λόγο.",
+                "Μελισσούλα": "Αγωνία για αγαπημένο σας πρόσωπο.",
+                "Μήλο": "Κάποιος προσπαθεί να σας οδηγήσει σε καταστροφή.",
+                "Μπέρδεμα": "Περιμένετε περισσότερα από τη ζωή.",
+                "Μυρτιά": "Όμορφες στιγμές στο σπίτι.",
+                "Νόμισμα": "Δυσπιστία και γκρίνια.",
+                "Ξύλο": "Θα χάσετε κάτι.",
+                "Ομπρέλα": "Κάποιος προσπαθεί να σας κάνει κακό.",
+                "Παγώνι": "Σημάδι καλό και ευχάριστο.",
+                "Πανό": "Μεγάλη επιτυχία.",
+                "Πέταλο": "Σημάδι καλό και ευχάριστο.",
+                "Πλαίσιο": "Ευχάριστα γεγονότα.",
+                "Πουλί": "Ευχάριστα γεγονότα.",
+                "Πύραυλος": "Γρήγορο ταξίδι.",
+                "Πυραμίδα": "Επιτυχία σε ό,τι κάνετε.",
+                "Ρόδι": "Πολλά παιδιά.",
+                "Ρόδο": "Ερωτική επιτυχία.",
+                "Σαύρα": "Εχθρούς.",
+                "Σβούρα": "Γρήγορη αλλαγή.",
+                "Σημαία": "Μεγάλη επιτυχία.",
+                "Σκάλα": "Θα ανεβείτε κοινωνικά.",
+                "Σκελετός": "Προβλήματα υγείας.",
+                "Σπαθί": "Εχθρούς.",
+                "Σπείρα": "Πολλά λάθη.",
+                "Σπίτι": "Θα αγοράσετε σπίτι.",
+                "Στάχυ": "Πολλά χρήματα.",
+                "Στεφάνι": "Θα παντρευτείτε.",
+                "Στροφή": "Θα αλλάξετε πορεία.",
+                "Σχέδιο": "Θα κάνετε ένα σχέδιο.",
+                "Σχοινί": "Δυσκολίες.",
+                "Σωλήνας": "Ταξίδι.",
+                "Ταύρος": "Δύναμη.",
+                "Τέρας": "Εχθρούς.",
+                "Τραπέζι": "Μεγάλη γιορτή.",
+                "Τροχός": "Γρήγορη αλλαγή.",
+                "Τύμπανο": "Μεγάλη γιορτή.",
+                "Φάλαινα": "Επιτυχία.",
+                "Φίδι": "Εχθρούς.",
+                "Φλόγα": "Πάθος.",
+                "Φωτιά": "Πάθος.",
+                "Χέρι": "Βοήθεια.",
+                "Χορός": "Διασκέδαση.",
+                "Χριστός": "Ειρήνη.",
+                "Ψάρι": "Επιτυχία.",
+                "Ψαροκόκαλο": "Εχθρούς.",
+                "Ωρολόγιο": "Αλλαγή χρόνου."
+            };
+            const symbolKeys = Object.keys(coffeeSymbols);
+            const selectedSymbol = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
+            const interpretation = coffeeSymbols[selectedSymbol];
+
+            const positions = ["Αριστερό ημισφαίριο", "Δεξί ημισφαίριο", "Κοντά στο χερούλι", "Μακριά από το χερούλι", "Πάνω μέρος", "Κάτω μέρος"];
+            const position = positions[Math.floor(Math.random() * positions.length)];
+            let positionInterpretation = "";
+            if (position === "Αριστερό ημισφαίριο") {
+                positionInterpretation = "Το μήνυμα δεν είναι ευχάριστο.";
+            } else if (position === "Δεξί ημισφαίριο") {
+                positionInterpretation = "Το μήνυμα είναι θετικό.";
+            } else if (position === "Κοντά στο χερούλι") {
+                positionInterpretation = "Το γεγονός θα γίνει σύντομα.";
+            } else if (position === "Μακριά από το χερούλι") {
+                positionInterpretation = "Το γεγονός θα γίνει αργά.";
+            } else if (position === "Πάνω μέρος") {
+                positionInterpretation = "Το γεγονός θα γίνει γρήγορα.";
+            } else if (position === "Κάτω μέρος") {
+                positionInterpretation = "Το γεγονός θα γίνει αργά.";
+            }
+
+            let coffeeAgeAnalysis = "";
+            if (age < 25) {
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια περίοδο δημιουργικής αναζήτησης και νέων εμπειριών.`;
+            } else if (age < 40) {
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σταθερότητα και ωριμότητα, με νέες ευκαιρίες στον ορίζοντα.`;
+            } else if (age < 60) {
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει σοφία και εμπειρία. Οι προβλέψεις είναι πιο σίγουρες.`;
+            } else {
+                coffeeAgeAnalysis = `Στα ${age} σας χρόνια, το φλιτζάνι δείχνει μια μακρά και πλούσια διαδρομή. Η εμπειρία σας φωτίζει το μέλλον.`;
+            }
+            
+            return {
+                type: 'coffee',
+                symbol: selectedSymbol,
+                interpretation: interpretation,
+                position: position,
+                positionInterpretation: positionInterpretation,
+                ageAnalysis: coffeeAgeAnalysis,
+                userAge: age,
+                stats: {
+                    "Σύμβολο": selectedSymbol,
+                    "Θέση": position,
+                    "Ηλικία": age
+                },
+                date: new Date().toISOString(),
+                source: 'coffee'
+            };
+        }
+
+        function displayResult(r) {
+            const area = document.getElementById('result-area');
+            const text = document.getElementById('result-text');
+            const grid = document.getElementById('stats-grid');
+            const elementDisplay = document.getElementById('element-display');
+            const ageDisplay = document.getElementById('age-display');
+
+            area.style.display = 'block';
+
+            elementDisplay.innerHTML = `<strong>☕ Καφεμαντεία - Πολίτικο Φλιτζάνι</strong>`;
+            elementDisplay.style.color = "#FFD700";
+            
+            ageDisplay.innerHTML = `📅 ${r.ageAnalysis}`;
+            
+            text.innerHTML = `
+                <strong>🔮 Σύμβολο που εντοπίστηκε:</strong> "${r.symbol}"<br>
+                <strong>📖 Ερμηνεία:</strong> ${r.interpretation}<br>
+                <hr style="border-color:#444;">
+                <strong>📍 Θέση στο φλιτζάνι:</strong> ${r.position}<br>
+                <strong>📌 Ερμηνεία θέσης:</strong> ${r.positionInterpretation}<br>
+                <hr style="border-color:#444;">
+                <strong>💡 Υπόδειξη:</strong> Αν το σύμβολο βρίσκεται κοντά στο χερούλι, τα γεγονότα θα συμβούν σύντομα. Αν είναι μακριά, θα καθυστερήσουν.
+            `;
+            
+            grid.innerHTML = `
+                <div class="stat-item"><span class="badge">Σύμβολο</span><br>${r.symbol}</div>
+                <div class="stat-item"><span class="badge">Θέση</span><br>${r.position}</div>
+                <div class="stat-item"><span class="badge">Ηλικία</span><br>${r.userAge}</div>
+            `;
+        }
+
+        function callMonetagAd() {
+            return new Promise((resolve, reject) => {
+                if (typeof show_10979429 === 'function') {
+                    show_10979429().then(resolve).catch(reject);
+                } else {
+                    setTimeout(() => {
+                        if (typeof show_10979429 === 'function') {
+                            show_10979429().then(resolve).catch(reject);
+                        } else {
+                            resolve();
+                        }
+                    }, 500);
+                }
+            });
+        }
+
+        function refreshWithAd() {
+            callMonetagAd().then(() => {
+                resetAll();
+            }).catch(() => {
+                resetAll();
+            });
+        }
+
+        function resetAll() {
+            document.getElementById('result-area').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').innerText = "📷 Κάμερα";
+            document.getElementById('scanBtn').disabled = true;
+            analysisResult = null;
+            document.getElementById('upload-preview').style.display = 'none';
+            document.getElementById('auto-status').style.display = 'none';
+            document.getElementById('upload-type').innerText = '';
+        }
+
+        function saveToHistory() {
+            if (!analysisResult) { alert("Κάνε ανάλυση πρώτα!"); return; }
+            let h = JSON.parse(localStorage.getItem('history') || '[]');
+            h.push({
+                id: Date.now(),
+                ...analysisResult,
+                dateStr: new Date().toLocaleString('el-GR')
+            });
+            localStorage.setItem('history', JSON.stringify(h));
+            renderHistory();
+            alert("✅ Αποθηκεύτηκε!");
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            const h = JSON.parse(localStorage.getItem('history') || '[]');
+            if (!h.length) {
+                list.innerHTML = "<p style='color:#888;'>Δεν υπάρχουν αναλύσεις.</p>";
+                return;
+            }
+            list.innerHTML = h.map((item, i) => `
+                <div class="history-item">
+                    <strong>#${i+1}</strong> <small>${item.dateStr}</small> (${item.source})<br>
+                    ☕ Σύμβολο: ${item.symbol} | 📅 ${item.userAge} ετών
+                    <div class="history-actions">
+                        <button onclick="deleteHistoryItem(${i})" style="background:#e74c3c;color:#fff;">Διαγραφή</button>
+                        <button onclick="exportHistoryItemAsPDF(${i})" style="background:#3498db;color:#fff;">PDF</button>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('history-area').style.display = 'block';
+        }
+
+        function deleteHistoryItem(i) {
+            let h = JSON.parse(localStorage.getItem('history') || '[]');
+            h.splice(i, 1);
+            localStorage.setItem('history', JSON.stringify(h));
+            renderHistory();
+        }
+
+        function clearHistory() {
+            if (confirm("Διαγραφή όλου του ιστορικού;")) {
+                localStorage.removeItem('history');
+                renderHistory();
+                alert("Ιστορικό διαγράφηκε.");
+            }
+        }
+
+        async function exportHistoryItemAsPDF(i) {
+            const h = JSON.parse(localStorage.getItem('history') || '[]');
+            const item = h[i];
+            if (!item) return;
+            const content = document.createElement('div');
+            content.innerHTML = `
+                <div style="font-family:Arial; padding:20px; color:#111; background:white; max-width:500px; margin:auto; border-radius:15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🧿 HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">${item.dateStr}</p>
+                    <hr>
+                    <p><strong>☕ Σύμβολο:</strong> ${item.symbol}</p>
+                    <p><strong>📖 Ερμηνεία:</strong> ${item.interpretation}</p>
+                    <p><strong>📍 Θέση:</strong> ${item.position}</p>
+                    <p><strong>📌 Ερμηνεία θέσης:</strong> ${item.positionInterpretation}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">HandMaster Pro AI</p>
+                </div>
+            `;
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale:2, backgroundColor:'#ffffff' });
+            const pdf = new jsPDF('p','mm','a4');
+            const w = pdf.internal.pageSize.getWidth();
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, (canvas.height * w) / canvas.width);
+            pdf.save(`HandMaster_${item.dateStr}.pdf`);
+        }
+
+        async function exportPDF() {
+            if (!analysisResult) { alert("Κάνε ανάλυση πρώτα!"); return; }
+            const content = document.createElement('div');
+            const now = new Date();
+            content.innerHTML = `
+                <div style="font-family:Arial; padding:20px; color:#111; background:white; max-width:500px; margin:auto; border-radius:15px;">
+                    <h2 style="text-align:center; color:#B8860B;">🧿 HandMaster Pro</h2>
+                    <p style="text-align:center; color:#555;">${now.toLocaleDateString('el-GR')}</p>
+                    <hr>
+                    <p><strong>☕ Σύμβολο:</strong> ${analysisResult.symbol}</p>
+                    <p><strong>📖 Ερμηνεία:</strong> ${analysisResult.interpretation}</p>
+                    <p><strong>📍 Θέση:</strong> ${analysisResult.position}</p>
+                    <p><strong>📌 Ερμηνεία θέσης:</strong> ${analysisResult.positionInterpretation}</p>
+                    <hr>
+                    <p style="text-align:center; font-size:12px; color:#999;">HandMaster Pro AI</p>
+                </div>
+            `;
+            const { jsPDF } = window.jspdf;
+            const canvas = await html2canvas(content, { scale:2, backgroundColor:'#ffffff' });
+            const pdf = new jsPDF('p','mm','a4');
+            const w = pdf.internal.pageSize.getWidth();
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, (canvas.height * w) / canvas.width);
+            pdf.save(`HandMaster_${now.toISOString().slice(0,10)}.pdf`);
+        }
+
+        window.onload = function() {
+            const h = JSON.parse(localStorage.getItem('history') || '[]');
+            if (h.length) {
+                renderHistory();
+                document.getElementById('history-area').style.display = 'block';
+            }
+        };
+    </script>
+</body>
+</html>
