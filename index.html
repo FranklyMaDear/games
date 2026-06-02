@@ -8,6 +8,8 @@
     <link rel="apple-touch-icon" href="photo.png">
     <meta name="theme-color" content="#1a1a2e">
     <script src="https://omg10.com/4/10274068" data-site-id="3062566"></script>
+    <!-- Winwheel.js για το Wheel -->
+    <script src="https://cdn.jsdelivr.net/npm/winwheel@1.0.0/dist/winwheel.min.js"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
@@ -59,6 +61,15 @@
         }
         .xp-bar { width:100%; height:14px; background: rgba(255,255,255,0.1); border-radius:10px; margin:12px 0; }
         .xp-fill { height:100%; background: linear-gradient(90deg, #e74c3c, #f1c40f); border-radius:10px; transition: width 0.5s; }
+        .path-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-top: 15px; }
+        .step {
+            aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; background: rgba(255,255,255,0.1); font-weight: 700;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .step.completed { background: #27ae60; border-color: #2ecc71; box-shadow: 0 0 15px #27ae6080; }
+        .step.current { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f80; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 50% { box-shadow: 0 0 35px #f1c40f; } }
         /* games grid */
         .games-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-top: 10px; }
         .game-card {
@@ -66,18 +77,35 @@
             text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid rgba(255,255,255,0.1);
         }
         .game-card:active { transform: scale(0.95); }
+        /* iframe modal */
+        .modal-overlay {
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content { width: 95%; height: 85%; background: #fff; border-radius: 16px; overflow: hidden; position: relative; }
+        .modal-content iframe { width: 100%; height: 100%; border: none; }
+        .modal-close {
+            position: absolute; top: -15px; right: -15px; background: #e74c3c; color: #fff;
+            width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; font-weight: bold; z-index: 10;
+        }
         /* leaderboard */
         .leaderboard-item {
             display: flex; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05);
             border-radius: 10px; margin-bottom: 6px;
         }
-        /* missions */
         .mission-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 6px;
         }
-        /* referral */
         .referral-box { background: rgba(255,255,255,0.05); border-radius: 14px; padding: 15px; text-align: center; margin: 15px 0; }
+        /* wheel canvas */
+        #wheelCanvas { max-width: 300px; margin: 20px auto; display: block; }
+        #spinBtn {
+            display: block; margin: 0 auto; padding: 12px 30px; background: #f1c40f; color: #000;
+            border: none; border-radius: 25px; font-weight: 700; font-size: 1rem; cursor: pointer;
+        }
         /* bottom bar */
         .bottom-bar {
             position: fixed; bottom: 0; left: 0; width: 100%; z-index: 1000;
@@ -91,11 +119,10 @@
         }
         .tab i { font-size: 1.3rem; }
         .tab.active { color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
-        /* toast */
         .toast {
             position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
             background: #f1c40f; color: #000; padding: 12px 28px; border-radius: 30px;
-            font-weight: 700; z-index: 2000; animation: toastIn 0.4s, toastOut 0.4s 2.5s forwards;
+            font-weight: 700; z-index: 3000; animation: toastIn 0.4s, toastOut 0.4s 2.5s forwards;
         }
         @keyframes toastIn { from { opacity:0; bottom:50px; } to { opacity:1; bottom:90px; } }
         @keyframes toastOut { to { opacity:0; bottom:120px; } }
@@ -136,6 +163,14 @@
 
         <!-- Dynamic Tab Content -->
         <div id="tab-content"></div>
+    </div>
+
+    <!-- Iframe Modal -->
+    <div class="modal-overlay" id="gameModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeGameModal()">✕</span>
+            <iframe id="gameIframe" src="" allowfullscreen></iframe>
+        </div>
     </div>
 
     <!-- Bottom Navigation -->
@@ -193,8 +228,18 @@
                     onError: () => showToast('Ad failed – try again later')
                 });
             } else {
-                callback(); // fallback
+                callback();
             }
+        }
+
+        // Iframe modal
+        function openGameModal(url) {
+            document.getElementById('gameIframe').src = url;
+            document.getElementById('gameModal').classList.add('active');
+        }
+        function closeGameModal() {
+            document.getElementById('gameIframe').src = '';
+            document.getElementById('gameModal').classList.remove('active');
         }
 
         async function handleAction(type) {
@@ -212,11 +257,10 @@
                         refreshUI();
                     });
                 } else if (type === 'wheel') {
-                    showAdThen(async () => {
-                        const data = await apiCall('POST', '/wheel', { userId });
-                        showToast(`Wheel: ${data.prize.type} +${data.prize.amount}`);
-                        refreshUI();
-                    });
+                    // Το wheel φορτώνεται στο tab 'wheel'
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelector('[data-tab="games"]').classList.add('active');
+                    renderTab('wheel');
                 }
             } catch(e) { showToast(e.message); }
         }
@@ -241,12 +285,12 @@
                         <div class="xp-bar"><div class="xp-fill" style="width:${progressPercent}%"></div></div>
                         <p style="font-size:0.8rem; color:#aaa;">${board.total_points} / ${board.next_level_points} pts</p>
                     </div>`;
-                    html += '<h3>🏆 Progress Path</h3><div class="path-grid" style="display:grid; grid-template-columns: repeat(5,1fr); gap:10px;">';
+                    html += '<h3>🏆 Progress Path</h3><div class="path-grid">';
                     for (let i = 0; i < 10; i++) {
                         let cls = 'step';
                         if (i < board.level) cls += ' completed';
                         else if (i === board.level) cls += ' current';
-                        html += `<div class="${cls}" style="aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:12px; background:rgba(255,255,255,0.1);">${i+1}</div>`;
+                        html += `<div class="${cls}">${i+1}</div>`;
                     }
                     html += '</div>';
                     content.innerHTML = html;
@@ -255,14 +299,14 @@
                     let html = '<h3>🎮 Choose a Game</h3><div class="games-grid" id="gamesGrid"></div>';
                     content.innerHTML = html;
                     const games = [
-                        {name:"Crack The Code", url:"/code/index.html", icon:"🔐"},
-                        {name:"Code Kids", url:"/codekids/index.html", icon:"🧸"},
-                        {name:"Code Words", url:"/codewords/index.html", icon:"📝"},
-                        {name:"Chess", url:"/chess/index.html", icon:"♔"},
-                        {name:"Animals", url:"/animals/index.html", icon:"🐾"},
-                        {name:"Connect 4", url:"/4x4/connect4.html", icon:"🔴"},
-                        {name:"Balloons", url:"/balloon/index.html", icon:"🎈"},
-                        {name:"Sudoku", url:"/sudoku/sudoku.html", icon:"🔢"}
+                        {name:"Crack The Code", url:"https://games.franklymadear.com/code/index.html", icon:"🔐"},
+                        {name:"Code Kids", url:"https://games.franklymadear.com/codekids/index.html", icon:"🧸"},
+                        {name:"Code Words", url:"https://games.franklymadear.com/codewords/index.html", icon:"📝"},
+                        {name:"Chess", url:"https://games.franklymadear.com/chess/index.html", icon:"♔"},
+                        {name:"Animals", url:"https://games.franklymadear.com/animals/index.html", icon:"🐾"},
+                        {name:"Connect 4", url:"https://games.franklymadear.com/4x4/connect4.html", icon:"🔴"},
+                        {name:"Balloons", url:"https://games.franklymadear.com/balloon/index.html", icon:"🎈"},
+                        {name:"Sudoku", url:"https://games.franklymadear.com/sudoku/sudoku.html", icon:"🔢"}
                     ];
                     const grid = document.getElementById('gamesGrid');
                     games.forEach(g => {
@@ -274,7 +318,7 @@
                                     const data = await apiCall('POST', '/log', { userId, game: g.name });
                                     showToast(`+${data.points_earned} pts (x${data.multiplier})`);
                                     refreshUI();
-                                    window.open('https://games.franklymadear.com' + g.url, '_blank');
+                                    openGameModal(g.url);
                                 } catch(e) { showToast(e.message); }
                             });
                         };
@@ -296,7 +340,6 @@
                         <p>Rewards: ${season.rewards.join(', ')}</p>`;
                 }
                 else if (tab === 'rewards') {
-                    // Συνδυασμός leaderboard, missions, referral
                     let html = '<h3>🏅 Leaderboard</h3>';
                     const leaderboard = await apiCall('GET', '/leaderboard');
                     leaderboard.leaderboard.forEach((entry, index) => {
@@ -324,9 +367,48 @@
                     </div>`;
                     content.innerHTML = html;
                 }
+                else if (tab === 'wheel') {
+                    let html = '<h3>🎡 Wheel of Fortune</h3>';
+                    html += '<canvas id="wheelCanvas" width="400" height="400"></canvas>';
+                    html += '<button id="spinBtn">SPIN</button>';
+                    content.innerHTML = html;
+                    initWheel();
+                }
             } catch(e) {
                 content.innerHTML = `<p style="color:#e74c3c;">Error: ${e.message}</p>`;
             }
+        }
+
+        // Wheel of Fortune
+        let wheelInstance = null;
+        function initWheel() {
+            const segments = [
+                {text: '10 pts', fillStyle: '#e74c3c', points: 10},
+                {text: '50 pts', fillStyle: '#3498db', points: 50},
+                {text: '20⚡', fillStyle: '#2ecc71', energy: 20},
+                {text: '5 pts', fillStyle: '#f39c12', points: 5},
+                {text: '100 pts', fillStyle: '#9b59b6', points: 100},
+                {text: '30⚡', fillStyle: '#1abc9c', energy: 30},
+                {text: '200 pts', fillStyle: '#f1c40f', points: 200},
+                {text: '15⚡', fillStyle: '#e67e22', energy: 15}
+            ];
+            wheelInstance = new Winwheel({
+                canvasId: 'wheelCanvas',
+                numSegments: segments.length,
+                segments: segments,
+                animation: { type: 'spinToStop', duration: 5, spins: 8 }
+            });
+            document.getElementById('spinBtn').onclick = () => {
+                wheelInstance.startAnimation();
+                const winner = segments[Math.floor(Math.random() * segments.length)];
+                setTimeout(async () => {
+                    try {
+                        const data = await apiCall('POST', '/wheel', { userId });
+                        showToast(`Won: ${winner.text}!`);
+                        refreshUI();
+                    } catch(e) { showToast(e.message); }
+                }, 5200);
+            };
         }
 
         window.claimMission = async function(missionId) {
@@ -334,7 +416,7 @@
                 const data = await apiCall('POST', '/missions/claim', { userId, missionId });
                 showToast(`Mission claimed! +${data.reward_points} pts`);
                 refreshUI();
-                renderTab('rewards'); // refresh tab
+                renderTab('rewards');
             } catch(e) { showToast(e.message); }
         };
 
