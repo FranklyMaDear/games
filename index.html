@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Games Franklymadear - Gamified</title>
+    <title>Games Franklymadear - Gamified Hub</title>
     <link rel="icon" type="image/png" sizes="32x32" href="photo.png">
     <link rel="apple-touch-icon" href="photo.png">
     <meta name="theme-color" content="#1a1a2e">
@@ -49,44 +49,35 @@
             position: relative; overflow: hidden;
         }
         .action-btn:active { transform: scale(0.92); }
-        .action-btn::after {
-            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 60%);
-            opacity: 0; transition: opacity 0.3s;
-        }
-        .action-btn:hover::after { opacity: 1; }
-        .action-icon {
-            font-size: 2.2rem; margin-bottom: 6px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
-            display: block;
-        }
+        .action-icon { font-size: 2.2rem; margin-bottom: 6px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
         .action-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-        /* board path */
-        .path-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin: 20px 0; }
-        .step {
-            aspect-ratio: 1; border-radius: 18px; display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 0.9rem; background: rgba(255,255,255,0.08);
-            border: 2px solid rgba(255,255,255,0.15); transition: all 0.4s;
-            position: relative;
+        /* board */
+        .level-info { text-align: center; margin-bottom: 20px; }
+        .level-badge {
+            display: inline-block; background: #f1c40f; color: #000; font-weight: 800; padding: 5px 18px;
+            border-radius: 20px; font-size: 1.2rem;
         }
-        .step.completed {
-            background: linear-gradient(135deg, #27ae60, #2ecc71); border-color: #27ae60;
-            box-shadow: 0 0 18px #27ae6080; color: #fff;
-        }
-        .step.current {
-            border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f80; animation: pulse-current 1.5s infinite;
-        }
-        @keyframes pulse-current {
-            0%,100% { box-shadow: 0 0 15px #f1c40f80; }
-            50% { box-shadow: 0 0 30px #f1c40f, 0 0 60px #f1c40f40; }
-        }
-        .avatar-icon { font-size: 1.5rem; }
-        /* games */
+        .xp-bar { width:100%; height:14px; background: rgba(255,255,255,0.1); border-radius:10px; margin:12px 0; }
+        .xp-fill { height:100%; background: linear-gradient(90deg, #e74c3c, #f1c40f); border-radius:10px; transition: width 0.5s; }
+        /* games grid */
         .games-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-top: 10px; }
         .game-card {
             background: rgba(255,255,255,0.06); border-radius: 18px; padding: 20px 12px;
             text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid rgba(255,255,255,0.1);
         }
         .game-card:active { transform: scale(0.95); }
+        /* leaderboard */
+        .leaderboard-item {
+            display: flex; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05);
+            border-radius: 10px; margin-bottom: 6px;
+        }
+        /* missions */
+        .mission-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 6px;
+        }
+        /* referral */
+        .referral-box { background: rgba(255,255,255,0.05); border-radius: 14px; padding: 15px; text-align: center; margin: 15px 0; }
         /* bottom bar */
         .bottom-bar {
             position: fixed; bottom: 0; left: 0; width: 100%; z-index: 1000;
@@ -109,12 +100,10 @@
         @keyframes toastIn { from { opacity:0; bottom:50px; } to { opacity:1; bottom:90px; } }
         @keyframes toastOut { to { opacity:0; bottom:120px; } }
         .hidden { display: none; }
-        /* responsive */
         @media (max-width:400px) {
-            .action-grid { grid-template-columns: repeat(4,1fr); gap: 8px; }
+            .action-grid { gap: 8px; }
             .action-btn { padding: 12px 4px; }
             .action-icon { font-size: 1.6rem; }
-            .path-grid { grid-template-columns: repeat(4,1fr); gap: 8px; }
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -149,7 +138,7 @@
         <div id="tab-content"></div>
     </div>
 
-    <!-- Bottom Bar -->
+    <!-- Bottom Navigation -->
     <div class="bottom-bar">
         <div class="tab active" data-tab="board"><i class="fas fa-road"></i> BOARD</div>
         <div class="tab" data-tab="games"><i class="fas fa-gamepad"></i> GAMES</div>
@@ -204,8 +193,7 @@
                     onError: () => showToast('Ad failed – try again later')
                 });
             } else {
-                // fallback για testing
-                callback();
+                callback(); // fallback
             }
         }
 
@@ -247,22 +235,24 @@
             try {
                 if (tab === 'board') {
                     const board = await apiCall('GET', `/board?userId=${userId}`);
-                    let html = `<h3 style="margin-bottom:12px;">🏆 Progress Path</h3>
-                        <p style="margin-bottom:15px; font-size:0.85rem; color:#aaa;">
-                        Complete steps by earning points! (${board.steps_completed}/${board.total_steps})
-                        </p>`;
-                    html += '<div class="path-grid">';
-                    for (let i = 1; i <= board.total_steps; i++) {
+                    const progressPercent = (board.progress * 100).toFixed(0);
+                    let html = `<div class="level-info">
+                        <span class="level-badge">Level ${board.level}</span>
+                        <div class="xp-bar"><div class="xp-fill" style="width:${progressPercent}%"></div></div>
+                        <p style="font-size:0.8rem; color:#aaa;">${board.total_points} / ${board.next_level_points} pts</p>
+                    </div>`;
+                    html += '<h3>🏆 Progress Path</h3><div class="path-grid" style="display:grid; grid-template-columns: repeat(5,1fr); gap:10px;">';
+                    for (let i = 0; i < 10; i++) {
                         let cls = 'step';
-                        if (i < board.steps_completed) cls += ' completed';
-                        else if (i === board.steps_completed) cls += ' current';
-                        html += `<div class="${cls}">${i}</div>`;
+                        if (i < board.level) cls += ' completed';
+                        else if (i === board.level) cls += ' current';
+                        html += `<div class="${cls}" style="aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:12px; background:rgba(255,255,255,0.1);">${i+1}</div>`;
                     }
                     html += '</div>';
                     content.innerHTML = html;
                 }
                 else if (tab === 'games') {
-                    let html = '<h3 style="margin-bottom:12px;">🎮 Choose a Game</h3><div class="games-grid" id="gamesGrid"></div>';
+                    let html = '<h3>🎮 Choose a Game</h3><div class="games-grid" id="gamesGrid"></div>';
                     content.innerHTML = html;
                     const games = [
                         {name:"Crack The Code", url:"/code/index.html", icon:"🔐"},
@@ -306,19 +296,60 @@
                         <p>Rewards: ${season.rewards.join(', ')}</p>`;
                 }
                 else if (tab === 'rewards') {
-                    const rewards = await apiCall('GET', '/rewards');
-                    let html = '<h3>🏅 Rewards</h3>';
-                    rewards.rewards.forEach(r => html +=
-                        `<div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:12px; margin:8px 0;">
-                            <b>${r.name}</b> – ${r.desc}</div>`);
+                    // Συνδυασμός leaderboard, missions, referral
+                    let html = '<h3>🏅 Leaderboard</h3>';
+                    const leaderboard = await apiCall('GET', '/leaderboard');
+                    leaderboard.leaderboard.forEach((entry, index) => {
+                        html += `<div class="leaderboard-item">
+                            <span>${index+1}. ${entry.userId.substring(0,8)}...</span>
+                            <span>Lv.${entry.level} – ${entry.points} pts</span>
+                        </div>`;
+                    });
+                    html += '<h3 style="margin-top:20px;">📋 Daily Missions</h3>';
+                    const missions = await apiCall('GET', `/missions?userId=${userId}`);
+                    missions.missions.forEach(m => {
+                        html += `<div class="mission-item">
+                            <span>${m.description} (${m.progress}/${m.target})</span>
+                            ${m.completed && !m.claimed ?
+                                `<button onclick="claimMission(${m.id})" style="background:#f1c40f; color:#000; border:none; padding:5px 10px; border-radius:8px; cursor:pointer;">Claim +${m.reward_points}</button>` :
+                                m.claimed ? '✅' : '🔒'}
+                        </div>`;
+                    });
+                    html += '<h3 style="margin-top:20px;">👥 Referral</h3>';
+                    const ref = await apiCall('GET', `/referral?userId=${userId}`);
+                    html += `<div class="referral-box">
+                        <p>Your referral code: <b>${ref.referral_code}</b></p>
+                        <input type="text" id="refInput" placeholder="Enter referral code" style="width:100%; padding:8px; margin:8px 0; border-radius:8px; border:none;">
+                        <button onclick="applyReferral()" style="background:#f1c40f; color:#000; border:none; padding:8px 16px; border-radius:8px;">Apply</button>
+                    </div>`;
                     content.innerHTML = html;
                 }
             } catch(e) {
-                content.innerHTML = `<p style="color:#e74c3c;">Error loading content: ${e.message}</p>`;
+                content.innerHTML = `<p style="color:#e74c3c;">Error: ${e.message}</p>`;
             }
         }
 
-        // Bottom navigation switching
+        window.claimMission = async function(missionId) {
+            try {
+                const data = await apiCall('POST', '/missions/claim', { userId, missionId });
+                showToast(`Mission claimed! +${data.reward_points} pts`);
+                refreshUI();
+                renderTab('rewards'); // refresh tab
+            } catch(e) { showToast(e.message); }
+        };
+
+        window.applyReferral = async function() {
+            const code = document.getElementById('refInput').value.trim();
+            if (!code) return showToast('Enter a referral code');
+            try {
+                const data = await apiCall('POST', '/referral/apply', { userId, referralCode: code });
+                showToast(`Referral applied! +${data.bonus_points} pts`);
+                refreshUI();
+                renderTab('rewards');
+            } catch(e) { showToast(e.message); }
+        };
+
+        // Bottom navigation
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -330,7 +361,7 @@
         // Initial load
         refreshUI();
         renderTab('board');
-        setInterval(refreshUI, 15000);  // refresh energy & points every 15s
+        setInterval(refreshUI, 15000);
     </script>
 </body>
 </html>
