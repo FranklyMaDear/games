@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
 import random
+import uuid
 from datetime import datetime, timedelta, date
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("gamified_backend")
+logger = logging.getLogger("gamified_hub")
 
 app = FastAPI()
 
@@ -27,7 +28,7 @@ POINTS_LOG_FILE = "points_log.json"
 
 MAX_ENERGY = 300
 ENERGY_COST_PER_GAME = 5
-ENERGY_REGEN_PER_SECOND = 1 / 60          # 1 energy/min
+ENERGY_REGEN_PER_SECOND = 1 / 60
 ENERGY_REWARD_AD = 50
 DAILY_BONUS_POINTS = 100
 DAILY_BONUS_ENERGY = 30
@@ -39,6 +40,16 @@ RATE_LIMIT_AD_REFILL = 300
 RATE_LIMIT_DAILY = 86400
 RATE_LIMIT_GIFT = 3600
 RATE_LIMIT_WHEEL = 3600
+
+# Progression: κάθε 500 πόντοι = 1 level
+POINTS_PER_LEVEL = 500
+
+# Missions: απλές καθημερινές αποστολές
+DAILY_MISSIONS = [
+    {"id": 1, "description": "Παίξε 1 παιχνίδι", "target": 1, "reward_points": 50},
+    {"id": 2, "description": "Παίξε 3 παιχνίδια", "target": 3, "reward_points": 150},
+    {"id": 3, "description": "Κάνε claim στο daily bonus", "target": 1, "reward_points": 30},
+]
 
 # ---------- JSON helpers ----------
 def read_json(filename):
@@ -83,9 +94,22 @@ def get_user(user_id: str) -> dict:
             "last_gift_claim": None,
             "last_wheel_spin": None,
             "last_ad_refill": None,
-            "last_game": None
+            "last_game": None,
+            "games_played_today": 0,
+            "missions": {},  # {mission_id: {"progress": int, "completed": bool, "claimed": bool}}
+            "referral_code": str(uuid.uuid4())[:8],
+            "referred_by": None,
+            "referral_reward_claimed": False
         }
     user_data = update_energy(users[user_id])
+    # Reset games_played_today αν άλλαξε η μέρα
+    today = date.today().isoformat()
+    last_game_date = user_data.get("last_game_date")
+    if last_game_date != today:
+        user_data["games_played_today"] = 0
+        user_data["last_game_date"] = today
+        # Επαναφορά missions (νέες αποστολές για τη νέα μέρα)
+        user_data["missions"] = {}
     users[user_id] = user_data
     write_json(USERS_FILE, users)
     return user_data
@@ -108,13 +132,20 @@ def check_rate_limit(user_data: dict, field: str, limit_seconds: int):
         if datetime.utcnow() - last_dt < timedelta(seconds=limit_seconds):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
-# ---------- Multiplier ----------
+# ---------- Multiplier & Level ----------
 def get_multiplier(streak: int) -> int:
     mult = 1
     for days, m in sorted(STREAK_MULTIPLIERS.items()):
         if streak >= days:
             mult = m
     return mult
+
+def get_level(points: int) -> int:
+    return points // POINTS_PER_LEVEL
+
+def get_level_progress(points: int) -> float:
+    level_points = points % POINTS_PER_LEVEL
+    return level_points / POINTS_PER_LEVEL
 
 def update_streak(user_data: dict) -> dict:
     today = date.today().isoformat()
@@ -129,11 +160,32 @@ def update_streak(user_data: dict) -> dict:
     user_data["last_login_date"] = today
     return user_data
 
+# ---------- Missions ----------
+def init_daily_missions(user_data: dict):
+    if not user_data.get("missions"):
+        user_data["missions"] = {}
+        for m in DAILY_MISSIONS:
+            user_data["missions"][str(m["id"])] = {"progress": 0, "completed": False, "claimed": False}
+    return user_data
+
+def update_mission_progress(user_data: dict, action: str, count: int = 1):
+    user_data = init_daily_missions(user_data)
+    for m in DAILY_MISSIONS:
+        mid = str(m["id"])
+        if m["id"] == 1 and action == "game":
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + count)
+        elif m["id"] == 2 and action == "game":
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + count)
+        elif m["id"] == 3 and action == "daily_claim":
+            user_data["missions"][mid]["progress"] = 1
+        if user_data["missions"][mid]["progress"] >= m["target"]:
+            user_data["missions"][mid]["completed"] = True
+    return user_data
+
 # =========================== ENDPOINTS ===========================
 
 @app.post("/log")
 async def log_game(request: Request):
-    """Παίζει παιχνίδι – καταναλώνει ενέργεια, δίνει πόντους."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -151,8 +203,12 @@ async def log_game(request: Request):
     user_data["current_energy"] -= ENERGY_COST_PER_GAME
     user_data["last_energy_update"] = datetime.utcnow().isoformat()
     user_data["last_game"] = datetime.utcnow().isoformat()
+    user_data["games_played_today"] = user_data.get("games_played_today", 0) + 1
     points_earned = 10 * multiplier
     user_data["total_points"] = user_data.get("total_points", 0) + points_earned
+
+    # Ενημέρωση missions
+    user_data = update_mission_progress(user_data, "game")
 
     save_user(user_id, user_data)
 
@@ -168,7 +224,8 @@ async def log_game(request: Request):
         "points_earned": points_earned,
         "total_points": user_data["total_points"],
         "current_energy": user_data["current_energy"],
-        "multiplier": multiplier
+        "multiplier": multiplier,
+        "level": get_level(user_data["total_points"])
     }
 
 @app.get("/energy")
@@ -179,7 +236,6 @@ async def get_energy(request: Request, userId: str):
 
 @app.post("/refill")
 async def refill_energy(request: Request):
-    """Αναπλήρωση ενέργειας μέσω rewarded ad."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -214,6 +270,9 @@ async def daily_claim(request: Request):
     user_data["total_points"] = user_data.get("total_points", 0) + bonus_points
     user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + DAILY_BONUS_ENERGY)
     user_data["last_energy_update"] = datetime.utcnow().isoformat()
+
+    # Ενημέρωση mission "daily claim"
+    user_data = update_mission_progress(user_data, "daily_claim")
 
     save_user(user_id, user_data)
     return {
@@ -286,34 +345,145 @@ async def get_streak(request: Request, userId: str):
 
 @app.get("/board")
 async def get_board(request: Request, userId: str):
-    """Board progress: 20 steps, κάθε 100 πόντοι = 1 βήμα."""
     check_auth(request)
     user_data = get_user(userId)
     total_points = user_data.get("total_points", 0)
-    steps_completed = total_points // 100
-    total_steps = 20
+    level = get_level(total_points)
+    progress = get_level_progress(total_points)
     return {
         "total_points": total_points,
-        "steps_completed": min(steps_completed, total_steps),
-        "total_steps": total_steps
+        "level": level,
+        "progress": progress,
+        "next_level_points": (level + 1) * POINTS_PER_LEVEL
     }
 
+# ---------- Missions ----------
+@app.get("/missions")
+async def get_missions(request: Request, userId: str):
+    check_auth(request)
+    user_data = get_user(userId)
+    user_data = init_daily_missions(user_data)
+    save_user(user_id, user_data)
+    missions_status = []
+    for m in DAILY_MISSIONS:
+        mid = str(m["id"])
+        status = user_data["missions"].get(mid, {"progress": 0, "completed": False, "claimed": False})
+        missions_status.append({
+            "id": m["id"],
+            "description": m["description"],
+            "target": m["target"],
+            "progress": status["progress"],
+            "completed": status["completed"],
+            "claimed": status.get("claimed", False),
+            "reward_points": m["reward_points"]
+        })
+    return {"missions": missions_status}
+
+@app.post("/missions/claim")
+async def claim_mission(request: Request):
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    mission_id = str(data.get("missionId"))
+    user_data = get_user(user_id)
+    if mission_id not in user_data.get("missions", {}):
+        raise HTTPException(status_code=404, detail="Mission not found")
+    mission = user_data["missions"][mission_id]
+    if not mission.get("completed") or mission.get("claimed"):
+        raise HTTPException(status_code=400, detail="Mission not completable or already claimed")
+    # Βρες τον αντίστοιχο mission definition
+    mission_def = next((m for m in DAILY_MISSIONS if str(m["id"]) == mission_id), None)
+    if mission_def:
+        user_data["total_points"] = user_data.get("total_points", 0) + mission_def["reward_points"]
+        mission["claimed"] = True
+        save_user(user_id, user_data)
+        return {"status": "ok", "reward_points": mission_def["reward_points"],
+                "total_points": user_data["total_points"]}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mission")
+
+# ---------- Referral ----------
+@app.get("/referral")
+async def get_referral(request: Request, userId: str):
+    check_auth(request)
+    user_data = get_user(userId)
+    return {"referral_code": user_data.get("referral_code", ""),
+            "referred_by": user_data.get("referred_by"),
+            "referral_reward_claimed": user_data.get("referral_reward_claimed", False)}
+
+@app.post("/referral/apply")
+async def apply_referral(request: Request):
+    """Ο νέος χρήστης δηλώνει το referral code κάποιου άλλου."""
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    referral_code = data.get("referralCode")
+    if not user_id or not referral_code:
+        raise HTTPException(status_code=400, detail="Missing userId or referralCode")
+    user_data = get_user(user_id)
+    if user_data.get("referred_by"):
+        raise HTTPException(status_code=400, detail="Referral already applied")
+    # Αναζήτηση του χρήστη με αυτό το referral code
+    users = read_json(USERS_FILE)
+    referred_by = None
+    for uid, info in users.items():
+        if info.get("referral_code") == referral_code and uid != user_id:
+            referred_by = uid
+            break
+    if not referred_by:
+        raise HTTPException(status_code=404, detail="Invalid referral code")
+    user_data["referred_by"] = referred_by
+    # Ανταμοιβή για τον νέο χρήστη (άμεσα)
+    user_data["total_points"] = user_data.get("total_points", 0) + 50
+    save_user(user_id, user_data)
+    # Ανταμοιβή για αυτόν που έκανε την πρόσκληση (εφόσον δεν την έχει ήδη πάρει)
+    inviter_data = get_user(referred_by)
+    if not inviter_data.get("referral_reward_claimed", False):
+        inviter_data["total_points"] = inviter_data.get("total_points", 0) + 100
+        inviter_data["referral_reward_claimed"] = True
+        save_user(referred_by, inviter_data)
+    return {"status": "ok", "bonus_points": 50, "total_points": user_data["total_points"]}
+
+# ---------- Leaderboard ----------
+@app.get("/leaderboard")
+async def leaderboard(request: Request, limit: int = 20):
+    check_auth(request)
+    users = read_json(USERS_FILE)
+    sorted_users = sorted(users.items(), key=lambda x: x[1].get("total_points", 0), reverse=True)[:limit]
+    leaderboard = []
+    for uid, info in sorted_users:
+        leaderboard.append({
+            "userId": uid,
+            "points": info.get("total_points", 0),
+            "level": get_level(info.get("total_points", 0)),
+            "streak": info.get("streak", 0)
+        })
+    return {"leaderboard": leaderboard}
+
+# ---------- Season (απλοποιημένο) ----------
+@app.get("/season")
+async def season_info(request: Request):
+    check_auth(request)
+    # Υπολογισμός εβδομάδας: τρέχουσα εβδομάδα του έτους
+    now = datetime.utcnow()
+    week_number = now.isocalendar()[1]
+    # Τέλος σεζόν: επόμενη Δευτέρα
+    days_until_monday = (7 - now.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    end_date = now + timedelta(days=days_until_monday)
+    return {
+        "season": week_number,
+        "ends_in_days": days_until_monday,
+        "rewards": ["🥇 Top 1: 5000 pts", "🥈 Top 2: 3000 pts", "🥉 Top 3: 1000 pts"]
+    }
+
+# ---------- Shop (placeholder) ----------
 @app.get("/shop")
 async def shop(request: Request):
     check_auth(request)
     return {"items": [{"id":1,"name":"Double Points (1h)","cost":200},
                       {"id":2,"name":"Energy Refill","cost":150}]}
-
-@app.get("/season")
-async def season(request: Request):
-    check_auth(request)
-    return {"season":1,"ends_in_days":12,"rewards":["skin1","badge"]}
-
-@app.get("/rewards")
-async def rewards_list(request: Request):
-    check_auth(request)
-    return {"rewards":[{"name":"Daily Login Bonus","desc":"Claim every 24h"},
-                       {"name":"Weekly Top 10","desc":"Extra points for top players"}]}
 
 @app.get("/admin/winners")
 async def admin_winners(key: str = Query(...)):
