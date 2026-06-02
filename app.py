@@ -15,8 +15,8 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["POST", "GET"],
-    allow_headers=["Content-Type", "X-API-Key"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ---------- Secrets ----------
@@ -254,6 +254,41 @@ async def submit_score(request: Request):
         "level": get_level(user_data["total_points"])
     }
 
+@app.post("/add-points")
+async def add_points(request: Request):
+    """Δέχεται σκορ από παιχνίδια (postMessage) και προσθέτει πόντους χωρίς κατανάλωση ενέργειας."""
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    game = data.get("game", "unknown")
+    points = data.get("points", 0)
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    if not isinstance(points, (int, float)) or points <= 0:
+        raise HTTPException(status_code=400, detail="Invalid points value")
+
+    user_data = get_user(user_id)
+    user_data["total_points"] = user_data.get("total_points", 0) + points
+    save_user(user_id, user_data)
+
+    logs = read_json(POINTS_LOG_FILE)
+    logs.append({
+        "userId": user_id,
+        "game": game,
+        "points": points,
+        "timestamp": datetime.utcnow().isoformat(),
+        "source": "game_score_postmessage"
+    })
+    write_json(POINTS_LOG_FILE, logs)
+
+    return {
+        "status": "ok",
+        "added": points,
+        "total": user_data["total_points"],
+        "level": get_level(user_data["total_points"])
+    }
+
 @app.get("/energy")
 async def get_energy(request: Request, userId: str):
     check_auth(request)
@@ -414,7 +449,8 @@ async def get_missions(request: Request, userId: str):
     check_auth(request)
     user_data = get_user(userId)
     user_data = init_daily_missions(user_data)
-    save_user(user_id, user_data)
+    # Save to ensure missions exist
+    save_user(userId, user_data)
     missions_status = []
     for m in DAILY_MISSIONS:
         mid = str(m["id"])
