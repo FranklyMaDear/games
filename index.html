@@ -23,6 +23,10 @@
             color: #f0f0f0;
             min-height: 100vh;
             padding-bottom: 100px;
+            transition: box-shadow 0.3s;
+        }
+        body.wheel-spinning {
+            box-shadow: inset 0 0 100px rgba(241,196,15,0.3);
         }
         /* Glass header με level bar */
         .glass-header {
@@ -134,16 +138,24 @@
             border: 1px solid rgba(255,255,255,0.10);
             border-radius: 30px;
             padding: 24px 16px 20px;
-            max-width:400px; margin:0 auto;
+            max-width:500px; margin:0 auto;
+            transition: box-shadow 0.3s;
         }
-        #wheelCanvas { max-width:300px; width:100%; aspect-ratio:1/1; border-radius:50%; }
-        #spinBtn {
+        .wheel-container.spinning {
+            box-shadow: 0 0 40px rgba(241,196,15,0.4), inset 0 0 40px rgba(241,196,15,0.1);
+        }
+        #wheelCanvas { max-width:400px; width:100%; aspect-ratio:1/1; border-radius:50%; }
+        #spinBtn, #wheelAdBtn {
             margin-top:20px; padding:12px 40px;
             background:linear-gradient(135deg, #f1c40f, #f39c12);
             border:none; border-radius:40px; font-weight:800; font-size:1.1rem;
             color:#0f0c29; cursor:pointer;
         }
-        .free-spins-info { color:#f1c40f; margin-top:10px; font-weight:500; }
+        #wheelAdBtn {
+            background:linear-gradient(135deg, #3498db, #2980b9);
+            color:#fff; font-size:0.9rem; padding:10px 30px;
+        }
+        .free-spins-info { color:#f1c40f; margin:10px 0; font-weight:500; }
         /* Ads section */
         .ad-button {
             background:linear-gradient(135deg, #e74c3c, #c0392b);
@@ -248,11 +260,8 @@
         <div class="section active" id="section-board">
             <h2 class="section-title">🏆 Dashboard</h2>
             <div class="leaderboard-container" id="boardContent">
-                <p style="text-align:center;">Free Spins: <span id="freeSpins">0</span></p>
-                <p style="text-align:center;">Milestone 2000: <span id="m2000">❌</span> | Milestone 3000: <span id="m3000">❌</span></p>
-                <button class="ad-button" onclick="watchAdForPoints()">▶ Watch Ad (+20 pts)</button>
-                <button class="ad-button" onclick="watchAdForSpins(1)">🎞️ 1 Ad → 5 Free Spins</button>
-                <button class="ad-button" onclick="watchAdForSpins(2)">🎞️ 2 Ads → 15 Free Spins</button>
+                <p style="text-align:center;">Total Points: <span id="boardTotalPoints">0</span></p>
+                <p style="text-align:center;">Next Level: <span id="boardNextLevel">1000</span> XP</p>
             </div>
             <h2 class="section-title">Top Players</h2>
             <div class="leaderboard-container" id="miniLeaderboard">
@@ -264,6 +273,7 @@
         <div class="section" id="section-games">
             <h2 class="section-title">Choose a Game</h2>
             <div class="games-grid">
+                <!-- 8 games -->
                 <div class="game-card" onclick="playGame('https://games.franklymadear.com/code/index.html', 'Crack The Code')">
                     <span class="new-badge">🆕 New</span>
                     <div class="game-icon">🔐</div>
@@ -324,20 +334,21 @@
             <div id="missionsContainer"></div>
         </div>
 
-        <!-- SECTION: ADS (εφεδρική, αλλά το BOARD έχει ήδη κουμπιά) -->
+        <!-- SECTION: ADS -->
         <div class="section" id="section-ads">
             <h2 class="section-title">🎥 Earn Points & Spins</h2>
+            <div class="free-spins-info">🎫 Free Spins: <span id="adsFreeSpins">0</span></div>
             <button class="ad-button" onclick="watchAdForPoints()">▶ Watch Ad (+20 pts)</button>
             <button class="ad-button" onclick="watchAdForSpins(1)">🎞️ 1 Ad → 5 Free Spins</button>
-            <button class="ad-button" onclick="watchAdForSpins(2)">🎞️ 2 Ads → 15 Free Spins</button>
         </div>
 
         <!-- SECTION: WHEEL -->
         <div class="section" id="section-wheel">
             <h2 class="section-title">🎡 Wheel of Fortune</h2>
-            <div class="wheel-container">
-                <canvas id="wheelCanvas" width="400" height="400"></canvas>
+            <div class="wheel-container" id="wheelContainer">
+                <canvas id="wheelCanvas" width="500" height="500"></canvas>
                 <div class="free-spins-info">🎫 Free Spins: <span id="wheelFreeSpins">0</span></div>
+                <button id="wheelAdBtn">🎞️ 1 Ad → 5 Free Spins</button>
                 <button id="spinBtn">SPIN</button>
             </div>
         </div>
@@ -373,11 +384,11 @@
             localStorage.setItem('franklymadear_userId', userId);
         }
 
-        // ADSGRAM setup (το sad είναι διαθέσιμο από το script)
+        // ADSGRAM setup
         let sadInstance = null;
         function initAdsGram() {
             if (typeof sad !== 'undefined') {
-                sadInstance = new sad.AdsGram({ blockId: '32708' }); // το blockId από το δικό σου account
+                sadInstance = new sad.AdsGram({ blockId: '32708' }); // Αντικατέστησε με το σωστό blockId
             }
         }
 
@@ -407,15 +418,19 @@
                 document.getElementById('levelVal').textContent = level;
                 document.getElementById('levelPts').textContent = currentProgress;
                 document.getElementById('levelProgress').style.width = (currentProgress / 1000 * 100) + '%';
-                document.getElementById('freeSpins').textContent = board.free_spins;
-                document.getElementById('m2000').textContent = board.milestone_2000_reached ? '✅' : '❌';
-                document.getElementById('m3000').textContent = board.milestone_3000_reached ? '✅' : '❌';
-                document.getElementById('wheelFreeSpins').textContent = board.free_spins;
+
+                // Board section extras
+                document.getElementById('boardTotalPoints').textContent = board.total_points;
+                document.getElementById('boardNextLevel').textContent = nextLevelPts;
+
+                // Free spins σε ADS και Wheel
+                const freeSpins = board.free_spins;
+                document.getElementById('adsFreeSpins').textContent = freeSpins;
+                document.getElementById('wheelFreeSpins').textContent = freeSpins;
             } catch(e) { console.warn(e); }
         }
 
         function playGame(url, gameName) {
-            // Απλά ανοίγει το παιχνίδι (δεν ελέγχουμε ενέργεια τώρα)
             const gameWindow = window.open(url, '_blank');
             const handler = (event) => {
                 if (event.source !== gameWindow) return;
@@ -447,19 +462,71 @@
             });
         });
 
-        // Wheel (server-side spin)
-        let wheelAngle = 0, spinning = false;
+        // ========== WHEEL ==========
         const segments = [
-            { label: '10 pts', color: '#e74c3c' },
-            { label: '50 pts', color: '#3498db' },
-            { label: '20 spins', color: '#2ecc71' },
-            { label: '5 pts', color: '#f39c12' },
-            { label: '100 pts', color: '#9b59b6' },
-            { label: '30 spins', color: '#1abc9c' },
-            { label: '200 pts', color: '#f1c40f' },
-            { label: '15 spins', color: '#e67e22' }
+            { label: '💎 200 pts', color: '#e74c3c' },
+            { label: '🎫 5 Spins', color: '#3498db' },
+            { label: '🪙 100 pts', color: '#2ecc71' },
+            { label: '💀 Joker', color: '#2c3e50' },
+            { label: '⭐ 50 pts', color: '#f39c12' },
+            { label: '🎫 10 Spins', color: '#9b59b6' },
+            { label: '💎 500 pts', color: '#1abc9c' },
+            { label: '🎫 20 Spins', color: '#e67e22' },
+            { label: '🪙 20 pts', color: '#f1c40f' },
+            { label: '💀 Joker', color: '#7f8c8d' },
+            { label: '⭐ 10 pts', color: '#e91e63' },
+            { label: '🎫 3 Spins', color: '#00bcd4' }
         ];
         const segAngle = (2 * Math.PI) / segments.length;
+        let wheelAngle = 0, spinning = false;
+
+        // Ήχοι με Web Audio API
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        function playTick() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+        function playWin() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+            osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+            osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        }
+        function playLose() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
 
         function drawWheel() {
             const canvas = document.getElementById('wheelCanvas');
@@ -467,7 +534,14 @@
             const ctx = canvas.getContext('2d');
             const w = canvas.width, h = canvas.height;
             ctx.clearRect(0, 0, w, h);
-            const cx = w/2, cy = h/2, radius = w/2 - 10;
+            const cx = w/2, cy = h/2, radius = w/2 - 15;
+
+            // 3D εφέ: σκιά και gradient δακτύλιος
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+
             for (let i=0; i<segments.length; i++) {
                 const start = wheelAngle + i * segAngle;
                 const end = start + segAngle;
@@ -479,20 +553,40 @@
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
+
+                // εσωτερική σκίαση
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate(start + segAngle/2);
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 13px Arial';
-                ctx.fillText(segments[i].label, radius * 0.7, 5);
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(segments[i].label, radius * 0.65, 5);
                 ctx.restore();
             }
+
+            // κεντρικός κύκλος
+            ctx.beginPath();
+            ctx.arc(cx, cy, 20, 0, 2*Math.PI);
+            ctx.fillStyle = '#f1c40f';
+            ctx.shadowBlur = 20;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // reset shadow
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
         }
 
         async function spinWheel() {
             if (spinning) return;
-            // Πρώτα ελέγχουμε free spins μέσω backend
+            initAudio();
+
+            // Έλεγχος free spins
             try {
                 const adStatus = await apiCall('GET', `/ad-status?userId=${userId}`);
                 if (adStatus.free_spins < 1) {
@@ -501,44 +595,75 @@
                 }
             } catch(e) { showToast(e.message); return; }
 
-            // Εκτέλεση spin στο backend
+            // Κλήση backend για το βραβείο
+            let prizeIndex;
             try {
                 const result = await apiCall('POST', '/wheel/spin', { userId });
-                // Ενημέρωση UI
-                showToast(`🎉 You won: ${result.prize.label}!`);
-                refreshUI();
-                // (προαιρετικά) κάνουμε animation στον τροχό ανάλογα με το prize
-                // Απλό animation τυχαίας περιστροφής
-                spinning = true;
-                const targetIdx = Math.floor(Math.random() * segments.length);
-                const targetAngle = targetIdx * segAngle + segAngle/2;
-                const spins = 5;
-                const finalAngle = wheelAngle + spins * 2*Math.PI + (2*Math.PI - (wheelAngle % (2*Math.PI)) + targetAngle);
-                const duration = 3000;
-                const startTime = performance.now();
-                const startAngle = wheelAngle;
-                function animate(now) {
-                    const elapsed = now - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const eased = 1 - Math.pow(1 - progress, 3);
-                    wheelAngle = startAngle + (finalAngle - startAngle) * eased;
-                    drawWheel();
-                    if (progress < 1) requestAnimationFrame(animate);
-                    else {
-                        wheelAngle = finalAngle % (2*Math.PI);
-                        drawWheel();
-                        spinning = false;
-                    }
+                prizeIndex = result.prizeIndex;
+                // αποθηκεύουμε το prize για μετά
+                window._lastPrize = result.prize;
+            } catch(e) { showToast(e.message); return; }
+
+            // Προσθήκη spinning class
+            document.body.classList.add('wheel-spinning');
+            document.getElementById('wheelContainer').classList.add('spinning');
+
+            spinning = true;
+            const targetAngle = prizeIndex * segAngle + segAngle/2;
+            const fullRotations = 6 * 2 * Math.PI;
+            const finalAngle = wheelAngle + fullRotations + (2*Math.PI - (wheelAngle % (2*Math.PI)) + targetAngle);
+            const duration = 4000;
+            const startTime = performance.now();
+            const startAngle = wheelAngle;
+
+            let lastSegmentIndex = -1;
+
+            function animate(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // easeOutCubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                wheelAngle = startAngle + (finalAngle - startAngle) * eased;
+                drawWheel();
+
+                // tick ήχος όταν αλλάζει τμήμα
+                const currentSegmentIndex = Math.floor(((wheelAngle % (2*Math.PI)) / segAngle).toFixed(10)) % segments.length;
+                if (currentSegmentIndex !== lastSegmentIndex) {
+                    playTick();
+                    lastSegmentIndex = currentSegmentIndex;
                 }
-                requestAnimationFrame(animate);
-            } catch(e) { showToast(e.message); }
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // τέλος
+                    wheelAngle = finalAngle % (2*Math.PI);
+                    drawWheel();
+                    spinning = false;
+                    document.body.classList.remove('wheel-spinning');
+                    document.getElementById('wheelContainer').classList.remove('spinning');
+
+                    const prize = window._lastPrize;
+                    if (prize.label.includes('Joker')) {
+                        playLose();
+                        showToast('💀 Joker! You lost!');
+                    } else {
+                        playWin();
+                        showToast(`🎉 You won: ${prize.label}!`);
+                    }
+                    refreshUI();
+                }
+            }
+            requestAnimationFrame(animate);
         }
 
         function initWheel() {
             drawWheel();
             document.getElementById('spinBtn').onclick = spinWheel;
+            document.getElementById('wheelAdBtn').onclick = () => watchAdForSpins(1);
         }
 
+        // ========== MISSIONS ==========
         async function loadMissions() {
             const container = document.getElementById('missionsContainer');
             try {
@@ -589,9 +714,7 @@
 
         // Διαφημίσεις μέσω AdsGram
         function showRewardedAd(callback) {
-            if (!sadInstance) {
-                initAdsGram();
-            }
+            if (!sadInstance) initAdsGram();
             if (sadInstance) {
                 sadInstance.showRewardedAd()
                     .then(() => { if(callback) callback(); })
@@ -614,7 +737,7 @@
         function watchAdForSpins(num) {
             showRewardedAd(async () => {
                 try {
-                    const endpoint = num === 1 ? '/ad-free-spins-1' : '/ad-free-spins-2';
+                    const endpoint = '/ad-free-spins-1'; // μόνο 1 διαφήμιση για 5 spins
                     const res = await apiCall('POST', endpoint, { userId });
                     showToast(`Free spins: ${res.free_spins} 🎫`);
                     refreshUI();
