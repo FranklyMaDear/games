@@ -27,7 +27,7 @@ USERS_FILE = "users.json"
 POINTS_LOG_FILE = "points_log.json"
 
 # ---------- ΣΤΑΘΕΡΕΣ ----------
-POINTS_PER_LEVEL = 1000      # <-- ΑΛΛΑΓΗ: κάθε 1000 πόντοι ανεβαίνεις level
+POINTS_PER_LEVEL = 1000
 
 # Missions
 DAILY_MISSIONS = [
@@ -43,20 +43,23 @@ AD_SCALE_2_TARGET = 10
 AD_SCALE_2_BONUS = 200
 AD_POINTS_PER_WATCH = 20
 
-# Free spins από διαφημίσεις
+# Free spins από διαφημίσεις (μόνο 1 Ad -> 5 spins)
 FREE_SPINS_1_AD = 5
-FREE_SPINS_2_ADS = 15
 
-# Τροχός (εμπλουτισμένος με περισσότερα βραβεία)
+# Τροχός με 12 βραβεία, συμπεριλαμβανομένου Joker
 WHEEL_PRIZES = [
-    {"label": "+5 pts", "points": 5},
-    {"label": "+10 pts", "points": 10},
-    {"label": "+100 pts", "points": 100},
-    {"label": "Joker", "points": 0},
-    {"label": "+50 pts", "points": 50},
-    {"label": "+200 pts", "points": 200},
-    {"label": "10 Free Spins", "points": 0, "free_spins": 10},
-    {"label": "20 Free Spins", "points": 0, "free_spins": 20},
+    {"label": "💎 200 pts", "points": 200},
+    {"label": "🎫 5 Spins", "points": 0, "free_spins": 5},
+    {"label": "🪙 100 pts", "points": 100},
+    {"label": "💀 Joker", "points": -50},          # χάνει 50 πόντους
+    {"label": "⭐ 50 pts", "points": 50},
+    {"label": "🎫 10 Spins", "points": 0, "free_spins": 10},
+    {"label": "💎 500 pts", "points": 500},
+    {"label": "🎫 20 Spins", "points": 0, "free_spins": 20},
+    {"label": "🪙 20 pts", "points": 20},
+    {"label": "💀 Joker", "points": -30},          # χάνει 30 πόντους
+    {"label": "⭐ 10 pts", "points": 10},
+    {"label": "🎫 3 Spins", "points": 0, "free_spins": 3},
 ]
 
 # Milestones
@@ -101,7 +104,6 @@ def get_user(user_id: str) -> dict:
     user_data = users[user_id]
     today = date.today().isoformat()
     
-    # Καθημερινή επαναφορά
     if user_data.get("last_mission_date") != today:
         user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
         user_data["ad_watch_count"] = 0
@@ -109,10 +111,8 @@ def get_user(user_id: str) -> dict:
         user_data["ad_scale_2_claimed"] = False
         user_data["last_mission_date"] = today
     
-    # Ενημέρωση level
     user_data["level"] = max(1, (user_data.get("total_points", 0) // POINTS_PER_LEVEL) + 1)
     
-    # Εξασφάλιση πεδίων
     for field in ["missions", "free_spins", "milestone_2000_reached", "milestone_3000_reached", "ad_watch_count"]:
         if field not in user_data:
             if field == "missions":
@@ -220,7 +220,6 @@ async def claim_mission(request: Request):
     user_data["level"] = max(1, (user_data["total_points"] // POINTS_PER_LEVEL) + 1)
     mission["claimed"] = True
     
-    # Milestones
     if user_data["total_points"] >= MILESTONE_2000 and not user_data.get("milestone_2000_reached"):
         user_data["milestone_2000_reached"] = True
     if user_data["total_points"] >= MILESTONE_3000 and not user_data.get("milestone_3000_reached"):
@@ -292,19 +291,6 @@ async def ad_free_spins_1(request: Request):
     save_user(user_id, user_data)
     return {"status": "ok", "free_spins": user_data["free_spins"]}
 
-@app.post("/ad-free-spins-2")
-async def ad_free_spins_2(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    
-    user_data = get_user(user_id)
-    user_data["free_spins"] = user_data.get("free_spins", 0) + FREE_SPINS_2_ADS
-    save_user(user_id, user_data)
-    return {"status": "ok", "free_spins": user_data["free_spins"]}
-
 @app.post("/wheel/spin")
 async def spin_wheel(request: Request):
     check_auth(request)
@@ -318,14 +304,28 @@ async def spin_wheel(request: Request):
         raise HTTPException(status_code=403, detail="Not enough free spins")
     
     user_data["free_spins"] -= 1
-    prize = random.choice(WHEEL_PRIZES)
     
-    if prize["points"] > 0:
-        user_data["total_points"] = user_data.get("total_points", 0) + prize["points"]
-        user_data["level"] = max(1, (user_data["total_points"] // POINTS_PER_LEVEL) + 1)
+    # Επιλογή τυχαίου βραβείου και του index του
+    prize_index = random.randint(0, len(WHEEL_PRIZES)-1)
+    prize = WHEEL_PRIZES[prize_index]
     
-    if "free_spins" in prize and prize["free_spins"] > 0:
-        user_data["free_spins"] = user_data.get("free_spins", 0) + prize["free_spins"]
+    # Εφαρμογή πόντων
+    pts = prize.get("points", 0)
+    if pts > 0:
+        user_data["total_points"] = user_data.get("total_points", 0) + pts
+    elif pts < 0:
+        # αφαίρεση χωρίς να πάει κάτω από 0
+        user_data["total_points"] = max(0, user_data.get("total_points", 0) + pts)
+    
+    # Εφαρμογή free spins
+    spins = prize.get("free_spins", 0)
+    if spins > 0:
+        user_data["free_spins"] = user_data.get("free_spins", 0) + spins
+    elif spins < 0:
+        user_data["free_spins"] = max(0, user_data.get("free_spins", 0) + spins)
+    
+    # Ανανέωση level
+    user_data["level"] = max(1, (user_data["total_points"] // POINTS_PER_LEVEL) + 1)
     
     # Milestones
     if user_data["total_points"] >= MILESTONE_2000 and not user_data.get("milestone_2000_reached"):
@@ -338,6 +338,7 @@ async def spin_wheel(request: Request):
     return {
         "status": "ok",
         "prize": prize,
+        "prizeIndex": prize_index,
         "total_points": user_data["total_points"],
         "free_spins": user_data["free_spins"],
         "level": user_data["level"],
@@ -373,7 +374,6 @@ async def get_points(user_id: str, request: Request):
 
 @app.post("/add-points")
 async def add_points(request: Request):
-    """Προσθήκη πόντων από παιχνίδι (νέο endpoint)"""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -396,7 +396,6 @@ async def add_points(request: Request):
     
     save_user(user_id, user_data)
     
-    # Log
     logs = read_json(POINTS_LOG_FILE)
     logs.append({
         "userId": user_id, "game": game, "points": points,
@@ -413,7 +412,6 @@ async def add_points(request: Request):
 
 @app.post("/log")
 async def log_game(request: Request):
-    """Απλή καταγραφή (δωρεάν παιχνίδι)."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -431,14 +429,10 @@ async def log_game(request: Request):
 
 @app.get("/leaderboard")
 async def get_leaderboard(request: Request, limit: int = 20):
-    """Νέο endpoint: κορυφαίοι παίκτες"""
     check_auth(request)
     users = read_json(USERS_FILE)
-    # Δημιουργία λίστας με userId και points
     lb = []
     for uid, data in users.items():
         lb.append({"userId": uid, "points": data.get("total_points", 0)})
-    # Ταξινόμηση φθίνουσα
     lb.sort(key=lambda x: x["points"], reverse=True)
-    # Επιστροφή μέχρι limit
     return {"leaderboard": lb[:limit]}
