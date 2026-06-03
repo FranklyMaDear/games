@@ -29,7 +29,7 @@ POINTS_LOG_FILE = "points_log.json"
 MAX_ENERGY = 300
 ENERGY_COST_PER_GAME = 5
 ENERGY_REGEN_PER_SECOND = 1 / 60          # 1 energy/min
-ENERGY_REWARD_AD = 15                     # +15 energy from ads
+ENERGY_REWARD_AD = 15
 DAILY_BONUS_POINTS = 100
 DAILY_BONUS_ENERGY = 30
 
@@ -108,14 +108,14 @@ def get_user(user_id: str) -> dict:
     if last_game_date != today:
         user_data["games_played_today"] = 0
         user_data["last_game_date"] = today
-        # Επαναφορά missions καθημερινά
-        user_data["missions"] = {}
-        user_data["last_mission_date"] = today
-    # Αν δεν έχουν μπει ποτέ missions
     if "missions" not in user_data:
         user_data["missions"] = {}
     if "total_xp" not in user_data:
         user_data["total_xp"] = 0
+    # Καθημερινή επαναφορά missions
+    if user_data.get("last_mission_date") != today:
+        user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
+        user_data["last_mission_date"] = today
     users[user_id] = user_data
     write_json(USERS_FILE, users)
     return user_data
@@ -170,7 +170,6 @@ def update_streak(user_data: dict) -> dict:
 
 @app.post("/log")
 async def log_game(request: Request):
-    """Παίζει παιχνίδι – καταναλώνει ενέργεια, δίνει πόντους."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -212,7 +211,6 @@ async def log_game(request: Request):
 
 @app.post("/score")
 async def submit_score(request: Request):
-    """Υποβολή σκορ απευθείας από το παιχνίδι (χωρίς κατανάλωση ενέργειας)."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -243,7 +241,6 @@ async def submit_score(request: Request):
 
 @app.post("/add-points")
 async def add_points(request: Request):
-    """Δέχεται σκορ από παιχνίδια (postMessage) και προσθέτει πόντους χωρίς κατανάλωση ενέργειας."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -284,31 +281,26 @@ async def get_energy(request: Request, userId: str):
 
 @app.post("/refill")
 async def refill_energy(request: Request):
-    """Προσθήκη ενέργειας (από διαφημίσεις ή αγορές)."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
-    amount = data.get("amount", ENERGY_REWARD_AD)  # default +15
+    amount = data.get("amount", ENERGY_REWARD_AD)
     if not user_id:
         raise HTTPException(status_code=400, detail="Missing userId")
     user_data = get_user(user_id)
-    # Rate limit για ads (κάθε 5 λεπτά)
     check_rate_limit(user_data, "last_ad_refill", RATE_LIMIT_AD_REFILL)
     user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + amount)
     user_data["last_energy_update"] = datetime.utcnow().isoformat()
     user_data["last_ad_refill"] = datetime.utcnow().isoformat()
-    
-    # Ενημέρωση mission "Watch ads"
-    today = date.today().isoformat()
-    if user_data.get("last_mission_date") != today:
-        user_data["missions"] = {}
-        user_data["last_mission_date"] = today
+
+    # Αύξηση mission ads_watch
     for m in DAILY_MISSIONS:
         if m["type"] == "ads_watch":
             mid = str(m["id"])
-            user_data["missions"][mid] = user_data.get("missions", {}).get(mid, {"progress": 0, "claimed": False})
+            if mid not in user_data["missions"]:
+                user_data["missions"][mid] = {"progress": 0, "claimed": False}
             user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + 1)
-    
+
     save_user(user_id, user_data)
     return {"status": "ok", "current_energy": user_data["current_energy"]}
 
@@ -445,19 +437,12 @@ async def leaderboard(request: Request, limit: int = 20):
         })
     return {"leaderboard": leaderboard}
 
-# ---------- NEA ENDPOINTS (Missions, XP) ----------
+# ---------- MISSIONS & XP ----------
 
 @app.get("/missions")
 async def get_missions(request: Request, userId: str):
     check_auth(request)
     user_data = get_user(userId)
-    today = date.today().isoformat()
-    last_date = user_data.get("last_mission_date")
-    if last_date != today:
-        user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
-        user_data["last_mission_date"] = today
-        save_user(userId, user_data)
-
     missions_status = []
     for m in DAILY_MISSIONS:
         mid = str(m["id"])
@@ -474,20 +459,14 @@ async def get_missions(request: Request, userId: str):
 
 @app.post("/missions/update")
 async def update_mission_progress(request: Request):
-    """Τα παιχνίδια στέλνουν εδώ score/playtime για να ενημερωθούν οι αποστολές."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
     game = data.get("game", "")
     score = data.get("score", 0)
-    playtime = data.get("playtime", 0)  # λεπτά
+    playtime = data.get("playtime", 0)
 
     user_data = get_user(user_id)
-    today = date.today().isoformat()
-    if user_data.get("last_mission_date") != today:
-        user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
-        user_data["last_mission_date"] = today
-
     for m in DAILY_MISSIONS:
         mid = str(m["id"])
         if mid not in user_data["missions"]:
@@ -507,7 +486,6 @@ async def update_mission_progress(request: Request):
 
 @app.post("/missions/claim")
 async def claim_mission(request: Request):
-    """Ο χρήστης διεκδικεί την ανταμοιβή XP μιας ολοκληρωμένης αποστολής."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
@@ -537,7 +515,7 @@ async def get_xp(user_id: str, request: Request):
     total_xp = users.get(user_id, {}).get("total_xp", 0)
     return {"userId": user_id, "total_xp": total_xp}
 
-# ---------- ΥΠΆΡΧΟΝΤΑ ADMIN/POINTS ----------
+# ---------- ADMIN / POINTS ----------
 
 @app.get("/points/{user_id}")
 async def get_points(user_id: str, request: Request):
