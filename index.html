@@ -8,12 +8,6 @@
     <link rel="apple-touch-icon" href="photo.png">
     <meta name="theme-color" content="#0f0c29">
     
-    <!-- Monetag Script (interstitial / rewarded) -->
-    <script src="https://omg10.com/4/10274068" data-site-id="3062566"></script>
-    
-    <!-- Adsgram Script (Telegram native ads) -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
     <style>
@@ -26,6 +20,7 @@
             padding-top: env(safe-area-inset-top);
             padding-bottom: calc(90px + env(safe-area-inset-bottom));
         }
+        /* Glass header */
         .glass-header {
             position:fixed; top:0; left:0; width:100%; z-index:1000;
             background: rgba(255,255,255,0.08);
@@ -54,6 +49,7 @@
             font-weight:700; color:#9b59b6;
             border:1px solid rgba(155, 89, 182, 0.3);
         }
+        /* Main container */
         .main-container {
             max-width:1200px; margin:0 auto; padding: 75px 12px 20px;
         }
@@ -78,7 +74,7 @@
         .mission-info p { font-size: 0.75rem; color: #aaa; }
         .mission-reward { background: #9b59b6; color: #fff; font-size: 0.75rem; font-weight: bold; padding: 4px 10px; border-radius: 12px; }
 
-        /* ADS TAB STYLES */
+        /* ADS TAB STYLES (απλά ενημερωτικό) */
         .ads-container { display: flex; flex-direction: column; gap: 15px; max-width: 400px; margin: 0 auto; }
         .ad-button-card {
             background: rgba(39, 174, 96, 0.1); border: 1px solid rgba(39, 174, 96, 0.3);
@@ -154,7 +150,6 @@
             
             <h2 class="section-title">🏆 Daily Missions</h2>
             <div class="mission-list" id="missionList">
-                <!-- Οι αποστολές θα φορτώνονται δυναμικά από το backend -->
                 <p style="color:#aaa; text-align:center;">Loading missions...</p>
             </div>
         </div>
@@ -219,12 +214,12 @@
         <div class="section" id="section-ads">
             <h2 class="section-title">📺 Watch Ads - Earn Energy</h2>
             <div class="ads-container">
-                <div class="ad-button-card" onclick="watchAdsgram()">
+                <div class="ad-button-card">
                     <i class="fas fa-video"></i>
                     <h3>Adsgram Video ad</h3>
                     <p>+15 Energy ⚡</p>
                 </div>
-                <div class="ad-button-card" onclick="watchMonetag()">
+                <div class="ad-button-card">
                     <i class="fas fa-ad"></i>
                     <h3>Monetag Reward Ad</h3>
                     <p>+15 Energy ⚡</p>
@@ -268,12 +263,6 @@
         const API_ENDPOINT = "https://franklymadear-games.hf.space";
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
         const ENERGY_COST_PER_GAME = 5;
-        const ENERGY_REWARD_ADS = 15;
-
-        // ---------- Adsgram SDK ----------
-        const AdController = window.Adsgram ? new Adsgram({ blockId: "YOUR_ADSGRAM_BLOCK_ID" }) : null;
-
-        // ---------- Monetag (δεν χρειάζεται ιδιαίτερο SDK, το script φορτώνει από πάνω) ----------
 
         async function apiCall(method, path, body = null) {
             const headers = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY };
@@ -298,15 +287,20 @@
                 document.getElementById('energyVal').textContent = energy.current_energy;
                 document.getElementById('maxEnergy').textContent = energy.max_energy;
                 document.getElementById('energyProgress').style.width = (energy.current_energy / energy.max_energy * 100) + '%';
-                
-                // Φόρτωση XP από το backend
+            } catch(e) { console.warn(e); }
+
+            try {
                 const xpData = await apiCall('GET', `/xp/${userId}`);
                 document.getElementById('xpDisplay').textContent = xpData.total_xp;
+            } catch(e) { console.warn(e); }
 
-                // Φόρτωση missions
+            try {
                 const missionsData = await apiCall('GET', `/missions?userId=${userId}`);
                 renderMissions(missionsData.missions);
-            } catch(e) { console.warn(e); }
+            } catch(e) {
+                console.warn(e);
+                document.getElementById('missionList').innerHTML = '<p style="color:#e74c3c;">Could not load missions</p>';
+            }
         }
 
         function renderMissions(missions) {
@@ -346,42 +340,6 @@
             document.getElementById('gameOverlay').style.display = 'none';
             document.getElementById('gameFrame').src = "";
             refreshUI();
-        }
-
-        // ---------- ΔΙΑΦΗΜΙΣΕΙΣ ----------
-        async function giveEnergyReward() {
-            try {
-                const result = await apiCall('POST', '/refill', { userId });
-                showToast(`+${ENERGY_REWARD_ADS} Energy! ⚡`);
-                refreshUI();
-            } catch(e) {
-                showToast('Ad reward failed: ' + e.message);
-            }
-        }
-
-        function watchAdsgram() {
-            if (!AdController) {
-                showToast('Adsgram not available');
-                return;
-            }
-            AdController.show()
-                .then(() => {
-                    giveEnergyReward();
-                })
-                .catch(err => {
-                    showToast('Ad skipped or error');
-                });
-        }
-
-        function watchMonetag() {
-            // Η Monetag λειτουργεί με popunder / banner. Για rewarded video μπορείς να χρησιμοποιήσεις
-            // το monetag SDK ή να ανοίξεις ένα offerwall. Εδώ καλούμε απλά το backend για test.
-            // Σε πραγματική χρήση, θα πρέπει να φορτώσεις το monetag rewarded ad script.
-            showToast("Monetag ad started...");
-            // Προσομοίωση: μετά από 3 δευτερόλεπτα δίνουμε την ανταμοιβή
-            setTimeout(() => {
-                giveEnergyReward();
-            }, 3000);
         }
 
         // Tab Navigation Router
