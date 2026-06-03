@@ -26,17 +26,19 @@ ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "SuperSecretAdminKey2026")
 USERS_FILE = "users.json"
 POINTS_LOG_FILE = "points_log.json"
 
-MAX_ENERGY = 300
-ENERGY_COST_PER_GAME = 5
-ENERGY_REGEN_PER_SECOND = 1 / 60          # 1 energy/min
-ENERGY_REWARD_AD = 15
+# ---------- ΝΕΑ ΟΙΚΟΝΟΜΙΑ ΠΑΙΧΝΙΔΙΟΥ (MONETIZATION) ----------
+MAX_ENERGY = 50                 # 50 μέγιστη ενέργεια
+ENERGY_COST_PER_GAME = 10       # 10 ενέργεια ανά παιχνίδι (5 παιχνίδια μέχρι να αδειάσει)
+ENERGY_REGEN_PER_SECOND = 1 / 900  # 1 ενέργεια κάθε 15 λεπτά (900 δευτερόλεπτα)
+ENERGY_REWARD_AD = 10           # +10 ενέργεια από διαφήμιση
+
 DAILY_BONUS_POINTS = 100
 DAILY_BONUS_ENERGY = 30
 
 STREAK_MULTIPLIERS = {7: 2, 30: 3, 90: 5, 180: 10}
 
 RATE_LIMIT_GAME = 60
-RATE_LIMIT_AD_REFILL = 300
+RATE_LIMIT_AD_REFILL = 300      # 5 λεπτά μεταξύ διαφημίσεων
 RATE_LIMIT_DAILY = 86400
 RATE_LIMIT_GIFT = 3600
 RATE_LIMIT_WHEEL = 3600
@@ -112,7 +114,6 @@ def get_user(user_id: str) -> dict:
         user_data["missions"] = {}
     if "total_xp" not in user_data:
         user_data["total_xp"] = 0
-    # Καθημερινή επαναφορά missions
     if user_data.get("last_mission_date") != today:
         user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
         user_data["last_mission_date"] = today
@@ -293,7 +294,6 @@ async def refill_energy(request: Request):
     user_data["last_energy_update"] = datetime.utcnow().isoformat()
     user_data["last_ad_refill"] = datetime.utcnow().isoformat()
 
-    # Αύξηση mission ads_watch
     for m in DAILY_MISSIONS:
         if m["type"] == "ads_watch":
             mid = str(m["id"])
@@ -302,6 +302,38 @@ async def refill_energy(request: Request):
             user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + 1)
 
     save_user(user_id, user_data)
+    return {"status": "ok", "current_energy": user_data["current_energy"]}
+
+@app.get("/reward")
+async def adsgram_reward(userId: str = Query(...)):
+    """
+    Endpoint που καλείται αυτόματα από το Adsgram (Reward URL) 
+    όταν ο χρήστης ολοκληρώνει την προβολή διαφήμισης.
+    """
+    if not userId:
+        raise HTTPException(status_code=400, detail="Missing userId")
+        
+    users = read_json(USERS_FILE)
+    if userId not in users:
+        get_user(userId)
+        users = read_json(USERS_FILE)
+        
+    user_data = users[userId]
+    user_data["current_energy"] = min(MAX_ENERGY, user_data.get("current_energy", 0) + ENERGY_REWARD_AD)
+    user_data["last_energy_update"] = datetime.utcnow().isoformat()
+    user_data["last_ad_refill"] = datetime.utcnow().isoformat()
+
+    for m in DAILY_MISSIONS:
+        if m["type"] == "ads_watch":
+            mid = str(m["id"])
+            if "missions" not in user_data:
+                user_data["missions"] = {}
+            if mid not in user_data["missions"]:
+                user_data["missions"][mid] = {"progress": 0, "claimed": False}
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + 1)
+
+    write_json(USERS_FILE, users)
+    logger.info(f"Adsgram Reward success for user {userId}. +{ENERGY_REWARD_AD} Energy added.")
     return {"status": "ok", "current_energy": user_data["current_energy"]}
 
 @app.post("/daily_claim")
