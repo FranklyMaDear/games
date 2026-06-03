@@ -26,30 +26,30 @@ ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "SuperSecretAdminKey2026")
 USERS_FILE = "users.json"
 POINTS_LOG_FILE = "points_log.json"
 
-# ---------- ΝΕΑ ΟΙΚΟΝΟΜΙΑ ΠΑΙΧΝΙΔΙΟΥ (MONETIZATION) ----------
-MAX_ENERGY = 50                 # 50 μέγιστη ενέργεια
-ENERGY_COST_PER_GAME = 10       # 10 ενέργεια ανά παιχνίδι (5 παιχνίδια μέχρι να αδειάσει)
-ENERGY_REGEN_PER_SECOND = 1 / 900  # 1 ενέργεια κάθε 15 λεπτά (900 δευτερόλεπτα)
-ENERGY_REWARD_AD = 10           # +10 ενέργεια από διαφήμιση
+# ---------- ΝΕΟ ΣΥΣΤΗΜΑ (ΔΩΡΕΑΝ ΠΑΙΧΝΙΔΙ, MISSIONS, ADS) ----------
+# Το παιχνίδι είναι πλέον ΔΩΡΕΑΝ – δεν αφαιρείται ενέργεια
+# Οι πόντοι κερδίζονται μόνο από missions και ad watches
 
-DAILY_BONUS_POINTS = 100
-DAILY_BONUS_ENERGY = 30
+# Ρυθμίσεις για ads (σκάλες)
+AD_WATCH_REWARD_POINTS = 20        # Πόντοι ανά διαφήμιση
+AD_SCALE_1_TARGET = 5              # 5 διαφημίσεις
+AD_SCALE_1_BONUS = 100             # Bonus πόντοι
+AD_SCALE_2_TARGET = 10             # 10 διαφημίσεις
+AD_SCALE_2_BONUS = 200             # Bonus πόντοι
 
-STREAK_MULTIPLIERS = {7: 2, 30: 3, 90: 5, 180: 10}
+# Ορόσημα πόντων
+MILESTONE_2000 = 2000
+MILESTONE_3000 = 3000
+TALLY_URL = "https://tally.so/r/44jy95?transparentBackground=1"
 
-RATE_LIMIT_GAME = 60
-RATE_LIMIT_AD_REFILL = 300      # 5 λεπτά μεταξύ διαφημίσεων
-RATE_LIMIT_DAILY = 86400
-RATE_LIMIT_GIFT = 3600
-RATE_LIMIT_WHEEL = 3600
+# Daily missions (από τα παιχνίδια)
+DAILY_MISSIONS = [
+    {"id": 1, "description": "Play Crack The Code for 3 minutes", "target": 3, "reward_points": 50, "type": "playtime", "game": "Crack The Code"},
+    {"id": 2, "description": "Score 500 pts in Code Kids", "target": 500, "reward_points": 80, "type": "score", "game": "Crack The Code Kids"},
+    {"id": 3, "description": "Find 10 words in Code Words", "target": 10, "reward_points": 100, "type": "words_found", "game": "Crack The Code Words"},
+]
 
 POINTS_PER_LEVEL = 500
-
-DAILY_MISSIONS = [
-    {"id": 1, "description": "Play Chess for 5 minutes", "target": 5, "reward_xp": 50, "type": "playtime", "game": "Chess"},
-    {"id": 2, "description": "Score 1000 pts in Code Kids", "target": 1000, "reward_xp": 100, "type": "score", "game": "Crack The Code Kids"},
-    {"id": 3, "description": "Watch 3 Reward Ads", "target": 3, "reward_xp": 30, "type": "ads_watch"},
-]
 
 # ---------- JSON helpers ----------
 def read_json(filename):
@@ -65,58 +65,50 @@ def write_json(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-# ---------- Energy ----------
-def update_energy(user_data: dict) -> dict:
-    now = datetime.utcnow()
-    last_update_str = user_data.get("last_energy_update")
-    if last_update_str:
-        last_update = datetime.fromisoformat(last_update_str)
-        delta = (now - last_update).total_seconds()
-        regen = int(delta * ENERGY_REGEN_PER_SECOND)
-        if regen > 0:
-            user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + regen)
-    else:
-        user_data["current_energy"] = MAX_ENERGY
-    user_data["last_energy_update"] = now.isoformat()
-    return user_data
-
 def get_user(user_id: str) -> dict:
     users = read_json(USERS_FILE)
     if user_id not in users:
         users[user_id] = {
             "total_points": 0,
             "total_xp": 0,
-            "current_energy": MAX_ENERGY,
-            "max_energy": MAX_ENERGY,
-            "last_energy_update": None,
+            "level": 1,
             "streak": 0,
             "last_login_date": None,
             "last_daily_claim": None,
-            "last_gift_claim": None,
-            "last_wheel_spin": None,
-            "last_ad_refill": None,
-            "last_game": None,
-            "games_played_today": 0,
-            "last_game_date": None,
             "missions": {},
             "last_mission_date": None,
+            "ad_watch_count": 0,           # συνολικές διαφημίσεις σήμερα
+            "ad_scale_1_claimed": False,
+            "ad_scale_2_claimed": False,
+            "last_ad_watch": None,
+            "milestone_2000_reached": False,
+            "milestone_3000_reached": False,
             "referral_code": str(uuid.uuid4())[:8],
             "referred_by": None,
             "referral_reward_claimed": False
         }
-    user_data = update_energy(users[user_id])
+    user_data = users[user_id]
     today = date.today().isoformat()
-    last_game_date = user_data.get("last_game_date")
-    if last_game_date != today:
-        user_data["games_played_today"] = 0
-        user_data["last_game_date"] = today
+    
+    # Καθημερινή επαναφορά
+    last_date = user_data.get("last_mission_date")
+    if last_date != today:
+        user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
+        user_data["ad_watch_count"] = 0
+        user_data["ad_scale_1_claimed"] = False
+        user_data["ad_scale_2_claimed"] = False
+        user_data["last_mission_date"] = today
+    
     if "missions" not in user_data:
         user_data["missions"] = {}
-    if "total_xp" not in user_data:
-        user_data["total_xp"] = 0
-    if user_data.get("last_mission_date") != today:
-        user_data["missions"] = {str(m["id"]): {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
-        user_data["last_mission_date"] = today
+    if "total_points" not in user_data:
+        user_data["total_points"] = 0
+    if "level" not in user_data:
+        user_data["level"] = 1
+    
+    # Ενημέρωση level βάσει πόντων
+    user_data["level"] = (user_data["total_points"] // POINTS_PER_LEVEL) + 1
+    
     users[user_id] = user_data
     write_json(USERS_FILE, users)
     return user_data
@@ -132,344 +124,19 @@ def check_auth(request: Request):
     if not key or key != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid API Key")
 
-def check_rate_limit(user_data: dict, field: str, limit_seconds: int):
-    last = user_data.get(field)
-    if last:
-        last_dt = datetime.fromisoformat(last)
-        if datetime.utcnow() - last_dt < timedelta(seconds=limit_seconds):
-            raise HTTPException(status_code=429, detail="Rate limit exceeded")
-
-# ---------- Multiplier & Level ----------
-def get_multiplier(streak: int) -> int:
-    mult = 1
-    for days, m in sorted(STREAK_MULTIPLIERS.items()):
-        if streak >= days:
-            mult = m
-    return mult
-
-def get_level(points: int) -> int:
-    return points // POINTS_PER_LEVEL
-
-def get_level_progress(points: int) -> float:
-    level_points = points % POINTS_PER_LEVEL
-    return level_points / POINTS_PER_LEVEL
-
-def update_streak(user_data: dict) -> dict:
-    today = date.today().isoformat()
-    last_login = user_data.get("last_login_date")
-    if last_login == today:
-        return user_data
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
-    if last_login == yesterday:
-        user_data["streak"] = user_data.get("streak", 0) + 1
-    else:
-        user_data["streak"] = 1
-    user_data["last_login_date"] = today
-    return user_data
-
 # =========================== ENDPOINTS ===========================
 
-@app.post("/log")
-async def log_game(request: Request):
+@app.get("/points/{user_id}")
+async def get_points(user_id: str, request: Request):
     check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game = data.get("game", "unknown")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-
     user_data = get_user(user_id)
-    check_rate_limit(user_data, "last_game", RATE_LIMIT_GAME)
-
-    if user_data["current_energy"] < ENERGY_COST_PER_GAME:
-        raise HTTPException(status_code=403, detail="Not enough energy")
-
-    multiplier = get_multiplier(user_data.get("streak", 0))
-    user_data["current_energy"] -= ENERGY_COST_PER_GAME
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    user_data["last_game"] = datetime.utcnow().isoformat()
-    user_data["games_played_today"] = user_data.get("games_played_today", 0) + 1
-    points_earned = 10 * multiplier
-    user_data["total_points"] = user_data.get("total_points", 0) + points_earned
-
-    save_user(user_id, user_data)
-
-    logs = read_json(POINTS_LOG_FILE)
-    logs.append({
-        "userId": user_id, "game": game, "points": points_earned,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    write_json(POINTS_LOG_FILE, logs)
-
     return {
-        "status": "ok",
-        "points_earned": points_earned,
-        "total_points": user_data["total_points"],
-        "current_energy": user_data["current_energy"],
-        "multiplier": multiplier,
-        "level": get_level(user_data["total_points"])
-    }
-
-@app.post("/score")
-async def submit_score(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game = data.get("game", "unknown")
-    score = data.get("score", 0)
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    if not isinstance(score, (int, float)) or score <= 0:
-        raise HTTPException(status_code=400, detail="Invalid score")
-
-    user_data = get_user(user_id)
-    user_data["total_points"] = user_data.get("total_points", 0) + score
-    save_user(user_id, user_data)
-
-    logs = read_json(POINTS_LOG_FILE)
-    logs.append({
-        "userId": user_id, "game": game, "points": score,
-        "timestamp": datetime.utcnow().isoformat(), "source": "game_submit"
-    })
-    write_json(POINTS_LOG_FILE, logs)
-
-    return {
-        "status": "ok",
-        "score_added": score,
-        "total_points": user_data["total_points"],
-        "level": get_level(user_data["total_points"])
-    }
-
-@app.post("/add-points")
-async def add_points(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game = data.get("game", "unknown")
-    points = data.get("points", 0)
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    if not isinstance(points, (int, float)) or points <= 0:
-        raise HTTPException(status_code=400, detail="Invalid points value")
-
-    user_data = get_user(user_id)
-    user_data["total_points"] = user_data.get("total_points", 0) + points
-    save_user(user_id, user_data)
-
-    logs = read_json(POINTS_LOG_FILE)
-    logs.append({
         "userId": user_id,
-        "game": game,
-        "points": points,
-        "timestamp": datetime.utcnow().isoformat(),
-        "source": "game_score_postmessage"
-    })
-    write_json(POINTS_LOG_FILE, logs)
-
-    return {
-        "status": "ok",
-        "added": points,
-        "total": user_data["total_points"],
-        "level": get_level(user_data["total_points"])
-    }
-
-@app.get("/energy")
-async def get_energy(request: Request, userId: str):
-    check_auth(request)
-    user_data = get_user(userId)
-    return {"current_energy": user_data["current_energy"], "max_energy": user_data["max_energy"]}
-
-@app.post("/refill")
-async def refill_energy(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    amount = data.get("amount", ENERGY_REWARD_AD)
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    user_data = get_user(user_id)
-    check_rate_limit(user_data, "last_ad_refill", RATE_LIMIT_AD_REFILL)
-    user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + amount)
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    user_data["last_ad_refill"] = datetime.utcnow().isoformat()
-
-    for m in DAILY_MISSIONS:
-        if m["type"] == "ads_watch":
-            mid = str(m["id"])
-            if mid not in user_data["missions"]:
-                user_data["missions"][mid] = {"progress": 0, "claimed": False}
-            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + 1)
-
-    save_user(user_id, user_data)
-    return {"status": "ok", "current_energy": user_data["current_energy"]}
-
-@app.get("/reward")
-async def adsgram_reward(userId: str = Query(...)):
-    """
-    Endpoint που καλείται αυτόματα από το Adsgram (Reward URL) 
-    όταν ο χρήστης ολοκληρώνει την προβολή διαφήμισης.
-    """
-    if not userId:
-        raise HTTPException(status_code=400, detail="Missing userId")
-        
-    users = read_json(USERS_FILE)
-    if userId not in users:
-        get_user(userId)
-        users = read_json(USERS_FILE)
-        
-    user_data = users[userId]
-    user_data["current_energy"] = min(MAX_ENERGY, user_data.get("current_energy", 0) + ENERGY_REWARD_AD)
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    user_data["last_ad_refill"] = datetime.utcnow().isoformat()
-
-    for m in DAILY_MISSIONS:
-        if m["type"] == "ads_watch":
-            mid = str(m["id"])
-            if "missions" not in user_data:
-                user_data["missions"] = {}
-            if mid not in user_data["missions"]:
-                user_data["missions"][mid] = {"progress": 0, "claimed": False}
-            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + 1)
-
-    write_json(USERS_FILE, users)
-    logger.info(f"Adsgram Reward success for user {userId}. +{ENERGY_REWARD_AD} Energy added.")
-    return {"status": "ok", "current_energy": user_data["current_energy"]}
-
-@app.post("/daily_claim")
-async def daily_claim(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    user_data = get_user(user_id)
-    check_rate_limit(user_data, "last_daily_claim", RATE_LIMIT_DAILY)
-    user_data = update_streak(user_data)
-    user_data["last_daily_claim"] = datetime.utcnow().isoformat()
-    multiplier = get_multiplier(user_data["streak"])
-    bonus_points = DAILY_BONUS_POINTS * multiplier
-    user_data["total_points"] = user_data.get("total_points", 0) + bonus_points
-    user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + DAILY_BONUS_ENERGY)
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    save_user(user_id, user_data)
-    return {
-        "status": "ok",
-        "bonus_points": bonus_points,
-        "bonus_energy": DAILY_BONUS_ENERGY,
-        "streak": user_data["streak"],
         "total_points": user_data["total_points"],
-        "current_energy": user_data["current_energy"]
+        "level": user_data["level"],
+        "milestone_2000_reached": user_data.get("milestone_2000_reached", False),
+        "milestone_3000_reached": user_data.get("milestone_3000_reached", False)
     }
-
-@app.post("/gift")
-async def random_gift(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    user_data = get_user(user_id)
-    check_rate_limit(user_data, "last_gift_claim", RATE_LIMIT_GIFT)
-    reward_type = random.choice(["points", "energy"])
-    if reward_type == "points":
-        amount = random.randint(50, 200)
-        user_data["total_points"] = user_data.get("total_points", 0) + amount
-    else:
-        amount = random.randint(20, 60)
-        user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + amount)
-    user_data["last_gift_claim"] = datetime.utcnow().isoformat()
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    save_user(user_id, user_data)
-    return {"status": "ok", "reward_type": reward_type, "amount": amount,
-            "total_points": user_data["total_points"], "current_energy": user_data["current_energy"]}
-
-@app.post("/wheel")
-async def lucky_wheel(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    user_data = get_user(user_id)
-    check_rate_limit(user_data, "last_wheel_spin", RATE_LIMIT_WHEEL)
-    prizes = [
-        {"type": "points", "amount": 10},
-        {"type": "points", "amount": 50},
-        {"type": "energy", "amount": 20},
-        {"type": "points", "amount": 5},
-        {"type": "points", "amount": 100},
-        {"type": "energy", "amount": 30},
-        {"type": "points", "amount": 200},
-        {"type": "energy", "amount": 15}
-    ]
-    prize = random.choice(prizes)
-    if prize["type"] == "points":
-        user_data["total_points"] = user_data.get("total_points", 0) + prize["amount"]
-    else:
-        user_data["current_energy"] = min(MAX_ENERGY, user_data["current_energy"] + prize["amount"])
-    user_data["last_wheel_spin"] = datetime.utcnow().isoformat()
-    user_data["last_energy_update"] = datetime.utcnow().isoformat()
-    save_user(user_id, user_data)
-    return {"status": "ok", "prize": prize, "total_points": user_data["total_points"],
-            "current_energy": user_data["current_energy"]}
-
-@app.get("/streak")
-async def get_streak(request: Request, userId: str):
-    check_auth(request)
-    user_data = get_user(userId)
-    return {"streak": user_data.get("streak", 0)}
-
-@app.get("/board")
-async def get_board(request: Request, userId: str):
-    check_auth(request)
-    user_data = get_user(userId)
-    total_points = user_data.get("total_points", 0)
-    level = get_level(total_points)
-    progress = get_level_progress(total_points)
-    return {
-        "total_points": total_points,
-        "level": level,
-        "progress": progress,
-        "next_level_points": (level + 1) * POINTS_PER_LEVEL
-    }
-
-@app.get("/shop")
-async def shop(request: Request):
-    check_auth(request)
-    return {"items": [{"id":1,"name":"Double Points (1h)","cost":200},
-                      {"id":2,"name":"Energy Refill","cost":150}]}
-
-@app.get("/season")
-async def season_info(request: Request):
-    check_auth(request)
-    now = datetime.utcnow()
-    week_number = now.isocalendar()[1]
-    days_until_monday = (7 - now.weekday()) % 7
-    if days_until_monday == 0:
-        days_until_monday = 7
-    return {
-        "season": week_number,
-        "ends_in_days": days_until_monday,
-        "rewards": ["🥇 Top 1: 5000 pts", "🥈 Top 2: 3000 pts", "🥉 Top 3: 1000 pts"]
-    }
-
-@app.get("/leaderboard")
-async def leaderboard(request: Request, limit: int = 20):
-    check_auth(request)
-    users = read_json(USERS_FILE)
-    sorted_users = sorted(users.items(), key=lambda x: x[1].get("total_points", 0), reverse=True)[:limit]
-    leaderboard = []
-    for uid, info in sorted_users:
-        leaderboard.append({
-            "userId": uid,
-            "points": info.get("total_points", 0),
-            "level": get_level(info.get("total_points", 0)),
-            "streak": info.get("streak", 0)
-        })
-    return {"leaderboard": leaderboard}
-
-# ---------- MISSIONS & XP ----------
 
 @app.get("/missions")
 async def get_missions(request: Request, userId: str):
@@ -484,19 +151,21 @@ async def get_missions(request: Request, userId: str):
             "description": m["description"],
             "target": m["target"],
             "progress": mission_data.get("progress", 0),
-            "reward_xp": m["reward_xp"],
+            "reward_points": m["reward_points"],
             "claimed": mission_data.get("claimed", False)
         })
     return {"missions": missions_status}
 
 @app.post("/missions/update")
 async def update_mission_progress(request: Request):
+    """Τα παιχνίδια στέλνουν score/playtime για να ενημερωθούν οι αποστολές."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
     game = data.get("game", "")
     score = data.get("score", 0)
     playtime = data.get("playtime", 0)
+    words = data.get("words", 0)
 
     user_data = get_user(user_id)
     for m in DAILY_MISSIONS:
@@ -504,15 +173,11 @@ async def update_mission_progress(request: Request):
         if mid not in user_data["missions"]:
             user_data["missions"][mid] = {"progress": 0, "claimed": False}
         if m["type"] == "score" and m["game"] == game:
-            user_data["missions"][mid]["progress"] = min(
-                m["target"],
-                user_data["missions"][mid].get("progress", 0) + score
-            )
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + score)
         elif m["type"] == "playtime" and m["game"] == game:
-            user_data["missions"][mid]["progress"] = min(
-                m["target"],
-                user_data["missions"][mid].get("progress", 0) + playtime
-            )
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + playtime)
+        elif m["type"] == "words_found" and m["game"] == game:
+            user_data["missions"][mid]["progress"] = min(m["target"], user_data["missions"][mid].get("progress", 0) + words)
     save_user(user_id, user_data)
     return {"status": "ok"}
 
@@ -531,37 +196,124 @@ async def claim_mission(request: Request):
     if not mission_def or mission.get("progress", 0) < mission_def["target"] or mission.get("claimed"):
         raise HTTPException(status_code=400, detail="Mission not completable or already claimed")
 
-    user_data["total_xp"] = user_data.get("total_xp", 0) + mission_def["reward_xp"]
+    user_data["total_points"] = user_data.get("total_points", 0) + mission_def["reward_points"]
+    user_data["level"] = (user_data["total_points"] // POINTS_PER_LEVEL) + 1
     mission["claimed"] = True
+    
+    # Έλεγχος οροσήμων
+    if user_data["total_points"] >= MILESTONE_2000 and not user_data.get("milestone_2000_reached"):
+        user_data["milestone_2000_reached"] = True
+    if user_data["total_points"] >= MILESTONE_3000 and not user_data.get("milestone_3000_reached"):
+        user_data["milestone_3000_reached"] = True
+    
     save_user(user_id, user_data)
     return {
         "status": "ok",
-        "reward_xp": mission_def["reward_xp"],
-        "total_xp": user_data["total_xp"]
+        "reward_points": mission_def["reward_points"],
+        "total_points": user_data["total_points"],
+        "level": user_data["level"],
+        "milestone_2000_reached": user_data["milestone_2000_reached"],
+        "milestone_3000_reached": user_data["milestone_3000_reached"]
     }
 
-@app.get("/xp/{user_id}")
-async def get_xp(user_id: str, request: Request):
+@app.post("/ad-watch")
+async def ad_watch(request: Request):
+    """Ο χρήστης είδε μία διαφήμιση. Αυξάνει τον μετρητή και δίνει πόντους/κλίμακες."""
     check_auth(request)
-    users = read_json(USERS_FILE)
-    total_xp = users.get(user_id, {}).get("total_xp", 0)
-    return {"userId": user_id, "total_xp": total_xp}
+    data = await request.json()
+    user_id = data.get("userId")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    
+    user_data = get_user(user_id)
+    user_data["ad_watch_count"] = user_data.get("ad_watch_count", 0) + 1
+    user_data["last_ad_watch"] = datetime.utcnow().isoformat()
+    
+    points_earned = AD_WATCH_REWARD_POINTS
+    bonus = 0
+    
+    # Έλεγχος σκαλών
+    if user_data["ad_watch_count"] >= AD_SCALE_1_TARGET and not user_data.get("ad_scale_1_claimed"):
+        bonus += AD_SCALE_1_BONUS
+        user_data["ad_scale_1_claimed"] = True
+    if user_data["ad_watch_count"] >= AD_SCALE_2_TARGET and not user_data.get("ad_scale_2_claimed"):
+        bonus += AD_SCALE_2_BONUS
+        user_data["ad_scale_2_claimed"] = True
+    
+    total_earned = points_earned + bonus
+    user_data["total_points"] = user_data.get("total_points", 0) + total_earned
+    user_data["level"] = (user_data["total_points"] // POINTS_PER_LEVEL) + 1
+    
+    # Έλεγχος οροσήμων
+    if user_data["total_points"] >= MILESTONE_2000 and not user_data.get("milestone_2000_reached"):
+        user_data["milestone_2000_reached"] = True
+    if user_data["total_points"] >= MILESTONE_3000 and not user_data.get("milestone_3000_reached"):
+        user_data["milestone_3000_reached"] = True
+    
+    save_user(user_id, user_data)
+    
+    return {
+        "status": "ok",
+        "points_earned": total_earned,
+        "total_points": user_data["total_points"],
+        "ad_watch_count": user_data["ad_watch_count"],
+        "level": user_data["level"],
+        "bonus": bonus,
+        "milestone_2000_reached": user_data["milestone_2000_reached"],
+        "milestone_3000_reached": user_data["milestone_3000_reached"]
+    }
 
-# ---------- ADMIN / POINTS ----------
+@app.get("/ad-status")
+async def ad_status(request: Request, userId: str):
+    check_auth(request)
+    user_data = get_user(userId)
+    return {
+        "ad_watch_count": user_data.get("ad_watch_count", 0),
+        "ad_scale_1_target": AD_SCALE_1_TARGET,
+        "ad_scale_1_claimed": user_data.get("ad_scale_1_claimed", False),
+        "ad_scale_1_bonus": AD_SCALE_1_BONUS,
+        "ad_scale_2_target": AD_SCALE_2_TARGET,
+        "ad_scale_2_claimed": user_data.get("ad_scale_2_claimed", False),
+        "ad_scale_2_bonus": AD_SCALE_2_BONUS,
+        "points_per_ad": AD_WATCH_REWARD_POINTS
+    }
 
-@app.get("/points/{user_id}")
-async def get_points(user_id: str, request: Request):
-    client_key = request.headers.get("X-API-Key")
-    if not client_key or client_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-    users = read_json(USERS_FILE)
-    return {"userId": user_id, "total_points": users.get(user_id, {}).get("total_points", 0)}
+@app.get("/board")
+async def get_board(request: Request, userId: str):
+    check_auth(request)
+    user_data = get_user(userId)
+    return {
+        "total_points": user_data["total_points"],
+        "level": user_data["level"],
+        "next_level_points": user_data["level"] * POINTS_PER_LEVEL,
+        "milestone_2000_reached": user_data.get("milestone_2000_reached", False),
+        "milestone_3000_reached": user_data.get("milestone_3000_reached", False),
+        "tally_url": TALLY_URL
+    }
 
-@app.get("/admin/winners")
-async def admin_winners(key: str = Query(...)):
-    if key != ADMIN_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
-    users = read_json(USERS_FILE)
-    winners = {uid: info.get("total_points", 0) for uid, info in users.items() if info.get("total_points", 0) >= 1000}
-    sorted_winners = sorted(winners.items(), key=lambda x: x[1], reverse=True)
-    return {"winners": [{"userId": uid, "points": pts} for uid, pts in sorted_winners], "total": len(sorted_winners)}
+# ---------- Endpoints κληρονομιάς (διατηρούνται για συμβατότητα) ----------
+
+@app.get("/energy")
+async def get_energy(request: Request, userId: str):
+    # Δεν χρησιμοποιείται πλέον, επιστρέφει dummy
+    return {"current_energy": 999, "max_energy": 999}
+
+@app.post("/log")
+async def log_game(request: Request):
+    # Δεν αφαιρεί ενέργεια πλέον, απλά καταγράφει
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    game = data.get("game", "unknown")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    
+    user_data = get_user(user_id)
+    logs = read_json(POINTS_LOG_FILE)
+    logs.append({
+        "userId": user_id, "game": game, "points": 0,
+        "timestamp": datetime.utcnow().isoformat(), "source": "free_play"
+    })
+    write_json(POINTS_LOG_FILE, logs)
+    
+    return {"status": "ok", "message": "Game launched (free play)"}
