@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- ΜΟΝΟ AdsGram script -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <!-- ΜΟΝΟ Monetag SDK -->
+    <script src="//libtl.com/sdk.js" data-zone="10979429" data-sdk="show_10979429"></script>
 
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -156,13 +156,29 @@
             border: 1px solid rgba(255,255,255,0.10);
             border-radius: 30px;
             padding: 32px 24px 28px;
-            max-width:650px; margin:0 auto;
+            max-width:700px; margin:0 auto;
             transition: box-shadow 0.3s;
+            position: relative; /* για τοποθέτηση του βέλους */
         }
         .wheel-container.spinning {
             box-shadow: 0 0 50px rgba(241,196,15,0.5), inset 0 0 50px rgba(241,196,15,0.1);
         }
-        #wheelCanvas { max-width:520px; width:100%; aspect-ratio:1/1; border-radius:50%; }
+        /* Canvas τροχού - μεγαλύτερο */
+        #wheelCanvas { max-width:580px; width:100%; aspect-ratio:1/1; border-radius:50%; display:block; }
+        /* Βέλος - δείκτης */
+        .wheel-arrow {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; 
+            height: 0; 
+            border-left: 16px solid transparent;
+            border-right: 16px solid transparent;
+            border-top: 28px solid #f1c40f;
+            filter: drop-shadow(0 0 6px rgba(241,196,15,0.8));
+            z-index: 10;
+        }
         #spinBtn, #wheelAdBtn, #testSpinBtn {
             margin-top:20px; padding:12px 40px;
             background:linear-gradient(135deg, #f1c40f, #f39c12);
@@ -257,6 +273,7 @@
         @media (max-width:700px) {
             .games-grid { grid-template-columns:1fr 1fr; }
             #section-games::after { animation-duration: 30s; }
+            #wheelCanvas { max-width:400px; }
         }
         @media (max-width:600px) {
             .main-title { font-size:1.9rem; }
@@ -377,7 +394,9 @@
         <div class="section" id="section-wheel">
             <h2 class="section-title">🎡 Wheel of Fortune</h2>
             <div class="wheel-container" id="wheelContainer">
-                <canvas id="wheelCanvas" width="600" height="600"></canvas>
+                <!-- Βέλος-δείκτης -->
+                <div class="wheel-arrow"></div>
+                <canvas id="wheelCanvas" width="650" height="650"></canvas>
                 <div class="free-spins-info">🎫 Free Spins: <span id="wheelFreeSpins">0</span></div>
                 <button id="wheelAdBtn">🎞️ 1 Ad → 5 Free Spins</button>
                 <button id="testSpinBtn">🧪 Test Spin</button>
@@ -414,11 +433,22 @@
             localStorage.setItem('franklymadear_userId', userId);
         }
 
-        let sadInstance = null;
-        function initAdsGram() {
-            if (typeof sad !== 'undefined') {
-                sadInstance = new sad.AdsGram({ blockId: '32708' });
-            }
+        // ---------- MONETAG ----------
+        function callMonetagAd() {
+            return new Promise((resolve, reject) => {
+                if (typeof show_10979429 === 'function') {
+                    show_10979429().then(resolve).catch(reject);
+                } else {
+                    // fallback: αν δεν έχει φορτώσει ακόμα το SDK, κάνουμε resolve για να μην κολλήσει
+                    setTimeout(() => {
+                        if (typeof show_10979429 === 'function') {
+                            show_10979429().then(resolve).catch(reject);
+                        } else {
+                            resolve(); // προχωράμε χωρίς διαφήμιση
+                        }
+                    }, 500);
+                }
+            });
         }
 
         async function apiCall(method, path, body = null) {
@@ -464,6 +494,14 @@
                         apiCall('POST', '/add-points', { userId, game: gameName, points: score })
                             .then(data => { showToast(`+${data.added} pts!`); refreshUI(); })
                             .catch(err => showToast(err.message));
+                        // Ενημέρωση αποστολών (συγχρονισμός missions)
+                        apiCall('POST', '/missions/update', { 
+                            userId, 
+                            game: gameName, 
+                            score: score, 
+                            playtime: 0, 
+                            words: 0 
+                        }).catch(() => {});
                     }
                     window.removeEventListener('message', handler);
                 }
@@ -472,14 +510,13 @@
             apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
         }
 
-        // Tab navigation (με απόκρυψη header στο wheel)
+        // Tab navigation (απόκρυψη header στο wheel)
         document.querySelectorAll('.nav-tab').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
                 document.getElementById('section-' + btn.dataset.tab).classList.add('active');
                 document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                // Απόκρυψη header όταν είναι wheel
                 if (btn.dataset.tab === 'wheel') {
                     document.body.classList.add('wheel-mode');
                 } else {
@@ -558,8 +595,9 @@
             const ctx = canvas.getContext('2d');
             const w = canvas.width, h = canvas.height;
             ctx.clearRect(0, 0, w, h);
-            const cx = w/2, cy = h/2, radius = w/2 - 15;
+            const cx = w/2, cy = h/2, radius = w/2 - 20;
 
+            // Σκιά για 3D εφέ
             ctx.shadowColor = 'rgba(0,0,0,0.5)';
             ctx.shadowBlur = 15;
             ctx.shadowOffsetX = 5; ctx.shadowOffsetY = 5;
@@ -581,14 +619,14 @@
                 ctx.rotate(start + segAngle/2);
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 15px Arial';
-                ctx.fillText(segments[i].label, radius * 0.65, 5);
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(segments[i].label, radius * 0.68, 5);
                 ctx.restore();
             }
 
-            // κεντρικός κύκλος
+            // Κεντρικός κύκλος
             ctx.beginPath();
-            ctx.arc(cx, cy, 22, 0, 2*Math.PI);
+            ctx.arc(cx, cy, 24, 0, 2*Math.PI);
             ctx.fillStyle = '#f1c40f';
             ctx.shadowBlur = 20;
             ctx.fill();
@@ -672,7 +710,6 @@
             });
         }
 
-        // TEST SPIN (χωρίς backend)
         function testSpin() {
             if (spinning) return;
             initAudio();
@@ -747,39 +784,26 @@
             } catch(e) { container.innerHTML = '<p>Error loading leaderboard</p>'; }
         }
 
-        function showRewardedAd(callback) {
-            if (!sadInstance) initAdsGram();
-            if (sadInstance) {
-                sadInstance.showRewardedAd()
-                    .then(() => { if(callback) callback(); })
-                    .catch(() => { showToast('Ad not available, try later'); });
-            } else {
-                showToast('Ads not ready');
-            }
-        }
-
+        // ========== ΔΙΑΦΗΜΙΣΕΙΣ ΜΕΣΩ MONETAG ==========
         function watchAdForPoints() {
-            showRewardedAd(async () => {
-                try {
-                    const res = await apiCall('POST', '/ad-watch', { userId });
-                    showToast(`+${res.points_earned} pts!`);
-                    refreshUI();
-                } catch(e) { showToast(e.message); }
-            });
+            callMonetagAd().then(() => {
+                return apiCall('POST', '/ad-watch', { userId });
+            }).then(res => {
+                showToast(`+${res.points_earned} pts!`);
+                refreshUI();
+            }).catch(err => showToast(err.message || 'Ad error'));
         }
 
         function watchAdForSpins() {
-            showRewardedAd(async () => {
-                try {
-                    const res = await apiCall('POST', '/ad-free-spins-1', { userId });
-                    showToast(`Free spins: ${res.free_spins} 🎫`);
-                    refreshUI();
-                } catch(e) { showToast(e.message); }
-            });
+            callMonetagAd().then(() => {
+                return apiCall('POST', '/ad-free-spins-1', { userId });
+            }).then(res => {
+                showToast(`Free spins: ${res.free_spins} 🎫`);
+                refreshUI();
+            }).catch(err => showToast(err.message || 'Ad error'));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            initAdsGram();
             refreshUI();
             loadMiniLeaderboard();
             setInterval(refreshUI, 30000);
