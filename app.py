@@ -46,20 +46,20 @@ AD_POINTS_PER_WATCH = 20
 # Free spins από διαφημίσεις (μόνο 1 Ad -> 5 spins)
 FREE_SPINS_1_AD = 5
 
-# Τροχός με 12 βραβεία, συμπεριλαμβανομένου Joker
+# Τροχός με 12 βραβεία (εμφανή / κρυφά, θετικά / αρνητικά)
 WHEEL_PRIZES = [
-    {"label": "💎 200 pts", "points": 200},
-    {"label": "🎫 5 Spins", "points": 0, "free_spins": 5},
-    {"label": "🪙 100 pts", "points": 100},
-    {"label": "💀 Joker", "points": -50},          # χάνει 50 πόντους
-    {"label": "⭐ 50 pts", "points": 50},
-    {"label": "🎫 10 Spins", "points": 0, "free_spins": 10},
-    {"label": "💎 500 pts", "points": 500},
-    {"label": "🎫 20 Spins", "points": 0, "free_spins": 20},
-    {"label": "🪙 20 pts", "points": 20},
-    {"label": "💀 Joker", "points": -30},          # χάνει 30 πόντους
-    {"label": "⭐ 10 pts", "points": 10},
-    {"label": "🎫 3 Spins", "points": 0, "free_spins": 3},
+    {"label": "+5 pts",      "points": 5},      # εμφανές
+    {"label": "💀 Joker",    "points": 0},      # κρυφό
+    {"label": "+10 pts",     "points": 10},     # εμφανές
+    {"label": "-1 pt",       "points": -1},     # κρυφό
+    {"label": "+20 pts",     "points": 20},     # εμφανές
+    {"label": "-2 pts",      "points": -2},     # κρυφό
+    {"label": "+5 pts",      "points": 5},      # εμφανές
+    {"label": "💀 Joker",    "points": 0},      # κρυφό
+    {"label": "+10 pts",     "points": 10},     # εμφανές
+    {"label": "-1 pt",       "points": -1},     # κρυφό
+    {"label": "+20 pts",     "points": 20},     # εμφανές
+    {"label": "-2 pts",      "points": -2}      # κρυφό
 ]
 
 # Milestones
@@ -317,7 +317,7 @@ async def spin_wheel(request: Request):
         # αφαίρεση χωρίς να πάει κάτω από 0
         user_data["total_points"] = max(0, user_data.get("total_points", 0) + pts)
     
-    # Εφαρμογή free spins
+    # Εφαρμογή free spins (αν υπάρχουν)
     spins = prize.get("free_spins", 0)
     if spins > 0:
         user_data["free_spins"] = user_data.get("free_spins", 0) + spins
