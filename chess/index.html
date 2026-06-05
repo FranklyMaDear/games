@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Chess Deluxe Pro</title>
     
-    <!-- Favicons -->
     <link rel="icon" type="image/png" sizes="32x32" href="index.png">
     <link rel="icon" type="image/png" sizes="16x16" href="index.png">
     <link rel="apple-touch-icon" sizes="180x180" href="index.png">
@@ -13,7 +12,6 @@
     <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#1e3c72">
     
-    <!-- Open Graph / Social Media -->
     <meta property="og:title" content="Chess Deluxe Pro">
     <meta property="og:description" content="Play Chess Deluxe Pro with sound effects, multiple AI difficulties, and stunning visuals.">
     <meta property="og:image" content="index.png">
@@ -23,13 +21,11 @@
     <meta property="og:url" content="https://yourwebsite.com/chess">
     <meta property="og:type" content="website">
     
-    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Chess Deluxe Pro">
     <meta name="twitter:description" content="Play Chess Deluxe Pro: Two Players or vs AI. Sound effects, celebrations, and more!">
     <meta name="twitter:image" content="index.png">
     
-    <!-- Apple Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Chess Pro">
@@ -501,6 +497,54 @@
     </div>
 
     <script>
+        // ========== RECEIVE USER ID FROM HUB ==========
+        let userId = null;
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'setUserId') {
+                userId = event.data.userId;
+                console.log('♟️ Chess received userId:', userId);
+            }
+        });
+
+        // ========== SEND SCORE TO HUB ==========
+        function sendScoreToHub(score, gameResult) {
+            console.log('♟️ Chess attempting to send score:', { score, gameResult, userId });
+            
+            const messageData = {
+                type: 'gameScore',
+                score: score,
+                game: 'Chess',
+                result: gameResult
+            };
+            
+            // Μέθοδος 1: window.opener (αν άνοιξε με window.open)
+            if (window.opener) {
+                window.opener.postMessage(messageData, '*');
+                console.log('♟️ Score sent via window.opener');
+            }
+            
+            // Μέθοδος 2: window.parent (για Telegram WebView ή iframe)
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(messageData, '*');
+                console.log('♟️ Score sent via window.parent');
+            }
+            
+            // Μέθοδος 3: Telegram.WebApp (αν είναι διαθέσιμο)
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    window.Telegram.WebApp.sendData(JSON.stringify(messageData));
+                    console.log('♟️ Score sent via Telegram.WebApp.sendData');
+                } catch(e) {
+                    console.log('♟️ Telegram.WebApp.sendData failed:', e);
+                }
+            }
+            
+            // Μέθοδος 4: postMessage σε όλα τα παράθυρα (fallback)
+            try {
+                window.postMessage(messageData, '*');
+            } catch(e) {}
+        }
+
         // DOM Elements
         const boardEl = document.getElementById("board");
         const gameInfoEl = document.getElementById("gameInfo");
@@ -981,12 +1025,10 @@
             }
             if (possibleMoves.length === 0) return null;
             
-            // Easy: random moves
             if (aiDepth === 2) {
                 return possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
             }
             
-            // Medium: basic evaluation, prefers captures
             if (aiDepth === 3) {
                 let bestScore = -Infinity;
                 let bestMoves = [];
@@ -1012,7 +1054,6 @@
                 return bestMoves[Math.floor(Math.random() * bestMoves.length)];
             }
             
-            // Hard: deeper evaluation with check bonus
             let bestScore = -Infinity;
             let bestMoves = [];
             for (const move of possibleMoves) {
@@ -1066,6 +1107,11 @@
                 postGameMessage.textContent = "The game ended in a draw.";
             }
             postGameModal.style.display = 'flex';
+            
+            // ===== ΑΠΟΣΤΟΛΗ ΣΚΟΡ ΣΤΟ HUB =====
+            const score = resultType === "checkmate" ? 100 : 25;
+            sendScoreToHub(score, resultType);
+            // =================================
         }
         
         // Event Listeners
@@ -1113,6 +1159,7 @@
         
         window.addEventListener('DOMContentLoaded', () => {
             welcomeModal.style.display = 'flex';
+            console.log('♟️ Chess loaded - ready to receive userId and send gameScore');
         });
     </script>
 </body>
