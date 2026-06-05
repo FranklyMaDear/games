@@ -140,7 +140,7 @@
         .modal-btn:active { top:3px; box-shadow: 0 1px 0 rgba(0,0,0,0.2); }
         .modal-btn.win { background:#00b894; color:#fff; }
         .modal-btn.double { background:#e17055; color:#fff; font-size:0.85rem; }
-        .modal-btn.stars { background:#f39c12; color:#fff; font-size:0.85rem; }
+        .modal-btn.cancel { background:#888; color:#fff; }
 
         /* ========== MISSIONS TABS ========== */
         .missions-tabs { display:flex; justify-content:center; gap:10px; margin-bottom:14px; }
@@ -306,25 +306,9 @@
             } catch(e) { console.warn(e); }
         }
 
-        const GAME_LINKS = {
-            'Connect 4': 'https://t.me/Franklygames_bot/connectfour',
-            'Sudoku': 'https://t.me/Franklygames_bot/sudoku',
-            'Chess': 'https://t.me/Franklygames_bot/chess'
-        };
-
         function playGame(url, gameName) {
             const gameWindow = window.open(url, '_blank');
-            const handler = (event) => {
-                if (event.source !== gameWindow) return;
-                if (event.data.type === 'gameScore') {
-                    const score = event.data.score;
-                    if (typeof score === 'number' && score > 0) {
-                        apiCall('POST', '/add-points', { userId, game: gameName, points: score }).then(data => { showToast(`+${data.added} pts!`); refreshUI(); }).catch(err => showToast(err.message));
-                        apiCall('POST', '/missions/update', { userId, game: gameName, score, playtime: 1, words: 0 }).catch(() => {});
-                    }
-                    window.removeEventListener('message', handler);
-                }
-            };
+            const handler = (event) => { if (event.source !== gameWindow) return; if (event.data.type === 'gameScore') { const score = event.data.score; if (typeof score === 'number' && score > 0) { apiCall('POST', '/add-points', { userId, game: gameName, points: score }).then(data => { showToast(`+${data.added} pts!`); refreshUI(); }).catch(err => showToast(err.message)); apiCall('POST', '/missions/update', { userId, game: gameName, score, playtime: 1, words: 0 }).catch(() => {}); } window.removeEventListener('message', handler); } };
             window.addEventListener('message', handler);
             apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
         }
@@ -351,20 +335,20 @@
 
         document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); document.getElementById('section-' + btn.dataset.tab).classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.body.classList.toggle('wheel-mode', btn.dataset.tab === 'wheel'); if (btn.dataset.tab === 'board') { refreshUI(); loadMiniLeaderboard(); } if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } }); });
 
-        // ========== WHEEL (12 slices, no Stars, fixed sync) ==========
+        // ========== WHEEL (12 slices, μαύρα γράμματα, νέα modes, συγχρονισμός) ==========
         const segments = [
-            { label:'+10 PTS', fullLabel:'+10 Points', color:'#DEB887', type:'points', value:10, icon:'🪙', mode:'double' },
-            { label:'+10 PTS', fullLabel:'+10 Points', color:'#CD853F', type:'points', value:10, icon:'🪙', mode:'stars' },
-            { label:'+1 SPIN', fullLabel:'+1 Free Spin', color:'#F5DEB3', type:'free_spin', value:1, icon:'🔄', mode:'double' },
-            { label:'ZONK', fullLabel:'ZONK', color:'#8B5A2B', type:'zonk', value:0, icon:'💨', mode:'none' },
-            { label:'+20 PTS', fullLabel:'+20 Points', color:'#D2B48C', type:'points', value:20, icon:'🪙', mode:'double' },
-            { label:'+20 PTS', fullLabel:'+20 Points', color:'#BC8F8F', type:'points', value:20, icon:'🪙', mode:'stars' },
-            { label:'+2 SPINS', fullLabel:'+2 Free Spins', color:'#DEB887', type:'free_spin', value:2, icon:'🔄', mode:'double' },
-            { label:'ZONK', fullLabel:'ZONK', color:'#8B5A2B', type:'zonk', value:0, icon:'💨', mode:'none' },
-            { label:'+50 PTS', fullLabel:'+50 Points', color:'#CD853F', type:'points', value:50, icon:'🪙', mode:'double' },
-            { label:'+50 PTS', fullLabel:'+50 Points', color:'#F5DEB3', type:'points', value:50, icon:'🪙', mode:'stars' },
-            { label:'+3 SPINS', fullLabel:'+3 Free Spins', color:'#D2B48C', type:'free_spin', value:3, icon:'🔄', mode:'double' },
-            { label:'+5 SPINS', fullLabel:'+5 Free Spins', color:'#BC8F8F', type:'free_spin', value:5, icon:'🔄', mode:'double' }
+            { type: 'points', value: 5, label: '+5 PTS', mode: 'double', icon: 'coin', color: '#DEB887' },
+            { type: 'points', value: 10, label: '+10 PTS', mode: 'double', icon: 'coin', color: '#CD853F' },
+            { type: 'free_spin', value: 1, label: '+1 SPIN', mode: 'double', icon: 'ticket', color: '#F5DEB3' },
+            { type: 'zonk', value: 0, label: 'ZONK', mode: 'none', icon: 'wind', color: '#8B5A2B' },
+            { type: 'stars', value: 5, label: '+5 STARS', mode: 'mandatory_ad', icon: 'star', color: '#D2B48C' },
+            { type: 'stars', value: 10, label: '+10 STARS', mode: 'mandatory_ad', icon: 'star', color: '#BC8F8F' },
+            { type: 'free_spin', value: 2, label: '+2 SPINS', mode: 'double', icon: 'ticket', color: '#DEB887' },
+            { type: 'zonk', value: 0, label: 'ZONK', mode: 'none', icon: 'wind', color: '#8B5A2B' },
+            { type: 'points', value: 5, label: '+5 PTS', mode: 'double', icon: 'coin', color: '#CD853F' },
+            { type: 'points', value: 10, label: '+10 PTS', mode: 'double', icon: 'coin', color: '#F5DEB3' },
+            { type: 'free_spin', value: 1, label: '+1 SPIN', mode: 'double', icon: 'ticket', color: '#D2B48C' },
+            { type: 'free_spin', value: 2, label: '+2 SPINS', mode: 'double', icon: 'ticket', color: '#BC8F8F' }
         ];
         const segAngle = (2 * Math.PI) / segments.length;
         let wheelAngle = 0, spinning = false;
@@ -387,8 +371,9 @@
                 sliceGrad.addColorStop(0, segments[i].color); sliceGrad.addColorStop(1, '#FFF8DC');
                 ctx.fillStyle=sliceGrad; ctx.fill(); ctx.strokeStyle='#5C3A21'; ctx.lineWidth=2; ctx.stroke();
                 ctx.save(); ctx.translate(cx,cy); ctx.rotate(start+segAngle/2); ctx.textAlign='center';
-                ctx.fillStyle='#000000'; ctx.font='bold 20px Arial';
-                ctx.fillText(segments[i].label, radius*0.72, 6); ctx.restore();
+                ctx.fillStyle='#000000'; ctx.font='bold 22px Arial';
+                ctx.fillText(segments[i].label, radius*0.65, 8);
+                ctx.restore();
             }
             const hubGrad = ctx.createRadialGradient(cx-4,cy-4,4,cx,cy,32);
             hubGrad.addColorStop(0,'#D2B48C'); hubGrad.addColorStop(0.6,'#8B5A2B'); hubGrad.addColorStop(1,'#5C3A21');
@@ -398,17 +383,12 @@
             ctx.beginPath(); ctx.arc(cx,cy,radius,0,2*Math.PI); ctx.fillStyle=gloss; ctx.fill();
         }
 
-        function getSliceFromAngle(angle) {
-            let normalized = ((angle % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
-            let sliceIndex = Math.floor(((2*Math.PI - normalized) % (2*Math.PI)) / segAngle);
-            return sliceIndex % segments.length;
-        }
-
         function doSpinAnimation(targetIdx, onFinished) {
             initAudio(); spinning=true;
-            const targetSliceMiddle = targetIdx * segAngle + segAngle/2;
+            // Συγχρονισμός με τον τύπο: targetAngle = 2*PI - (targetIdx * (PI/6) + (PI/12))
+            const targetAngle = 2 * Math.PI - (targetIdx * (Math.PI / 6) + (Math.PI / 12));
             const fullRotations = 8 * 2 * Math.PI;
-            const finalAngle = fullRotations + (2*Math.PI - (targetSliceMiddle % (2*Math.PI)));
+            const finalAngle = fullRotations + targetAngle;
             const duration=4000, startTime=performance.now(), startAngle=wheelAngle;
             let lastSeg=-1;
             function animate(now) {
@@ -416,7 +396,7 @@
                 const eased=1-Math.pow(1-progress,3);
                 wheelAngle=startAngle+(finalAngle)*eased;
                 drawWheel();
-                const curSeg=getSliceFromAngle(wheelAngle);
+                const curSeg=Math.floor(((2*Math.PI - (wheelAngle % (2*Math.PI))) % (2*Math.PI)) / segAngle);
                 if (curSeg!==lastSeg) { playTick(); lastSeg=curSeg; }
                 if (progress<1) requestAnimationFrame(animate);
                 else {
@@ -429,32 +409,29 @@
             requestAnimationFrame(animate);
         }
 
-        function showWheelModal(seg, prize) {
-            const overlay=document.createElement('div'); overlay.className='modal-overlay';
-            const isZonk = seg.type === 'zonk';
-            const isStarsMode = seg.mode === 'stars';
-            if (isZonk) {
-                overlay.innerHTML=`<div class="modal-box"><div class="modal-title">ZONK!</div><span class="modal-emoji">💨</span><p>No reward this time.</p><button class="modal-btn win" id="modalClaim">OK</button></div>`;
+        function showWheelModal(seg) {
+            if (seg.mode === 'none') {
+                showToast('ZONK! No reward.');
+                refreshUI();
+                return;
+            }
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            if (seg.mode === 'mandatory_ad') {
+                overlay.innerHTML = `<div class="modal-box"><div class="modal-title">You unlocked ${seg.label}!</div><span class="modal-emoji">⭐</span><p>You must watch a video ad to claim your Stars.</p><button class="modal-btn double" id="modalWatchAd">Watch Ad & Claim</button><button class="modal-btn cancel" id="modalCancel">Cancel</button></div>`;
                 document.body.appendChild(overlay);
-                document.getElementById('modalClaim').onclick = () => overlay.remove();
-            } else if (isStarsMode) {
-                overlay.innerHTML=`<div class="modal-box"><div class="modal-title">You won ${seg.fullLabel}!</div><span class="modal-emoji">${seg.icon}</span><p>Claim your points or get bonus Stars!</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn stars" id="modalStars">Get Bonus Stars! (Watch Ad)</button></div>`;
-                document.body.appendChild(overlay);
-                document.getElementById('modalClaim').onclick = () => { overlay.remove(); creditReward(seg.type, seg.value); };
-                document.getElementById('modalStars').onclick = () => {
+                document.getElementById('modalWatchAd').onclick = () => {
                     overlay.remove();
-                    callMonetagAd().then(() => {
-                        creditReward(seg.type, seg.value);
-                        creditReward('stars', seg.value);
-                    }).catch(() => { showToast('Ad not completed.'); creditReward(seg.type, seg.value); });
+                    callMonetagAd().then(() => { creditReward(seg.type, seg.value); }).catch(() => { showToast('Ad not finished. No reward.'); refreshUI(); });
                 };
-            } else {
-                overlay.innerHTML=`<div class="modal-box"><div class="modal-title">You won ${seg.fullLabel}!</div><span class="modal-emoji">${seg.icon}</span><p>Double your reward by watching an ad?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double Reward! (Watch Ad)</button></div>`;
+                document.getElementById('modalCancel').onclick = () => { overlay.remove(); refreshUI(); };
+            } else if (seg.mode === 'double') {
+                overlay.innerHTML = `<div class="modal-box"><div class="modal-title">You won ${seg.label}!</div><span class="modal-emoji">${seg.type==='points'?'🪙':seg.type==='free_spin'?'🔄':'⭐'}</span><p>Claim your base reward or double it by watching a short ad!</p><button class="modal-btn win" id="modalClaim">Claim Base</button><button class="modal-btn double" id="modalDouble">Double Reward! (+${seg.value})</button></div>`;
                 document.body.appendChild(overlay);
                 document.getElementById('modalClaim').onclick = () => { overlay.remove(); creditReward(seg.type, seg.value); };
                 document.getElementById('modalDouble').onclick = () => {
                     overlay.remove();
-                    callMonetagAd().then(() => { creditReward(seg.type, seg.value * 2); }).catch(() => { showToast('Ad not completed.'); creditReward(seg.type, seg.value); });
+                    callMonetagAd().then(() => { creditReward(seg.type, seg.value * 2); }).catch(() => { showToast('Ad failed. Crediting base reward.'); creditReward(seg.type, seg.value); });
                 };
             }
         }
@@ -477,7 +454,7 @@
             document.getElementById('wheelAdSpinsBtn').onclick=()=>{ callMonetagAd().then(()=> creditReward('free_spin',5)).catch(()=>showToast('Watch until the end!')); };
         }
 
-        // ========== AVATAR (same) ==========
+        // ========== AVATAR ==========
         async function loadAvatarWorld() {
             try { const data=await apiCall('GET',`/avatar?userId=${userId}`); document.getElementById('catEmoji').textContent=data.pet_emoji||'🐱'; document.getElementById('catName').textContent=data.pet_name||'Whiskers'; document.getElementById('happinessVal').textContent=data.happiness||50; document.getElementById('happinessFill').style.width=(data.happiness||50)+'%'; window._avatarData=data; updateAvatarAppearance(data.equipped_items||{}); switchAvatarTab('wardrobe'); } catch(e) { showToast('Error loading avatar'); }
         }
@@ -501,57 +478,18 @@
         function speakWithCatVoice(text) { const utterance = new SpeechSynthesisUtterance(text); utterance.pitch = 2.5; utterance.rate = 1.3; utterance.volume = 1; window.speechSynthesis.speak(utterance); const catEmoji = document.getElementById('catEmoji'); if (catEmoji) { catEmoji.style.animation = 'none'; catEmoji.offsetHeight; catEmoji.style.animation = 'catTalk 0.3s ease-in-out 6'; } }
         document.getElementById('feedBtn').addEventListener('click', async () => { try { const res = await apiCall('POST', '/feed', { userId }); showToast(res.message || 'Yum!'); refreshUI(); const catEmoji = document.getElementById('catEmoji'); if (catEmoji) { catEmoji.style.animation = 'none'; catEmoji.offsetHeight; catEmoji.style.animation = 'catEat 0.5s ease-in-out 3'; } } catch(e) { showToast(e.message); } });
 
-        // ========== MISSIONS (Daily + Weekly, deep-linking) ==========
+        // ========== MISSIONS (Daily + Weekly) ==========
         let currentMissionsTab = 'daily';
-
-        function switchMissionsTab(tab) {
-            currentMissionsTab = tab;
-            document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none';
-            document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none';
-            loadMissions();
-        }
-
-        async function loadMissions() {
-            if (currentMissionsTab === 'daily') await loadDailyMissions();
-            else await loadWeeklyMissions();
-        }
-
+        function switchMissionsTab(tab) { currentMissionsTab = tab; document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active')); event.target.classList.add('active'); document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none'; document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none'; loadMissions(); }
+        async function loadMissions() { if (currentMissionsTab === 'daily') await loadDailyMissions(); else await loadWeeklyMissions(); }
         async function loadDailyMissions() {
             const container = document.getElementById('dailyMissionsContainer');
-            try {
-                const data = await apiCall('GET', `/missions?userId=${userId}&type=daily`);
-                let html = '';
-                data.missions.forEach(m => {
-                    const pct = Math.min(100, (m.progress/m.target)*100);
-                    const canClaim = m.progress >= m.target && !m.claimed;
-                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')`:''}">
-                        <div><strong>Day ${m.day}: ${m.description}</strong><div class="progress-bg" style="height:8px; margin-top:6px;"><div class="progress-fg" style="width:${pct}%;"></div></div><small>${m.progress}/${m.target} • ${m.reward_label}</small></div>
-                        <button class="claim-btn" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">${m.claimed?'Done':'Claim'}</button>
-                    </div>`;
-                });
-                container.innerHTML = html || '<p>No daily missions available.</p>';
-            } catch(e) { container.innerHTML = '<p>Error loading missions</p>'; }
+            try { const data = await apiCall('GET', `/missions?userId=${userId}&type=daily`); let html = ''; data.missions.forEach(m => { const pct = Math.min(100, (m.progress/m.target)*100); const canClaim = m.progress >= m.target && !m.claimed; html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')`:''}"><div><strong>Day ${m.day}: ${m.description}</strong><div class="progress-bg" style="height:8px; margin-top:6px;"><div class="progress-fg" style="width:${pct}%;"></div></div><small>${m.progress}/${m.target} • ${m.reward_label}</small></div><button class="claim-btn" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">${m.claimed?'Done':'Claim'}</button></div>`; }); container.innerHTML = html || '<p>No daily missions available.</p>'; } catch(e) { container.innerHTML = '<p>Error loading missions</p>'; }
         }
-
         async function loadWeeklyMissions() {
             const container = document.getElementById('weeklyMissionsContainer');
-            try {
-                const data = await apiCall('GET', `/missions?userId=${userId}&type=weekly`);
-                let html = '';
-                data.missions.forEach(m => {
-                    const pct = Math.min(100, (m.progress/m.target)*100);
-                    const canClaim = m.progress >= m.target && !m.claimed;
-                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')`:''}">
-                        <div><strong>${m.description}</strong><div class="progress-bg" style="height:8px; margin-top:6px;"><div class="progress-fg" style="width:${pct}%;"></div></div><small>${m.progress}/${m.target} • ${m.reward_label}</small></div>
-                        <button class="claim-btn" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')">${m.claimed?'Done':'Claim'}</button>
-                    </div>`;
-                });
-                container.innerHTML = html || '<p>No weekly missions available.</p>';
-            } catch(e) { container.innerHTML = '<p>Error loading missions</p>'; }
+            try { const data = await apiCall('GET', `/missions?userId=${userId}&type=weekly`); let html = ''; data.missions.forEach(m => { const pct = Math.min(100, (m.progress/m.target)*100); const canClaim = m.progress >= m.target && !m.claimed; html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')`:''}"><div><strong>${m.description}</strong><div class="progress-bg" style="height:8px; margin-top:6px;"><div class="progress-fg" style="width:${pct}%;"></div></div><small>${m.progress}/${m.target} • ${m.reward_label}</small></div><button class="claim-btn" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')">${m.claimed?'Done':'Claim'}</button></div>`; }); container.innerHTML = html || '<p>No weekly missions available.</p>'; } catch(e) { container.innerHTML = '<p>Error loading missions</p>'; }
         }
-
         function claimMission(missionId, type, value, rewardLabel, missionType) {
             const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='stars'?'⭐':'🔄' };
             const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
@@ -560,15 +498,7 @@
             document.getElementById('modalClaim').onclick = () => { overlay.remove(); creditMissionReward(seg, false, missionId, missionType); };
             document.getElementById('modalDouble').onclick = () => { overlay.remove(); callMonetagAd().then(() => { creditMissionReward(seg, true, missionId, missionType); }).catch(() => { showToast('Ad not completed.'); creditMissionReward(seg, false, missionId, missionType); }); };
         }
-
-        function creditMissionReward(seg, doubled, missionId, missionType) {
-            let value = seg.value;
-            if (doubled) value *= 2;
-            if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            else if (seg.type === 'stars') apiCall('POST', '/add-stars', { userId, stars: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            else if (seg.type === 'free_spin') apiCall('POST', '/add-free-spins', { userId, spins: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            apiCall('POST', '/missions/claim', { userId, missionId: missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {});
-        }
+        function creditMissionReward(seg, doubled, missionId, missionType) { let value = seg.value; if (doubled) value *= 2; if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message)); else if (seg.type === 'stars') apiCall('POST', '/add-stars', { userId, stars: value }).then(() => refreshUI()).catch(err => showToast(err.message)); else if (seg.type === 'free_spin') apiCall('POST', '/add-free-spins', { userId, spins: value }).then(() => refreshUI()).catch(err => showToast(err.message)); apiCall('POST', '/missions/claim', { userId, missionId: missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {}); }
 
         async function loadMiniLeaderboard() {
             const container=document.getElementById('miniLeaderboard');
