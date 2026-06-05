@@ -47,20 +47,37 @@ WHEEL_PRIZES = [
 
 MILESTONE_2000 = 2000
 MILESTONE_3000 = 3000
-TALLY_URL = "https://tally.so/r/44jy95?transparentBackground=1"
 
 DEFAULT_SHOP = {
-    "hats": [ {"id":"hat_01","name":"Magic Hat","icon":"🎩","price":50,"slot":"hat"}, {"id":"hat_02","name":"Cool Sunglasses","icon":"😎","price":30,"slot":"hat"}, {"id":"hat_03","name":"Crown","icon":"👑","price":100,"slot":"hat"} ],
-    "outfits": [ {"id":"outfit_01","name":"Superhero Cape","icon":"🦸","price":80,"slot":"outfit"}, {"id":"outfit_02","name":"Rainbow Shirt","icon":"👕","price":40,"slot":"outfit"}, {"id":"outfit_03","name":"Princess Dress","icon":"👗","price":90,"slot":"outfit"} ],
-    "skins": [ {"id":"skin_01","name":"Golden Retriever","icon":"🐕","price":200,"slot":"skin"}, {"id":"skin_02","name":"Tabby Cat","icon":"🐈","price":150,"slot":"skin"}, {"id":"skin_03","name":"Bunny","icon":"🐰","price":120,"slot":"skin"} ],
-    "backgrounds": [ {"id":"bg_01","name":"Beach","icon":"🏖️","price":60,"slot":"background"}, {"id":"bg_02","name":"Space","icon":"🌌","price":70,"slot":"background"}, {"id":"bg_03","name":"Castle","icon":"🏰","price":80,"slot":"background"} ]
+    "hats": [
+        {"id":"hat_01","name":"Magic Hat","icon":"🎩","price":50,"slot":"hat"},
+        {"id":"hat_02","name":"Cool Sunglasses","icon":"😎","price":30,"slot":"glasses"},
+        {"id":"hat_03","name":"Crown","icon":"👑","price":100,"slot":"hat"},
+    ],
+    "outfits": [
+        {"id":"outfit_01","name":"Superhero Cape","icon":"🦸","price":80,"slot":"outfit"},
+        {"id":"outfit_02","name":"Rainbow Shirt","icon":"👕","price":40,"slot":"outfit"},
+        {"id":"outfit_03","name":"Princess Dress","icon":"👗","price":90,"slot":"outfit"},
+    ],
+    "skins": [
+        {"id":"skin_01","name":"Golden Retriever","icon":"🐕","price":200,"slot":"skin"},
+        {"id":"skin_02","name":"Tabby Cat","icon":"🐈","price":150,"slot":"skin"},
+        {"id":"skin_03","name":"Bunny","icon":"🐰","price":120,"slot":"skin"},
+    ],
+    "backgrounds": [
+        {"id":"bg_01","name":"Beach","icon":"🏖️","price":60,"slot":"background"},
+        {"id":"bg_02","name":"Space","icon":"🌌","price":70,"slot":"background"},
+        {"id":"bg_03","name":"Castle","icon":"🏰","price":80,"slot":"background"},
+    ]
 }
 
 AVATAR_ITEMS_POOL = [
     {"id":"avatar_01","name":"Wizard Robe","icon":"🧙","price":0,"slot":"outfit"},
-    {"id":"avatar_02","name":"Pirate Eye Patch","icon":"🦜","price":0,"slot":"hat"},
+    {"id":"avatar_02","name":"Pirate Eye Patch","icon":"🦜","price":0,"slot":"glasses"},
     {"id":"avatar_03","name":"Angel Wings","icon":"👼","price":0,"slot":"outfit"},
     {"id":"avatar_04","name":"Detective Hat","icon":"🕵️","price":0,"slot":"hat"},
+    {"id":"avatar_05","name":"Flower Crown","icon":"🌺","price":0,"slot":"hat"},
+    {"id":"avatar_06","name":"Bow Tie","icon":"🎀","price":0,"slot":"outfit"},
 ]
 
 def read_json(filename):
@@ -108,6 +125,26 @@ def save_user(user_id, data):
 
 def check_auth(request: Request):
     if request.headers.get("X-API-Key") != API_KEY: raise HTTPException(403, "Invalid API Key")
+
+def get_item_by_id(item_id):
+    shop = read_json(SHOP_FILE)
+    for cat in shop.values():
+        for item in cat:
+            if item["id"] == item_id: return item
+    for item in AVATAR_ITEMS_POOL:
+        if item["id"] == item_id: return item
+    return None
+
+def get_equipped_items(user_data):
+    equipped = {}
+    all_items = []
+    shop = read_json(SHOP_FILE)
+    for cat in shop.values(): all_items.extend(cat)
+    all_items.extend(AVATAR_ITEMS_POOL)
+    for slot, item_id in user_data.get("equipped", {}).items():
+        item = next((it for it in all_items if it["id"] == item_id), None)
+        if item: equipped[slot] = item
+    return equipped
 
 @app.get("/board")
 async def get_board(request: Request, userId: str):
@@ -208,11 +245,7 @@ async def add_points(request: Request):
     save_user(user_id, u); return {"status":"ok","added":points}
 
 @app.post("/log")
-async def log_game(request: Request):
-    check_auth(request); data = await request.json(); user_id = data.get("userId"); game = data.get("game","unknown")
-    if not user_id: raise HTTPException(400, "Missing userId")
-    logs = read_json(POINTS_LOG_FILE); logs.append({"userId":user_id,"game":game,"points":0,"timestamp":datetime.utcnow().isoformat(),"source":"free_play"})
-    write_json(POINTS_LOG_FILE, logs); return {"status":"ok"}
+async def log_game(request: Request): return {"status":"ok"}
 
 @app.get("/leaderboard")
 async def get_leaderboard(request: Request, limit: int = 20):
@@ -223,7 +256,8 @@ async def get_leaderboard(request: Request, limit: int = 20):
 @app.get("/avatar")
 async def get_avatar(request: Request, userId: str):
     check_auth(request); u = get_user(userId)
-    return {"pet_emoji":u.get("pet_skin","🐱"),"pet_name":u.get("pet_name","Whiskers"),"happiness":u.get("happiness",50),"food_items":u.get("food_items",0),"inventory":u.get("inventory",[]),"equipped":u.get("equipped",{})}
+    equipped_items = get_equipped_items(u)
+    return {"pet_emoji":u.get("pet_skin","🐱"),"pet_name":u.get("pet_name","Whiskers"),"happiness":u.get("happiness",50),"food_items":u.get("food_items",0),"inventory":u.get("inventory",[]),"equipped":u.get("equipped",{}),"equipped_items":equipped_items}
 
 @app.get("/inventory")
 async def get_inventory(request: Request, userId: str):
@@ -240,8 +274,7 @@ async def buy_item(request: Request):
     check_auth(request); data = await request.json(); user_id = data.get("userId"); item_id = data.get("itemId")
     if not user_id or not item_id: raise HTTPException(400, "Missing params")
     u = get_user(user_id)
-    shop = read_json(SHOP_FILE); all_items = [it for cat in shop.values() for it in cat] + AVATAR_ITEMS_POOL
-    item = next((it for it in all_items if it["id"]==item_id), None)
+    item = get_item_by_id(item_id)
     if not item: raise HTTPException(404, "Item not found")
     if item_id in u.get("inventory",[]): raise HTTPException(400, "Already owned")
     cost = item.get("price",0)
@@ -255,28 +288,30 @@ async def equip_item(request: Request):
     if not user_id or not item_id: raise HTTPException(400, "Missing params")
     u = get_user(user_id)
     if item_id not in u.get("inventory",[]): raise HTTPException(400, "Not in inventory")
-    shop = read_json(SHOP_FILE); all_items = [it for cat in shop.values() for it in cat] + AVATAR_ITEMS_POOL
-    item = next((it for it in all_items if it["id"]==item_id), None)
+    item = get_item_by_id(item_id)
     if not item: raise HTTPException(404, "Item not found")
     slot = item.get("slot","outfit")
     if slot=="skin": u["pet_skin"] = item.get("icon","🐱")
     elif slot=="background": u["background"] = item_id
     else: u.setdefault("equipped",{})[slot] = item_id
-    save_user(user_id, u); return {"status":"ok"}
+    save_user(user_id, u)
+    equipped_items = get_equipped_items(u)
+    return {"status":"ok","equipped_items":equipped_items}
 
 @app.post("/unequip")
 async def unequip_item(request: Request):
     check_auth(request); data = await request.json(); user_id = data.get("userId"); item_id = data.get("itemId")
     if not user_id or not item_id: raise HTTPException(400, "Missing params")
     u = get_user(user_id)
-    shop = read_json(SHOP_FILE); all_items = [it for cat in shop.values() for it in cat] + AVATAR_ITEMS_POOL
-    item = next((it for it in all_items if it["id"]==item_id), None)
+    item = get_item_by_id(item_id)
     if not item: raise HTTPException(404, "Item not found")
     slot = item.get("slot","outfit")
     if slot=="skin": u["pet_skin"] = "🐱"
     elif slot=="background": u["background"] = None
     else: u.get("equipped",{}).pop(slot, None)
-    save_user(user_id, u); return {"status":"ok"}
+    save_user(user_id, u)
+    equipped_items = get_equipped_items(u)
+    return {"status":"ok","equipped_items":equipped_items}
 
 @app.post("/feed")
 async def feed_cat(request: Request):
