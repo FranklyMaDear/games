@@ -417,47 +417,54 @@
             } catch(e) { console.warn(e); }
         }
 
-        // ========== ΕΝΗΜΕΡΩΜΕΝΗ playGame ΜΕ ΑΠΟΣΤΟΛΗ userId ==========
-        function playGame(url, gameName) {
-            const gameWindow = window.open(url, '_blank');
-            
-            // Αποστολή του userId στο παιχνίδι μόλις φορτώσει
-            setTimeout(() => {
-                if (gameWindow) {
-                    gameWindow.postMessage({ type: 'setUserId', userId: userId }, '*');
-                    console.log('📤 Sent userId to game:', gameName, userId);
-                }
-            }, 2000);
-            
-            const handler = (event) => {
-                if (event.source !== gameWindow && event.source !== window.parent) {
-                    if (event.data && event.data.type === 'gameScore') {
-                        processGameScore(event.data, gameName);
-                        window.removeEventListener('message', handler);
-                        return;
-                    }
-                    return;
-                }
-                if (event.data && event.data.type === 'gameScore') {
-                    processGameScore(event.data, gameName);
-                    window.removeEventListener('message', handler);
-                }
-            };
-            window.addEventListener('message', handler);
-            apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
+        // ========== ΑΥΤΟΜΑΤΗ ΑΝΑΝΕΩΣΗ ΟΤΑΝ Ο ΧΡΗΣΤΗΣ ΕΠΙΣΤΡΕΦΕΙ ==========
+        function refreshAll() {
+            console.log('🔄 Auto-refreshing UI...');
+            refreshUI();
+            if (document.getElementById('section-missions').classList.contains('active')) {
+                loadMissions();
+            }
+            if (document.getElementById('section-top').classList.contains('active')) {
+                loadTopLeaderboard();
+            }
         }
 
-        function processGameScore(data, gameName) {
-            const score = data.score;
-            if (typeof score === 'number' && score > 0) {
-                apiCall('POST', '/add-points', { userId, game: gameName, points: score })
-                    .then(result => { showToast(`+${result.added} pts from ${gameName}!`); refreshUI(); })
-                    .catch(err => showToast(err.message));
-                apiCall('POST', '/missions/update', { 
-                    userId, game: gameName, score: score, playtime: 1, words: 0 
-                }).catch(() => {});
+        // 1. Όταν η σελίδα γίνεται ξανά ορατή
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                refreshAll();
             }
-            console.log('✅ Processed gameScore:', { gameName, score });
+        });
+
+        // 2. Όταν η σελίδα επανέρχεται από την cache (back/forward)
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                console.log('📄 Page restored from cache');
+                refreshAll();
+            }
+        });
+
+        // 3. Για Telegram Mini Apps
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.onEvent('viewportChanged', function() {
+                console.log('📱 Telegram viewport changed, refreshing...');
+                refreshAll();
+            });
+            window.Telegram.WebApp.ready();
+        }
+
+        // ========== ΕΝΗΜΕΡΩΜΕΝΗ playGame ΜΕ ΑΠΟΣΤΟΛΗ userId ==========
+        function playGame(url, gameName) {
+            localStorage.setItem('franklymadear_userId', userId);
+            console.log('📤 Saved userId to localStorage:', userId);
+            
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.openTelegramLink(url);
+            } else {
+                window.open(url, '_blank');
+            }
+            
+            apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
         }
 
         function buildGamesGrid() {
