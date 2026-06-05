@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import json, os, random, uuid
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -17,41 +17,40 @@ SHOP_FILE = "shop.json"
 
 POINTS_PER_LEVEL = 1000
 
-# 10-day mission plan
 DAILY_MISSIONS = [
-    {"id": 1, "day": 1, "description": "Play 1 match of Connect 4", "target": 1, "type": "playtime", "game": "Connect 4", "reward_type": "points", "reward_value": 10, "reward_label": "+10 Points"},
-    {"id": 2, "day": 2, "description": "Complete 1 grid of Sudoku", "target": 1, "type": "playtime", "game": "Sudoku", "reward_type": "stars", "reward_value": 10, "reward_label": "+10 Stars"},
-    {"id": 3, "day": 3, "description": "Play 1 match of Chess", "target": 1, "type": "playtime", "game": "Chess", "reward_type": "points", "reward_value": 20, "reward_label": "+20 Points"},
-    {"id": 4, "day": 4, "description": "Win 2 matches of Connect 4", "target": 2, "type": "score", "game": "Connect 4", "reward_type": "stars", "reward_value": 20, "reward_label": "+20 Stars"},
-    {"id": 5, "day": 5, "description": "Complete 2 grids of Sudoku", "target": 2, "type": "playtime", "game": "Sudoku", "reward_type": "free_spin", "reward_value": 2, "reward_label": "+2 Free Spins"},
-    {"id": 6, "day": 6, "description": "Play 2 matches of Chess", "target": 2, "type": "playtime", "game": "Chess", "reward_type": "points", "reward_value": 50, "reward_label": "+50 Points"},
-    {"id": 7, "day": 7, "description": "Complete 3 grids of Sudoku", "target": 3, "type": "playtime", "game": "Sudoku", "reward_type": "stars", "reward_value": 50, "reward_label": "+50 Stars"},
-    {"id": 8, "day": 8, "description": "Win 3 matches of Connect 4", "target": 3, "type": "score", "game": "Connect 4", "reward_type": "free_spin", "reward_value": 3, "reward_label": "+3 Free Spins"},
-    {"id": 9, "day": 9, "description": "Win 2 matches of Chess", "target": 2, "type": "score", "game": "Chess", "reward_type": "points", "reward_value": 100, "reward_label": "+100 Points"},
-    {"id": 10, "day": 10, "description": "Complete 1 Chess, 1 Sudoku, 1 Connect 4", "target": 3, "type": "playtime", "game": "Multi", "reward_type": "free_spin", "reward_value": 5, "reward_label": "+5 Free Spins"},
+    {"id": "d1", "day": 1, "description": "Play 1 match of Connect 4", "target": 1, "game": "Connect 4", "reward_type": "points", "reward_value": 10, "reward_label": "+10 Points"},
+    {"id": "d2", "day": 2, "description": "Complete 1 grid of Sudoku", "target": 1, "game": "Sudoku", "reward_type": "stars", "reward_value": 10, "reward_label": "+10 Stars"},
+    {"id": "d3", "day": 3, "description": "Play 1 match of Chess", "target": 1, "game": "Chess", "reward_type": "points", "reward_value": 20, "reward_label": "+20 Points"},
+    {"id": "d4", "day": 4, "description": "Win 2 matches of Connect 4", "target": 2, "game": "Connect 4", "reward_type": "stars", "reward_value": 20, "reward_label": "+20 Stars"},
+    {"id": "d5", "day": 5, "description": "Complete 2 grids of Sudoku", "target": 2, "game": "Sudoku", "reward_type": "free_spin", "reward_value": 2, "reward_label": "+2 Free Spins"},
+    {"id": "d6", "day": 6, "description": "Play 2 matches of Chess", "target": 2, "game": "Chess", "reward_type": "points", "reward_value": 50, "reward_label": "+50 Points"},
+    {"id": "d7", "day": 7, "description": "Complete 3 grids of Sudoku", "target": 3, "game": "Sudoku", "reward_type": "stars", "reward_value": 50, "reward_label": "+50 Stars"},
+    {"id": "d8", "day": 8, "description": "Win 3 matches of Connect 4", "target": 3, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 3, "reward_label": "+3 Free Spins"},
+    {"id": "d9", "day": 9, "description": "Win 2 matches of Chess", "target": 2, "game": "Chess", "reward_type": "points", "reward_value": 100, "reward_label": "+100 Points"},
+    {"id": "d10", "day": 10, "description": "Complete 1 Chess, 1 Sudoku, 1 Connect 4", "target": 3, "game": "Multi", "reward_type": "free_spin", "reward_value": 5, "reward_label": "+5 Free Spins"},
 ]
 
-FREE_SPINS_1_AD = 5
-AD_POINTS = 10
-AD_STARS = 2
+WEEKLY_MISSIONS = [
+    {"id": "w1", "description": "Play 7 matches of Chess", "target": 7, "game": "Chess", "reward_type": "points", "reward_value": 150, "reward_label": "+150 Points"},
+    {"id": "w2", "description": "Complete 5 grids of Sudoku", "target": 5, "game": "Sudoku", "reward_type": "stars", "reward_value": 150, "reward_label": "+150 Stars"},
+    {"id": "w3", "description": "Win 8 matches of Connect 4", "target": 8, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 10, "reward_label": "+10 Free Spins"},
+    {"id": "w4", "description": "3 Chess, 3 Sudoku, 3 Connect 4", "target": 9, "game": "Multi", "reward_type": "points", "reward_value": 300, "reward_label": "+300 Points +5 Free Spins"},
+]
 
 WHEEL_PRIZES = [
     {"label": "+10 Points", "type": "points", "value": 10},
-    {"label": "+10 Stars", "type": "stars", "value": 10},
+    {"label": "+10 Points", "type": "points", "value": 10},
     {"label": "+1 Free Spin", "type": "free_spin", "value": 1},
     {"label": "ZONK", "type": "zonk", "value": 0},
     {"label": "+20 Points", "type": "points", "value": 20},
-    {"label": "+20 Stars", "type": "stars", "value": 20},
+    {"label": "+20 Points", "type": "points", "value": 20},
     {"label": "+2 Free Spins", "type": "free_spin", "value": 2},
     {"label": "ZONK", "type": "zonk", "value": 0},
     {"label": "+50 Points", "type": "points", "value": 50},
-    {"label": "+50 Stars", "type": "stars", "value": 50},
+    {"label": "+50 Points", "type": "points", "value": 50},
     {"label": "+3 Free Spins", "type": "free_spin", "value": 3},
     {"label": "+5 Free Spins", "type": "free_spin", "value": 5},
 ]
-
-MILESTONE_2000 = 2000
-MILESTONE_3000 = 3000
 
 DEFAULT_SHOP = {
     "hats": [
@@ -100,19 +99,24 @@ def get_user(user_id: str) -> dict:
     if user_id not in users:
         users[user_id] = {
             "total_points":0,"stars":0,"level":1,"xp":0,"streak":0,"last_login_date":None,
-            "missions":{},"last_mission_date":None,"ad_watch_count":0,"ad_scale_1_claimed":False,"ad_scale_2_claimed":False,
-            "free_spins":0,"milestone_2000_reached":False,"milestone_3000_reached":False,
-            "referral_code":str(uuid.uuid4())[:8],"referred_by":None,"referral_reward_claimed":False,
+            "daily_missions":{},"weekly_missions":{},"last_daily_reset":None,"last_weekly_reset":None,
+            "ad_watch_count":0,"free_spins":0,
             "inventory":[],"equipped":{},"pet_skin":"🐱","pet_name":"Whiskers","background":None,"happiness":50,"food_items":0,"double_active":False
         }
     u = users[user_id]
     today = date.today().isoformat()
-    if u.get("last_mission_date") != today:
-        u["missions"] = {str(m["id"]):{"progress":0,"claimed":False} for m in DAILY_MISSIONS}
-        u["ad_watch_count"] = 0; u["ad_scale_1_claimed"] = False; u["ad_scale_2_claimed"] = False
-        u["last_mission_date"] = today
+    week_start = (date.today() - timedelta(days=date.today().weekday())).isoformat()
+
+    if u.get("last_daily_reset") != today:
+        u["daily_missions"] = {m["id"]: {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
+        u["last_daily_reset"] = today
+
+    if u.get("last_weekly_reset") != week_start:
+        u["weekly_missions"] = {m["id"]: {"progress": 0, "claimed": False} for m in WEEKLY_MISSIONS}
+        u["last_weekly_reset"] = week_start
+
     u["level"] = max(1, (u.get("total_points",0)//POINTS_PER_LEVEL)+1)
-    for field, default in [("missions",{}),("free_spins",0),("stars",0),("happiness",50),("food_items",0),("xp",0),("inventory",[]),("equipped",{}),("milestone_2000_reached",False),("milestone_3000_reached",False),("ad_scale_1_claimed",False),("ad_scale_2_claimed",False),("double_active",False),("pet_skin","🐱"),("pet_name","Whiskers"),("background",None)]:
+    for field, default in [("daily_missions",{}),("weekly_missions",{}),("free_spins",0),("stars",0),("happiness",50),("food_items",0),("inventory",[]),("equipped",{}),("double_active",False),("pet_skin","🐱"),("pet_name","Whiskers"),("background",None)]:
         if field not in u: u[field] = default
     users[user_id] = u; write_json(USERS_FILE, users)
     return u
@@ -143,59 +147,58 @@ def get_equipped_items(user_data):
 @app.get("/board")
 async def get_board(request: Request, userId: str):
     check_auth(request); u = get_user(userId)
-    return {"total_points":u["total_points"],"stars":u.get("stars",0),"level":u["level"],"free_spins":u.get("free_spins",0),"next_level_points":u["level"]*POINTS_PER_LEVEL,"happiness":u.get("happiness",50),"double_active":u.get("double_active",False)}
+    return {"total_points":u["total_points"],"stars":u.get("stars",0),"level":u["level"],"free_spins":u.get("free_spins",0),"next_level_points":u["level"]*POINTS_PER_LEVEL,"happiness":u.get("happiness",50)}
 
 @app.get("/missions")
-async def get_missions(request: Request, userId: str):
+async def get_missions(request: Request, userId: str, type: str = "daily"):
     check_auth(request); u = get_user(userId)
-    return {"missions":[
-        {
-            "id": m["id"], "day": m["day"], "description": m["description"],
-            "target": m["target"], "type": m["reward_type"], "value": m["reward_value"],
-            "reward_label": m["reward_label"],
-            "progress": u.get("missions",{}).get(str(m["id"]),{}).get("progress",0),
-            "claimed": u.get("missions",{}).get(str(m["id"]),{}).get("claimed",False)
-        } for m in DAILY_MISSIONS
-    ]}
+    missions_list = DAILY_MISSIONS if type == "daily" else WEEKLY_MISSIONS
+    key = "daily_missions" if type == "daily" else "weekly_missions"
+    result = []
+    for m in missions_list:
+        md = u.get(key, {}).get(m["id"], {"progress": 0, "claimed": False})
+        result.append({
+            "id": m["id"], "day": m.get("day", 0), "description": m["description"],
+            "target": m["target"], "reward_type": m["reward_type"], "reward_value": m["reward_value"],
+            "reward_label": m["reward_label"], "progress": md.get("progress", 0), "claimed": md.get("claimed", False)
+        })
+    return {"missions": result}
 
 @app.post("/missions/update")
 async def update_mission_progress(request: Request):
-    check_auth(request); data = await request.json(); user_id = data.get("userId"); game = data.get("game",""); score = data.get("score",0); playtime = data.get("playtime",0); words = data.get("words",0)
+    check_auth(request); data = await request.json()
+    user_id = data.get("userId"); game = data.get("game",""); score = data.get("score",0); playtime = data.get("playtime",0)
     if not user_id: raise HTTPException(400, "Missing userId")
     u = get_user(user_id)
-    for m in DAILY_MISSIONS:
-        mid = str(m["id"])
-        if mid not in u["missions"]: u["missions"][mid] = {"progress":0,"claimed":False}
-        if m["game"] == game or m["game"] == "Multi":
-            if m["type"] == "playtime": u["missions"][mid]["progress"] = min(m["target"], u["missions"][mid].get("progress",0) + 1)
-            elif m["type"] == "score" and score > 0: u["missions"][mid]["progress"] = min(m["target"], u["missions"][mid].get("progress",0) + 1)
-    save_user(user_id, u); return {"status":"ok"}
+
+    for mlist, key in [(DAILY_MISSIONS, "daily_missions"), (WEEKLY_MISSIONS, "weekly_missions")]:
+        for m in mlist:
+            mid = m["id"]
+            if mid not in u[key]: u[key][mid] = {"progress": 0, "claimed": False}
+            if m["game"] == game or m["game"] == "Multi":
+                if m["game"] == "Multi":
+                    if playtime > 0: u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
+                else:
+                    if playtime > 0 or score > 0: u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
+
+    save_user(user_id, u)
+    return {"status": "ok"}
 
 @app.post("/missions/claim")
 async def claim_mission(request: Request):
-    check_auth(request); data = await request.json(); user_id = data.get("userId"); mission_id = str(data.get("missionId"))
+    check_auth(request); data = await request.json()
+    user_id = data.get("userId"); mission_id = data.get("missionId"); mtype = data.get("type", "daily")
+    if not user_id or not mission_id: raise HTTPException(400, "Missing params")
     u = get_user(user_id)
-    if mission_id not in u.get("missions",{}): raise HTTPException(404, "Mission not found")
-    mission = u["missions"][mission_id]
-    mission_def = next((m for m in DAILY_MISSIONS if str(m["id"])==mission_id), None)
-    if not mission_def or mission.get("progress",0)<mission_def["target"] or mission.get("claimed"): raise HTTPException(400, "Not completable")
-    mission["claimed"] = True
+    key = "daily_missions" if mtype == "daily" else "weekly_missions"
+    if mission_id not in u.get(key, {}): raise HTTPException(404, "Mission not found")
+    md = u[key][mission_id]
+    missions_list = DAILY_MISSIONS if mtype == "daily" else WEEKLY_MISSIONS
+    mdef = next((m for m in missions_list if m["id"] == mission_id), None)
+    if not mdef or md.get("progress", 0) < mdef["target"] or md.get("claimed"): raise HTTPException(400, "Not completable")
+    md["claimed"] = True
     save_user(user_id, u)
-    return {"status":"ok"}
-
-@app.post("/ad-reward")
-async def ad_reward(request: Request):
-    check_auth(request); data = await request.json(); user_id = data.get("userId")
-    if not user_id: raise HTTPException(400, "Missing userId")
-    u = get_user(user_id)
-    pts = AD_POINTS; stars = AD_STARS
-    if u.get("double_active"): pts *= 2; stars *= 2
-    u["free_spins"] = u.get("free_spins",0) + FREE_SPINS_1_AD
-    u["total_points"] = u.get("total_points",0) + pts
-    u["stars"] = u.get("stars",0) + stars
-    u["level"] = max(1,(u["total_points"]//POINTS_PER_LEVEL)+1)
-    save_user(user_id, u)
-    return {"status":"ok","points_earned":pts,"stars_earned":stars,"free_spins":u["free_spins"]}
+    return {"status": "ok"}
 
 @app.post("/wheel/spin")
 async def spin_wheel(request: Request):
@@ -218,12 +221,9 @@ async def ad_status(request: Request, userId: str):
 async def add_points(request: Request):
     check_auth(request); data = await request.json(); user_id = data.get("userId"); points = data.get("points",0)
     if not user_id or not isinstance(points,(int,float)) or points<=0: raise HTTPException(400, "Invalid")
-    u = get_user(user_id)
-    if u.get("double_active"): points *= 2
-    u["total_points"] = u.get("total_points",0)+points
+    u = get_user(user_id); u["total_points"] = u.get("total_points",0)+points
     u["level"] = max(1,(u["total_points"]//POINTS_PER_LEVEL)+1)
-    save_user(user_id, u)
-    return {"status":"ok","added":points}
+    save_user(user_id, u); return {"status":"ok","added":points}
 
 @app.post("/add-stars")
 async def add_stars(request: Request):
