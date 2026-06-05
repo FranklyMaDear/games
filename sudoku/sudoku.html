@@ -718,6 +718,58 @@
     <audio id="celebration-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-winning-trumpet-2018.mp3" preload="auto"></audio>
 
     <script>
+        // ========== API CONFIG (HUB BACKEND) ==========
+        const API_ENDPOINT = "https://franklymadear-games.hf.space";
+        const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+
+        // ========== USER ID MANAGEMENT ==========
+        let userId = localStorage.getItem('franklymadear_userId');
+        console.log('🔢 Sudoku initial userId from localStorage:', userId);
+
+        if (!userId && window.Telegram && window.Telegram.WebApp) {
+            const initData = window.Telegram.WebApp.initDataUnsafe;
+            if (initData && initData.user) {
+                userId = 'tg_' + initData.user.id;
+                localStorage.setItem('franklymadear_userId', userId);
+                console.log('🔢 Created userId from Telegram:', userId);
+            }
+        }
+
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'setUserId') {
+                userId = event.data.userId;
+                localStorage.setItem('franklymadear_userId', userId);
+                console.log('🔢 Received userId via postMessage:', userId);
+            }
+        });
+
+        // ========== SEND SCORE DIRECTLY TO BACKEND ==========
+        async function sendScoreToBackend(score) {
+            console.log('🔢 Sending score to backend:', { score, userId });
+            if (!userId) { console.log('🔢 No userId available'); return; }
+            try {
+                const pointsRes = await fetch(API_ENDPOINT + '/add-points', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({ userId: userId, game: 'Sudoku', points: score })
+                });
+                const pointsData = await pointsRes.json();
+                console.log('🔢 Points added:', pointsData);
+
+                const missionRes = await fetch(API_ENDPOINT + '/missions/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({ userId: userId, game: 'Sudoku', score: score, playtime: 1, words: 0 })
+                });
+                const missionData = await missionRes.json();
+                console.log('🔢 Missions updated:', missionData);
+
+                if (window.opener) {
+                    window.opener.postMessage({ type: 'gameScore', score: score, game: 'Sudoku' }, '*');
+                }
+            } catch(e) { console.log('🔢 Error sending score:', e); }
+        }
+
         // Game Configuration
         const CONFIG = {
             BASE_POINTS: 1000,
@@ -1350,6 +1402,9 @@
                 const scoreDetails = this.game.calculateScore(this.game.gameTime);
                 
                 this.game.player1Score += scoreDetails.total;
+                
+                // ===== ΑΠΟΣΤΟΛΗ ΣΚΟΡ ΣΤΟ BACKEND =====
+                sendScoreToBackend(scoreDetails.total);
                 
                 this.showCelebrationScreen(scoreDetails);
             }
