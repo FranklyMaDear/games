@@ -6,7 +6,6 @@
     <title>Balloon Pop Challenge</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
     
     <link rel="icon" type="image/png" href="index.png">
@@ -86,7 +85,7 @@
         }
         
         .balloon-icon {
-            font-size: 4.5rem;
+            font-size: 6rem;
             margin-bottom: 15px;
             filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
             animation: float 3s ease-in-out infinite;
@@ -98,10 +97,11 @@
         }
         
         .game-description {
-            font-size: 1.1rem;
-            line-height: 1.6;
+            font-size: 1rem;
+            line-height: 1.5;
             margin-bottom: 25px;
             opacity: 0.9;
+            text-align: center;
         }
         
         .highlight {
@@ -138,7 +138,7 @@
         
         .scoreboard-nav {
             display: flex;
-            justify-between: space-between;
+            justify-content: space-between;
             align-items: center;
             padding: 15px 20px;
             background: rgba(15, 23, 42, 0.6);
@@ -405,6 +405,7 @@
 
         @media (max-width: 480px) {
             .welcome-title { font-size: 2.1rem; }
+            .balloon-icon { font-size: 4.5rem; }
             .nav-value { font-size: 1.2rem; }
             .nav-label { font-size: 0.65rem; }
             .balloon-body { width: 52px; height: 63px; }
@@ -423,14 +424,11 @@
                 Pop the balloons with the <span class="highlight">target color</span>.<br>
                 Avoid mistakes and stack up <span class="highlight">Combos</span>!
             </div>
-            <button class="start-game-btn" id="startGameBtn">
-                Start Game
-            </button>
+            <button class="start-game-btn" id="startGameBtn">Start Game</button>
         </div>
     </div>
     
     <div class="game-container" id="gameContainer">
-        
         <div class="scoreboard-nav">
             <div class="nav-block">
                 <span class="nav-label">Target</span>
@@ -470,6 +468,59 @@
     </div>
 
     <script>
+        // ========== API CONFIG (HUB BACKEND) ==========
+        const API_ENDPOINT = "https://franklymadear-games.hf.space";
+        const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+
+        // ========== USER ID MANAGEMENT ==========
+        let userId = localStorage.getItem('franklymadear_userId');
+        console.log('🎈 Balloons initial userId from localStorage:', userId);
+
+        if (!userId && window.Telegram && window.Telegram.WebApp) {
+            const initData = window.Telegram.WebApp.initDataUnsafe;
+            if (initData && initData.user) {
+                userId = 'tg_' + initData.user.id;
+                localStorage.setItem('franklymadear_userId', userId);
+                console.log('🎈 Created userId from Telegram:', userId);
+            }
+        }
+
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'setUserId') {
+                userId = event.data.userId;
+                localStorage.setItem('franklymadear_userId', userId);
+                console.log('🎈 Received userId via postMessage:', userId);
+            }
+        });
+
+        // ========== SEND SCORE DIRECTLY TO BACKEND ==========
+        async function sendScoreToBackend(score) {
+            console.log('🎈 Sending score to backend:', { score, userId });
+            if (!userId) { console.log('🎈 No userId available'); return; }
+            try {
+                const pointsRes = await fetch(API_ENDPOINT + '/add-points', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({ userId: userId, game: 'Balloons', points: score })
+                });
+                const pointsData = await pointsRes.json();
+                console.log('🎈 Points added:', pointsData);
+
+                const missionRes = await fetch(API_ENDPOINT + '/missions/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({ userId: userId, game: 'Balloons', score: score, playtime: 1, words: 0 })
+                });
+                const missionData = await missionRes.json();
+                console.log('🎈 Missions updated:', missionData);
+
+                if (window.opener) {
+                    window.opener.postMessage({ type: 'gameScore', score: score, game: 'Balloons' }, '*');
+                }
+            } catch(e) { console.log('🎈 Error sending score:', e); }
+        }
+
+        // ========== GAME CODE ==========
         if (window.Telegram && window.Telegram.WebApp) {
             Telegram.WebApp.ready();
             Telegram.WebApp.expand();
@@ -501,10 +552,9 @@
             let bestScore = 0;
             let hasWatchedAd = false;
             
-            // ΝΕΕΣ ΜΕΤΑΒΛΗΤΕΣ ΓΙΑ ΤΟ COMBO SYSTEM
-            let comboLevel = 1;         // Ξεκινάει από Level 1
-            let consecutiveCorrect = 0; // Μετρητής για σωστά χτυπήματα (μέχρι το 4)
-            let consecutiveWrong = 0;   // Μετρητής για λάθος χτυπήματα (μέχρι το 2)
+            let comboLevel = 1;
+            let consecutiveCorrect = 0;
+            let consecutiveWrong = 0;
             
             let gameTimer;
             let balloonInterval;
@@ -513,7 +563,7 @@
             let targetColor = 'red';
             let balloons = [];
             let audioContext;
-            const maxBalloons = 14; // Αυξήθηκε ελαφρώς για να γεμίζει καλύτερα η οθόνη
+            const maxBalloons = 14;
             
             let correctPopped = 0;
             let wrongPopped = 0;
@@ -594,7 +644,6 @@
                 
                 updateTargetDisplay();
                 
-                // ΔΙΟΡΘΩΣΗ: Μόλις αλλάξει το χρώμα, παράγουμε ΑΜΕΣΩΣ 3 μπαλόνια αυτού του χρώματος
                 if (gameActive) {
                     for (let i = 0; i < 3; i++) {
                         createBalloon(targetColor);
@@ -630,6 +679,9 @@
                 hasWatchedAd = true;
                 saveHighScore(score);
                 
+                // Αποστολή του διπλασιασμένου σκορ στο backend
+                sendScoreToBackend(score);
+                
                 finalScoreElement.textContent = score;
                 highScoreElement.textContent = bestScore;
                 
@@ -644,6 +696,8 @@
 
             newGamesBtn.addEventListener('click', () => {
                 if (!hasWatchedAd) {
+                    // Στέλνουμε το αρχικό σκορ πριν φύγει
+                    sendScoreToBackend(score);
                     show_11108267().then(() => {
                         redirectToTelegramBot();
                     }).catch((err) => {
@@ -667,7 +721,6 @@
                 timeLeft = 60;
                 score = 0;
                 
-                // Reset Combo System
                 comboLevel = 1;
                 consecutiveCorrect = 0;
                 consecutiveWrong = 0;
@@ -690,11 +743,10 @@
                 selectNewTarget();
                 
                 gameTimer = setInterval(handleClockTick, 1000);
-                balloonInterval = setInterval(manageSpawning, 500); // Πιο γρήγορο σπαουνάρισμα
+                balloonInterval = setInterval(manageSpawning, 500);
                 
                 resetTargetChangeInterval(baseTargetDuration);
                 
-                // Αρχικά μπαλόνια στην έναρξη
                 for(let i=0; i<8; i++) {
                     createBalloon(i < 4 ? targetColor : null);
                 }
@@ -720,7 +772,6 @@
             function manageSpawning() {
                 if (!gameActive) return;
                 if (balloons.length < maxBalloons) {
-                    // 65% πιθανότητα να γεννηθεί το σωστό χρώμα για να μην αδειάζει ποτέ η οθόνη
                     createBalloon(Math.random() < 0.65 ? targetColor : null);
                 }
             }
@@ -813,15 +864,13 @@
                 if (bColor === targetColor) {
                     correctPopped++;
                     consecutiveCorrect++;
-                    consecutiveWrong = 0; // Μηδενισμός των λαθών αφού έκανε σωστό
+                    consecutiveWrong = 0;
                     
-                    // Κάθε 4 σωστά -> Ανεβαίνει Level το Combo
                     if (consecutiveCorrect === 4) {
                         comboLevel++;
                         consecutiveCorrect = 0;
                     }
                     
-                    // Υπολογισμός πόντων βάσει του Combo Level
                     let pointsEarned = 10 * comboLevel;
                     
                     score += pointsEarned;
@@ -830,9 +879,8 @@
                 } else {
                     wrongPopped++;
                     consecutiveWrong++;
-                    consecutiveCorrect = 0; // Μηδενισμός των σωστών αφού έκανε λάθος
+                    consecutiveCorrect = 0;
                     
-                    // Κάθε 2 συνεχόμενα λάθη -> Πέφτει 1 Combo Level (μέχρι το ελάχιστο 1)
                     if (consecutiveWrong === 2) {
                         if (comboLevel > 1) {
                             comboLevel--;
@@ -845,7 +893,6 @@
                     triggerTextFeedback('-5', '#ef4444', bEl);
                 }
                 
-                // Ανανέωση του Combo Badge στην οθόνη
                 comboDisplay.textContent = `Combo Level ${comboLevel}`;
                 comboDisplay.style.display = 'block';
                 
@@ -914,6 +961,9 @@
                 clearInterval(targetChangeInterval);
                 
                 saveHighScore(score);
+                
+                // Αποστολή του αρχικού σκορ στο backend
+                sendScoreToBackend(score);
                 
                 finalCorrectElement.textContent = correctPopped;
                 finalWrongElement.textContent = wrongPopped;
