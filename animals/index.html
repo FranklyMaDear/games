@@ -274,21 +274,21 @@
       position: absolute;
       width: 90%;
       height: 90%;
-      background: #5c3a21;
+      background: radial-gradient(circle at 50% 40%, #8B5E3C, #5C3A21 80%, #3D2414 100%);
       border-radius: 50%;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      box-shadow: inset 0 6px 12px rgba(0, 0, 0, 0.6);
-      border: 4px solid #3d2414;
+      box-shadow: inset 0 8px 15px rgba(0, 0, 0, 0.7), 0 0 0 4px #3d2414, 0 8px 20px rgba(0,0,0,0.3);
       z-index: 1;
     }
 
+    /* 3D ANIMAL STYLE */
     .animal {
       position: absolute;
       width: 80%;
       height: 80%;
-      background: white;
+      background: radial-gradient(circle at 35% 35%, #ffffff, #e8e8e8 70%, #c0c0c0 100%);
       border-radius: 50%;
       top: 50%;
       left: 50%;
@@ -296,12 +296,29 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 2rem;
+      font-size: 2.2rem;
       transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       z-index: 2;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      box-shadow: 
+        0 6px 0 #999,
+        0 8px 15px rgba(0, 0, 0, 0.4),
+        inset 0 -3px 6px rgba(0,0,0,0.1),
+        inset 0 3px 6px rgba(255,255,255,0.6);
       border: 3px solid #ffd700;
       cursor: pointer;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .animal::after {
+      content: '';
+      position: absolute;
+      top: 8%;
+      left: 15%;
+      width: 30%;
+      height: 20%;
+      background: rgba(255,255,255,0.7);
+      border-radius: 50%;
+      transform: rotate(-15deg);
     }
 
     .animal.pop-up {
@@ -309,13 +326,13 @@
     }
 
     .animal.hit {
-      background: #20bf6b !important;
+      background: radial-gradient(circle at 35% 35%, #5eff6e, #20bf6b 70%, #0d8a3e 100%) !important;
       transform: translate(-50%, -85%) scale(0);
       transition: transform 0.2s ease-in;
     }
 
     .animal.wrong {
-      background: #eb3b5a !important;
+      background: radial-gradient(circle at 35% 35%, #ff6b6b, #eb3b5a 70%, #b91c1c 100%) !important;
       transform: translate(-50%, -85%) scale(0);
       transition: transform 0.2s ease-in;
     }
@@ -410,7 +427,7 @@
       font-weight: bold;
       font-size: 1.1rem;
       cursor: pointer;
-      display: none; /* Εμφανίζεται μόνο αφού διπλασιαστεί το σκορ */
+      display: none;
     }
 
     .more-games-btn {
@@ -493,22 +510,68 @@
       <p id="gameMessage" style="font-weight:bold; margin-bottom:10px;"></p>
       
       <div class="action-buttons">
-        <!-- ΕΠΙΛΟΓΗ Α: Διπλασιασμός με διαφήμιση -->
         <button class="double-btn" id="doubleScoreBtn">Double Score ⚡ (Watch Ad)</button>
-        
-        <!-- ΕΠΙΛΟΓΗ Β: Απλό New Game (που θα παίξει ad αν ΔΕΝ είδε το double) -->
         <button class="new-game-btn" id="newGameBtn">New Game 🔄</button>
-        
-        <!-- Εμφανίζεται ΜΟΝΟ αν ο παίκτης έχει ήδη εξαργυρώσει το double ad -->
         <button class="play-again-btn" id="playAgainBtn">Play Again 🎮</button>
-        
-        <!-- Κουμπί για το Bot σας -->
         <button class="more-games-btn" id="moreGamesBtn">More Games 🕹️</button>
       </div>
     </div>
   </div>
 
   <script>
+    // ========== API CONFIG (HUB BACKEND) ==========
+    const API_ENDPOINT = "https://franklymadear-games.hf.space";
+    const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+
+    // ========== USER ID MANAGEMENT ==========
+    let userId = localStorage.getItem('franklymadear_userId');
+    console.log('🐵 Animals initial userId from localStorage:', userId);
+
+    if (!userId && window.Telegram && window.Telegram.WebApp) {
+        const initData = window.Telegram.WebApp.initDataUnsafe;
+        if (initData && initData.user) {
+            userId = 'tg_' + initData.user.id;
+            localStorage.setItem('franklymadear_userId', userId);
+            console.log('🐵 Created userId from Telegram:', userId);
+        }
+    }
+
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'setUserId') {
+            userId = event.data.userId;
+            localStorage.setItem('franklymadear_userId', userId);
+            console.log('🐵 Received userId via postMessage:', userId);
+        }
+    });
+
+    // ========== SEND SCORE DIRECTLY TO BACKEND ==========
+    async function sendScoreToBackend(finalScore) {
+        console.log('🐵 Sending score to backend:', { score: finalScore, userId });
+        if (!userId) { console.log('🐵 No userId available'); return; }
+        try {
+            const pointsRes = await fetch(API_ENDPOINT + '/add-points', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                body: JSON.stringify({ userId: userId, game: 'Animals', points: finalScore })
+            });
+            const pointsData = await pointsRes.json();
+            console.log('🐵 Points added:', pointsData);
+
+            const missionRes = await fetch(API_ENDPOINT + '/missions/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                body: JSON.stringify({ userId: userId, game: 'Animals', score: finalScore, playtime: 1, words: 0 })
+            });
+            const missionData = await missionRes.json();
+            console.log('🐵 Missions updated:', missionData);
+
+            if (window.opener) {
+                window.opener.postMessage({ type: 'gameScore', score: finalScore, game: 'Animals' }, '*');
+            }
+        } catch(e) { console.log('🐵 Error sending score:', e); }
+    }
+
+    // ========== GAME CODE ==========
     if (window.Telegram && window.Telegram.WebApp) {
         Telegram.WebApp.ready();
         Telegram.WebApp.expand();
@@ -539,7 +602,7 @@
     let timeLeft = 45;
     let timerInterval, spawnInterval;
     let gameActive = false;
-    let hasWatchedAd = false; // Έλεγχος αν είδε ad για διπλασιασμό
+    let hasWatchedAd = false;
     let audioCtx = null;
 
     function initAudio() {
@@ -652,7 +715,6 @@
       document.getElementById('gameScreen').classList.add('active');
       document.getElementById('gameOver').style.display = 'none';
 
-      // Επαναφορά κουμπιών στο Game Over αρχικό state
       hasWatchedAd = false;
       doubleScoreBtn.style.display = 'block';
       doubleScoreBtn.disabled = false;
@@ -743,6 +805,9 @@
       stopGame();
       document.getElementById('finalScore').textContent = score;
       
+      // Αποστολή αρχικού σκορ στο backend
+      sendScoreToBackend(score);
+      
       const msg = document.getElementById('gameMessage');
       if (score >= 120) msg.textContent = "🏆 Incredible work! Super Reflexes!";
       else if (score >= 60) msg.textContent = "👍 Great job! Keep practicing!";
@@ -756,13 +821,11 @@
       startGame();
     }
 
-    // --- ΔΙΑΧΕΙΡΙΣΗ ΔΙΑΦΗΜΙΣΕΩΝ MONETAG ΚΑΙ ΚΟΥΜΠΙΩΝ ---
     const doubleScoreBtn = document.getElementById('doubleScoreBtn');
     const newGameBtn = document.getElementById('newGameBtn');
     const playAgainBtn = document.getElementById('playAgainBtn');
     const moreGamesBtn = document.getElementById('moreGamesBtn');
 
-    // Επιλογή Α: Πατάει για Διπλό Σκορ (Βλέπει Ad)
     doubleScoreBtn.addEventListener('click', () => {
       doubleScoreBtn.disabled = true;
       show_11108267().then(() => { processDouble(); }).catch(() => { processDouble(); });
@@ -770,16 +833,17 @@
 
     function processDouble() {
       score = score * 2;
-      hasWatchedAd = true; // Μαρκάρουμε ότι είδε ήδη ad
+      hasWatchedAd = true;
       document.getElementById('finalScore').textContent = score;
       
-      // Αλλαγή UI: Κρύβουμε double & απλό new game, εμφανίζουμε το καθαρό Play Again
+      // Αποστολή διπλασιασμένου σκορ στο backend
+      sendScoreToBackend(score);
+      
       doubleScoreBtn.style.display = 'none';
       newGameBtn.style.display = 'none';
       playAgainBtn.style.display = 'block';
     }
 
-    // Επιλογή Β: Δεν θέλει double σκορ, πατάει απευθείας New Game (Του πασάρουμε ad εδώ)
     newGameBtn.addEventListener('click', () => {
       show_11108267().then(() => { triggerNewGame(); }).catch(() => { triggerNewGame(); });
     });
@@ -789,16 +853,13 @@
       startGame();
     }
 
-    // Αυτό εμφανίζεται ΜΟΝΟ αν έχει ήδη δει τη διαφήμιση του διπλασιασμού
     playAgainBtn.addEventListener('click', () => {
       document.getElementById('gameOver').style.display = 'none';
       startGame();
     });
 
-    // Κουμπί για προώθηση στο Bot παιχνιδιών
     moreGamesBtn.addEventListener('click', () => {
       if (!hasWatchedAd) {
-        // Αν δεν είδε ad μέχρι τώρα, βλέπει εδώ πριν φύγει
         show_11108267().then(() => { goToBot(); }).catch(() => { goToBot(); });
       } else {
         goToBot();
