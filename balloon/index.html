@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Balloon Pop Challenge</title>
     
+    <!-- Telegram Web Apps SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Monetag SDK Installation -->
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
     
     <link rel="icon" type="image/png" href="index.png">
@@ -305,7 +309,7 @@
         
         .game-over-content {
             background: rgba(255, 255, 255, 0.05);
-            padding: 35px 25px;
+            padding: 30px 25px;
             border-radius: 24px;
             text-align: center;
             max-width: 360px;
@@ -317,14 +321,14 @@
         .game-over h2 {
             font-size: 2.2rem;
             color: #e52e71;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             font-weight: 800;
         }
         
         .final-stats {
             font-size: 1.1rem;
-            margin-bottom: 25px;
-            line-height: 2;
+            margin-bottom: 20px;
+            line-height: 1.8;
             text-align: left;
             background: rgba(0,0,0,0.2);
             padding: 15px;
@@ -344,6 +348,48 @@
             color: #ff9800;
         }
         
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .double-score-btn {
+            padding: 14px 35px;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #eab308, #ca8a04);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(234, 179, 8, 0.3);
+            transition: transform 0.1s;
+        }
+
+        .double-score-btn:active {
+            transform: scale(0.98);
+        }
+
+        .new-games-btn {
+            padding: 12px 35px;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+            transition: transform 0.1s;
+        }
+
+        .new-games-btn:active {
+            transform: scale(0.98);
+        }
+
         .play-again-btn {
             padding: 14px 35px;
             font-size: 1.2rem;
@@ -355,6 +401,8 @@
             font-weight: bold;
             width: 100%;
             box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+            transition: transform 0.1s;
+            display: none; /* Εμφανίζεται μόνο μετά το reward ή ως fallback */
         }
 
         @media (max-width: 480px) {
@@ -369,6 +417,7 @@
 
     <div class="flash-effect" id="flashEffect"></div>
 
+    <!-- Welcome Screen -->
     <div class="welcome-screen" id="welcomeScreen">
         <div class="welcome-content">
             <div class="balloon-icon">🎈</div>
@@ -383,6 +432,7 @@
         </div>
     </div>
     
+    <!-- Main Game Container -->
     <div class="game-container" id="gameContainer">
         
         <div class="scoreboard-nav">
@@ -404,20 +454,33 @@
             <div class="combo-display" id="comboDisplay">Combo x2!</div>
         </div>
         
+        <!-- End Game Overlay -->
         <div class="game-over" id="gameOver">
             <div class="game-over-content">
                 <h2>Time's Up!</h2>
                 <div class="final-stats">
                     <div class="stat-row"><span>Correct Pops:</span> <span id="finalCorrect" style="color:#10b981;">0</span></div>
                     <div class="stat-row"><span>Wrong Pops:</span> <span id="finalWrong" style="color:#ef4444;">0</span></div>
-                    <div class="stat-row total"><span>Final Score:</span> <span id="finalScore">0</span></div>
+                    <div class="stat-row"><span>Current Score:</span> <span id="finalScore" style="color:#ffffff; font-weight:bold;">0</span></div>
+                    <div class="stat-row total"><span>Best Score:</span> <span id="highScore">0</span></div>
                 </div>
-                <button class="play-again-btn" id="playAgainBtn">Play Again</button>
+                
+                <div class="action-buttons">
+                    <button class="double-score-btn" id="doubleScoreBtn">Double Score ⚡ (Watch Ad)</button>
+                    <button class="play-again-btn" id="playAgainBtn">Play Again 🔄</button>
+                    <button class="new-games-btn" id="newGamesBtn">No Thanks, New Games 🎮</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Telegram WebApp Initialization
+        if (window.Telegram && window.Telegram.WebApp) {
+            Telegram.WebApp.ready();
+            Telegram.WebApp.expand();
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // DOM Elements
             const welcomeScreen = document.getElementById('welcomeScreen');
@@ -429,18 +492,23 @@
             const scoreDisplay = document.getElementById('scoreDisplay');
             const comboDisplay = document.getElementById('comboDisplay');
             const gameOverScreen = document.getElementById('gameOver');
+            const doubleScoreBtn = document.getElementById('doubleScoreBtn');
             const playAgainBtn = document.getElementById('playAgainBtn');
+            const newGamesBtn = document.getElementById('newGamesBtn');
             const flashEffect = document.getElementById('flashEffect');
             
             const finalCorrectElement = document.getElementById('finalCorrect');
             const finalWrongElement = document.getElementById('finalWrong');
             const finalScoreElement = document.getElementById('finalScore');
+            const highScoreElement = document.getElementById('highScore');
             
             // Game State Metrics
             let gameActive = false;
             let timeLeft = 60;
             let score = 0;
             let comboCount = 0;
+            let bestScore = 0;
+            let hasWatchedAd = false; // Flag για το αν είδε ήδη διαφήμιση
             
             let gameTimer;
             let balloonInterval;
@@ -449,13 +517,12 @@
             let targetColor = 'red';
             let balloons = [];
             let audioContext;
-            const maxBalloons = 12; // Αυξημένο όριο για πιο γεμάτη οθόνη
+            const maxBalloons = 12;
             
             let correctPopped = 0;
             let wrongPopped = 0;
             let baseTargetDuration = 8000;
             
-            // English Color Mapping
             const colorMap = {
                 'red': { name: 'Red', hex: '#ef4444' },
                 'blue': { name: 'Blue', hex: '#3b82f6' },
@@ -464,13 +531,37 @@
                 'purple': { name: 'Purple', hex: '#8b5cf6' },
                 'orange': { name: 'Orange', hex: '#f97316' }
             };
+
+            // Load Score via Telegram Storage / LocalStorage
+            function loadHighScore() {
+                if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.CloudStorage) {
+                    Telegram.WebApp.CloudStorage.getItem('balloon_high_score', function(err, value) {
+                        if (!err && value) {
+                            bestScore = parseInt(value) || 0;
+                        }
+                    });
+                } else {
+                    bestScore = parseInt(localStorage.getItem('balloon_high_score')) || 0;
+                }
+            }
             
+            function saveHighScore(newScore) {
+                if (newScore > bestScore) {
+                    bestScore = newScore;
+                    if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.CloudStorage) {
+                        Telegram.WebApp.CloudStorage.setItem('balloon_high_score', newScore.toString());
+                    } else {
+                        localStorage.setItem('balloon_high_score', newScore.toString());
+                    }
+                }
+            }
+            
+            loadHighScore();
+
             function initAudio() {
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                } catch (e) {
-                    console.log('Audio Context error');
-                }
+                } catch (e) { console.log('Audio error'); }
             }
             
             function playSound(type) {
@@ -479,21 +570,18 @@
                     const now = audioContext.currentTime;
                     const osc = audioContext.createOscillator();
                     const gain = audioContext.createGain();
-                    osc.connect(gain);
-                    gain.connect(audioContext.destination);
+                    osc.connect(gain); gain.connect(audioContext.destination);
                     
                     if (type === 'correct') {
                         osc.frequency.setValueAtTime(comboCount >= 3 ? 600 : 450, now);
                         osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-                        osc.type = 'sine';
-                        gain.gain.setValueAtTime(0.15, now);
+                        osc.type = 'sine'; gain.gain.setValueAtTime(0.15, now);
                         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
                         osc.start(now); osc.stop(now + 0.3);
                     } else {
                         osc.frequency.setValueAtTime(250, now);
                         osc.frequency.exponentialRampToValueAtTime(120, now + 0.2);
-                        osc.type = 'triangle';
-                        gain.gain.setValueAtTime(0.2, now);
+                        osc.type = 'triangle'; gain.gain.setValueAtTime(0.2, now);
                         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
                         osc.start(now); osc.stop(now + 0.3);
                     }
@@ -535,10 +623,60 @@
                 runActualGameInit();
             });
 
+            // FLOW 1: Πατάει για Διπλασιασμό Σκόρ (Βλέπει Ad)
+            doubleScoreBtn.addEventListener('click', () => {
+                doubleScoreBtn.disabled = true;
+                
+                show_11108267().then(() => {
+                    processScoreDoubling();
+                }).catch((err) => {
+                    // Fallback αν κολλήσει η ad για να μην χάσει την εμπειρία ο χρήστης
+                    processScoreDoubling();
+                });
+            });
+
+            function processScoreDoubling() {
+                score = score * 2;
+                hasWatchedAd = true;
+                saveHighScore(score);
+                
+                // Ανανέωση UI με το νέο σκορ
+                finalScoreElement.textContent = score;
+                highScoreElement.textContent = bestScore;
+                
+                // Αλλαγή των κουμπιών
+                doubleScoreBtn.style.display = 'none';
+                playAgainBtn.style.style.display = 'block'; // Εμφανίζεται το Play Again
+            }
+
+            // Play Again κουμπί (Εμφανίζεται ΜΟΝΟ αν είδε ad για διπλό σκορ)
             playAgainBtn.addEventListener('click', () => {
                 gameOverScreen.style.display = 'none';
                 runActualGameInit();
             });
+
+            // FLOW 2: Πατάει απευθείας New Games (Δεν είδε ad πριν, άρα βλέπει ΤΩΡΑ αναγκαστικά)
+            newGamesBtn.addEventListener('click', () => {
+                if (!hasWatchedAd) {
+                    // Αν δεν έχει δει ad, τον αναγκάζουμε να δει πριν βγει στο Bot
+                    show_11108267().then(() => {
+                        redirectToTelegramBot();
+                    }).catch((err) => {
+                        redirectToTelegramBot();
+                    });
+                } else {
+                    // Αν είδε ήδη ad για το double score, φεύγει ελεύθερος αμέσως
+                    redirectToTelegramBot();
+                }
+            });
+
+            function redirectToTelegramBot() {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    Telegram.WebApp.openTelegramLink('https://t.me/Franklygames_bot');
+                } else {
+                    window.open('https://t.me/Franklygames_bot', '_blank');
+                }
+            }
             
             function runActualGameInit() {
                 gameActive = true;
@@ -547,6 +685,12 @@
                 comboCount = 0;
                 correctPopped = 0;
                 wrongPopped = 0;
+                hasWatchedAd = false; // Reset το ad flag
+                
+                // Επαναφορά κουμπιών στην αρχική τους κατάσταση
+                doubleScoreBtn.style.display = 'block';
+                doubleScoreBtn.disabled = false;
+                playAgainBtn.style.display = 'none';
                 
                 timerElement.textContent = timeLeft;
                 scoreDisplay.textContent = score;
@@ -556,11 +700,10 @@
                 selectNewTarget();
                 
                 gameTimer = setInterval(handleClockTick, 1000);
-                balloonInterval = setInterval(manageSpawning, 600); // Πιο γρήγορο spawning
+                balloonInterval = setInterval(manageSpawning, 600);
                 
                 resetTargetChangeInterval(baseTargetDuration);
                 
-                // Αρχικά μπαλόνια στην έναρξη
                 for(let i=0; i<6; i++) {
                     createBalloon(i < 3 ? targetColor : null);
                 }
@@ -590,36 +733,29 @@
                 }
             }
             
-            // Νέος εξελιγμένος αλγόριθμος κίνησης (3D Depth + Screen Edge Crossing)
             function moveBalloon(balloon) {
                 if (!gameActive || !balloon.element.parentNode) return;
                 
                 const speedMultiplier = timeLeft < 20 ? 1.6 : (timeLeft < 40 ? 1.3 : 1.0);
                 
-                // 1. Κίνηση στους άξονες X και Y
                 balloon.x += balloon.dirX * balloon.speedX * speedMultiplier;
                 balloon.y += balloon.dirY * balloon.speedY * speedMultiplier;
                 
-                // 2. Εφέ Βάθους (3D Depth Effect): Το μπαλόνι αλλάζει μέγεθος σαν να έρχεται μπρος/πίσω
                 balloon.depthProgress += balloon.depthSpeed;
-                // Ημιτονοειδής διακύμανση scale μεταξύ 0.5 (βάθος) και 1.2 (μπροστά)
                 const currentScale = 0.55 + Math.abs(Math.sin(balloon.depthProgress)) * 0.65;
                 
-                // 3. Screen Edge Wrapping: Αν βγει τελείως εκτός οθόνης, ξαναμπαίνει από την απέναντι πλευρά
-                const padding = 90; // Περιθώριο για ομαλό "μπες-βγες"
+                const padding = 90;
                 if (balloon.x < -padding) balloon.x = gameArea.offsetWidth + padding - 10;
                 else if (balloon.x > gameArea.offsetWidth + padding) balloon.x = -padding + 10;
                 
                 if (balloon.y < -padding) balloon.y = gameArea.offsetHeight + padding - 10;
                 else if (balloon.y > gameArea.offsetHeight + padding) balloon.y = -padding + 10;
                 
-                // Εφαρμογή των νέων συντεταγμένων και του 3D scale
                 balloon.element.style.left = `${balloon.x}px`;
                 balloon.element.style.top = `${balloon.y}px`;
                 
                 if (!balloon.element.classList.contains('popping')) {
                     balloon.element.style.transform = `scale(${currentScale})`;
-                    // Ρύθμιση z-index ανάλογα με το μέγεθος (τα μεγαλύτερα μπαλόνια περνάνε από πάνω)
                     balloon.element.style.zIndex = Math.floor(currentScale * 10);
                     requestAnimationFrame(() => moveBalloon(balloon));
                 }
@@ -646,7 +782,6 @@
                 balloon.appendChild(body);
                 balloon.appendChild(string);
                 
-                // Τυχαία αρχική τοποθέτηση σε όλο το canvas
                 const startX = Math.random() * (gameArea.offsetWidth - 60);
                 const startY = Math.random() * (gameArea.offsetHeight - 80);
                 
@@ -656,7 +791,6 @@
                 balloon.addEventListener('pointerdown', handlePopEvent);
                 gameArea.appendChild(balloon);
                 
-                // Δημιουργία vector κίνησης και παραμέτρων βάθους
                 const bObj = {
                     element: balloon,
                     color: chosenColor,
@@ -666,8 +800,8 @@
                     dirY: Math.random() > 0.5 ? 1 : -1,
                     speedX: 0.8 + Math.random() * 1.2,
                     speedY: 0.7 + Math.random() * 1.1,
-                    depthProgress: Math.random() * Math.PI, // Τυχαία αρχική φάση βάθους
-                    depthSpeed: 0.005 + Math.random() * 0.012  // Ταχύτητα εναλλαγής βάθους
+                    depthProgress: Math.random() * Math.PI,
+                    depthSpeed: 0.005 + Math.random() * 0.012
                 };
                 
                 balloons.push(bObj);
@@ -771,26 +905,19 @@
                 balloons = [];
             }
             
-            // Monetag Only Ad Trigger Flow
             function terminateGame() {
                 gameActive = false;
                 clearInterval(gameTimer);
                 clearInterval(balloonInterval);
                 clearInterval(targetChangeInterval);
                 
-                // Κλήση της Rewarded Interstitial της Monetag
-                show_11108267().then(() => {
-                    showGameOverOverlay();
-                }).catch((err) => {
-                    // Fallback αν αποτύχει η διαφήμιση λόγω AdBlocker / Δικτύου
-                    showGameOverOverlay();
-                });
-            }
-
-            function showGameOverOverlay() {
+                saveHighScore(score); // Πρώτη αποθήκευση του βασικού σκορ
+                
+                // Εμφάνιση του Παραθύρου Στατιστικών ΑΜΕΣΩΣ (Χωρίς ad στην αρχή)
                 finalCorrectElement.textContent = correctPopped;
                 finalWrongElement.textContent = wrongPopped;
                 finalScoreElement.textContent = score;
+                highScoreElement.textContent = bestScore;
                 
                 gameOverScreen.style.display = 'flex';
                 clearAllBalloons();
