@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Balloon Pop Challenge</title>
     
-    <!-- Telegram Web Apps SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Monetag SDK Installation -->
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
     
     <link rel="icon" type="image/png" href="index.png">
@@ -140,7 +138,7 @@
         
         .scoreboard-nav {
             display: flex;
-            justify-content: space-between;
+            justify-between: space-between;
             align-items: center;
             padding: 15px 20px;
             background: rgba(15, 23, 42, 0.6);
@@ -224,7 +222,7 @@
             transform: translateX(-50%);
             width: 1.5px;
             height: 25px;
-            background: rgba(255,255,255,0.4);
+            background: rgba(255, 255, 255, 0.4);
         }
         
         .balloon.popping {
@@ -402,7 +400,7 @@
             width: 100%;
             box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
             transition: transform 0.1s;
-            display: none; /* Εμφανίζεται μόνο μετά το reward ή ως fallback */
+            display: none;
         }
 
         @media (max-width: 480px) {
@@ -417,7 +415,6 @@
 
     <div class="flash-effect" id="flashEffect"></div>
 
-    <!-- Welcome Screen -->
     <div class="welcome-screen" id="welcomeScreen">
         <div class="welcome-content">
             <div class="balloon-icon">🎈</div>
@@ -432,7 +429,6 @@
         </div>
     </div>
     
-    <!-- Main Game Container -->
     <div class="game-container" id="gameContainer">
         
         <div class="scoreboard-nav">
@@ -451,10 +447,9 @@
         </div>
         
         <div class="game-area" id="gameArea">
-            <div class="combo-display" id="comboDisplay">Combo x2!</div>
+            <div class="combo-display" id="comboDisplay">Combo Level 1</div>
         </div>
         
-        <!-- End Game Overlay -->
         <div class="game-over" id="gameOver">
             <div class="game-over-content">
                 <h2>Time's Up!</h2>
@@ -475,14 +470,12 @@
     </div>
 
     <script>
-        // Telegram WebApp Initialization
         if (window.Telegram && window.Telegram.WebApp) {
             Telegram.WebApp.ready();
             Telegram.WebApp.expand();
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // DOM Elements
             const welcomeScreen = document.getElementById('welcomeScreen');
             const gameContainer = document.getElementById('gameContainer');
             const startGameBtn = document.getElementById('startGameBtn');
@@ -502,13 +495,16 @@
             const finalScoreElement = document.getElementById('finalScore');
             const highScoreElement = document.getElementById('highScore');
             
-            // Game State Metrics
             let gameActive = false;
             let timeLeft = 60;
             let score = 0;
-            let comboCount = 0;
             let bestScore = 0;
-            let hasWatchedAd = false; // Flag για το αν είδε ήδη διαφήμιση
+            let hasWatchedAd = false;
+            
+            // ΝΕΕΣ ΜΕΤΑΒΛΗΤΕΣ ΓΙΑ ΤΟ COMBO SYSTEM
+            let comboLevel = 1;         // Ξεκινάει από Level 1
+            let consecutiveCorrect = 0; // Μετρητής για σωστά χτυπήματα (μέχρι το 4)
+            let consecutiveWrong = 0;   // Μετρητής για λάθος χτυπήματα (μέχρι το 2)
             
             let gameTimer;
             let balloonInterval;
@@ -517,7 +513,7 @@
             let targetColor = 'red';
             let balloons = [];
             let audioContext;
-            const maxBalloons = 12;
+            const maxBalloons = 14; // Αυξήθηκε ελαφρώς για να γεμίζει καλύτερα η οθόνη
             
             let correctPopped = 0;
             let wrongPopped = 0;
@@ -532,7 +528,6 @@
                 'orange': { name: 'Orange', hex: '#f97316' }
             };
 
-            // Load Score via Telegram Storage / LocalStorage
             function loadHighScore() {
                 if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.CloudStorage) {
                     Telegram.WebApp.CloudStorage.getItem('balloon_high_score', function(err, value) {
@@ -573,7 +568,7 @@
                     osc.connect(gain); gain.connect(audioContext.destination);
                     
                     if (type === 'correct') {
-                        osc.frequency.setValueAtTime(comboCount >= 3 ? 600 : 450, now);
+                        osc.frequency.setValueAtTime(450 + (comboLevel * 50), now);
                         osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
                         osc.type = 'sine'; gain.gain.setValueAtTime(0.15, now);
                         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
@@ -598,14 +593,12 @@
                 setTimeout(() => { flashEffect.style.opacity = '0'; }, 200);
                 
                 updateTargetDisplay();
-                injectTargetBalloons();
-            }
-            
-            function injectTargetBalloons() {
-                if (!gameActive) return;
-                const count = 2 + Math.floor(Math.random() * 2);
-                for (let i = 0; i < count; i++) {
-                    if (balloons.length < maxBalloons) createBalloon(targetColor);
+                
+                // ΔΙΟΡΘΩΣΗ: Μόλις αλλάξει το χρώμα, παράγουμε ΑΜΕΣΩΣ 3 μπαλόνια αυτού του χρώματος
+                if (gameActive) {
+                    for (let i = 0; i < 3; i++) {
+                        createBalloon(targetColor);
+                    }
                 }
             }
             
@@ -623,14 +616,11 @@
                 runActualGameInit();
             });
 
-            // FLOW 1: Πατάει για Διπλασιασμό Σκόρ (Βλέπει Ad)
             doubleScoreBtn.addEventListener('click', () => {
                 doubleScoreBtn.disabled = true;
-                
                 show_11108267().then(() => {
                     processScoreDoubling();
                 }).catch((err) => {
-                    // Fallback αν κολλήσει η ad για να μην χάσει την εμπειρία ο χρήστης
                     processScoreDoubling();
                 });
             });
@@ -640,32 +630,26 @@
                 hasWatchedAd = true;
                 saveHighScore(score);
                 
-                // Ανανέωση UI με το νέο σκορ
                 finalScoreElement.textContent = score;
                 highScoreElement.textContent = bestScore;
                 
-                // Αλλαγή των κουμπιών
                 doubleScoreBtn.style.display = 'none';
-                playAgainBtn.style.style.display = 'block'; // Εμφανίζεται το Play Again
+                playAgainBtn.style.display = 'block';
             }
 
-            // Play Again κουμπί (Εμφανίζεται ΜΟΝΟ αν είδε ad για διπλό σκορ)
             playAgainBtn.addEventListener('click', () => {
                 gameOverScreen.style.display = 'none';
                 runActualGameInit();
             });
 
-            // FLOW 2: Πατάει απευθείας New Games (Δεν είδε ad πριν, άρα βλέπει ΤΩΡΑ αναγκαστικά)
             newGamesBtn.addEventListener('click', () => {
                 if (!hasWatchedAd) {
-                    // Αν δεν έχει δει ad, τον αναγκάζουμε να δει πριν βγει στο Bot
                     show_11108267().then(() => {
                         redirectToTelegramBot();
                     }).catch((err) => {
                         redirectToTelegramBot();
                     });
                 } else {
-                    // Αν είδε ήδη ad για το double score, φεύγει ελεύθερος αμέσως
                     redirectToTelegramBot();
                 }
             });
@@ -682,30 +666,37 @@
                 gameActive = true;
                 timeLeft = 60;
                 score = 0;
-                comboCount = 0;
+                
+                // Reset Combo System
+                comboLevel = 1;
+                consecutiveCorrect = 0;
+                consecutiveWrong = 0;
+                
                 correctPopped = 0;
                 wrongPopped = 0;
-                hasWatchedAd = false; // Reset το ad flag
+                hasWatchedAd = false;
                 
-                // Επαναφορά κουμπιών στην αρχική τους κατάσταση
                 doubleScoreBtn.style.display = 'block';
                 doubleScoreBtn.disabled = false;
                 playAgainBtn.style.display = 'none';
                 
                 timerElement.textContent = timeLeft;
                 scoreDisplay.textContent = score;
-                comboDisplay.style.display = 'none';
+                
+                comboDisplay.textContent = `Combo Level 1`;
+                comboDisplay.style.display = 'block';
                 
                 clearAllBalloons();
                 selectNewTarget();
                 
                 gameTimer = setInterval(handleClockTick, 1000);
-                balloonInterval = setInterval(manageSpawning, 600);
+                balloonInterval = setInterval(manageSpawning, 500); // Πιο γρήγορο σπαουνάρισμα
                 
                 resetTargetChangeInterval(baseTargetDuration);
                 
-                for(let i=0; i<6; i++) {
-                    createBalloon(i < 3 ? targetColor : null);
+                // Αρχικά μπαλόνια στην έναρξη
+                for(let i=0; i<8; i++) {
+                    createBalloon(i < 4 ? targetColor : null);
                 }
             }
             
@@ -729,7 +720,8 @@
             function manageSpawning() {
                 if (!gameActive) return;
                 if (balloons.length < maxBalloons) {
-                    createBalloon(Math.random() < 0.5 ? targetColor : null);
+                    // 65% πιθανότητα να γεννηθεί το σωστό χρώμα για να μην αδειάζει ποτέ η οθόνη
+                    createBalloon(Math.random() < 0.65 ? targetColor : null);
                 }
             }
             
@@ -820,29 +812,42 @@
                 
                 if (bColor === targetColor) {
                     correctPopped++;
-                    comboCount++;
+                    consecutiveCorrect++;
+                    consecutiveWrong = 0; // Μηδενισμός των λαθών αφού έκανε σωστό
                     
-                    let pointsEarned = 10;
-                    if (comboCount >= 6) {
-                        pointsEarned = 30;
-                        showComboBadge(`MEGA COMBO!`);
-                    } else if (comboCount >= 3) {
-                        pointsEarned = 20;
-                        showComboBadge(`COMBO x2!`);
+                    // Κάθε 4 σωστά -> Ανεβαίνει Level το Combo
+                    if (consecutiveCorrect === 4) {
+                        comboLevel++;
+                        consecutiveCorrect = 0;
                     }
+                    
+                    // Υπολογισμός πόντων βάσει του Combo Level
+                    let pointsEarned = 10 * comboLevel;
                     
                     score += pointsEarned;
                     playSound('correct');
                     triggerTextFeedback(`+${pointsEarned}`, '#10b981', bEl);
                 } else {
                     wrongPopped++;
-                    comboCount = 0;
-                    comboDisplay.style.display = 'none';
+                    consecutiveWrong++;
+                    consecutiveCorrect = 0; // Μηδενισμός των σωστών αφού έκανε λάθος
+                    
+                    // Κάθε 2 συνεχόμενα λάθη -> Πέφτει 1 Combo Level (μέχρι το ελάχιστο 1)
+                    if (consecutiveWrong === 2) {
+                        if (comboLevel > 1) {
+                            comboLevel--;
+                        }
+                        consecutiveWrong = 0;
+                    }
                     
                     score = Math.max(0, score - 5);
                     playSound('wrong');
                     triggerTextFeedback('-5', '#ef4444', bEl);
                 }
+                
+                // Ανανέωση του Combo Badge στην οθόνη
+                comboDisplay.textContent = `Combo Level ${comboLevel}`;
+                comboDisplay.style.display = 'block';
                 
                 scoreDisplay.textContent = score;
                 bEl.classList.add('popping');
@@ -854,11 +859,6 @@
                         balloons = balloons.filter(b => b.element !== bEl);
                     }
                 }, 200);
-            }
-            
-            function showComboBadge(text) {
-                comboDisplay.textContent = text;
-                comboDisplay.style.display = 'block';
             }
             
             function triggerTextFeedback(text, color, element) {
@@ -906,14 +906,15 @@
             }
             
             function terminateGame() {
+                if (gameOverScreen.style.display === 'flex') return;
+                
                 gameActive = false;
                 clearInterval(gameTimer);
                 clearInterval(balloonInterval);
                 clearInterval(targetChangeInterval);
                 
-                saveHighScore(score); // Πρώτη αποθήκευση του βασικού σκορ
+                saveHighScore(score);
                 
-                // Εμφάνιση του Παραθύρου Στατιστικών ΑΜΕΣΩΣ (Χωρίς ad στην αρχή)
                 finalCorrectElement.textContent = correctPopped;
                 finalWrongElement.textContent = wrongPopped;
                 finalScoreElement.textContent = score;
