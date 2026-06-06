@@ -921,9 +921,8 @@
             });
         }
 
-        // ***** ΑΦΑΙΡΕΣΗ ΤΟΥ EVENT LISTENER ΠΟΥ ΠΡΟΣΘΕΤΕ ΠΟΝΤΟΥΣ ΑΠΟ ΤΑ ΠΑΙΧΝΙΔΙΑ *****
-        // Δεν ακούμε πλέον για gameScore, ώστε οι πόντοι των παιχνιδιών να μην προστίθενται.
-        // Ο κώδικας που ήταν εδώ έχει αφαιρεθεί εντελώς.
+        // Δεν ακούμε πλέον για gameScore για να μην προστίθενται αυτόματα πόντοι από τα παιχνίδια.
+        // Ο παλιός event listener έχει αφαιρεθεί.
 
         async function apiCall(method, path, body = null) {
             const headers = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY };
@@ -1019,6 +1018,7 @@
 
         document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'top') { refreshUI(); loadTopLeaderboard(); } }); });
 
+        // ========== WHEEL ==========
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#1a1a10' },
@@ -1089,6 +1089,7 @@
         async function spinWheel() { if (isSpinning) return; try { const adStatus=await apiCall('GET',`/ad-status?userId=${userId}`); if (adStatus.free_spins<1) { showToast('Not enough free spins!'); return; } } catch(e) { showToast(e.message); return; } let prizeIndex; try { const result=await apiCall('POST','/wheel/spin',{userId}); prizeIndex=result.prizeIndex; } catch(e) { showToast(e.message); return; } runHighlightAnimation(prizeIndex); }
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; document.getElementById('wheelAdSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); }; }
 
+        // ========== AVATAR ==========
         async function loadAvatarWorld() { try { const data=await apiCall('GET',`/avatar?userId=${userId}`); document.getElementById('catEmoji').textContent=data.pet_emoji||'🐱'; document.getElementById('catName').textContent=data.pet_name||'Whiskers'; document.getElementById('happinessVal').textContent=data.happiness||50; document.getElementById('happinessFill').style.width=(data.happiness||50)+'%'; updateAvatarAppearance(data.equipped_items||{}); switchAvatarTab('wardrobe'); } catch(e) { showToast('Error loading avatar'); } }
         function updateAvatarAppearance(items) { document.getElementById('catHat').textContent=''; document.getElementById('catGlasses').textContent=''; document.getElementById('catOutfit').textContent=''; if (items.hat) document.getElementById('catHat').textContent=items.hat.icon; if (items.glasses) document.getElementById('catGlasses').textContent=items.glasses.icon; if (items.outfit) document.getElementById('catOutfit').textContent=items.outfit.icon; }
         function switchAvatarTab(tab) { document.querySelectorAll('.avatar-tab').forEach(b=>b.classList.remove('active')); event.target.classList.add('active'); if (tab==='wardrobe') { document.getElementById('wardrobeContainer').style.display='block'; document.getElementById('shopContainer').style.display='none'; loadWardrobe(); } else { document.getElementById('wardrobeContainer').style.display='none'; document.getElementById('shopContainer').style.display='block'; loadShop(); } }
@@ -1102,20 +1103,85 @@
         function speakWithCatVoice(text) { const utterance = new SpeechSynthesisUtterance(text); utterance.pitch = 2.5; utterance.rate = 1.3; utterance.volume = 1; window.speechSynthesis.speak(utterance); const catEmoji = document.getElementById('catEmoji'); if (catEmoji) { catEmoji.style.animation = 'none'; catEmoji.offsetHeight; catEmoji.style.animation = 'catTalk 0.3s ease-in-out 6'; } }
         document.getElementById('feedBtn').addEventListener('click', async () => { try { const res = await apiCall('POST', '/feed', { userId }); showToast(res.message || 'Yum!'); refreshUI(); const catEmoji = document.getElementById('catEmoji'); if (catEmoji) { catEmoji.style.animation = 'none'; catEmoji.offsetHeight; catEmoji.style.animation = 'catEat 0.5s ease-in-out 3'; } } catch(e) { showToast(e.message); } });
 
+        // ========== MISSIONS (UPDATED) ==========
         let currentMissionsTab = 'daily';
         function switchMissionsTab(tab) { currentMissionsTab = tab; document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active')); event.target.classList.add('active'); document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none'; document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none'; loadMissions(); }
         async function loadMissions() { if (currentMissionsTab === 'daily') await loadDailyMissions(); else await loadWeeklyMissions(); }
-        async function loadDailyMissions() { const container = document.getElementById('dailyMissionsContainer'); try { const data = await apiCall('GET', `/missions?userId=${userId}&type=daily`); let html = ''; data.missions.forEach(m => { const pct = Math.min(100, (m.progress/m.target)*100); const canClaim = m.progress >= m.target && !m.claimed; let btnHTML = ''; if (!m.completed) { btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Go to Game</button>`; } else if (canClaim) { btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">Claim</button>`; } else { btnHTML = `<button class="mission-btn done" disabled>Completed</button>`; } html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${!m.completed?`openMissionLink('${m.link}')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div>${btnHTML}</div>`; }); container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No daily missions.</p>'; } catch(e) { container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading missions</p>'; } }
-        async function loadWeeklyMissions() { const container = document.getElementById('weeklyMissionsContainer'); try { const data = await apiCall('GET', `/missions?userId=${userId}&type=weekly`); let html = ''; data.missions.forEach(m => { const pct = Math.min(100, (m.progress/m.target)*100); const canClaim = m.progress >= m.target && !m.claimed; html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div><button class="mission-btn ${canClaim?'claim':'done'}" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')">${canClaim?'Claim':'Completed'}</button></div>`; }); container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No weekly missions.</p>'; } catch(e) { container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading missions</p>'; } }
-        function openMissionLink(link) { if (window.Telegram && window.Telegram.WebApp) { Telegram.WebApp.openTelegramLink(link); } else { window.open(link, '_blank'); } }
-        function claimMission(missionId, type, value, rewardLabel, missionType) { const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='stars'?'⭐':'🔄' }; const overlay = document.createElement('div'); overlay.className = 'modal-overlay'; overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${rewardLabel}</div><span class="modal-emoji">${seg.icon}</span><p style="color:var(--text-secondary);">Double your reward?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button></div>`; document.body.appendChild(overlay); document.getElementById('modalClaim').onclick = () => { overlay.remove(); creditMissionReward(seg, false, missionId, missionType); }; document.getElementById('modalDouble').onclick = () => { overlay.remove(); callMonetagAd().then(() => { creditMissionReward(seg, true, missionId, missionType); }).catch(() => { showToast('Ad not completed.'); creditMissionReward(seg, false, missionId, missionType); }); }; }
-        function creditMissionReward(seg, doubled, missionId, missionType) { let value = seg.value; if (doubled) value *= 2; if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message)); else if (seg.type === 'stars') apiCall('POST', '/add-stars', { userId, stars: value }).then(() => refreshUI()).catch(err => showToast(err.message)); else if (seg.type === 'free_spin') apiCall('POST', '/add-free-spins', { userId, spins: value }).then(() => refreshUI()).catch(err => showToast(err.message)); apiCall('POST', '/missions/claim', { userId, missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {}); }
 
+        async function loadDailyMissions() {
+            const container = document.getElementById('dailyMissionsContainer');
+            try {
+                const data = await apiCall('GET', `/missions?userId=${userId}&type=daily`);
+                let html = '';
+                data.missions.forEach(m => {
+                    const pct = Math.min(100, (m.progress / m.target) * 100);
+                    const canClaim = m.progress >= m.target && !m.claimed;
+                    let btnHTML = '';
+                    if (!m.completed) {
+                        btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Go to Game</button>`;
+                    } else if (canClaim) {
+                        btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">Claim</button>`;
+                    } else {
+                        btnHTML = `<button class="mission-btn done" disabled>Completed</button>`;
+                    }
+                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${!m.completed?`openMissionLink('${m.link}')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div>${btnHTML}</div>`;
+                });
+                container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No daily missions available.</p>';
+            } catch (e) {
+                container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading daily missions.</p>';
+            }
+        }
+
+        async function loadWeeklyMissions() {
+            const container = document.getElementById('weeklyMissionsContainer');
+            try {
+                const data = await apiCall('GET', `/missions?userId=${userId}&type=weekly`);
+                let html = '';
+                data.missions.forEach(m => {
+                    const pct = Math.min(100, (m.progress / m.target) * 100);
+                    const canClaim = m.progress >= m.target && !m.claimed;
+                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div><button class="mission-btn ${canClaim?'claim':'done'}" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')">${canClaim?'Claim':'Completed'}</button></div>`;
+                });
+                container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No weekly missions available.</p>';
+            } catch (e) {
+                container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading weekly missions.</p>';
+            }
+        }
+
+        function openMissionLink(link) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                Telegram.WebApp.openTelegramLink(link);
+            } else {
+                window.open(link, '_blank');
+            }
+        }
+
+        function claimMission(missionId, type, value, rewardLabel, missionType) {
+            const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='stars'?'⭐':'🔄' };
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${rewardLabel}</div><span class="modal-emoji">${seg.icon}</span><p style="color:var(--text-secondary);">Double your reward?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button></div>`;
+            document.body.appendChild(overlay);
+            document.getElementById('modalClaim').onclick = () => { overlay.remove(); creditMissionReward(seg, false, missionId, missionType); };
+            document.getElementById('modalDouble').onclick = () => { overlay.remove(); callMonetagAd().then(() => { creditMissionReward(seg, true, missionId, missionType); }).catch(() => { showToast('Ad not completed.'); creditMissionReward(seg, false, missionId, missionType); }); };
+        }
+
+        function creditMissionReward(seg, doubled, missionId, missionType) {
+            let value = seg.value;
+            if (doubled) value *= 2;
+            if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message));
+            else if (seg.type === 'stars') apiCall('POST', '/add-stars', { userId, stars: value }).then(() => refreshUI()).catch(err => showToast(err.message));
+            else if (seg.type === 'free_spin') apiCall('POST', '/add-free-spins', { userId, spins: value }).then(() => refreshUI()).catch(err => showToast(err.message));
+            apiCall('POST', '/missions/claim', { userId, missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {});
+        }
+
+        // ========== TOP PLAYERS ==========
         async function loadTopLeaderboard() {
             const container = document.getElementById('topLeaderboardList');
             try { const data = await apiCall('GET', '/leaderboard?limit=20'); let html = ''; data.leaderboard.forEach((entry, idx) => { const isMe = entry.userId === userId; const position = idx + 1; let medal = ''; if (position === 1) medal = '🥇'; else if (position === 2) medal = '🥈'; else if (position === 3) medal = '🥉'; html += `<div class="lb-row ${isMe ? 'lb-self' : ''}"><span class="lb-rank">${medal} ${position}.</span><span class="lb-user">${isMe ? '⭐ You' : entry.nickname}</span><span class="lb-points">💰 ${entry.points.toLocaleString()} Pts</span><span class="lb-stars">⭐ ${entry.stars}</span></div>`; }); container.innerHTML = html || '<p style="text-align:center;color:var(--text-secondary);">No players yet.</p>'; } catch (e) { container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);">Error loading leaderboard</p>'; }
         }
 
+        // ========== WELCOME SCREEN ==========
         document.addEventListener("DOMContentLoaded", () => {
             buildGamesGrid(); refreshUI(); setupAdButtons(); syncDisplayName(); setInterval(refreshUI, 30000);
             const welcomePage = document.createElement('div'); welcomePage.className = 'welcome-full-screen';
