@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AZIRAM Board</title>
+    <title>AZIRAM World</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -15,123 +15,187 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             color: white;
             padding: 10px;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
-        /* Stats */
         .stats-container {
             display: flex; gap: 10px; width: 100%; max-width: 500px;
             background: rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
-            padding: 10px 15px;
+            padding: 8px 15px;
             margin-bottom: 10px;
         }
         .stat {
             flex: 1; display: flex; align-items: center; gap: 5px;
             font-size: 0.7rem; font-weight: bold;
         }
-        .bar-bg { flex: 1; height: 6px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; }
+        .bar-bg { flex: 1; height: 5px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; }
         .bar-fill { height: 100%; width: 100%; transition: width 0.5s ease; }
         .hunger-fill { background: #f43f5e; }
         .energy-fill { background: #3b82f6; }
         .mood-fill { background: #fbbf24; }
 
-        /* Board */
-        .board-container {
-            width: 100%; max-width: 500px;
-            position: relative;
-            aspect-ratio: 1 / 1;
-            background: rgba(255,255,255,0.05);
-            border-radius: 24px;
-            padding: 10px;
-        }
-        .board {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 6px;
+        #avatar-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             width: 100%;
-            height: 100%;
+            max-width: 500px;
+            height: auto;
+            min-height: 60vh;
+            padding: 20px 0;
         }
-        .tile {
-            background: rgba(255,255,255,0.1);
-            border-radius: 12px;
+        .avatar-container {
+            position: relative;
+            width: 250px;
+            height: 250px;
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative;
-            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
         }
-        .tile.special {
-            background: rgba(251,191,36,0.2);
-            border-color: #fbbf24;
+        .avatar-container img {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: contain;
         }
-        .tile .reward {
-            position: absolute; bottom: 2px; right: 2px;
-            font-size: 0.6rem; background: #fbbf24; border-radius: 50%;
-            padding: 2px 4px; color: #1e293b; font-weight: bold;
+        .avatar-btn-group {
+            display: flex; gap: 15px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .avatar-btn {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .avatar-btn:active { transform: scale(0.95); }
+        .avatar-btn.games { background: #f43f5e; }
+        .avatar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            min-height: 70vh;
+        }
+        #game-screen.active { display: flex; }
+
+        .game-header {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%;
+            padding: 0 10px 10px 10px;
+        }
+        .game-header .back-btn {
+            background: rgba(255,255,255,0.1);
+            border: none; color: white; padding: 8px 15px;
+            border-radius: 20px; cursor: pointer;
+        }
+        .game-header .stars {
+            background: rgba(255,215,0,0.2);
+            padding: 5px 15px; border-radius: 20px; font-weight: bold;
         }
 
-        /* Avatar Pawn */
-        .avatar-pawn {
+        .board-container {
+            width: 100%; aspect-ratio: 1/1;
+            background: rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 10px;
+            position: relative;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            width: 100%; height: 100%;
+        }
+        .tile {
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.6rem;
+            position: relative;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .tile.start { background: rgba(34,197,94,0.3); border-color: #22c55e; }
+        .tile.reward { background: rgba(251,191,36,0.2); border-color: #fbbf24; }
+        .tile.bonus { background: rgba(59,130,246,0.2); border-color: #3b82f6; }
+        .tile.finish { background: rgba(244,63,94,0.3); border-color: #f43f5e; }
+        .tile .label {
+            position: absolute; bottom: 2px; font-size: 0.5rem; opacity: 0.6;
+        }
+
+        .pawn-on-board {
             position: absolute;
-            width: 60%;
-            height: 60%;
-            transition: all 0.3s ease;
+            width: 15%;
+            height: 15%;
+            transition: all 0.4s ease;
             display: flex;
             justify-content: center;
             align-items: center;
             pointer-events: none;
         }
-        .avatar-pawn img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(0 0 10px rgba(59,130,246,0.5));
+        .pawn-on-board.bounce {
+            animation: pawnBounce 0.5s ease;
         }
-        .avatar-pawn.bounce {
-            animation: bounce 0.5s ease;
-        }
-        @keyframes bounce {
-            0% { transform: scale(1); }
-            30% { transform: scale(1.3); }
-            60% { transform: scale(0.9); }
+        @keyframes pawnBounce {
+            0% { transform: scale(0.8); }
+            40% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
+        .pawn-on-board img {
+            width: 100%; height: 100%; object-fit: contain;
+            filter: drop-shadow(0 0 8px rgba(59,130,246,0.5));
+        }
 
-        /* Roll Button */
+        .game-controls {
+            display: flex; gap: 15px; width: 100%;
+            padding-top: 15px;
+            justify-content: center;
+        }
         .roll-btn {
             background: linear-gradient(135deg, #f43f5e, #e11d48);
             color: white; border: none; border-radius: 50px;
-            padding: 18px 40px; font-size: 1.5rem; font-weight: bold;
-            box-shadow: 0 8px 30px rgba(228, 45, 74, 0.4);
+            padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
+            box-shadow: 0 8px 30px rgba(228,45,74,0.4);
             cursor: pointer; transition: 0.2s;
-            width: 100%; max-width: 300px;
-            margin: 15px 0;
+            flex: 1;
         }
         .roll-btn:active { transform: scale(0.95); }
+        .roll-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Bottom Buttons */
-        .bottom-bar {
-            display: flex; gap: 15px; width: 100%; max-width: 500px;
-            padding-bottom: 20px;
+        .bubble-msg {
+            position: fixed; top: 35%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
+            border-radius: 20px; font-size: 1.1rem; font-weight: bold;
+            z-index: 100; backdrop-filter: blur(10px);
+            animation: fadeInOut 2s ease forwards;
         }
-        .action-btn {
-            flex: 1; padding: 12px; border: none; border-radius: 16px;
-            font-weight: bold; font-size: 0.9rem; cursor: pointer;
-            background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
-            color: white; transition: 0.2s;
-        }
-        .action-btn:active { transform: scale(0.95); }
-
-        /* Stars display */
-        .stars-display {
-            background: rgba(255,215,0,0.2);
-            padding: 5px 20px; border-radius: 20px;
-            font-weight: bold; color: #fbbf24;
-            margin-bottom: 10px;
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+            20% { opacity: 1; transform: translateX(-50%) scale(1); }
+            80% { opacity: 1; transform: translateX(-50%) scale(1); }
+            100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
         }
     </style>
 </head>
@@ -144,102 +208,125 @@
         <div class="stat"><i class="fas fa-heart"></i><div class="bar-bg"><div class="bar-fill mood-fill" id="moodBar"></div></div></div>
     </div>
 
-    <!-- Stars -->
-    <div class="stars-display">⭐ <span id="starCount">0</span></div>
-
-    <!-- Board -->
-    <div class="board-container">
-        <div class="board" id="board"></div>
-        <!-- Το Avatar θα τοποθετηθεί εδώ από το JS -->
-        <div class="avatar-pawn" id="avatarPawn">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png" id="pawnBody">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png" id="pawnEyes" style="position:absolute;width:80%;top:10%;">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png" id="pawnMouth" style="position:absolute;width:80%;top:35%;">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/hearts.png" id="pawnHearts" style="position:absolute;width:80%;top:-20%;">
+    <!-- SCREEN 1: AVATAR -->
+    <div id="avatar-screen">
+        <div class="avatar-container" id="avatarDisplay">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png" id="avBody">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png" id="avEyes" style="top:12%; left:10%; width:80%;">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png" id="avMouth" style="top:38%; left:10%; width:80%;">
+        </div>
+        <div class="avatar-btn-group">
+            <button class="avatar-btn" id="btnFeed"><i class="fas fa-utensils"></i> Feed</button>
+            <button class="avatar-btn" id="btnTalk"><i class="fas fa-comment"></i> Talk</button>
+            <button class="avatar-btn" id="btnSleep"><i class="fas fa-moon"></i> Sleep</button>
+            <button class="avatar-btn games" id="btnGames"><i class="fas fa-gamepad"></i> Games</button>
+            <button class="avatar-btn" id="btnReset" style="background:rgba(255,255,255,0.05);"><i class="fas fa-undo"></i> Reset</button>
         </div>
     </div>
 
-    <!-- Roll -->
-    <button class="roll-btn" id="rollBtn">🎲 ROLL</button>
+    <!-- SCREEN 2: GAME -->
+    <div id="game-screen">
+        <div class="game-header">
+            <button class="back-btn" id="btnBackAvatar"><i class="fas fa-arrow-left"></i> Avatar</button>
+            <div class="stars">⭐ <span id="starCount">0</span></div>
+        </div>
+        
+        <div class="board-container">
+            <div class="board" id="board"></div>
+            <div class="pawn-on-board" id="pawnOnBoard">
+                <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png">
+                <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png" style="position:absolute; width:80%; top:12%; left:10%;">
+                <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png" style="position:absolute; width:80%; top:38%; left:10%;">
+                <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/hearts.png" style="position:absolute; width:80%; top:-25%; left:10%;">
+            </div>
+        </div>
 
-    <!-- Bottom Actions -->
-    <div class="bottom-bar">
-        <button class="action-btn" id="btnFeed"><i class="fas fa-utensils"></i> Feed</button>
-        <button class="action-btn" id="btnTalk"><i class="fas fa-comment"></i> Talk</button>
-        <button class="action-btn" id="btnSleep"><i class="fas fa-moon"></i> Sleep</button>
+        <div class="game-controls">
+            <button class="roll-btn" id="rollBtn">🎲 ROLL</button>
+        </div>
     </div>
 
     <script>
         // ─── STATE ───
-        let position = 0; // 0-24
+        let hunger = 100, energy = 100, mood = 80, isSleeping = false;
         let stars = 0;
-        let hunger = 100, energy = 100, mood = 80;
-        let isSleeping = false;
+        let position = 0;
         let isRolling = false;
+        const TOTAL_TILES = 36;
 
         // ─── DOM ───
-        const board = document.getElementById('board');
-        const pawn = document.getElementById('avatarPawn');
+        const avatarEyes = document.getElementById('avEyes');
+        const avatarMouth = document.getElementById('avMouth');
+        const boardEl = document.getElementById('board');
+        const pawn = document.getElementById('pawnOnBoard');
         const starDisplay = document.getElementById('starCount');
         const hungerBar = document.getElementById('hungerBar');
         const energyBar = document.getElementById('energyBar');
         const moodBar = document.getElementById('moodBar');
-        const eyesLayer = document.getElementById('pawnEyes');
-        const mouthLayer = document.getElementById('pawnMouth');
 
-        const TOTAL_TILES = 25;
-        const COLS = 5;
+        // ─── SCREENS ───
+        function showAvatar() {
+            document.getElementById('game-screen').classList.remove('active');
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('avatar-screen').style.display = 'flex';
+        }
+        function showGame() {
+            document.getElementById('avatar-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            document.getElementById('game-screen').classList.add('active');
+        }
 
-        // ─── BUILD BOARD ───
+        document.getElementById('btnGames').addEventListener('click', showGame);
+        document.getElementById('btnBackAvatar').addEventListener('click', showAvatar);
+
+        // ─── BOARD ───
         function buildBoard() {
-            board.innerHTML = '';
-            for (let i = 0; i < TOTAL_TILES; i++) {
+            boardEl.innerHTML = '';
+            const path = [];
+            for (let row = 0; row < 6; row++) {
+                if (row % 2 === 0) {
+                    for (let col = 0; col < 6; col++) path.push(row * 6 + col);
+                } else {
+                    for (let col = 5; col >= 0; col--) path.push(row * 6 + col);
+                }
+            }
+
+            path.forEach((idx, i) => {
                 const tile = document.createElement('div');
                 tile.className = 'tile';
-                if (i > 0 && i % 4 === 0) {
-                    tile.classList.add('special');
-                    const reward = document.createElement('span');
-                    reward.className = 'reward';
-                    reward.textContent = '⭐';
-                    tile.appendChild(reward);
-                }
-                board.appendChild(tile);
-            }
+                tile.dataset.index = idx;
+                if (i === 0) tile.classList.add('start');
+                else if (i === 35) tile.classList.add('finish');
+                else if (i % 5 === 0) tile.classList.add('reward');
+                else if (i % 7 === 0) tile.classList.add('bonus');
+
+                const num = document.createElement('span');
+                num.className = 'label';
+                num.textContent = i + 1;
+                tile.appendChild(num);
+                boardEl.appendChild(tile);
+            });
             updatePawnPosition();
         }
 
-        // ─── MOVE PAWN ───
         function updatePawnPosition() {
-            const row = Math.floor(position / COLS);
-            const col = position % COLS;
-            const tileSize = 100 / COLS;
-            pawn.style.left = (col * tileSize + tileSize/2 - 30) + '%';
-            pawn.style.top = (row * tileSize + tileSize/2 - 30) + '%';
+            const path = [];
+            for (let row = 0; row < 6; row++) {
+                if (row % 2 === 0) {
+                    for (let col = 0; col < 6; col++) path.push(row * 6 + col);
+                } else {
+                    for (let col = 5; col >= 0; col--) path.push(row * 6 + col);
+                }
+            }
+            const pathIndex = path.indexOf(position);
+            const row = Math.floor(pathIndex / 6);
+            const col = pathIndex % 6;
+            const tileSize = 100 / 6;
+            pawn.style.left = (col * tileSize + tileSize/2 - 7.5) + '%';
+            pawn.style.top = (row * tileSize + tileSize/2 - 7.5) + '%';
         }
 
-        function movePawn(steps) {
-            position = (position + steps) % TOTAL_TILES;
-            // Bounce animation
-            pawn.classList.remove('bounce');
-            void pawn.offsetWidth; // force reflow
-            pawn.classList.add('bounce');
-            updatePawnPosition();
-
-            // Check rewards
-            if (position > 0 && position % 4 === 0) {
-                stars += 5;
-                showBubble('+5 ⭐!');
-            }
-            // Bonus for passing start
-            if (position < steps) {
-                stars += 3;
-                showBubble('+3 ⭐ Bonus!');
-            }
-            updateStars();
-            saveData();
-        }
-
-        // ─── ROLL ───
+        // ─── ROLL & MOVE ───
         function rollDice() {
             if (isRolling) return;
             isRolling = true;
@@ -257,8 +344,40 @@
                     movePawn(result);
                     isRolling = false;
                     btn.disabled = false;
+                    setTimeout(() => {
+                        if (!isRolling) btn.textContent = '🎲 ROLL';
+                    }, 1500);
                 }
-            }, 100);
+            }, 80);
+        }
+
+        function movePawn(steps) {
+            const oldPos = position;
+            position = (position + steps) % TOTAL_TILES;
+            
+            pawn.classList.remove('bounce');
+            void pawn.offsetWidth;
+            pawn.classList.add('bounce');
+            updatePawnPosition();
+
+            if (position > 0 && position % 5 === 0) {
+                stars += 5;
+                showMsg('+5 ⭐!');
+            }
+            if (position > 0 && position % 7 === 0) {
+                stars += 10;
+                showMsg('+10 ⭐ Bonus!');
+            }
+            if (position === 35) {
+                stars += 20;
+                showMsg('🏁 Τέλος! +20 ⭐');
+            }
+            if (position < oldPos) {
+                stars += 3;
+                showMsg('+3 ⭐ Bonus Γύρου!');
+            }
+            updateStars();
+            saveData();
         }
 
         // ─── STATS ───
@@ -267,21 +386,13 @@
             energyBar.style.width = energy + '%';
             moodBar.style.width = mood + '%';
         }
-
         function updateStars() {
             starDisplay.textContent = stars;
         }
 
-        // ─── BUBBLE ───
-        function showBubble(text, duration = 2000) {
+        function showMsg(text, duration = 2000) {
             const el = document.createElement('div');
-            el.style.cssText = `
-                position: fixed; top: 30%; left: 50%; transform: translateX(-50%);
-                background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
-                border-radius: 20px; font-size: 1.2rem; font-weight: bold;
-                z-index: 100; backdrop-filter: blur(10px);
-                animation: fadeInOut ${duration}ms ease forwards;
-            `;
+            el.className = 'bubble-msg';
             el.textContent = text;
             document.body.appendChild(el);
             setTimeout(() => el.remove(), duration);
@@ -291,39 +402,50 @@
         document.getElementById('btnFeed').addEventListener('click', () => {
             if(isSleeping) return;
             hunger = Math.min(100, hunger + 20);
+            energy = Math.max(0, energy - 3);
             mood = Math.min(100, mood + 5);
             updateBars();
-            showBubble('Μμμ! Νόστιμο 🍎');
+            showMsg('Μμμμ! Νόστιμο 🍎');
+            saveData();
         });
 
         document.getElementById('btnTalk').addEventListener('click', () => {
             if(isSleeping) return;
             mood = Math.min(100, mood + 10);
             updateBars();
-            showBubble('Γεια σου! 💬');
-            // Ανοιγοκλείνει το στόμα
+            showMsg('Γεια σου! 💬');
             let open = false;
             const interval = setInterval(() => {
                 open = !open;
-                mouthLayer.src = open ? 
+                avatarMouth.src = open ? 
                     "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth.png" : 
                     "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
             }, 200);
             setTimeout(() => {
                 clearInterval(interval);
-                mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
+                avatarMouth.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
             }, 2000);
         });
 
         document.getElementById('btnSleep').addEventListener('click', () => {
             if (isSleeping) {
                 isSleeping = false;
-                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png";
-                showBubble('Καλημέρα! ☀️');
+                energy = Math.min(100, energy + 30);
+                avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png";
+                showMsg('Καλημέρα! ☀️ +30 ⚡');
             } else {
                 isSleeping = true;
-                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
-                showBubble('Ζζζζ... Καληνύχτα 🌙');
+                avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
+                showMsg('Ζζζζ... Καληνύχτα 🌙');
+            }
+            updateBars();
+            saveData();
+        });
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            if (confirm('Διαγραφή όλων των δεδομένων;')) {
+                localStorage.removeItem('aziramWorld');
+                location.reload();
             }
         });
 
@@ -331,11 +453,13 @@
 
         // ─── SAVE / LOAD ───
         function saveData() {
-            localStorage.setItem('aziramBoard', JSON.stringify({position, stars, hunger, energy, mood, isSleeping}));
+            localStorage.setItem('aziramWorld', JSON.stringify({
+                position, stars, hunger, energy, mood, isSleeping
+            }));
         }
 
         function loadData() {
-            const saved = localStorage.getItem('aziramBoard');
+            const saved = localStorage.getItem('aziramWorld');
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
@@ -349,29 +473,31 @@
                     updateStars();
                     updatePawnPosition();
                     if (isSleeping) {
-                        eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
+                        avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
                     }
                 } catch(e) {}
             }
         }
 
-        // ─── ANIMATION STYLE ───
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fadeInOut {
-                0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
-                20% { opacity: 1; transform: translateX(-50%) scale(1); }
-                80% { opacity: 1; transform: translateX(-50%) scale(1); }
-                100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+        // ─── DRAIN ───
+        setInterval(() => {
+            if (!isSleeping) {
+                hunger = Math.max(0, hunger - 2);
+                energy = Math.max(0, energy - 3);
+                mood = Math.max(0, mood - 1);
+            } else {
+                energy = Math.min(100, energy + 4);
+                mood = Math.min(100, mood + 1);
             }
-        `;
-        document.head.appendChild(style);
+            updateBars();
+            saveData();
+        }, 45000);
 
         // ─── INIT ───
         loadData();
         buildBoard();
+        showAvatar();
 
-        // Auto save every 10s
         setInterval(saveData, 10000);
     </script>
 </body>
