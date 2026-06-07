@@ -5,11 +5,254 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AZIRAM - Full Experience</title>
     
-    <!-- Σύνδεση με το ξεχωριστό style.css -->
-    <link rel="stylesheet" href="style.css">
-    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --tg-theme-bg-color: #eff6ff;
+            --bg-day: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%);
+            --bg-night: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 1.5s ease;
+        }
+
+        .day-mode { background: var(--bg-day); }
+        .night-mode { background: var(--bg-night); }
+
+        /* Stats bars */
+        .stats-container {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 20;
+            justify-content: center;
+        }
+        .stat {
+            flex: 1;
+            max-width: 120px;
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .stat i { font-size: 0.9rem; }
+        .bar-bg {
+            flex: 1;
+            height: 6px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            width: 100%;
+            background: #10b981;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .hunger-fill { background: #f43f5e; }
+        .energy-fill { background: #3b82f6; }
+        .mood-fill { background: #fbbf24; }
+
+        /* Avatar Area */
+        .avatar-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            width: 100%;
+            padding-top: 70px;
+        }
+
+        .thought-bubble {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            color: #1e293b;
+            border-radius: 24px;
+            padding: 16px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            max-width: 280px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+                        transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(-50%) translateY(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            line-height: 1.4;
+        }
+        .thought-bubble.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .thought-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 14px solid transparent;
+            border-right: 14px solid transparent;
+            border-top: 16px solid white;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
+        }
+
+        .avatar-wrapper {
+            position: relative;
+            width: min(55vh, 90vw);
+            height: min(55vh, 90vw);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        /* Εικόνες με ακριβή έλεγχο */
+        .matti-layer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            object-fit: contain; /* Δεν παραμορφώνει τις εικόνες */
+            pointer-events: none;
+        }
+
+        #layer-body  { z-index: 1; }
+        #layer-eyes  { z-index: 2; top: 10%; }    /* Σήκωσε τα μάτια */
+        #layer-mouth { z-index: 3; top: 25%; }    /* Σήκωσε το στόμα */
+        #layer-hearts { 
+            z-index: 4; 
+            top: -25%; /* Τράβηξε το καπέλο ψηλά */
+            transform: scale(0.9); /* Μίκρυνε λίγο το καπέλο */
+        }
+
+        @keyframes mattiIdle {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50%      { transform: scale(1.04) translateY(-4px); }
+        }
+        .ani-idle { animation: mattiIdle 4s ease-in-out infinite; }
+        .sleeping { animation: none; filter: brightness(0.9); }
+
+        /* Buttons */
+        .buttons-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 24px 20px 40px;
+            width: 100%;
+            max-width: 500px;
+            z-index: 5;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: white;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .action-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .action-btn:active { transform: scale(0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .btn-feed  { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .btn-talk  { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .btn-sleep { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .action-btn span {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .btn-disabled {
+            pointer-events: none;
+            opacity: 0.5;
+            filter: grayscale(30%);
+        }
+
+        /* Floating particles */
+        @keyframes floatUp {
+            0%   { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-120px) scale(0.3); }
+        }
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUp 1.2s ease-out forwards;
+            font-size: 1.4rem;
+        }
+
+        /* Share button */
+        .share-btn {
+            position: absolute;
+            bottom: 120px;
+            right: 20px;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #1e293b;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            cursor: pointer;
+            z-index: 15;
+        }
+    </style>
 </head>
 <body class="day-mode" id="mainBody">
 
@@ -24,12 +267,11 @@
     <div class="avatar-container" id="avatarContainer">
         <div class="thought-bubble" id="thoughtBubble"></div>
         <div class="avatar-wrapper ani-idle" id="mattiCharacter">
-            <!-- ΤΩΡΑ ΧΡΗΣΙΜΟΠΟΙΟΥΜΕ img ΑΝΤΙ ΓΙΑ background-image -->
-            <!-- Τα src δείχνουν στο φάκελο assets/ που έχεις ανεβάσει στο GitHub -->
-            <img src="assets/body.png" class="matti-layer" id="layer-body" alt="body">
-            <img src="assets/eyes_open.png" class="matti-layer" id="layer-eyes" alt="eyes">
-            <img src="assets/mouth_closed.png" class="matti-layer" id="layer-mouth" alt="mouth">
-            <img src="assets/hearts.png" class="matti-layer" id="layer-hearts" alt="hearts">
+            <!-- Τα σωστά RAW URLs από το GitHub σου -->
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/body.png" class="matti-layer" id="layer-body" alt="body">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png" class="matti-layer" id="layer-eyes" alt="eyes">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png" class="matti-layer" id="layer-mouth" alt="mouth">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/hearts.png" class="matti-layer" id="layer-hearts" alt="hearts">
         </div>
     </div>
 
@@ -42,9 +284,326 @@
 
     <button class="share-btn" id="shareBtn"><i class="fas fa-share-alt"></i></button>
 
-    <!-- Μην ξεχάσεις να αντιγράψεις το JavaScript από το προηγούμενο μήνυμα -->
     <script>
-        // ... (το script σου εδώ)
+        // ────────────────────────────────
+        //  GAME STATE
+        // ────────────────────────────────
+        let hunger = 100;
+        let energy = 100;
+        let mood = 80;
+        const maxStat = 100;
+        const minStat = 0;
+
+        // Decay rates per second
+        const HUNGER_DECAY = 0.5;
+        const ENERGY_DECAY = 0.3;
+        const MOOD_DECAY = 0.1;
+
+        let isSleeping = false;
+        let talkInterval = null;
+
+        // ────────────────────────────────
+        //  UI ELEMENTS
+        // ────────────────────────────────
+        const hungerBar = document.getElementById('hungerBar');
+        const energyBar = document.getElementById('energyBar');
+        const moodBar = document.getElementById('moodBar');
+        const thoughtBubble = document.getElementById('thoughtBubble');
+        const avatarWrapper = document.getElementById('mattiCharacter');
+        const eyesLayer = document.getElementById('layer-eyes');
+        const mouthLayer = document.getElementById('layer-mouth');
+        const buttons = {
+            feed: document.getElementById('btnFeed'),
+            talk: document.getElementById('btnTalk'),
+            sleep: document.getElementById('btnSleep')
+        };
+
+        function updateBars() {
+            hungerBar.style.width = `${hunger}%`;
+            energyBar.style.width = `${energy}%`;
+            moodBar.style.width = `${mood}%`;
+        }
+
+        function showBubble(text, duration = 2200) {
+            thoughtBubble.textContent = text;
+            thoughtBubble.classList.add('visible');
+            setTimeout(() => thoughtBubble.classList.remove('visible'), duration);
+        }
+
+        // ────────────────────────────────
+        //  SOUND ENGINE (Web Audio API)
+        // ────────────────────────────────
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playTone(freq, type = 'sine', duration = 0.15, vol = 0.3) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function soundEat() { playTone(600, 'square', 0.1, 0.2); setTimeout(() => playTone(800, 'square', 0.1, 0.2), 100); }
+        function soundTalk() { playTone(400, 'triangle', 0.2, 0.3); setTimeout(() => playTone(500, 'triangle', 0.2, 0.3), 150); }
+        function soundSleep() { playTone(200, 'sine', 0.5, 0.2); }
+        function soundWake() { playTone(500, 'sine', 0.3, 0.3); setTimeout(() => playTone(700, 'sine', 0.2, 0.2), 200); }
+        function soundPet() { playTone(1000, 'sine', 0.08, 0.1); }
+
+        // ────────────────────────────────
+        //  PARTICLES
+        // ────────────────────────────────
+        function spawnParticles(emoji, count = 6) {
+            const rect = avatarWrapper.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 3;
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('span');
+                particle.className = 'particle';
+                particle.textContent = emoji;
+                particle.style.position = 'fixed';
+                particle.style.left = (centerX + (Math.random() - 0.5) * 100) + 'px';
+                particle.style.top = (centerY + (Math.random() - 0.5) * 50) + 'px';
+                particle.style.animationDuration = (1 + Math.random() * 0.8) + 's';
+                document.body.appendChild(particle);
+                setTimeout(() => particle.remove(), 1400);
+            }
+        }
+
+        // ────────────────────────────────
+        //  IDLE EXPRESSIONS
+        // ────────────────────────────────
+        let idleTimer = null;
+        function startIdleExpressions() {
+            clearInterval(idleTimer);
+            idleTimer = setInterval(() => {
+                if (isSleeping) return;
+                const rand = Math.random();
+                if (rand < 0.3) {
+                    // blink
+                    eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
+                    setTimeout(() => { if (!isSleeping) eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png"; }, 150);
+                } else if (rand < 0.5) {
+                    // quick mouth open
+                    mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth.png";
+                    setTimeout(() => { if (!isSleeping) mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png"; }, 200);
+                } else {
+                    // small jump
+                    avatarWrapper.style.transform = 'scale(1.05) translateY(-6px)';
+                    setTimeout(() => avatarWrapper.style.transform = '', 300);
+                }
+            }, 5000);
+        }
+        startIdleExpressions();
+
+        // ────────────────────────────────
+        //  STAT DECAY (GAME LOOP)
+        // ────────────────────────────────
+        function decayStats() {
+            if (isSleeping) {
+                // recovery during sleep
+                energy = Math.min(maxStat, energy + 0.8);
+                hunger = Math.max(minStat, hunger - 0.2);
+                mood = Math.min(maxStat, mood + 0.3);
+            } else {
+                hunger = Math.max(minStat, hunger - HUNGER_DECAY);
+                energy = Math.max(minStat, energy - ENERGY_DECAY);
+                mood = Math.max(minStat, mood - MOOD_DECAY);
+            }
+            updateBars();
+            checkAutoSleep();
+        }
+
+        setInterval(decayStats, 1000);
+
+        // ────────────────────────────────
+        //  ACTIONS
+        // ────────────────────────────────
+        function petFeed() {
+            if (isSleeping) return;
+            initAudio();
+            soundEat();
+            hunger = Math.min(maxStat, hunger + 20);
+            mood = Math.min(maxStat, mood + 5);
+            updateBars();
+            spawnParticles('🍎', 5);
+            showBubble('Μμμμ! Νόστιμο!');
+        }
+
+        function petTalk() {
+            if (isSleeping) return;
+            initAudio();
+            soundTalk();
+            const messages = [
+                "Γεια σου φίλε!", "Πεινάω λιγάκι...", "Θέλεις να παίξουμε;",
+                "Σ' αρέσει το καπέλο μου;", "Είσαι ο καλύτερος!", "Τι όμορφη μέρα!",
+                "Με αγαπάς; 🥺", "Χοπ χοπ χοπ!", "Έχω υπνηλία...", "Δώσε μου ένα σνακ!"
+            ];
+            const msg = messages[Math.floor(Math.random() * messages.length)];
+            showBubble(msg, 2500);
+            let isOpen = false;
+            talkInterval = setInterval(() => {
+                isOpen = !isOpen;
+                mouthLayer.src = isOpen ? "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth.png" : "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png";
+            }, 180);
+            setTimeout(() => {
+                clearInterval(talkInterval);
+                mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png";
+            }, 2500);
+            mood = Math.min(maxStat, mood + 10);
+            updateBars();
+            spawnParticles('💬', 3);
+        }
+
+        function petSleep() {
+            if (isSleeping) {
+                // wake up
+                isSleeping = false;
+                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png";
+                avatarWrapper.classList.remove('sleeping');
+                avatarWrapper.classList.add('ani-idle');
+                enableButtons(true);
+                soundWake();
+                showBubble('Καλημέρα! ☀️');
+                document.body.className = isNightTime() ? 'night-mode' : 'day-mode';
+            } else {
+                // go to sleep
+                isSleeping = true;
+                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
+                avatarWrapper.classList.add('sleeping');
+                avatarWrapper.classList.remove('ani-idle');
+                enableButtons(false);
+                soundSleep();
+                showBubble('Ζζζζ... Καληνύχτα!');
+            }
+        }
+
+        function enableButtons(enabled) {
+            const btns = [buttons.feed, buttons.talk, buttons.sleep];
+            btns.forEach(b => {
+                if (enabled) b.classList.remove('btn-disabled');
+                else b.classList.add('btn-disabled');
+            });
+        }
+
+        // ────────────────────────────────
+        //  PETTING (TOUCH / MOUSE)
+        // ────────────────────────────────
+        function handlePetStart(e) {
+            if (isSleeping) return;
+            e.preventDefault();
+            initAudio();
+            soundPet();
+            spawnParticles('❤️', 4);
+            mood = Math.min(maxStat, mood + 5);
+            updateBars();
+            showBubble('Χαχα! Γαργαλιέμαι!', 1200);
+        }
+
+        avatarWrapper.addEventListener('mousedown', handlePetStart);
+        avatarWrapper.addEventListener('touchstart', handlePetStart, { passive: false });
+
+        // ────────────────────────────────
+        //  DAY / NIGHT MODE
+        // ────────────────────────────────
+        function isNightTime() {
+            const hour = new Date().getHours();
+            return hour >= 21 || hour < 7; // night 21:00 - 07:00
+        }
+
+        function applyTimeMode() {
+            if (isNightTime()) {
+                document.body.className = 'night-mode';
+                if (!isSleeping) {
+                    // auto sleep at night if energy low
+                    if (energy < 30) {
+                        petSleep();
+                    }
+                }
+            } else {
+                document.body.className = 'day-mode';
+                if (isSleeping && energy > 80) {
+                    // auto wake up in morning
+                    petSleep(); // toggle wake
+                }
+            }
+        }
+
+        function checkAutoSleep() {
+            if (isNightTime() && !isSleeping && energy < 20) {
+                showBubble('Νυστάζω... Θα κοιμηθώ.', 2000);
+                setTimeout(() => { if (!isSleeping) petSleep(); }, 2500);
+            }
+        }
+
+        setInterval(applyTimeMode, 60000); // check every minute
+        applyTimeMode(); // initial
+
+        // ────────────────────────────────
+        //  TELEGRAM INTEGRATION
+        // ────────────────────────────────
+        function saveToCloud() {
+            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
+                const data = { hunger, energy, mood, isSleeping };
+                Telegram.WebApp.CloudStorage.setItem('aziraState', JSON.stringify(data));
+            }
+        }
+
+        function loadFromCloud() {
+            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
+                Telegram.WebApp.CloudStorage.getItem('aziraState', (err, value) => {
+                    if (!err && value) {
+                        try {
+                            const data = JSON.parse(value);
+                            hunger = data.hunger || 100;
+                            energy = data.energy || 100;
+                            mood = data.mood || 80;
+                            isSleeping = data.isSleeping || false;
+                            updateBars();
+                            if (isSleeping) {
+                                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
+                                avatarWrapper.classList.add('sleeping');
+                                avatarWrapper.classList.remove('ani-idle');
+                                enableButtons(false);
+                            }
+                        } catch(e) {}
+                    }
+                });
+            }
+        }
+
+        function shareState() {
+            const text = `🐾 Ο AZIRAM μου:\nΠείνα: ${Math.round(hunger)}% | Ενέργεια: ${Math.round(energy)}% | Διάθεση: ${Math.round(mood)}%\nΠαίξε κι εσύ!`;
+            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
+                Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`);
+            } else {
+                alert(text);
+            }
+        }
+
+        document.getElementById('shareBtn').addEventListener('click', shareState);
+
+        // Auto-save every 5 seconds
+        setInterval(saveToCloud, 5000);
+        loadFromCloud();
+
+        // Button listeners
+        buttons.feed.addEventListener('click', petFeed);
+        buttons.talk.addEventListener('click', petTalk);
+        buttons.sleep.addEventListener('click', petSleep);
+
+        // Initialize bars
+        updateBars();
     </script>
 </body>
 </html>
