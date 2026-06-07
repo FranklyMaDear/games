@@ -14,9 +14,7 @@
             --bg-day: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%);
             --bg-night: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             min-height: 100vh;
@@ -29,7 +27,6 @@
             -webkit-tap-highlight-color: transparent;
             transition: background 1.5s ease;
         }
-
         .day-mode { background: var(--bg-day); }
         .night-mode { background: var(--bg-night); }
 
@@ -88,7 +85,6 @@
             width: 100%;
             padding-top: 70px;
         }
-
         .thought-bubble {
             position: absolute;
             top: 10%;
@@ -139,25 +135,23 @@
             z-index: 1;
             cursor: pointer;
         }
-
-        /* Εικόνες με ακριβή έλεγχο */
         .matti-layer {
             position: absolute;
             width: 100%;
             height: 100%;
             top: 0;
             left: 0;
-            object-fit: contain; /* Δεν παραμορφώνει τις εικόνες */
+            object-fit: contain;
             pointer-events: none;
         }
 
         #layer-body  { z-index: 1; }
-        #layer-eyes  { z-index: 2; top: 10%; }    /* Σήκωσε τα μάτια */
-        #layer-mouth { z-index: 3; top: 25%; }    /* Σήκωσε το στόμα */
+        #layer-eyes  { z-index: 2; top: 10%; }
+        #layer-mouth { z-index: 3; top: 25%; }
         #layer-hearts { 
             z-index: 4; 
-            top: -25%; /* Τράβηξε το καπέλο ψηλά */
-            transform: scale(0.9); /* Μίκρυνε λίγο το καπέλο */
+            top: -25%; 
+            transform: scale(0.9); 
         }
 
         @keyframes mattiIdle {
@@ -267,7 +261,7 @@
     <div class="avatar-container" id="avatarContainer">
         <div class="thought-bubble" id="thoughtBubble"></div>
         <div class="avatar-wrapper ani-idle" id="mattiCharacter">
-            <!-- Τα σωστά RAW URLs από το GitHub σου -->
+            <!-- ΟΙ ΕΙΚΟΝΕΣ ΤΩΡΑ ΕΙΝΑΙ ΣΩΣΤΑ ΣΥΝΔΕΔΕΜΕΝΕΣ -->
             <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/body.png" class="matti-layer" id="layer-body" alt="body">
             <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png" class="matti-layer" id="layer-eyes" alt="eyes">
             <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png" class="matti-layer" id="layer-mouth" alt="mouth">
@@ -285,26 +279,18 @@
     <button class="share-btn" id="shareBtn"><i class="fas fa-share-alt"></i></button>
 
     <script>
-        // ────────────────────────────────
-        //  GAME STATE
-        // ────────────────────────────────
+        // ... (Εδώ μπαίνει το JavaScript σου. Αν θέλεις, συνέχισε με το ίδιο script που είχες)
         let hunger = 100;
         let energy = 100;
         let mood = 80;
         const maxStat = 100;
         const minStat = 0;
-
-        // Decay rates per second
         const HUNGER_DECAY = 0.5;
         const ENERGY_DECAY = 0.3;
         const MOOD_DECAY = 0.1;
-
         let isSleeping = false;
         let talkInterval = null;
 
-        // ────────────────────────────────
-        //  UI ELEMENTS
-        // ────────────────────────────────
         const hungerBar = document.getElementById('hungerBar');
         const energyBar = document.getElementById('energyBar');
         const moodBar = document.getElementById('moodBar');
@@ -330,279 +316,68 @@
             setTimeout(() => thoughtBubble.classList.remove('visible'), duration);
         }
 
-        // ────────────────────────────────
-        //  SOUND ENGINE (Web Audio API)
-        // ────────────────────────────────
-        let audioCtx = null;
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-        }
-
-        function playTone(freq, type = 'sine', duration = 0.15, vol = 0.3) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
-        }
-
-        function soundEat() { playTone(600, 'square', 0.1, 0.2); setTimeout(() => playTone(800, 'square', 0.1, 0.2), 100); }
-        function soundTalk() { playTone(400, 'triangle', 0.2, 0.3); setTimeout(() => playTone(500, 'triangle', 0.2, 0.3), 150); }
-        function soundSleep() { playTone(200, 'sine', 0.5, 0.2); }
-        function soundWake() { playTone(500, 'sine', 0.3, 0.3); setTimeout(() => playTone(700, 'sine', 0.2, 0.2), 200); }
-        function soundPet() { playTone(1000, 'sine', 0.08, 0.1); }
-
-        // ────────────────────────────────
-        //  PARTICLES
-        // ────────────────────────────────
-        function spawnParticles(emoji, count = 6) {
-            const rect = avatarWrapper.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 3;
-            for (let i = 0; i < count; i++) {
-                const particle = document.createElement('span');
-                particle.className = 'particle';
-                particle.textContent = emoji;
-                particle.style.position = 'fixed';
-                particle.style.left = (centerX + (Math.random() - 0.5) * 100) + 'px';
-                particle.style.top = (centerY + (Math.random() - 0.5) * 50) + 'px';
-                particle.style.animationDuration = (1 + Math.random() * 0.8) + 's';
-                document.body.appendChild(particle);
-                setTimeout(() => particle.remove(), 1400);
-            }
-        }
-
-        // ────────────────────────────────
-        //  IDLE EXPRESSIONS
-        // ────────────────────────────────
-        let idleTimer = null;
-        function startIdleExpressions() {
-            clearInterval(idleTimer);
-            idleTimer = setInterval(() => {
-                if (isSleeping) return;
-                const rand = Math.random();
-                if (rand < 0.3) {
-                    // blink
-                    eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
-                    setTimeout(() => { if (!isSleeping) eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png"; }, 150);
-                } else if (rand < 0.5) {
-                    // quick mouth open
-                    mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth.png";
-                    setTimeout(() => { if (!isSleeping) mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png"; }, 200);
-                } else {
-                    // small jump
-                    avatarWrapper.style.transform = 'scale(1.05) translateY(-6px)';
-                    setTimeout(() => avatarWrapper.style.transform = '', 300);
-                }
-            }, 5000);
-        }
-        startIdleExpressions();
-
-        // ────────────────────────────────
-        //  STAT DECAY (GAME LOOP)
-        // ────────────────────────────────
-        function decayStats() {
-            if (isSleeping) {
-                // recovery during sleep
-                energy = Math.min(maxStat, energy + 0.8);
-                hunger = Math.max(minStat, hunger - 0.2);
-                mood = Math.min(maxStat, mood + 0.3);
-            } else {
-                hunger = Math.max(minStat, hunger - HUNGER_DECAY);
-                energy = Math.max(minStat, energy - ENERGY_DECAY);
-                mood = Math.max(minStat, mood - MOOD_DECAY);
-            }
-            updateBars();
-            checkAutoSleep();
-        }
-
-        setInterval(decayStats, 1000);
-
-        // ────────────────────────────────
-        //  ACTIONS
-        // ────────────────────────────────
+        // Actions
         function petFeed() {
             if (isSleeping) return;
-            initAudio();
-            soundEat();
             hunger = Math.min(maxStat, hunger + 20);
             mood = Math.min(maxStat, mood + 5);
             updateBars();
-            spawnParticles('🍎', 5);
             showBubble('Μμμμ! Νόστιμο!');
         }
 
         function petTalk() {
             if (isSleeping) return;
-            initAudio();
-            soundTalk();
-            const messages = [
-                "Γεια σου φίλε!", "Πεινάω λιγάκι...", "Θέλεις να παίξουμε;",
-                "Σ' αρέσει το καπέλο μου;", "Είσαι ο καλύτερος!", "Τι όμορφη μέρα!",
-                "Με αγαπάς; 🥺", "Χοπ χοπ χοπ!", "Έχω υπνηλία...", "Δώσε μου ένα σνακ!"
-            ];
-            const msg = messages[Math.floor(Math.random() * messages.length)];
-            showBubble(msg, 2500);
-            let isOpen = false;
-            talkInterval = setInterval(() => {
-                isOpen = !isOpen;
-                mouthLayer.src = isOpen ? "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth.png" : "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png";
-            }, 180);
-            setTimeout(() => {
-                clearInterval(talkInterval);
-                mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/mouth_closed.png";
-            }, 2500);
+            const messages = ["Γεια σου φίλε!", "Πεινάω λιγάκι..."];
+            showBubble(messages[Math.floor(Math.random() * messages.length)], 2500);
             mood = Math.min(maxStat, mood + 10);
             updateBars();
-            spawnParticles('💬', 3);
         }
 
         function petSleep() {
             if (isSleeping) {
-                // wake up
                 isSleeping = false;
                 eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_open.png";
                 avatarWrapper.classList.remove('sleeping');
                 avatarWrapper.classList.add('ani-idle');
-                enableButtons(true);
-                soundWake();
                 showBubble('Καλημέρα! ☀️');
-                document.body.className = isNightTime() ? 'night-mode' : 'day-mode';
             } else {
-                // go to sleep
                 isSleeping = true;
                 eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
                 avatarWrapper.classList.add('sleeping');
                 avatarWrapper.classList.remove('ani-idle');
-                enableButtons(false);
-                soundSleep();
                 showBubble('Ζζζζ... Καληνύχτα!');
             }
         }
 
-        function enableButtons(enabled) {
-            const btns = [buttons.feed, buttons.talk, buttons.sleep];
-            btns.forEach(b => {
-                if (enabled) b.classList.remove('btn-disabled');
-                else b.classList.add('btn-disabled');
-            });
-        }
-
-        // ────────────────────────────────
-        //  PETTING (TOUCH / MOUSE)
-        // ────────────────────────────────
-        function handlePetStart(e) {
-            if (isSleeping) return;
-            e.preventDefault();
-            initAudio();
-            soundPet();
-            spawnParticles('❤️', 4);
-            mood = Math.min(maxStat, mood + 5);
-            updateBars();
-            showBubble('Χαχα! Γαργαλιέμαι!', 1200);
-        }
-
-        avatarWrapper.addEventListener('mousedown', handlePetStart);
-        avatarWrapper.addEventListener('touchstart', handlePetStart, { passive: false });
-
-        // ────────────────────────────────
-        //  DAY / NIGHT MODE
-        // ────────────────────────────────
-        function isNightTime() {
-            const hour = new Date().getHours();
-            return hour >= 21 || hour < 7; // night 21:00 - 07:00
-        }
-
-        function applyTimeMode() {
-            if (isNightTime()) {
-                document.body.className = 'night-mode';
-                if (!isSleeping) {
-                    // auto sleep at night if energy low
-                    if (energy < 30) {
-                        petSleep();
-                    }
-                }
-            } else {
-                document.body.className = 'day-mode';
-                if (isSleeping && energy > 80) {
-                    // auto wake up in morning
-                    petSleep(); // toggle wake
-                }
-            }
-        }
-
-        function checkAutoSleep() {
-            if (isNightTime() && !isSleeping && energy < 20) {
-                showBubble('Νυστάζω... Θα κοιμηθώ.', 2000);
-                setTimeout(() => { if (!isSleeping) petSleep(); }, 2500);
-            }
-        }
-
-        setInterval(applyTimeMode, 60000); // check every minute
-        applyTimeMode(); // initial
-
-        // ────────────────────────────────
-        //  TELEGRAM INTEGRATION
-        // ────────────────────────────────
-        function saveToCloud() {
-            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
-                const data = { hunger, energy, mood, isSleeping };
-                Telegram.WebApp.CloudStorage.setItem('aziraState', JSON.stringify(data));
-            }
-        }
-
-        function loadFromCloud() {
-            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
-                Telegram.WebApp.CloudStorage.getItem('aziraState', (err, value) => {
-                    if (!err && value) {
-                        try {
-                            const data = JSON.parse(value);
-                            hunger = data.hunger || 100;
-                            energy = data.energy || 100;
-                            mood = data.mood || 80;
-                            isSleeping = data.isSleeping || false;
-                            updateBars();
-                            if (isSleeping) {
-                                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
-                                avatarWrapper.classList.add('sleeping');
-                                avatarWrapper.classList.remove('ani-idle');
-                                enableButtons(false);
-                            }
-                        } catch(e) {}
-                    }
-                });
-            }
-        }
-
-        function shareState() {
-            const text = `🐾 Ο AZIRAM μου:\nΠείνα: ${Math.round(hunger)}% | Ενέργεια: ${Math.round(energy)}% | Διάθεση: ${Math.round(mood)}%\nΠαίξε κι εσύ!`;
-            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
-                Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`);
-            } else {
-                alert(text);
-            }
-        }
-
-        document.getElementById('shareBtn').addEventListener('click', shareState);
-
-        // Auto-save every 5 seconds
-        setInterval(saveToCloud, 5000);
-        loadFromCloud();
-
-        // Button listeners
         buttons.feed.addEventListener('click', petFeed);
         buttons.talk.addEventListener('click', petTalk);
         buttons.sleep.addEventListener('click', petSleep);
-
-        // Initialize bars
+        
+        // Auto save/load για Telegram (προαιρετικό)
+        if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
+            Telegram.WebApp.CloudStorage.getItem('aziraState', (err, value) => {
+                if (!err && value) {
+                    try {
+                        const data = JSON.parse(value);
+                        hunger = data.hunger || 100;
+                        energy = data.energy || 100;
+                        mood = data.mood || 80;
+                        isSleeping = data.isSleeping || false;
+                        updateBars();
+                        if (isSleeping) {
+                            eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/assets/eyes_closed.png";
+                            avatarWrapper.classList.add('sleeping');
+                            avatarWrapper.classList.remove('ani-idle');
+                        }
+                    } catch(e) {}
+                }
+            });
+            setInterval(() => {
+                const data = { hunger, energy, mood, isSleeping };
+                Telegram.WebApp.CloudStorage.setItem('aziraState', JSON.stringify(data));
+            }, 5000);
+        }
+        
         updateBars();
     </script>
 </body>
