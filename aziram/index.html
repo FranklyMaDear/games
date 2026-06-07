@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AZIRAM Game Board</title>
+    <title>AZIRAM Board</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -20,48 +20,40 @@
             padding: 10px;
         }
 
-        /* Header */
-        .header {
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
+        /* Stats */
+        .stats-container {
+            display: flex; gap: 10px; width: 100%; max-width: 500px;
             background: rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
             border-radius: 20px;
-            margin-bottom: 15px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
         }
-        .header h1 { font-size: 1.3rem; font-weight: bold; }
-        .header .stars {
-            background: rgba(255,215,0,0.2);
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            color: #fbbf24;
+        .stat {
+            flex: 1; display: flex; align-items: center; gap: 5px;
+            font-size: 0.7rem; font-weight: bold;
         }
+        .bar-bg { flex: 1; height: 6px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 100%; transition: width 0.5s ease; }
+        .hunger-fill { background: #f43f5e; }
+        .energy-fill { background: #3b82f6; }
+        .mood-fill { background: #fbbf24; }
 
         /* Board */
         .board-container {
-            width: 100%;
-            max-width: 500px;
+            width: 100%; max-width: 500px;
             position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 20px;
+            aspect-ratio: 1 / 1;
+            background: rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 10px;
         }
         .board {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
+            gap: 6px;
             width: 100%;
-            aspect-ratio: 1 / 1;
-            background: rgba(255,255,255,0.05);
-            border-radius: 24px;
-            padding: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            height: 100%;
         }
         .tile {
             background: rgba(255,255,255,0.1);
@@ -69,248 +61,181 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 0.8rem;
-            font-weight: bold;
             position: relative;
-            aspect-ratio: 1 / 1;
-            transition: 0.3s;
             border: 1px solid rgba(255,255,255,0.1);
-        }
-        .tile.occupied {
-            background: rgba(59,130,246,0.4);
-            border: 2px solid #3b82f6;
-            box-shadow: 0 0 20px rgba(59,130,246,0.3);
-        }
-        .tile .pawn {
-            position: absolute;
-            font-size: 1.8rem;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            filter: drop-shadow(0 0 8px rgba(255,255,255,0.5));
-        }
-        .tile .reward {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            font-size: 0.6rem;
-            background: rgba(255,215,0,0.8);
-            border-radius: 50%;
-            padding: 2px 4px;
-            color: #1e293b;
-            font-weight: bold;
         }
         .tile.special {
             background: rgba(251,191,36,0.2);
             border-color: #fbbf24;
         }
+        .tile .reward {
+            position: absolute; bottom: 2px; right: 2px;
+            font-size: 0.6rem; background: #fbbf24; border-radius: 50%;
+            padding: 2px 4px; color: #1e293b; font-weight: bold;
+        }
+
+        /* Avatar Pawn */
+        .avatar-pawn {
+            position: absolute;
+            width: 60%;
+            height: 60%;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+        .avatar-pawn img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(59,130,246,0.5));
+        }
+        .avatar-pawn.bounce {
+            animation: bounce 0.5s ease;
+        }
+        @keyframes bounce {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.3); }
+            60% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
 
         /* Roll Button */
         .roll-btn {
             background: linear-gradient(135deg, #f43f5e, #e11d48);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            padding: 18px 40px;
-            font-size: 1.5rem;
-            font-weight: bold;
+            color: white; border: none; border-radius: 50px;
+            padding: 18px 40px; font-size: 1.5rem; font-weight: bold;
             box-shadow: 0 8px 30px rgba(228, 45, 74, 0.4);
-            cursor: pointer;
-            transition: 0.2s;
-            width: 100%;
-            max-width: 300px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
+            cursor: pointer; transition: 0.2s;
+            width: 100%; max-width: 300px;
+            margin: 15px 0;
         }
         .roll-btn:active { transform: scale(0.95); }
-        .roll-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 15px;
-            margin-top: 15px;
-            width: 100%;
-            max-width: 500px;
+        /* Bottom Buttons */
+        .bottom-bar {
+            display: flex; gap: 15px; width: 100%; max-width: 500px;
+            padding-bottom: 20px;
         }
         .action-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 16px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: 0.2s;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            color: white;
+            flex: 1; padding: 12px; border: none; border-radius: 16px;
+            font-weight: bold; font-size: 0.9rem; cursor: pointer;
+            background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+            color: white; transition: 0.2s;
         }
         .action-btn:active { transform: scale(0.95); }
-        .action-btn i { margin-right: 8px; }
 
-        /* Dice animation */
-        .dice-result {
-            font-size: 3rem;
-            margin: 10px 0;
-            text-align: center;
-            min-height: 60px;
-        }
-
-        /* Responsive */
-        @media (max-width: 480px) {
-            .board { gap: 5px; padding: 10px; }
-            .tile { font-size: 0.6rem; }
-            .tile .pawn { font-size: 1.4rem; }
+        /* Stars display */
+        .stars-display {
+            background: rgba(255,215,0,0.2);
+            padding: 5px 20px; border-radius: 20px;
+            font-weight: bold; color: #fbbf24;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
-    <div class="header">
-        <h1>✨ AZIRAM</h1>
-        <div class="stars"><i class="fas fa-star"></i> <span id="starCount">0</span></div>
+    <!-- Stats -->
+    <div class="stats-container">
+        <div class="stat"><i class="fas fa-utensils"></i><div class="bar-bg"><div class="bar-fill hunger-fill" id="hungerBar"></div></div></div>
+        <div class="stat"><i class="fas fa-bolt"></i><div class="bar-bg"><div class="bar-fill energy-fill" id="energyBar"></div></div></div>
+        <div class="stat"><i class="fas fa-heart"></i><div class="bar-bg"><div class="bar-fill mood-fill" id="moodBar"></div></div></div>
     </div>
+
+    <!-- Stars -->
+    <div class="stars-display">⭐ <span id="starCount">0</span></div>
 
     <!-- Board -->
     <div class="board-container">
         <div class="board" id="board"></div>
+        <!-- Το Avatar θα τοποθετηθεί εδώ από το JS -->
+        <div class="avatar-pawn" id="avatarPawn">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png" id="pawnBody">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png" id="pawnEyes" style="position:absolute;width:80%;top:10%;">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png" id="pawnMouth" style="position:absolute;width:80%;top:35%;">
+            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/hearts.png" id="pawnHearts" style="position:absolute;width:80%;top:-20%;">
+        </div>
     </div>
 
-    <!-- Dice & Roll -->
-    <div class="dice-result" id="diceDisplay">🎲</div>
-    <button class="roll-btn" id="rollBtn"><i class="fas fa-dice"></i> ROLL</button>
+    <!-- Roll -->
+    <button class="roll-btn" id="rollBtn">🎲 ROLL</button>
 
-    <!-- Navigation -->
-    <div class="action-buttons">
-        <button class="action-btn" id="avatarBtn"><i class="fas fa-arrow-left"></i> Avatar</button>
-        <button class="action-btn" id="shopBtn"><i class="fas fa-store"></i> Shop</button>
+    <!-- Bottom Actions -->
+    <div class="bottom-bar">
+        <button class="action-btn" id="btnFeed"><i class="fas fa-utensils"></i> Feed</button>
+        <button class="action-btn" id="btnTalk"><i class="fas fa-comment"></i> Talk</button>
+        <button class="action-btn" id="btnSleep"><i class="fas fa-moon"></i> Sleep</button>
     </div>
 
     <script>
-        // ─── GAME STATE ───
-        const TOTAL_TILES = 25;
-        let playerPosition = 0; // 0-based
+        // ─── STATE ───
+        let position = 0; // 0-24
         let stars = 0;
+        let hunger = 100, energy = 100, mood = 80;
+        let isSleeping = false;
         let isRolling = false;
-        let positions = [];
 
         // ─── DOM ───
-        const boardEl = document.getElementById('board');
+        const board = document.getElementById('board');
+        const pawn = document.getElementById('avatarPawn');
         const starDisplay = document.getElementById('starCount');
-        const diceDisplay = document.getElementById('diceDisplay');
-        const rollBtn = document.getElementById('rollBtn');
+        const hungerBar = document.getElementById('hungerBar');
+        const energyBar = document.getElementById('energyBar');
+        const moodBar = document.getElementById('moodBar');
+        const eyesLayer = document.getElementById('pawnEyes');
+        const mouthLayer = document.getElementById('pawnMouth');
 
-        // ─── LOAD SAVED DATA ───
-        function loadData() {
-            const saved = localStorage.getItem('aziramGameData');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    stars = data.stars || 0;
-                    playerPosition = data.position || 0;
-                } catch(e) {}
-            }
-            updateStars();
-        }
-
-        function saveData() {
-            const data = { stars, position: playerPosition };
-            localStorage.setItem('aziramGameData', JSON.stringify(data));
-            // Sync with Telegram Cloud if available
-            if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
-                Telegram.WebApp.CloudStorage.setItem('aziramGameData', JSON.stringify(data));
-            }
-        }
-
-        function updateStars() {
-            starDisplay.textContent = stars;
-        }
+        const TOTAL_TILES = 25;
+        const COLS = 5;
 
         // ─── BUILD BOARD ───
         function buildBoard() {
-            boardEl.innerHTML = '';
+            board.innerHTML = '';
             for (let i = 0; i < TOTAL_TILES; i++) {
                 const tile = document.createElement('div');
                 tile.className = 'tile';
-                tile.dataset.index = i;
-
-                // Random reward (1-5 stars) for some tiles
-                if (i > 0 && i < TOTAL_TILES - 1 && Math.random() < 0.3) {
-                    const reward = Math.floor(Math.random() * 5) + 1;
+                if (i > 0 && i % 4 === 0) {
                     tile.classList.add('special');
-                    const rewardSpan = document.createElement('span');
-                    rewardSpan.className = 'reward';
-                    rewardSpan.textContent = `⭐${reward}`;
-                    tile.appendChild(rewardSpan);
-                    tile.dataset.reward = reward;
+                    const reward = document.createElement('span');
+                    reward.className = 'reward';
+                    reward.textContent = '⭐';
+                    tile.appendChild(reward);
                 }
-
-                // Pawn
-                if (i === playerPosition) {
-                    tile.classList.add('occupied');
-                    const pawn = document.createElement('span');
-                    pawn.className = 'pawn';
-                    pawn.textContent = '🧸';
-                    tile.appendChild(pawn);
-                }
-
-                // Tile number
-                const num = document.createElement('span');
-                num.style.position = 'absolute';
-                num.style.top = '4px';
-                num.style.left = '4px';
-                num.style.fontSize = '0.5rem';
-                num.style.opacity = '0.5';
-                num.textContent = i + 1;
-                tile.appendChild(num);
-
-                boardEl.appendChild(tile);
+                board.appendChild(tile);
             }
+            updatePawnPosition();
         }
 
         // ─── MOVE PAWN ───
+        function updatePawnPosition() {
+            const row = Math.floor(position / COLS);
+            const col = position % COLS;
+            const tileSize = 100 / COLS;
+            pawn.style.left = (col * tileSize + tileSize/2 - 30) + '%';
+            pawn.style.top = (row * tileSize + tileSize/2 - 30) + '%';
+        }
+
         function movePawn(steps) {
-            const oldPos = playerPosition;
-            playerPosition = (playerPosition + steps) % TOTAL_TILES;
-            
-            // Update board
-            const tiles = boardEl.querySelectorAll('.tile');
-            tiles.forEach(t => t.classList.remove('occupied'));
-            
-            // Remove old pawn
-            const oldPawn = boardEl.querySelector('.pawn');
-            if (oldPawn) oldPawn.remove();
+            position = (position + steps) % TOTAL_TILES;
+            // Bounce animation
+            pawn.classList.remove('bounce');
+            void pawn.offsetWidth; // force reflow
+            pawn.classList.add('bounce');
+            updatePawnPosition();
 
-            // Add new pawn
-            const newTile = tiles[playerPosition];
-            newTile.classList.add('occupied');
-            const pawn = document.createElement('span');
-            pawn.className = 'pawn';
-            pawn.textContent = '🧸';
-            newTile.appendChild(pawn);
-
-            // Check reward
-            const reward = parseInt(newTile.dataset.reward);
-            if (reward) {
-                stars += reward;
-                updateStars();
-                showBubble(`+${reward} ⭐!`);
-                saveData();
-            }
-
-            // Check if passed start
-            if (playerPosition < oldPos) {
-                // Passed start -> bonus
+            // Check rewards
+            if (position > 0 && position % 4 === 0) {
                 stars += 5;
-                updateStars();
-                showBubble('Πέρασες την αφετηρία! +5 ⭐');
-                saveData();
+                showBubble('+5 ⭐!');
             }
-
+            // Bonus for passing start
+            if (position < steps) {
+                stars += 3;
+                showBubble('+3 ⭐ Bonus!');
+            }
+            updateStars();
             saveData();
         }
 
@@ -318,87 +243,135 @@
         function rollDice() {
             if (isRolling) return;
             isRolling = true;
-            rollBtn.disabled = true;
-            diceDisplay.textContent = '🎲';
+            const btn = document.getElementById('rollBtn');
+            btn.disabled = true;
+            btn.textContent = '🎲 ...';
 
             let count = 0;
             const interval = setInterval(() => {
-                const rand = Math.floor(Math.random() * 6) + 1;
-                const emojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-                diceDisplay.textContent = emojis[rand-1];
                 count++;
                 if (count > 10) {
                     clearInterval(interval);
                     const result = Math.floor(Math.random() * 6) + 1;
-                    diceDisplay.textContent = `🎲 ${result}`;
+                    btn.textContent = `🎲 ${result}`;
                     movePawn(result);
                     isRolling = false;
-                    rollBtn.disabled = false;
+                    btn.disabled = false;
                 }
-            }, 80);
+            }, 100);
         }
 
-        // ─── BUBBLE NOTIFICATION ───
+        // ─── STATS ───
+        function updateBars() {
+            hungerBar.style.width = hunger + '%';
+            energyBar.style.width = energy + '%';
+            moodBar.style.width = mood + '%';
+        }
+
+        function updateStars() {
+            starDisplay.textContent = stars;
+        }
+
+        // ─── BUBBLE ───
         function showBubble(text, duration = 2000) {
-            const existing = document.querySelector('.bubble-notification');
-            if (existing) existing.remove();
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble-notification';
-            bubble.style.cssText = `
-                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                background: rgba(0,0,0,0.8); color: white; padding: 20px 30px;
-                border-radius: 20px; font-size: 1.5rem; font-weight: bold;
+            const el = document.createElement('div');
+            el.style.cssText = `
+                position: fixed; top: 30%; left: 50%; transform: translateX(-50%);
+                background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
+                border-radius: 20px; font-size: 1.2rem; font-weight: bold;
                 z-index: 100; backdrop-filter: blur(10px);
                 animation: fadeInOut ${duration}ms ease forwards;
             `;
-            bubble.textContent = text;
-            document.body.appendChild(bubble);
-            setTimeout(() => bubble.remove(), duration);
+            el.textContent = text;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), duration);
         }
 
-        // ─── ANIMATION ───
+        // ─── ACTIONS ───
+        document.getElementById('btnFeed').addEventListener('click', () => {
+            if(isSleeping) return;
+            hunger = Math.min(100, hunger + 20);
+            mood = Math.min(100, mood + 5);
+            updateBars();
+            showBubble('Μμμ! Νόστιμο 🍎');
+        });
+
+        document.getElementById('btnTalk').addEventListener('click', () => {
+            if(isSleeping) return;
+            mood = Math.min(100, mood + 10);
+            updateBars();
+            showBubble('Γεια σου! 💬');
+            // Ανοιγοκλείνει το στόμα
+            let open = false;
+            const interval = setInterval(() => {
+                open = !open;
+                mouthLayer.src = open ? 
+                    "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth.png" : 
+                    "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
+            }, 200);
+            setTimeout(() => {
+                clearInterval(interval);
+                mouthLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
+            }, 2000);
+        });
+
+        document.getElementById('btnSleep').addEventListener('click', () => {
+            if (isSleeping) {
+                isSleeping = false;
+                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png";
+                showBubble('Καλημέρα! ☀️');
+            } else {
+                isSleeping = true;
+                eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
+                showBubble('Ζζζζ... Καληνύχτα 🌙');
+            }
+        });
+
+        document.getElementById('rollBtn').addEventListener('click', rollDice);
+
+        // ─── SAVE / LOAD ───
+        function saveData() {
+            localStorage.setItem('aziramBoard', JSON.stringify({position, stars, hunger, energy, mood, isSleeping}));
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('aziramBoard');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    position = data.position || 0;
+                    stars = data.stars || 0;
+                    hunger = data.hunger || 100;
+                    energy = data.energy || 100;
+                    mood = data.mood || 80;
+                    isSleeping = data.isSleeping || false;
+                    updateBars();
+                    updateStars();
+                    updatePawnPosition();
+                    if (isSleeping) {
+                        eyesLayer.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // ─── ANIMATION STYLE ───
         const style = document.createElement('style');
         style.textContent = `
             @keyframes fadeInOut {
-                0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-                20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-                80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-                100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+                20% { opacity: 1; transform: translateX(-50%) scale(1); }
+                80% { opacity: 1; transform: translateX(-50%) scale(1); }
+                100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
             }
         `;
         document.head.appendChild(style);
 
-        // ─── EVENTS ───
-        rollBtn.addEventListener('click', rollDice);
-        document.getElementById('avatarBtn').addEventListener('click', () => {
-            window.location.href = 'index.html';
-        });
-        document.getElementById('shopBtn').addEventListener('click', () => {
-            window.location.href = 'index.html?shop=1';
-        });
+        // ─── INIT ───
+        loadData();
+        buildBoard();
 
-        // ─── TELEGRAM CLOUD SYNC ───
-        if (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) {
-            Telegram.WebApp.CloudStorage.getItem('aziramGameData', (err, value) => {
-                if (!err && value) {
-                    try {
-                        const data = JSON.parse(value);
-                        stars = data.stars || 0;
-                        playerPosition = data.position || 0;
-                        updateStars();
-                        buildBoard();
-                    } catch(e) {}
-                } else {
-                    loadData();
-                    buildBoard();
-                }
-            });
-        } else {
-            loadData();
-            buildBoard();
-        }
-
-        // Auto save every 10 seconds
+        // Auto save every 10s
         setInterval(saveData, 10000);
     </script>
 </body>
