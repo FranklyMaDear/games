@@ -45,7 +45,7 @@
             animation: jellyPulse 2.5s infinite ease-in-out;
         }
         @keyframes jellyPulse {
-            0% { transform: scale(1); opacity: 0.7; }
+            0 { transform: scale(1); opacity: 0.7; }
             50% { transform: scale(1.05); opacity: 1; }
             100% { transform: scale(1); opacity: 0.7; }
         }
@@ -59,7 +59,7 @@
     </div>
 
     <script>
-        const { Engine, Render, Runner, Composites, MouseConstraint, Mouse, Composite, Bodies, Constraint, Events } = Matter;
+        const { Engine, Render, Runner, Composites, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
 
         const engine = Engine.create({ gravity: { y: 0.6 } });
         const world = engine.world;
@@ -91,53 +91,34 @@
         const ceiling = Bodies.rectangle(width / 2, -30, width * 2, 60, wallOptions);
         Composite.add(world, [floor, leftWall, rightWall, ceiling]);
 
-        // Φόρτωση εικόνων σε αντικείμενα Image για custom σχεδίαση στο Canvas
+        // Φόρτωση εικόνων
         const imgBody = new Image();
         imgBody.src = 'body.png';
         const imgEyes = new Image();
         imgEyes.src = 'eyes_open.png';
 
-        // Δημιουργία Soft Body (Το "σκελετικό" πλέγμα του ζελέ)
+        // Δημιουργία Soft Body (Πλέγμα 4x4)
         const centerX = width / 2;
         const centerY = height / 2;
         const jellyScale = Math.min(width, height) * 0.0012;
 
-        // Φτιάχνουμε ένα κυκλικό πλέγμα σωματιδίων (πιο εύκολο στο stretch) χωρίς εσωτερικά sprites
         const jellyAvatar = Composites.softBody(centerX - 80, centerY - 80, 4, 4, 0, 0, true, 22, {
             particleRadius: 2,
             frictionAir: 0.04,
-            render: { visible: false } // Κρύβουμε τα σωματίδια
+            render: { visible: false }
         }, {
             stiffness: 0.4,
-            render: { visible: false } // Κρύβουμε τα ελατήρια
+            render: { visible: false }
         });
 
         Composite.add(world, jellyAvatar);
 
-        // Βρίσκουμε τα εξωτερικά σωματίδια για να ξέρουμε το περίγραμμα
-        // Στο 4x4, οι εξωτερικοί δείκτες είναι μια συγκεκριμένη σειρά
+        // Δείκτες εξωτερικού περιγράμματος για τη σχεδίαση της καρδιάς
         const contourIndices = [0, 1, 2, 3, 7, 11, 15, 14, 13, 12, 8, 4];
         
-        // Κεντρικό σωματίδιο για τα μάτια
-        const centerParticle = jellyAvatar.bodies[5]; 
-
-        // Δημιουργία των Ματιών ως ξεχωριστό σώμα φυσικής
-        const eyesWidth = 100 * jellyScale;
-        const eyesHeight = 50 * jellyScale;
-        const eyes = Bodies.rectangle(centerParticle.position.x, centerParticle.position.y - 10, eyesWidth, eyesHeight, {
-            frictionAir: 0.02,
-            render: { visible: false } // Θα το σχεδιάσουμε χειροκίνητα για τέλειο overlay
-        });
-        Composite.add(world, eyes);
-
-        // Σύνδεση ματιών με το κέντρο του ζελέ
-        const eyeConstraint = Constraint.create({
-            bodyA: centerParticle,
-            bodyB: eyes,
-            stiffness: 0.9,
-            render: { visible: false }
-        });
-        Composite.add(world, eyeConstraint);
+        // Ορίζουμε δύο σταθερά σωματίδια για να υπολογίζουμε τη στροφή (angle) των ματιών
+        const centerParticle = jellyAvatar.bodies[5];  // Το κέντρο
+        const topParticle = jellyAvatar.bodies[1];     // Το πάνω κεντρικό σωματίδιο
 
         // Έλεγχος αφής
         const mouse = Mouse.create(render.canvas);
@@ -151,12 +132,11 @@
         Composite.add(world, mouseConstraint);
         render.mouse = mouse;
 
-        // --- CUSTOM RENDERER (Εδώ γίνεται η μαγεία του ζελέ) ---
-        // Ακούμε κάθε frame αφού τελειώσει η φυσική και σχεδιάζουμε εμείς πάνω στο canvas
+        // --- CUSTOM RENDERER ---
         Events.on(render, 'afterRender', function() {
             const context = render.context;
             
-            // 1. Υπολογισμός κέντρου και διαστάσεων του ζελέ σώματος
+            // Υπολογισμός ορίων του σώματος
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             jellyAvatar.bodies.forEach(b => {
                 if (b.position.x < minX) minX = b.position.x;
@@ -172,7 +152,7 @@
 
             context.save();
             
-            // 2. Σχεδίαση της Καρδιάς με βάση το παραμορφωμένο σχήμα
+            // 1. Σχεδίαση και Clip του σώματος (body.png)
             context.beginPath();
             contourIndices.forEach((idx, i) => {
                 const p = jellyAvatar.bodies[idx].position;
@@ -180,11 +160,8 @@
                 else context.lineTo(p.x, p.y);
             });
             context.closePath();
-            
-            // Δημιουργούμε ένα clip mask με βάση το σχήμα του ζελέ
             context.clip();
             
-            // Σχεδιάζουμε το body.png τεντωμένο στις τρέχουσες διαστάσεις του ζελέ
             if (imgBody.complete) {
                 context.drawImage(
                     imgBody, 
@@ -196,15 +173,26 @@
             }
             context.restore();
 
-            // 3. Σχεδίαση των ματιών (eyes_open.png) πάνω από το σώμα
+            // 2. Σχεδίαση των Ματιών (eyes_open.png) - Απόλυτα κλειδωμένα στο σώμα
             if (imgEyes.complete) {
                 context.save();
-                context.translate(eyes.position.x, eyes.position.y);
-                context.rotate(eyes.angle);
+                
+                // Τα μάτια ακολουθούν ακριβώς τη θέση του κεντρικού σωματιδίου
+                context.translate(centerParticle.position.x, centerParticle.position.y);
+                
+                // Υπολογισμός δυναμικής γωνίας με βάση τη σχέση κεντρικού και πάνω σωματιδίου
+                // Έτσι, αν η καρδιά γείρει, τα μάτια γέρνουν μαζί της στον ίδιο ακριβώς βαθμό
+                const angle = Math.atan2(topParticle.position.y - centerParticle.position.y, topParticle.position.x - centerParticle.position.x) + Math.PI / 2;
+                context.rotate(angle);
+
+                // Μέγεθος ματιών ανάλογα με το τρέχον μέγεθος του ζελέ για να μικραίνουν/μεγαλώνουν μαζί του
+                const eyesWidth = currentWidth * 0.25;
+                const eyesHeight = currentHeight * 0.15;
+
                 context.drawImage(
                     imgEyes, 
                     -eyesWidth, 
-                    -eyesHeight, 
+                    -eyesHeight - (currentHeight * 0.05), // Μικρή μετατόπιση προς τα πάνω για να κάθονται σωστά στο πρόσωπο
                     eyesWidth * 2, 
                     eyesHeight * 2
                 );
