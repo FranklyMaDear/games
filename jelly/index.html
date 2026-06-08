@@ -2,8 +2,8 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jelly Heart Physics Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jelly Avatar HTML5 Game</title>
     <style>
         * {
             box-sizing: border-box;
@@ -11,16 +11,15 @@
             padding: 0;
         }
         body {
-            background-color: #111;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
         }
         #canvas-container {
             width: 100%;
@@ -32,47 +31,42 @@
             width: 100%;
             height: 100%;
         }
-        .instructions {
+        .ui-overlay {
             position: absolute;
             top: 20px;
             text-align: center;
             width: 100%;
             pointer-events: none;
-            font-size: 18px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            font-size: 20px;
             font-weight: bold;
             color: #ff4a75;
-            animation: pulse 2s infinite;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            animation: jellyPulse 2.5s infinite ease-in-out;
         }
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
+        @keyframes jellyPulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
         }
     </style>
-    <!-- Φόρτωση του Matter.js από CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 </head>
 <body>
 
     <div id="canvas-container">
-        <div class="instructions">Ζούληξε και τράβα τη Ζελέ Καρδιά!</div>
+        <div class="ui-overlay">ΖΟΥΛΗΞΕ ΤΟ ΖΕΛΕ!</div>
     </div>
 
     <script>
-        // Αρχικοποίηση των modules του Matter.js
-        const { Engine, Render, Runner, Composites, Common, MouseConstraint, Mouse, Composite, Bodies, Body, Constraint } = Matter;
+        const { Engine, Render, Runner, Composites, MouseConstraint, Mouse, Composite, Bodies, Constraint, Events } = Matter;
 
-        // Δημιουργία της μηχανής φυσικής
-        const engine = Engine.create({
-            gravity: { y: 0.4 } // Χαμηλή βαρύτητα για εφέ "γλυκιάς" κίνησης
-        });
+        const engine = Engine.create({ gravity: { y: 0.6 } });
         const world = engine.world;
 
-        // Ρύθμιση του Canvas και του Renderer
         const container = document.getElementById('canvas-container');
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        let width = window.innerWidth;
+        let height = window.innerHeight;
 
         const render = Render.create({
             element: container,
@@ -80,70 +74,159 @@
             options: {
                 width: width,
                 height: height,
-                wireframes: false, // Θέλουμε γεμάτα σχήματα και όχι απλές γραμμές
-                background: '#141414',
-                showAngleIndicator: false
+                wireframes: false, 
+                background: '#141414'
             }
         });
-
         Render.run(render);
 
-        // Δημιουργία Runner
         const runner = Runner.create();
         Runner.run(runner, engine);
 
-        // Προσθήκη ορίων (τοίχοι και πάτωμα) ώστε να μην πέσει η καρδιά έξω από την οθόνη
-        const boundaryOptions = { isStatic: true, render: { fillStyle: '#222' } };
-        Composite.add(world, [
-            Bodies.rectangle(width / 2, height + 30, width, 60, boundaryOptions), // Πάτωμα
-            Bodies.rectangle(-30, height / 2, 60, height, boundaryOptions),      // Αριστερός τοίχος
-            Bodies.rectangle(width + 30, height / 2, 60, height, boundaryOptions) // Δεξιός τοίχος
-        ]);
+        // Αόρατα όρια οθόνης
+        const wallOptions = { isStatic: true, render: { visible: false } };
+        const floor = Bodies.rectangle(width / 2, height + 30, width * 2, 60, wallOptions);
+        const leftWall = Bodies.rectangle(-30, height / 2, 60, height * 2, wallOptions);
+        const rightWall = Bodies.rectangle(width + 30, height / 2, 60, height * 2, wallOptions);
+        const ceiling = Bodies.rectangle(width / 2, -30, width * 2, 60, wallOptions);
+        Composite.add(world, [floor, leftWall, rightWall, ceiling]);
 
-        // --- ΔΗΜΙΟΥΡΓΙΑ SOFT BODY (ΖΕΛΕ ΚΑΡΔΙΑ) ---
-        // Χρησιμοποιούμε έναν κύκλο από σωματίδια ενωμένα με ελατήρια (Constraints) 
-        // που συμπεριφέρεται ακριβώς σαν ζελέ πλαστελίνη
+        // Φόρτωση εικόνων σε αντικείμενα Image για custom σχεδίαση στο Canvas
+        const imgBody = new Image();
+        imgBody.src = 'body.png';
+        const imgEyes = new Image();
+        imgEyes.src = 'eyes_open.png';
+
+        // Δημιουργία Soft Body (Το "σκελετικό" πλέγμα του ζελέ)
         const centerX = width / 2;
-        const centerY = height / 2 - 100;
-        const radius = Math.min(width, height) * 0.18; // Δυναμικό μέγεθος ανάλογα την οθόνη
+        const centerY = height / 2;
+        const jellyScale = Math.min(width, height) * 0.0012;
 
-        // Το composite .softBody δημιουργεί ένα εύπλαστο σώμα
-        const jellyHeart = Composites.softBody(centerX, centerY, 5, 5, 0, 0, true, radius * 0.2, {
-            particleRadius: 15,
-            frictionAir: 0.05,
-            render: { fillStyle: '#ff2a5f', opacity: 0.85 }
+        // Φτιάχνουμε ένα κυκλικό πλέγμα σωματιδίων (πιο εύκολο στο stretch) χωρίς εσωτερικά sprites
+        const jellyAvatar = Composites.softBody(centerX - 80, centerY - 80, 4, 4, 0, 0, true, 22, {
+            particleRadius: 2,
+            frictionAir: 0.04,
+            render: { visible: false } // Κρύβουμε τα σωματίδια
         }, {
-            stiffness: 0.4, // Πόσο σκληρό ή μαλακό είναι το ζελέ (0 = σούπερ μαλακό, 1 = σκληρό)
-            render: { strokeStyle: '#ff4a75', lineWidth: 2 }
+            stiffness: 0.4,
+            render: { visible: false } // Κρύβουμε τα ελατήρια
         });
 
-        Composite.add(world, jellyHeart);
+        Composite.add(world, jellyAvatar);
 
-        // Προσθήκη αλληλεπίδρασης με το ποντίκι / αφή (Mouse Control)
+        // Βρίσκουμε τα εξωτερικά σωματίδια για να ξέρουμε το περίγραμμα
+        // Στο 4x4, οι εξωτερικοί δείκτες είναι μια συγκεκριμένη σειρά
+        const contourIndices = [0, 1, 2, 3, 7, 11, 15, 14, 13, 12, 8, 4];
+        
+        // Κεντρικό σωματίδιο για τα μάτια
+        const centerParticle = jellyAvatar.bodies[5]; 
+
+        // Δημιουργία των Ματιών ως ξεχωριστό σώμα φυσικής
+        const eyesWidth = 100 * jellyScale;
+        const eyesHeight = 50 * jellyScale;
+        const eyes = Bodies.rectangle(centerParticle.position.x, centerParticle.position.y - 10, eyesWidth, eyesHeight, {
+            frictionAir: 0.02,
+            render: { visible: false } // Θα το σχεδιάσουμε χειροκίνητα για τέλειο overlay
+        });
+        Composite.add(world, eyes);
+
+        // Σύνδεση ματιών με το κέντρο του ζελέ
+        const eyeConstraint = Constraint.create({
+            bodyA: centerParticle,
+            bodyB: eyes,
+            stiffness: 0.9,
+            render: { visible: false }
+        });
+        Composite.add(world, eyeConstraint);
+
+        // Έλεγχος αφής
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
             mouse: mouse,
             constraint: {
-                stiffness: 0.6,
-                render: { visible: true, strokeStyle: '#ff4a75' }
+                stiffness: 0.5,
+                render: { visible: false }
             }
         });
-
         Composite.add(world, mouseConstraint);
         render.mouse = mouse;
 
-        // Προσαρμογή σε αλλαγή μεγέθους οθόνης (π.χ. στροφή κινητού)
-        window.addEventListener('resize', function() {
-            render.bounds.max.x = window.innerWidth;
-            render.bounds.max.y = window.innerHeight;
-            render.options.width = window.innerWidth;
-            render.options.height = window.innerHeight;
-            if (render.canvas) {
-                render.canvas.width = window.innerWidth;
-                render.canvas.height = window.innerHeight;
+        // --- CUSTOM RENDERER (Εδώ γίνεται η μαγεία του ζελέ) ---
+        // Ακούμε κάθε frame αφού τελειώσει η φυσική και σχεδιάζουμε εμείς πάνω στο canvas
+        Events.on(render, 'afterRender', function() {
+            const context = render.context;
+            
+            // 1. Υπολογισμός κέντρου και διαστάσεων του ζελέ σώματος
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            jellyAvatar.bodies.forEach(b => {
+                if (b.position.x < minX) minX = b.position.x;
+                if (b.position.x > maxX) maxX = b.position.x;
+                if (b.position.y < minY) minY = b.position.y;
+                if (b.position.y > maxY) maxY = b.position.y;
+            });
+
+            const currentWidth = maxX - minX;
+            const currentHeight = maxY - minY;
+            const posX = minX + currentWidth / 2;
+            const posY = minY + currentHeight / 2;
+
+            context.save();
+            
+            // 2. Σχεδίαση της Καρδιάς με βάση το παραμορφωμένο σχήμα
+            context.beginPath();
+            contourIndices.forEach((idx, i) => {
+                const p = jellyAvatar.bodies[idx].position;
+                if (i === 0) context.moveTo(p.x, p.y);
+                else context.lineTo(p.x, p.y);
+            });
+            context.closePath();
+            
+            // Δημιουργούμε ένα clip mask με βάση το σχήμα του ζελέ
+            context.clip();
+            
+            // Σχεδιάζουμε το body.png τεντωμένο στις τρέχουσες διαστάσεις του ζελέ
+            if (imgBody.complete) {
+                context.drawImage(
+                    imgBody, 
+                    posX - currentWidth / 2 - 20, 
+                    posY - currentHeight / 2 - 20, 
+                    currentWidth + 40, 
+                    currentHeight + 40
+                );
+            }
+            context.restore();
+
+            // 3. Σχεδίαση των ματιών (eyes_open.png) πάνω από το σώμα
+            if (imgEyes.complete) {
+                context.save();
+                context.translate(eyes.position.x, eyes.position.y);
+                context.rotate(eyes.angle);
+                context.drawImage(
+                    imgEyes, 
+                    -eyesWidth, 
+                    -eyesHeight, 
+                    eyesWidth * 2, 
+                    eyesHeight * 2
+                );
+                context.restore();
             }
         });
 
+        // Responsive resize
+        window.addEventListener('resize', function() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            render.bounds.max.x = width;
+            render.bounds.max.y = height;
+            render.options.width = width;
+            render.options.height = height;
+            if (render.canvas) {
+                render.canvas.width = width;
+                render.canvas.height = height;
+            }
+            Matter.Body.setPosition(floor, { x: width / 2, y: height + 30 });
+            Matter.Body.setPosition(rightWall, { x: width + 30, y: height / 2 });
+        });
     </script>
 </body>
 </html>
