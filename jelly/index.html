@@ -45,12 +45,13 @@
             animation: jellyPulse 2.5s infinite ease-in-out;
         }
         @keyframes jellyPulse {
-            0 { transform: scale(1); opacity: 0.7; }
+            0% { transform: scale(1); opacity: 0.7; }
             50% { transform: scale(1.05); opacity: 1; }
             100% { transform: scale(1); opacity: 0.7; }
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js">
+    </script>
 </head>
 <body>
 
@@ -61,20 +62,24 @@
     <script>
         const { Engine, Render, Runner, Composites, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
 
-        const engine = Engine.create({ gravity: { y: 0.6 } });
+        // Δημιουργία μηχανής
+        const engine = Engine.create({
+            gravity: { y: 0.6 }
+        });
         const world = engine.world;
 
         const container = document.getElementById('canvas-container');
         let width = window.innerWidth;
         let height = window.innerHeight;
 
+        // Δημιουργία render
         const render = Render.create({
             element: container,
             engine: engine,
             options: {
                 width: width,
                 height: height,
-                wireframes: false, 
+                wireframes: false,
                 background: '#141414'
             }
         });
@@ -84,7 +89,10 @@
         Runner.run(runner, engine);
 
         // Αόρατα όρια οθόνης
-        const wallOptions = { isStatic: true, render: { visible: false } };
+        const wallOptions = {
+            isStatic: true,
+            render: { visible: false }
+        };
         const floor = Bodies.rectangle(width / 2, height + 30, width * 2, 60, wallOptions);
         const leftWall = Bodies.rectangle(-30, height / 2, 60, height * 2, wallOptions);
         const rightWall = Bodies.rectangle(width + 30, height / 2, 60, height * 2, wallOptions);
@@ -100,27 +108,34 @@
         // Δημιουργία Soft Body (Πλέγμα 4x4)
         const centerX = width / 2;
         const centerY = height / 2;
-        const jellyScale = Math.min(width, height) * 0.0012;
+        const particleRadius = 22;
 
-        const jellyAvatar = Composites.softBody(centerX - 80, centerY - 80, 4, 4, 0, 0, true, 22, {
-            particleRadius: 2,
-            frictionAir: 0.04,
-            render: { visible: false }
-        }, {
-            stiffness: 0.4,
-            render: { visible: false }
-        });
+        // Σωστή κλήση Composites.softBody για Matter.js 0.19
+        const jellyAvatar = Composites.softBody(
+            centerX - 80, centerY - 80, // xx, yy (επάνω-αριστερά γωνία)
+            4, 4, // columns, rows
+            0, 0, // columnGap, rowGap (μηδέν για ενωμένα)
+            true, // crossBrace
+            particleRadius, // particleRadius
+            { // particleOptions
+                frictionAir: 0.04,
+                render: { visible: false }
+            }, { // constraintOptions
+                stiffness: 0.4,
+                render: { visible: false }
+            }
+        );
 
         Composite.add(world, jellyAvatar);
 
-        // Δείκτες εξωτερικού περιγράμματος για τη σχεδίαση της καρδιάς
+        // Εξωτερικό περίγραμμα (12 σημεία από τα 16 του 4x4 πλέγματος)
         const contourIndices = [0, 1, 2, 3, 7, 11, 15, 14, 13, 12, 8, 4];
-        
-        // Ορίζουμε δύο σταθερά σωματίδια για να υπολογίζουμε τη στροφή (angle) των ματιών
-        const centerParticle = jellyAvatar.bodies[5];  // Το κέντρο
-        const topParticle = jellyAvatar.bodies[1];     // Το πάνω κεντρικό σωματίδιο
 
-        // Έλεγχος αφής
+        // Δύο σωματίδια αναφοράς για τον υπολογισμό της γωνίας των ματιών
+        const centerParticle = jellyAvatar.bodies[5]; // row 1, col 1 (κέντρο)
+        const topParticle = jellyAvatar.bodies[1]; // row 0, col 1 (πάνω-κέντρο)
+
+        // ---- Εισαγωγή Mouse / Touch ----
         const mouse = Mouse.create(render.canvas);
         const mouseConstraint = MouseConstraint.create(engine, {
             mouse: mouse,
@@ -130,14 +145,19 @@
             }
         });
         Composite.add(world, mouseConstraint);
+
+        // Συγχρονισμός mouse με render
         render.mouse = mouse;
 
-        // --- CUSTOM RENDERER ---
+        // ---- CUSTOM RENDERER (ζωγραφική με εικόνες) ----
         Events.on(render, 'afterRender', function() {
             const context = render.context;
-            
-            // Υπολογισμός ορίων του σώματος
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+            // Υπολογισμός δυναμικών ορίων του σώματος
+            let minX = Infinity,
+                maxX = -Infinity,
+                minY = Infinity,
+                maxY = -Infinity;
             jellyAvatar.bodies.forEach(b => {
                 if (b.position.x < minX) minX = b.position.x;
                 if (b.position.x > maxX) maxX = b.position.x;
@@ -150,9 +170,8 @@
             const posX = minX + currentWidth / 2;
             const posY = minY + currentHeight / 2;
 
+            // 1. Σχεδίαση σώματος (body.png) με clipping path
             context.save();
-            
-            // 1. Σχεδίαση και Clip του σώματος (body.png)
             context.beginPath();
             contourIndices.forEach((idx, i) => {
                 const p = jellyAvatar.bodies[idx].position;
@@ -161,46 +180,52 @@
             });
             context.closePath();
             context.clip();
-            
-            if (imgBody.complete) {
+
+            if (imgBody.complete && imgBody.naturalWidth > 0) {
                 context.drawImage(
-                    imgBody, 
-                    posX - currentWidth / 2 - 20, 
-                    posY - currentHeight / 2 - 20, 
-                    currentWidth + 40, 
+                    imgBody,
+                    posX - currentWidth / 2 - 20,
+                    posY - currentHeight / 2 - 20,
+                    currentWidth + 40,
                     currentHeight + 40
                 );
+            } else {
+                // Fallback αν δεν έχει φορτώσει η εικόνα
+                context.fillStyle = '#ff6b8a';
+                context.fill();
             }
             context.restore();
 
-            // 2. Σχεδίαση των Ματιών (eyes_open.png) - Απόλυτα κλειδωμένα στο σώμα
-            if (imgEyes.complete) {
+            // 2. Σχεδίαση ματιών (eyes_open.png) – απόλυτα κλειδωμένα στο σώμα
+            if (imgEyes.complete && imgEyes.naturalWidth > 0) {
                 context.save();
-                
-                // Τα μάτια ακολουθούν ακριβώς τη θέση του κεντρικού σωματιδίου
+
+                // Μεταφορά στο κέντρο του ζελέ
                 context.translate(centerParticle.position.x, centerParticle.position.y);
-                
-                // Υπολογισμός δυναμικής γωνίας με βάση τη σχέση κεντρικού και πάνω σωματιδίου
-                // Έτσι, αν η καρδιά γείρει, τα μάτια γέρνουν μαζί της στον ίδιο ακριβώς βαθμό
-                const angle = Math.atan2(topParticle.position.y - centerParticle.position.y, topParticle.position.x - centerParticle.position.x) + Math.PI / 2;
+
+                // Γωνία περιστροφής με βάση το πάνω σωματίδιο
+                const angle = Math.atan2(
+                    topParticle.position.y - centerParticle.position.y,
+                    topParticle.position.x - centerParticle.position.x
+                ) + Math.PI / 2;
                 context.rotate(angle);
 
-                // Μέγεθος ματιών ανάλογα με το τρέχον μέγεθος του ζελέ για να μικραίνουν/μεγαλώνουν μαζί του
+                // Μέγεθος ματιών ανάλογα με το μέγεθος του ζελέ
                 const eyesWidth = currentWidth * 0.25;
                 const eyesHeight = currentHeight * 0.15;
 
                 context.drawImage(
-                    imgEyes, 
-                    -eyesWidth, 
-                    -eyesHeight - (currentHeight * 0.05), // Μικρή μετατόπιση προς τα πάνω για να κάθονται σωστά στο πρόσωπο
-                    eyesWidth * 2, 
+                    imgEyes,
+                    -eyesWidth,
+                    -eyesHeight - (currentHeight * 0.05),
+                    eyesWidth * 2,
                     eyesHeight * 2
                 );
                 context.restore();
             }
         });
 
-        // Responsive resize
+        // ---- Responsive resize ----
         window.addEventListener('resize', function() {
             width = window.innerWidth;
             height = window.innerHeight;
@@ -214,6 +239,8 @@
             }
             Matter.Body.setPosition(floor, { x: width / 2, y: height + 30 });
             Matter.Body.setPosition(rightWall, { x: width + 30, y: height / 2 });
+            Matter.Body.setPosition(leftWall, { x: -30, y: height / 2 });
+            Matter.Body.setPosition(ceiling, { x: width / 2, y: -30 });
         });
     </script>
 </body>
