@@ -1,11 +1,9 @@
-Ορίστε ολόκληρος ο κώδικας έτοιμος, διορθωμένος και ενοποιημένος για να τον κάνεις απευθείας αντιγραφή (copy-paste):
-```html
 <!DOCTYPE html>
 <html lang="el">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bruno Galaxy Slime – ΕΓΓΥΗΜΕΝΗ ΕΜΦΑΝΙΣΗ</title>
+  <title>Bruno Galaxy Slime – FIXED</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -21,11 +19,20 @@
       touch-action: manipulation;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    #canvas-container { width: 100%; height: 100%; position: relative; }
-    canvas { display: block; width: 100% !important; height: 100% !important; }
+    #canvas-container { 
+      width: 100%; 
+      height: 100%; 
+      position: relative; 
+      overflow: hidden;
+    }
+    canvas { 
+      display: block; 
+      width: 100% !important; 
+      height: 100% !important; 
+    }
     .ui-overlay {
       position: absolute; top: 20px; text-align: center; width: 100%; pointer-events: none;
-      font-size: clamp(20px, 5vw, 32px); font-weight: 800;
+      font-size: clamp(20px, 5vw, 32px); font-weight: 800; z-index: 10;
       background: linear-gradient(45deg, #ff4a75, #a855f7, #3b82f6);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
       filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
@@ -38,7 +45,7 @@
     }
     .btn-container {
       position: absolute; bottom: 25px; width: 100%; display: flex; justify-content: center;
-      gap: 18px; flex-wrap: wrap; pointer-events: auto; padding: 0 20px;
+      gap: 18px; flex-wrap: wrap; pointer-events: auto; padding: 0 20px; z-index: 10;
     }
     .btn {
       background: rgba(20,20,40,0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -79,34 +86,36 @@
       const world = engine.world;
 
       const container = document.getElementById('canvas-container');
-      let width = window.innerWidth;
-      let height = window.innerHeight;
+      
+      // Παίρνουμε τις πραγματικές διαστάσεις του container αντί για το window
+      let width = container.clientWidth || window.innerWidth || 360;
+      let height = container.clientHeight || window.innerHeight || 640;
 
       const render = Render.create({
         element: container,
         engine: engine,
         options: {
-          width, height,
+          width: width,
+          height: height,
           wireframes: false,
           background: '#0b0b1a',
-          pixelRatio: window.devicePixelRatio || 1,
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 2), // Cap στο 2 για καλύτερο performance σε κινητά
         }
       });
       Render.run(render);
       
-      // Διόρθωση 1: Ενεργοποίηση autoUpdate για συνεχή ροή σχεδίασης
       const runner = Runner.create({ isFixed: false });
-      Runner.run(runner, engine);
 
-      // Όρια
+      // Δημιουργία ορίων με βάση τις σωστές διαστάσεις
       const wallOpt = { isStatic: true, render: { visible: false } };
-      const floor = Bodies.rectangle(width/2, height+40, width*2, 80, wallOpt);
-      const leftWall = Bodies.rectangle(-40, height/2, 80, height*2, wallOpt);
-      const rightWall = Bodies.rectangle(width+40, height/2, 80, height*2, wallOpt);
-      const ceiling = Bodies.rectangle(width/2, -40, width*2, 80, wallOpt);
+      let floor = Bodies.rectangle(width/2, height+40, width*4, 80, wallOpt);
+      let leftWall = Bodies.rectangle(-40, height/2, 80, height*4, wallOpt);
+      let rightWall = Bodies.rectangle(width+40, height/2, 80, height*4, wallOpt);
+      let ceiling = Bodies.rectangle(width/2, -40, width*4, 80, wallOpt);
       Composite.add(world, [floor, leftWall, rightWall, ceiling]);
 
-      const BASE_RADIUS = Math.min(width, height) * 0.1;
+      // Δημιουργία του Bruno ακριβώς στο κέντρο
+      const BASE_RADIUS = Math.min(width, height) * 0.12;
       const mainBody = Bodies.circle(width/2, height/2, BASE_RADIUS, {
         render: { visible: false },
         frictionAir: 0.08,
@@ -118,7 +127,7 @@
       const mouse = Mouse.create(render.canvas);
       const mouseConstraint = MouseConstraint.create(engine, {
         mouse: mouse,
-        constraint: { stiffness: 0.3, damping: 0.1, render: { visible: false }, bodyA: mainBody }
+        constraint: { stiffness: 0.2, damping: 0.1, render: { visible: false }, bodyA: mainBody }
       });
       Composite.add(world, mouseConstraint);
       render.mouse = mouse;
@@ -134,24 +143,21 @@
 
       // Eye tracking
       let mouseX = width/2, mouseY = height/2;
-      window.addEventListener('mousemove', (e) => {
+      function updateMousePos(clientX, clientY) {
         const rect = render.canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
         const scaleX = render.options.width / rect.width;
         const scaleY = render.options.height / rect.height;
-        mouseX = (e.clientX - rect.left) * scaleX;
-        mouseY = (e.clientY - rect.top) * scaleY;
-      });
+        mouseX = (clientX - rect.left) * scaleX;
+        mouseY = (clientY - rect.top) * scaleY;
+      }
+
+      window.addEventListener('mousemove', (e) => updateMousePos(e.clientX, e.clientY));
       window.addEventListener('touchmove', (e) => {
-        if (e.touches.length > 0) {
-          const rect = render.canvas.getBoundingClientRect();
-          const scaleX = render.options.width / rect.width;
-          const scaleY = render.options.height / rect.height;
-          mouseX = (e.touches[0].clientX - rect.left) * scaleX;
-          mouseY = (e.touches[0].clientY - rect.top) * scaleY;
-        }
+        if (e.touches.length > 0) updateMousePos(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
 
-      // Audio
+      // Audio & Buttons Logic
       let audioCtx = null;
       let mediaRecorder = null;
       let recordedChunks = [];
@@ -272,7 +278,6 @@
               x: mainBody.position.x + (Math.random()-0.5)*80,
               y: mainBody.position.y - 50 - i*20,
               opacity: 1,
-              life: 1,
             });
           }
           sleepTimer = setTimeout(() => {
@@ -302,7 +307,7 @@
         }
       });
 
-      // ---------- ΣΧΕΔΙΑΣΗ ----------
+      // ---------- ΣΧΕΔΙΑΣΗ (CANVAS) ----------
       function drawBruno(ctx, pos, angle, scale) {
         const bodyW = 220 * scale;
         const bodyH = 300 * scale;
@@ -428,30 +433,43 @@
         if (!ctx) return;
         const pos = mainBody.position;
         const angle = mainBody.angle;
-        const scaleFactor = Math.min(width, height) / 700;
+        const scaleFactor = Math.min(width, height) / 720;
         drawBruno(ctx, pos, angle, scaleFactor);
       });
 
-      // Διόρθωση 2: Προσθήκη χειροκίνητου Engine Update στο resize για ακαριαία εμφάνιση
+      // Απόλυτα ασφαλές Resize για Mobile viewports
       function handleResize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
+        width = container.clientWidth || window.innerWidth;
+        height = container.clientHeight || window.innerHeight;
+        
         render.options.width = width;
         render.options.height = height;
         render.canvas.width = width;
         render.canvas.height = height;
+        
         Matter.Body.setPosition(floor, { x: width/2, y: height+40 });
         Matter.Body.setPosition(rightWall, { x: width+40, y: height/2 });
         Matter.Body.setPosition(leftWall, { x: -40, y: height/2 });
         Matter.Body.setPosition(ceiling, { x: width/2, y: -40 });
         
+        // Αν ο Bruno βγει εκτός οθόνης κατά το resize, τον επαναφέρουμε στο κέντρο
+        if (mainBody.position.x > width || mainBody.position.y > height || mainBody.position.x < 0 || mainBody.position.y < 0) {
+          Matter.Body.setPosition(mainBody, { x: width/2, y: height/2 });
+          Matter.Body.setVelocity(mainBody, { x: 0, y: 0 });
+        }
+        
         Matter.Engine.update(engine, 16);
       }
+      
       window.addEventListener('resize', handleResize);
-      handleResize();
+      
+      // Δίνουμε 150ms delay στο runner για να προλάβει το mobile λειτουργικό να δώσει σωστά width/height
+      setTimeout(() => {
+        handleResize();
+        Runner.run(runner, engine);
+      }, 150);
+
     })();
   </script>
 </body>
 </html>
-
-```
