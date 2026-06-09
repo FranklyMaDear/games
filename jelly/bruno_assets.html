@@ -1,475 +1,1062 @@
 <!DOCTYPE html>
 <html lang="el">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bruno Galaxy Slime – FIXED</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0b0b1a;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      width: 100vw;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    #canvas-container { 
-      width: 100%; 
-      height: 100%; 
-      position: relative; 
-      overflow: hidden;
-    }
-    canvas { 
-      display: block; 
-      width: 100% !important; 
-      height: 100% !important; 
-    }
-    .ui-overlay {
-      position: absolute; top: 20px; text-align: center; width: 100%; pointer-events: none;
-      font-size: clamp(20px, 5vw, 32px); font-weight: 800; z-index: 10;
-      background: linear-gradient(45deg, #ff4a75, #a855f7, #3b82f6);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
-      animation: jellyPulse 2.5s infinite ease-in-out;
-    }
-    @keyframes jellyPulse {
-      0% { transform: scale(1); opacity: 0.85; }
-      50% { transform: scale(1.06); opacity: 1; }
-      100% { transform: scale(1); opacity: 0.85; }
-    }
-    .btn-container {
-      position: absolute; bottom: 25px; width: 100%; display: flex; justify-content: center;
-      gap: 18px; flex-wrap: wrap; pointer-events: auto; padding: 0 20px; z-index: 10;
-    }
-    .btn {
-      background: rgba(20,20,40,0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border: 2px solid rgba(180,130,255,0.7); color: white; font-size: 32px; padding: 14px 24px;
-      border-radius: 60px; cursor: pointer; transition: all 0.2s;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 20px rgba(168,85,247,0.3);
-      display: flex; align-items: center; justify-content: center; min-width: 70px;
-    }
-    .btn:active { transform: scale(0.9); background: rgba(180,130,255,0.5); border-color: #fff; }
-    .btn.recording { background: #ff3b5c; border-color: #fff; animation: pulse 0.8s infinite; }
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(255,59,92,0.8); }
-      70% { box-shadow: 0 0 0 25px rgba(255,59,92,0); }
-      100% { box-shadow: 0 0 0 0 rgba(255,59,92,0); }
-    }
-  </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Bruno – Galaxy Slime AI</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#00d4ff;--violet:#a855f7;--pink:#ff4a75;--gold:#ffd700;
+  --bg:#07071a;--glass:rgba(255,255,255,0.06);--border:rgba(0,212,255,0.22);
+}
+html,body{height:100%;width:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  font-family:'Nunito',-apple-system,sans-serif;
+  display:flex;flex-direction:column;align-items:center;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  position:relative;
+}
+
+/* Stars */
+.stars{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--d,3s) var(--delay,0s) infinite ease-in-out}
+@keyframes twinkle{0%,100%{opacity:0.1;transform:scale(0.8)}50%{opacity:0.9;transform:scale(1.2)}}
+
+/* ── SCREENS ── */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;z-index:10;overflow-y:auto;padding-bottom:20px}
+.screen.hidden{display:none!important}
+
+/* ── SETUP ── */
+#setupScreen{background:rgba(7,7,26,0.98);justify-content:center;gap:14px;padding:30px}
+.setup-emoji{font-size:56px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.setup-title{font-size:24px;font-weight:900;text-align:center;
+  background:linear-gradient(135deg,var(--teal),var(--violet),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.setup-sub{color:rgba(255,255,255,0.45);font-size:13px;text-align:center;line-height:1.7;max-width:320px}
+.setup-sub a{color:var(--teal);text-decoration:none}
+.setup-input{
+  width:100%;max-width:340px;height:52px;border-radius:14px;
+  border:1.5px solid var(--border);background:var(--glass);
+  color:#fff;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;
+  padding:0 16px;outline:none;
+}
+.setup-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,212,255,0.1)}
+.setup-btn{
+  width:100%;max-width:340px;height:52px;border-radius:14px;border:none;
+  background:linear-gradient(135deg,var(--teal),var(--violet));
+  color:#fff;font-family:'Nunito',sans-serif;font-size:16px;font-weight:900;cursor:pointer;
+  transition:opacity 0.2s,transform 0.1s;
+}
+.setup-btn:active{opacity:0.85;transform:scale(0.97)}
+
+/* ── MAIN SCREEN ── */
+#mainScreen{padding-top:0}
+
+.topbar{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 0;position:relative;z-index:5;
+}
+.topbar-name{
+  font-size:13px;font-weight:900;letter-spacing:1px;
+  color:rgba(255,255,255,0.6);
+}
+.topbar-name span{color:var(--teal)}
+.topbar-right{display:flex;gap:8px;align-items:center}
+.icon-btn{
+  width:36px;height:36px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--glass);color:#fff;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all 0.15s;
+}
+.icon-btn:active{transform:scale(0.88);background:rgba(0,212,255,0.15)}
+
+/* Collectibles bar */
+.collectibles-bar{
+  width:100%;padding:6px 16px 0;display:flex;gap:6px;align-items:center;
+  position:relative;z-index:5;
+}
+.collectible-badge{
+  display:flex;align-items:center;gap:3px;
+  background:var(--glass);border:1px solid var(--border);
+  border-radius:20px;padding:3px 10px;font-size:12px;font-weight:900;color:#fff;
+}
+.collectible-badge.earned{border-color:var(--gold);color:var(--gold)}
+.mood-bar{
+  margin-left:auto;display:flex;gap:4px;
+}
+.mood-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);transition:background 0.3s}
+.mood-dot.filled{background:var(--violet)}
+
+/* ── BUBBLE ── */
+.bubble-wrap{width:calc(100% - 32px);max-width:380px;position:relative;z-index:5;margin-top:6px}
+.bubble{
+  background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1.5px solid var(--border);border-radius:18px;
+  padding:12px 16px;min-height:64px;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color 0.3s,box-shadow 0.3s;
+}
+.bubble.active{border-color:var(--teal);box-shadow:0 0 18px rgba(0,212,255,0.18)}
+.bubble-text{
+  color:#fff;font-size:14px;font-weight:700;text-align:center;line-height:1.5;
+  min-height:20px;
+}
+.bubble-text.placeholder{color:rgba(255,255,255,0.3);font-size:13px}
+.bubble::after{
+  content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:var(--border);
+}
+
+/* ── BRUNO STAGE ── */
+.bruno-stage{
+  position:relative;width:260px;height:300px;
+  margin-top:6px;cursor:pointer;
+  flex-shrink:0;
+}
+#brunoCanvas{
+  position:absolute;inset:0;width:100%!important;height:100%!important;
+  filter:drop-shadow(0 16px 40px rgba(0,212,255,0.25));
+}
+
+/* Status pill */
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--glass);border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px;padding:4px 14px;font-size:11px;font-weight:900;
+  letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,0.4);
+  margin-top:4px;position:relative;z-index:5;transition:all 0.3s;
+}
+.status-pill.thinking{border-color:var(--violet);color:var(--violet);background:rgba(168,85,247,0.1)}
+.status-pill.speaking{border-color:var(--teal);color:var(--teal);background:rgba(0,212,255,0.1)}
+.status-pill.listening{border-color:var(--pink);color:var(--pink);background:rgba(255,74,117,0.1)}
+.sdot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status-pill.thinking .sdot,.status-pill.speaking .sdot,.status-pill.listening .sdot{animation:sblink 0.6s infinite}
+@keyframes sblink{0%,100%{opacity:1}50%{opacity:0.15}}
+
+/* ── ACTIONS ── */
+.actions-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+  width:calc(100% - 32px);max-width:380px;
+  position:relative;z-index:5;margin-top:8px;
+}
+.act-btn{
+  height:60px;border-radius:14px;border:1.5px solid var(--border);
+  background:var(--glass);color:#fff;
+  font-family:'Nunito',sans-serif;font-size:11px;font-weight:900;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  cursor:pointer;transition:all 0.15s;letter-spacing:0.3px;
+}
+.act-btn .ai{font-size:20px}
+.act-btn:active{transform:scale(0.9)}
+.act-btn.mic{border-color:var(--pink)}
+.act-btn.mic.rec{background:rgba(255,74,117,0.25);border-color:var(--pink);animation:recPulse 0.7s infinite}
+.act-btn.game-btn{border-color:var(--gold)}
+.act-btn.mood-btn{border-color:var(--violet)}
+.act-btn.fact-btn{border-color:var(--teal)}
+@keyframes recPulse{0%{box-shadow:0 0 0 0 rgba(255,74,117,0.5)}70%{box-shadow:0 0 0 12px rgba(255,74,117,0)}100%{box-shadow:0 0 0 0 rgba(255,74,117,0)}}
+
+/* ── MINI GAME ── */
+#gameScreen{background:rgba(7,7,26,0.97);z-index:20}
+.game-header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;
+}
+.game-title{font-size:18px;font-weight:900;color:var(--gold)}
+.game-score{font-size:14px;font-weight:900;color:#fff}
+#gameCanvas{width:100%!important;max-width:400px;display:block;cursor:pointer;touch-action:none}
+.game-close-btn{
+  margin:12px auto;display:block;padding:12px 32px;
+  border-radius:14px;border:1.5px solid var(--border);
+  background:var(--glass);color:#fff;font-family:'Nunito',sans-serif;
+  font-size:14px;font-weight:900;cursor:pointer;
+}
+
+/* ── MOOD HISTORY ── */
+#moodScreen{background:rgba(7,7,26,0.97);z-index:20;padding:20px}
+.mood-screen-header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;
+}
+.mood-screen-title{font-size:18px;font-weight:900;
+  background:linear-gradient(135deg,var(--violet),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.mood-list{width:100%;display:flex;flex-direction:column;gap:8px}
+.mood-entry{
+  background:var(--glass);border:1px solid var(--border);
+  border-radius:12px;padding:10px 14px;
+  display:flex;align-items:center;gap:10px;
+}
+.mood-entry-emoji{font-size:22px}
+.mood-entry-text{flex:1}
+.mood-entry-msg{font-size:13px;font-weight:700;color:#fff;line-height:1.4}
+.mood-entry-time{font-size:11px;color:rgba(255,255,255,0.3);margin-top:2px}
+
+/* ── COLLECTIBLES SCREEN ── */
+#collectScreen{background:rgba(7,7,26,0.97);z-index:20;padding:20px}
+.collect-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;
+}
+.collect-item{
+  aspect-ratio:1;border-radius:14px;border:1.5px solid var(--border);
+  background:var(--glass);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;
+  font-size:11px;font-weight:900;color:rgba(255,255,255,0.4);
+  transition:all 0.3s;
+}
+.collect-item.unlocked{border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,0.15)}
+.collect-item .ci-emoji{font-size:28px;filter:grayscale(1) opacity(0.3);transition:filter 0.3s}
+.collect-item.unlocked .ci-emoji{filter:none}
+
+/* Floating stars game */
+.floating-star{
+  position:absolute;pointer-events:none;font-size:20px;
+  animation:floatUp 1s ease-out forwards;z-index:50;
+}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(0.5)}}
+
+/* Touch ripple on Bruno */
+.ripple{
+  position:absolute;border-radius:50%;
+  background:rgba(0,212,255,0.3);
+  animation:rippleOut 0.5s ease-out forwards;
+  pointer-events:none;z-index:20;
+}
+@keyframes rippleOut{0%{width:0;height:0;opacity:0.8}100%{width:120px;height:120px;opacity:0;margin:-60px}}
+</style>
 </head>
 <body>
-  <div id="canvas-container">
-    <div class="ui-overlay">Ο ΓΑΛΑΞΙΑΣ ΖΕΛΕΣ!</div>
-    <div class="btn-container">
-      <button class="btn" id="btnTalk">🎤</button>
-      <button class="btn" id="btnFeed">🍔</button>
-      <button class="btn" id="btnSleep">😴</button>
+
+<!-- Stars background -->
+<div class="stars" id="stars"></div>
+
+<!-- ════════════ SETUP SCREEN ════════════ -->
+<div class="screen" id="setupScreen">
+  <div class="setup-emoji">🌌</div>
+  <div class="setup-title">Γεια, είμαι ο Bruno!<br>Galaxy Slime AI</div>
+  <p class="setup-sub">
+    Χρειάζομαι το <strong style="color:var(--teal)">Google Gemini API key</strong> σου για να μιλάω!<br>
+    Πήγαινε στο <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> → Get API Key (δωρεάν).
+  </p>
+  <input class="setup-input" id="keyInput" type="password" placeholder="AIza..." autocomplete="off">
+  <button class="setup-btn" onclick="saveKey()">✨ Ξεκίνα!</button>
+  <p style="font-size:11px;color:rgba(255,255,255,0.25);text-align:center;max-width:300px">
+    Αποθηκεύεται μόνο στη συσκευή σου (localStorage).
+  </p>
+</div>
+
+<!-- ════════════ MAIN SCREEN ════════════ -->
+<div class="screen hidden" id="mainScreen">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-name">Γεια <span id="userName">φίλε</span>! 👋</div>
+    <div class="topbar-right">
+      <button class="icon-btn" onclick="showScreen('collectScreen')" title="Collectibles">🏆</button>
+      <button class="icon-btn" onclick="showScreen('moodScreen')" title="Mood History">📊</button>
+      <button class="icon-btn" onclick="clearKey()" title="Settings">⚙️</button>
     </div>
   </div>
 
-  <script>
-    (function() {
-      if (typeof Matter === 'undefined') {
-        document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:40vh;">Το Matter.js δεν φορτώθηκε. Ελέγξτε τη σύνδεση.</h2>';
-        return;
+  <!-- Collectibles + mood bar -->
+  <div class="collectibles-bar">
+    <div class="collectible-badge" id="starBadge">⭐ <span id="starCount">0</span></div>
+    <div class="collectible-badge" id="heartBadge">💜 <span id="heartCount">0</span></div>
+    <div class="mood-bar" id="moodBar"></div>
+  </div>
+
+  <!-- Speech bubble -->
+  <div class="bubble-wrap">
+    <div class="bubble" id="bubble">
+      <div class="bubble-text placeholder" id="bubbleText">Πάτα πάνω μου για να μιλήσουμε! ✨</div>
+    </div>
+  </div>
+
+  <!-- Bruno stage -->
+  <div class="bruno-stage" id="brunoStage">
+    <canvas id="brunoCanvas" width="260" height="300"></canvas>
+  </div>
+
+  <!-- Status -->
+  <div class="status-pill" id="statusPill">
+    <div class="sdot"></div><span id="statusTxt">Ready</span>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="actions-grid">
+    <button class="act-btn mic" id="btnMic"
+      onpointerdown="startRec()" onpointerup="stopRec()" onpointerleave="stopRec()">
+      <span class="ai">🎤</span><span>Μίλα</span>
+    </button>
+    <button class="act-btn game-btn" onclick="startGame()">
+      <span class="ai">🌠</span><span>Game</span>
+    </button>
+    <button class="act-btn mood-btn" onclick="askBruno('mood')">
+      <span class="ai">💜</span><span>Mood</span>
+    </button>
+    <button class="act-btn fact-btn" onclick="askBruno('fact')">
+      <span class="ai">🔮</span><span>Fun Fact</span>
+    </button>
+  </div>
+
+</div>
+
+<!-- ════════════ MINI GAME SCREEN ════════════ -->
+<div class="screen hidden" id="gameScreen">
+  <div class="game-header">
+    <div class="game-title">🌠 Πιάσε Αστέρια!</div>
+    <div class="game-score">⭐ <span id="gameScoreDisplay">0</span></div>
+  </div>
+  <canvas id="gameCanvas" width="360" height="460"></canvas>
+  <button class="game-close-btn" onclick="endGame()">✖ Τέλος παιχνιδιού</button>
+</div>
+
+<!-- ════════════ MOOD HISTORY ════════════ -->
+<div class="screen hidden" id="moodScreen">
+  <div class="mood-screen-header">
+    <div class="mood-screen-title">📊 Mood History</div>
+    <button class="icon-btn" onclick="showScreen('mainScreen')">✖</button>
+  </div>
+  <div class="mood-list" id="moodList"></div>
+</div>
+
+<!-- ════════════ COLLECTIBLES ════════════ -->
+<div class="screen hidden" id="collectScreen">
+  <div class="mood-screen-header" style="padding-top:8px">
+    <div class="mood-screen-title" style="background:linear-gradient(135deg,var(--gold),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">🏆 Collectibles</div>
+    <button class="icon-btn" onclick="showScreen('mainScreen')">✖</button>
+  </div>
+  <div class="collect-grid" id="collectGrid"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// ASSET URLS (GitHub raw)
+// ═══════════════════════════════════════
+const BASE = 'https://raw.githubusercontent.com/FranklyMaDear/games/main/jelly/';
+const ASSETS = {
+  bodyDown:    BASE + 'body.png',
+  bodyUp:      BASE + 'body2.png',
+  body3:       BASE + 'body3.png',
+  eyesOpen:    BASE + 'eyes_open.png',
+  eyesClosed:  BASE + 'eyes_closed.png',
+  mouthClosed: BASE + 'mouth.png',
+  mouthOpen1:  BASE + 'mouth1.png',
+  mouthOpen3:  BASE + 'mouth3.png',
+};
+const imgs = {};
+let assetsLoaded = 0;
+const totalAssets = Object.keys(ASSETS).length;
+
+function loadAssets(cb) {
+  Object.entries(ASSETS).forEach(([key, url]) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => { assetsLoaded++; if (assetsLoaded === totalAssets) cb(); };
+    img.onerror = () => { assetsLoaded++; if (assetsLoaded === totalAssets) cb(); };
+    img.src = url;
+    imgs[key] = img;
+  });
+}
+
+// ═══════════════════════════════════════
+// TELEGRAM INIT
+// ═══════════════════════════════════════
+let tgUser = null;
+if (window.Telegram?.WebApp) {
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+  tgUser = Telegram.WebApp.initDataUnsafe?.user;
+}
+
+// ═══════════════════════════════════════
+// STATE & STORAGE
+// ═══════════════════════════════════════
+let GEMINI_KEY = localStorage.getItem('bruno_key') || '';
+let stars       = parseInt(localStorage.getItem('bruno_stars') || '0');
+let hearts      = parseInt(localStorage.getItem('bruno_hearts') || '0');
+let moodHistory = JSON.parse(localStorage.getItem('bruno_moods') || '[]');
+let unlocked    = JSON.parse(localStorage.getItem('bruno_unlocked') || '[]');
+let brunoState  = 'idle'; // idle|talking|laughing|sleeping|excited|thinking
+let isTalking   = false;
+let mouthPhase  = 0;       // 0=closed 1=open1 2=open3
+let mouthTimer  = null;
+let eyesClosed  = false;
+let armsUp      = false;
+let mediaRec    = null;
+let recChunks   = [];
+
+// ═══════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if (id === 'moodScreen') renderMoodHistory();
+  if (id === 'collectScreen') renderCollectibles();
+}
+
+// ═══════════════════════════════════════
+// KEY SETUP
+// ═══════════════════════════════════════
+function saveKey() {
+  const v = document.getElementById('keyInput').value.trim();
+  if (!v.startsWith('AIza') && !v.startsWith('AI')) {
+    document.getElementById('keyInput').style.borderColor = 'var(--pink)';
+    return;
+  }
+  GEMINI_KEY = v;
+  localStorage.setItem('bruno_key', v);
+  init();
+}
+function clearKey() {
+  if (confirm('Διαγραφή API key;')) {
+    localStorage.removeItem('bruno_key');
+    GEMINI_KEY = '';
+    showScreen('setupScreen');
+  }
+}
+if (GEMINI_KEY) { init(); }
+else { showScreen('setupScreen'); }
+
+function init() {
+  showScreen('mainScreen');
+  // Telegram username greeting
+  if (tgUser?.first_name) {
+    document.getElementById('userName').textContent = tgUser.first_name;
+    setTimeout(() => {
+      askBruno('greet', tgUser.first_name);
+    }, 600);
+  }
+  updateUI();
+  startBrunoLoop();
+  buildCollectibles();
+}
+
+// ═══════════════════════════════════════
+// STARS BACKGROUND
+// ═══════════════════════════════════════
+(function buildStars() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = 1 + Math.random() * 2.5;
+    s.style.cssText = `
+      left:${Math.random()*100}%;top:${Math.random()*100}%;
+      width:${sz}px;height:${sz}px;opacity:${0.2+Math.random()*0.6};
+      --d:${2+Math.random()*4}s;--delay:${Math.random()*4}s
+    `;
+    c.appendChild(s);
+  }
+})();
+
+// ═══════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════
+function updateUI() {
+  document.getElementById('starCount').textContent  = stars;
+  document.getElementById('heartCount').textContent = hearts;
+  // Mood bar (last 5)
+  const bar = document.getElementById('moodBar');
+  bar.innerHTML = '';
+  const last5 = moodHistory.slice(-5);
+  for (let m of last5) {
+    const d = document.createElement('div');
+    d.className = 'mood-dot filled';
+    d.style.background = m.color || 'var(--violet)';
+    bar.appendChild(d);
+  }
+}
+
+function setBubble(text, isPlaceholder = false) {
+  const el = document.getElementById('bubbleText');
+  const b  = document.getElementById('bubble');
+  el.textContent = text;
+  el.className   = 'bubble-text' + (isPlaceholder ? ' placeholder' : '');
+  b.classList.toggle('active', !isPlaceholder);
+}
+
+function setStatus(s) {
+  const p   = document.getElementById('statusPill');
+  const txt = document.getElementById('statusTxt');
+  p.className = 'status-pill ' + (s === 'ready' ? '' : s);
+  const map = { ready:'Ready', thinking:'...', speaking:'Μιλάει', listening:'🎙 Ακούει' };
+  txt.textContent = map[s] || s;
+}
+
+function spawnFloatingStar(x, y, emoji = '⭐') {
+  const el = document.createElement('div');
+  el.className = 'floating-star';
+  el.textContent = emoji;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  document.getElementById('mainScreen').appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+// ═══════════════════════════════════════
+// BRUNO TAP
+// ═══════════════════════════════════════
+const brunoStage = document.getElementById('brunoStage');
+brunoStage.addEventListener('pointerdown', (e) => {
+  const rect = brunoStage.getBoundingClientRect();
+  const rx = e.clientX - rect.left;
+  const ry = e.clientY - rect.top;
+  // Ripple
+  const rip = document.createElement('div');
+  rip.className = 'ripple';
+  rip.style.left = rx + 'px';
+  rip.style.top  = ry + 'px';
+  brunoStage.appendChild(rip);
+  setTimeout(() => rip.remove(), 500);
+  // Reaction
+  if (!isTalking) askBruno('tap');
+});
+
+// Mouse tracking for eyes
+let mx = 130, my = 150;
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+document.addEventListener('touchmove', e => {
+  mx = e.touches[0].clientX; my = e.touches[0].clientY;
+}, { passive: true });
+
+// ═══════════════════════════════════════
+// CANVAS – BRUNO RENDERER
+// ═══════════════════════════════════════
+const canvas  = document.getElementById('brunoCanvas');
+const ctx     = canvas.getContext('2d');
+const CW = 260, CH = 300;
+
+function drawBruno(t) {
+  ctx.clearRect(0, 0, CW, CH);
+  const cx = CW / 2, cy = CH / 2 + 10;
+
+  // Pick body sprite
+  const bodyImg = (brunoState === 'excited' || armsUp) ? imgs.bodyUp : imgs.bodyDown;
+  // Pick eyes
+  const eyeImg  = eyesClosed ? imgs.eyesClosed : imgs.eyesOpen;
+  // Pick mouth
+  let mouthImg;
+  if (mouthPhase === 2)       mouthImg = imgs.mouthOpen3;
+  else if (mouthPhase === 1)  mouthImg = imgs.mouthOpen1;
+  else                        mouthImg = imgs.mouthClosed;
+
+  // Wobble
+  const wobX = Math.sin(t * 0.0018) * (brunoState === 'laughing' ? 5 : 1.5);
+  const wobY = Math.sin(t * 0.0012) * 2;
+  const scale = brunoState === 'laughing' ? 1 + Math.sin(t * 0.008) * 0.03 : 1;
+
+  ctx.save();
+  ctx.translate(cx + wobX, cy + wobY);
+  ctx.scale(scale, scale);
+
+  // Glow
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 120);
+  glow.addColorStop(0, 'rgba(0,212,255,0.12)');
+  glow.addColorStop(1, 'rgba(0,212,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.ellipse(0, 0, 130, 140, 0, 0, Math.PI*2); ctx.fill();
+
+  const dw = 200, dh = 240;
+
+  // Draw body
+  if (bodyImg?.complete && bodyImg.naturalWidth) {
+    ctx.drawImage(bodyImg, -dw/2, -dh/2, dw, dh);
+  } else {
+    // Fallback drawn body
+    const bg = ctx.createRadialGradient(-20,-40,0,0,0,100);
+    bg.addColorStop(0,'rgba(100,220,255,0.9)');
+    bg.addColorStop(0.5,'rgba(0,160,210,0.85)');
+    bg.addColorStop(1,'rgba(20,60,160,0.8)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.ellipse(0, 10, 90, 110, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Eye tracking offset
+  const dx = mx - (brunoStage.getBoundingClientRect().left + cx);
+  const dy = my - (brunoStage.getBoundingClientRect().top + cy - 60);
+  const ed = Math.sqrt(dx*dx + dy*dy) || 1;
+  const eo = 7;
+  const ex = (dx/ed) * Math.min(eo, ed * 0.06);
+  const ey = (dy/ed) * Math.min(eo, ed * 0.06);
+
+  // Draw eyes layer
+  if (eyeImg?.complete && eyeImg.naturalWidth) {
+    ctx.save();
+    ctx.translate(ex * 0.4, ey * 0.4);
+    ctx.drawImage(eyeImg, -dw/2, -dh/2, dw, dh);
+    ctx.restore();
+  } else {
+    // Fallback eyes
+    if (!eyesClosed) {
+      for (let s of [-1,1]) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.ellipse(s*30+ex, -50+ey, 18, 20, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#3aaa20';
+        ctx.beginPath(); ctx.ellipse(s*30+ex, -50+ey, 11, 11, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#0a1a05';
+        ctx.beginPath(); ctx.ellipse(s*30+ex+1, -50+ey+1, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.ellipse(s*30+ex-3, -55+ey, 3.5, 3.5, 0, 0, Math.PI*2); ctx.fill();
       }
-
-      const { Engine, Render, Runner, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
-      const engine = Engine.create({ gravity: { y: 0.7, scale: 0.001 } });
-      const world = engine.world;
-
-      const container = document.getElementById('canvas-container');
-      
-      // Παίρνουμε τις πραγματικές διαστάσεις του container αντί για το window
-      let width = container.clientWidth || window.innerWidth || 360;
-      let height = container.clientHeight || window.innerHeight || 640;
-
-      const render = Render.create({
-        element: container,
-        engine: engine,
-        options: {
-          width: width,
-          height: height,
-          wireframes: false,
-          background: '#0b0b1a',
-          pixelRatio: Math.min(window.devicePixelRatio || 1, 2), // Cap στο 2 για καλύτερο performance σε κινητά
-        }
-      });
-      Render.run(render);
-      
-      const runner = Runner.create({ isFixed: false });
-
-      // Δημιουργία ορίων με βάση τις σωστές διαστάσεις
-      const wallOpt = { isStatic: true, render: { visible: false } };
-      let floor = Bodies.rectangle(width/2, height+40, width*4, 80, wallOpt);
-      let leftWall = Bodies.rectangle(-40, height/2, 80, height*4, wallOpt);
-      let rightWall = Bodies.rectangle(width+40, height/2, 80, height*4, wallOpt);
-      let ceiling = Bodies.rectangle(width/2, -40, width*4, 80, wallOpt);
-      Composite.add(world, [floor, leftWall, rightWall, ceiling]);
-
-      // Δημιουργία του Bruno ακριβώς στο κέντρο
-      const BASE_RADIUS = Math.min(width, height) * 0.12;
-      const mainBody = Bodies.circle(width/2, height/2, BASE_RADIUS, {
-        render: { visible: false },
-        frictionAir: 0.08,
-        restitution: 0.45,
-        density: 0.002,
-      });
-      Composite.add(world, mainBody);
-
-      const mouse = Mouse.create(render.canvas);
-      const mouseConstraint = MouseConstraint.create(engine, {
-        mouse: mouse,
-        constraint: { stiffness: 0.2, damping: 0.1, render: { visible: false }, bodyA: mainBody }
-      });
-      Composite.add(world, mouseConstraint);
-      render.mouse = mouse;
-
-      // ---------- Καταστάσεις ----------
-      let state = 'normal';
-      let laughTimer = null;
-      let sleepTimer = null;
-      let talkingAudio = null;
-      let targetMouthOpen = 0;
-      let currentMouthOpen = 0;
-      let zzzParticles = [];
-
-      // Eye tracking
-      let mouseX = width/2, mouseY = height/2;
-      function updateMousePos(clientX, clientY) {
-        const rect = render.canvas.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        const scaleX = render.options.width / rect.width;
-        const scaleY = render.options.height / rect.height;
-        mouseX = (clientX - rect.left) * scaleX;
-        mouseY = (clientY - rect.top) * scaleY;
+    } else {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let s of [-1,1]) {
+        ctx.beginPath(); ctx.moveTo(s*20,-52); ctx.lineTo(s*40,-46); ctx.stroke();
       }
+    }
+  }
 
-      window.addEventListener('mousemove', (e) => updateMousePos(e.clientX, e.clientY));
-      window.addEventListener('touchmove', (e) => {
-        if (e.touches.length > 0) updateMousePos(e.touches[0].clientX, e.touches[0].clientY);
-      }, { passive: true });
+  // Draw mouth layer
+  if (mouthImg?.complete && mouthImg.naturalWidth) {
+    ctx.drawImage(mouthImg, -dw/2, -dh/2, dw, dh);
+  } else {
+    // Fallback mouth
+    const mOpen = mouthPhase === 2 ? 0.8 : mouthPhase === 1 ? 0.45 : 0;
+    const mH = 8 + mOpen * 28;
+    ctx.fillStyle = '#1a0a2e';
+    ctx.beginPath(); ctx.ellipse(0, 30, 28, mH, 0, 0, Math.PI*2); ctx.fill();
+    if (mOpen > 0.3) {
+      ctx.fillStyle = '#ff7aaa';
+      ctx.beginPath(); ctx.ellipse(0, 30+mH*0.5, 18, mH*0.6, 0, 0, Math.PI); ctx.fill();
+    }
+  }
 
-      // Audio & Buttons Logic
-      let audioCtx = null;
-      let mediaRecorder = null;
-      let recordedChunks = [];
-      const btnTalk = document.getElementById('btnTalk');
-      const btnFeed = document.getElementById('btnFeed');
-      const btnSleep = document.getElementById('btnSleep');
+  ctx.restore();
+}
 
-      async function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
+let rafId;
+function startBrunoLoop() {
+  function loop(t) { drawBruno(t); rafId = requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════
+// TALKING MOUTH ANIMATION
+// ═══════════════════════════════════════
+function startMouthAnim() {
+  isTalking = true; armsUp = true;
+  const cycle = () => {
+    if (!isTalking) { mouthPhase = 0; armsUp = false; return; }
+    mouthPhase = (mouthPhase + 1) % 3;
+    eyesClosed = mouthPhase === 0 && Math.random() > 0.7;
+    mouthTimer = setTimeout(cycle, 100 + Math.random() * 120);
+  };
+  cycle();
+}
+function stopMouthAnim() {
+  isTalking = false;
+  clearTimeout(mouthTimer);
+  mouthPhase = 0; armsUp = false; eyesClosed = false;
+}
+
+// ═══════════════════════════════════════
+// SPEECH SYNTHESIS
+// ═══════════════════════════════════════
+function speak(text, lang) {
+  setBubble(text);
+  setStatus('speaking');
+  brunoState = 'talking';
+  startMouthAnim();
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang  = lang || detectLang(text);
+    u.rate  = 0.9; u.pitch = 1.1;
+    u.onend = u.onerror = () => {
+      stopMouthAnim();
+      brunoState = 'idle';
+      setStatus('ready');
+    };
+    speechSynthesis.speak(u);
+  } else {
+    setTimeout(() => { stopMouthAnim(); brunoState = 'idle'; setStatus('ready'); }, text.length * 60);
+  }
+}
+
+function detectLang(text) {
+  if (/[α-ωΑ-Ω]/.test(text)) return 'el-GR';
+  if (/[а-яА-Я]/.test(text)) return 'ru-RU';
+  if (/[一-龯]/.test(text)) return 'zh-CN';
+  if (/[ا-ي]/.test(text)) return 'ar-SA';
+  return 'en-US';
+}
+
+// ═══════════════════════════════════════
+// GEMINI API
+// ═══════════════════════════════════════
+const SYSTEM_PROMPT = `You are Bruno, a cute and funny Galaxy Slime character. You are transparent blue-green with stars and hearts inside you. You speak in whatever language the user uses (auto-detect). You always reply in the same language as the user's message. If greeted in Greek, reply in Greek. If in English, reply in English, etc. Keep all replies to maximum 2 short sentences. Be playful, warm, and funny. You are an AI assistant in a Telegram Mini App.`;
+
+const PROMPT_TEMPLATES = {
+  tap:   (lang) => `The user tapped you! React with surprise or laughter as Bruno. Reply in ${lang}. 1 sentence only.`,
+  mood:  (lang) => `Tell the user how you feel today as Bruno the Galaxy Slime. Reply in ${lang}. 1-2 sentences, happy and expressive.`,
+  fact:  (lang) => `Share a fun galaxy or slime fact as Bruno. Reply in ${lang}. 1-2 sentences.`,
+  greet: (name, lang) => `Greet the Telegram user named "${name}" warmly as Bruno. Reply in ${lang}. 1-2 sentences, mention their name.`,
+};
+
+async function callGemini(userMessage) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ parts: [{ text: userMessage }] }],
+        generationConfig: { temperature: 0.95, maxOutputTokens: 120 }
+      })
+    }
+  );
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '...';
+}
+
+async function askBruno(type, extra = '') {
+  if (isTalking) { speechSynthesis.cancel(); stopMouthAnim(); }
+  setStatus('thinking'); brunoState = 'thinking';
+  setBubble('💭 ...', false);
+
+  // Detect user language from browser
+  const userLang = navigator.language || 'en';
+  const langName = new Intl.DisplayNames(['en'], { type: 'language' }).of(userLang.split('-')[0]) || 'the user\'s language';
+
+  let prompt;
+  if (type === 'greet') prompt = PROMPT_TEMPLATES.greet(extra, langName);
+  else if (type === 'tap') prompt = PROMPT_TEMPLATES.tap(langName);
+  else prompt = PROMPT_TEMPLATES[type]?.(langName) || PROMPT_TEMPLATES.fact(langName);
+
+  try {
+    const text = await callGemini(prompt);
+    // Save mood
+    if (type === 'mood') saveMood(text);
+    // Rewards
+    addStar();
+    speak(text);
+  } catch (e) {
+    setBubble('⚠️ ' + e.message);
+    setStatus('ready'); brunoState = 'idle';
+  }
+}
+
+// ═══════════════════════════════════════
+// VOICE INPUT
+// ═══════════════════════════════════════
+async function startRec() {
+  if (!GEMINI_KEY) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRec = new MediaRecorder(stream);
+    recChunks = [];
+    mediaRec.ondataavailable = e => recChunks.push(e.data);
+    mediaRec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob  = new Blob(recChunks, { type: 'audio/webm' });
+      const b64   = await blobToB64(blob);
+      sendVoice(b64);
+    };
+    mediaRec.start();
+    const btn = document.getElementById('btnMic');
+    btn.classList.add('rec');
+    btn.querySelector('.ai').textContent = '🔴';
+    setStatus('listening'); brunoState = 'listening';
+  } catch { alert('Δεν επιτρέπεται το μικρόφωνο.'); }
+}
+
+function stopRec() {
+  if (mediaRec?.state === 'recording') {
+    mediaRec.stop();
+    const btn = document.getElementById('btnMic');
+    btn.classList.remove('rec');
+    btn.querySelector('.ai').textContent = '🎤';
+    setStatus('thinking'); brunoState = 'thinking';
+    setBubble('💭 ...', false);
+  }
+}
+
+async function sendVoice(b64) {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: 'audio/webm', data: b64 } },
+              { text: 'Listen to what the user said and respond as Bruno in the SAME language they spoke. Max 2 sentences.' }
+            ]
+          }],
+          generationConfig: { temperature: 0.95, maxOutputTokens: 120 }
+        })
       }
+    );
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message);
+    const text = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '...';
+    addStar(); addHeart();
+    speak(text);
+  } catch (e) {
+    setBubble('⚠️ ' + e.message);
+    setStatus('ready'); brunoState = 'idle';
+  }
+}
 
-      async function startRecording() {
-        await initAudio();
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
-          recordedChunks = [];
-          mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
-          mediaRecorder.onstop = () => {
-            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-            const url = URL.createObjectURL(blob);
-            playTalking(url);
-            stream.getTracks().forEach(t => t.stop());
-          };
-          mediaRecorder.start();
-          btnTalk.classList.add('recording');
-          btnTalk.textContent = '🔴';
-        } catch (err) {
-          alert('Δεν επιτρέπεται η πρόσβαση στο μικρόφωνο.');
-        }
-      }
+function blobToB64(blob) {
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.readAsDataURL(blob);
+  });
+}
 
-      function stopRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          btnTalk.classList.remove('recording');
-          btnTalk.textContent = '🎤';
-        }
-      }
+// ═══════════════════════════════════════
+// REWARDS
+// ═══════════════════════════════════════
+function addStar() {
+  stars++;
+  localStorage.setItem('bruno_stars', stars);
+  document.getElementById('starCount').textContent = stars;
+  checkUnlocks();
+}
+function addHeart() {
+  hearts++;
+  localStorage.setItem('bruno_hearts', hearts);
+  document.getElementById('heartCount').textContent = hearts;
+  checkUnlocks();
+}
 
-      function playTalking(url) {
-        initAudio().then(() => {
-          if (talkingAudio) { talkingAudio.pause(); talkingAudio = null; }
-          const audio = new Audio(url);
-          talkingAudio = audio;
-          state = 'talking';
-          const source = audioCtx.createMediaElementSource(audio);
-          const analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-          analyser.connect(audioCtx.destination);
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+const COLLECTIBLES = [
+  { id:'star5',   emoji:'⭐', name:'5 Αστέρια',    req:() => stars >= 5 },
+  { id:'star20',  emoji:'🌟', name:'20 Αστέρια',   req:() => stars >= 20 },
+  { id:'heart5',  emoji:'💜', name:'5 Καρδιές',    req:() => hearts >= 5 },
+  { id:'heart20', emoji:'💎', name:'20 Καρδιές',   req:() => hearts >= 20 },
+  { id:'talker',  emoji:'🗣️', name:'Μεγάλος Ομιλητής', req:() => stars >= 10 },
+  { id:'gamer',   emoji:'🎮', name:'Gamer',         req:() => gameHighScore >= 10 },
+  { id:'explorer',emoji:'🌌', name:'Galaxy Explorer', req:() => stars >= 50 },
+  { id:'bestie',  emoji:'🤝', name:'Bestie',        req:() => hearts >= 30 },
+  { id:'legend',  emoji:'👑', name:'Legend',        req:() => stars >= 100 },
+];
 
-          const updateMouth = () => {
-            if (state !== 'talking' || audio.paused) {
-              targetMouthOpen = 0;
-              return;
-            }
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-            const avg = sum / dataArray.length;
-            targetMouthOpen = Math.min(1, avg / 140);
-            requestAnimationFrame(updateMouth);
-          };
-          audio.onended = () => {
-            state = 'normal';
-            targetMouthOpen = 0;
-            talkingAudio = null;
-          };
-          audio.play().catch(e => console.warn(e));
-          updateMouth();
-        });
-      }
+let gameHighScore = parseInt(localStorage.getItem('bruno_ghs') || '0');
 
-      function laugh() {
-        if (state === 'sleeping') return;
-        state = 'laughing';
-        Matter.Body.setAngularVelocity(mainBody, (Math.random()-0.5)*0.3);
-        Matter.Body.applyForce(mainBody, mainBody.position, { x:0, y:-0.08 });
-        if (laughTimer) clearTimeout(laughTimer);
-        laughTimer = setTimeout(() => { if (state==='laughing') state='normal'; }, 900);
-      }
+function checkUnlocks() {
+  let changed = false;
+  COLLECTIBLES.forEach(c => {
+    if (!unlocked.includes(c.id) && c.req()) {
+      unlocked.push(c.id);
+      changed = true;
+      // Toast
+      spawnFloatingStar(
+        Math.random() * 200 + 40,
+        100 + Math.random() * 100,
+        c.emoji
+      );
+    }
+  });
+  if (changed) localStorage.setItem('bruno_unlocked', JSON.stringify(unlocked));
+}
 
-      function feed() {
-        if (state === 'sleeping') return;
-        initAudio().then(() => {
-          state = 'eating';
-          if (talkingAudio) { talkingAudio.pause(); talkingAudio = null; }
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-          osc.frequency.linearRampToValueAtTime(200, audioCtx.currentTime+0.2);
-          gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-          gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.25);
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          osc.stop(audioCtx.currentTime+0.25);
-          setTimeout(() => { if (state==='eating') state='normal'; }, 700);
-        });
-      }
+function buildCollectibles() { checkUnlocks(); }
 
-      function toggleSleep() {
-        if (state === 'sleeping') {
-          state = 'normal';
-          btnSleep.textContent = '😴';
-          zzzParticles = [];
-          if (sleepTimer) clearTimeout(sleepTimer);
-        } else {
-          state = 'sleeping';
-          btnSleep.textContent = '⏰';
-          targetMouthOpen = 0;
-          for (let i = 0; i < 5; i++) {
-            zzzParticles.push({
-              x: mainBody.position.x + (Math.random()-0.5)*80,
-              y: mainBody.position.y - 50 - i*20,
-              opacity: 1,
-            });
-          }
-          sleepTimer = setTimeout(() => {
-            if (state === 'sleeping') {
-              state = 'normal';
-              btnSleep.textContent = '😴';
-              zzzParticles = [];
-            }
-          }, 8000);
-        }
-      }
+function renderCollectibles() {
+  const g = document.getElementById('collectGrid');
+  g.innerHTML = '';
+  COLLECTIBLES.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'collect-item' + (unlocked.includes(c.id) ? ' unlocked' : '');
+    div.innerHTML = `<div class="ci-emoji">${c.emoji}</div><div>${c.name}</div>`;
+    g.appendChild(div);
+  });
+}
 
-      btnTalk.addEventListener('pointerdown', startRecording);
-      btnTalk.addEventListener('pointerup', stopRecording);
-      btnTalk.addEventListener('pointerleave', stopRecording);
-      btnFeed.addEventListener('click', feed);
-      btnSleep.addEventListener('click', toggleSleep);
+// ═══════════════════════════════════════
+// MOOD TRACKER
+// ═══════════════════════════════════════
+const MOOD_COLORS = ['#a855f7','#00d4ff','#ffd700','#ff4a75','#4ade80'];
+function saveMood(text) {
+  const entry = {
+    text,
+    emoji: pickMoodEmoji(text),
+    color: MOOD_COLORS[moodHistory.length % MOOD_COLORS.length],
+    time: new Date().toLocaleString('el-GR', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short' })
+  };
+  moodHistory.push(entry);
+  if (moodHistory.length > 20) moodHistory.shift();
+  localStorage.setItem('bruno_moods', JSON.stringify(moodHistory));
+  updateUI();
+}
 
-      render.canvas.addEventListener('pointerdown', (e) => {
-        const rect = render.canvas.getBoundingClientRect();
-        const scaleX = render.options.width / rect.width;
-        const scaleY = render.options.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
-        if (Matter.Query.point([mainBody], { x, y }).length > 0) {
-          laugh();
-        }
-      });
+function pickMoodEmoji(text) {
+  const t = text.toLowerCase();
+  if (/χαρ|happy|joy|great|τέλ/.test(t))   return '😄';
+  if (/λυπ|sad|down|άσχ/.test(t))            return '😢';
+  if (/αστε|fun|laugh|χχχ/.test(t))          return '😂';
+  if (/αγχ|stress|worried/.test(t))          return '😰';
+  if (/αγάπ|love|heart/.test(t))             return '💜';
+  return '✨';
+}
 
-      // ---------- ΣΧΕΔΙΑΣΗ (CANVAS) ----------
-      function drawBruno(ctx, pos, angle, scale) {
-        const bodyW = 220 * scale;
-        const bodyH = 300 * scale;
-        const eyeSize = 35 * scale;
-        const pupilSize = 18 * scale;
+function renderMoodHistory() {
+  const list = document.getElementById('moodList');
+  list.innerHTML = '';
+  if (!moodHistory.length) {
+    list.innerHTML = '<p style="color:rgba(255,255,255,0.3);text-align:center;font-size:13px;margin-top:40px">Δεν υπάρχει ιστορικό ακόμα.<br>Πάτα το 💜 Mood κουμπί!</p>';
+    return;
+  }
+  [...moodHistory].reverse().forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'mood-entry';
+    d.style.borderColor = m.color;
+    d.innerHTML = `
+      <div class="mood-entry-emoji">${m.emoji}</div>
+      <div class="mood-entry-text">
+        <div class="mood-entry-msg">${m.text}</div>
+        <div class="mood-entry-time">${m.time}</div>
+      </div>
+    `;
+    list.appendChild(d);
+  });
+}
 
-        ctx.save();
-        ctx.translate(pos.x, pos.y);
-        const finalAngle = (state === 'sleeping') ? angle + Math.PI/2 : angle;
-        ctx.rotate(finalAngle);
+// ═══════════════════════════════════════
+// MINI GAME – CATCH THE STARS
+// ═══════════════════════════════════════
+const gc     = document.getElementById('gameCanvas');
+const gctx   = gc.getContext('2d');
+const GW = 360, GH = 460;
+let gameRunning = false;
+let gameScore   = 0;
+let gameFalling = [];
+let gamePlayer  = { x: GW/2, y: GH - 60, w: 60, h: 60 };
+let gameAnimId;
+let gameTick    = 0;
+let gameBrunoFrame = 0;
 
-        let bodyColor1, bodyColor2;
-        if (state === 'sleeping') { bodyColor1 = '#7c3aed'; bodyColor2 = '#4c1d95'; }
-        else if (state === 'eating') { bodyColor1 = '#f97316'; bodyColor2 = '#c2410c'; }
-        else { bodyColor1 = '#a78bfa'; bodyColor2 = '#4f46e5'; }
+gc.addEventListener('pointermove', e => {
+  const r = gc.getBoundingClientRect();
+  gamePlayer.x = (e.clientX - r.left) * (GW / r.width);
+});
+gc.addEventListener('touchmove', e => {
+  const r = gc.getBoundingClientRect();
+  gamePlayer.x = (e.touches[0].clientX - r.left) * (GW / r.width);
+}, { passive: true });
 
-        const gradient = ctx.createLinearGradient(-bodyW/2, 0, bodyW/2, bodyH/2);
-        gradient.addColorStop(0, bodyColor1);
-        gradient.addColorStop(1, bodyColor2);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, bodyW/2, bodyH/2, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff33';
-        ctx.lineWidth = 3*scale;
-        ctx.stroke();
+function startGame() {
+  showScreen('gameScreen');
+  gameScore = 0; gameFalling = []; gameTick = 0;
+  document.getElementById('gameScoreDisplay').textContent = 0;
+  gameRunning = true;
+  gameLoop();
+}
 
-        ctx.fillStyle = '#ffffff20';
-        ctx.beginPath();
-        ctx.ellipse(-bodyW*0.2, -bodyH*0.25, bodyW*0.15, bodyH*0.15, 0, 0, Math.PI*2);
-        ctx.fill();
+function endGame() {
+  gameRunning = false;
+  cancelAnimationFrame(gameAnimId);
+  if (gameScore > gameHighScore) {
+    gameHighScore = gameScore;
+    localStorage.setItem('bruno_ghs', gameScore);
+  }
+  // Give stars
+  const earned = Math.floor(gameScore / 3);
+  for (let i = 0; i < earned; i++) addStar();
+  showScreen('mainScreen');
+  if (gameScore > 0) {
+    setTimeout(() => askBruno('tap'), 400);
+  }
+}
 
-        ctx.fillStyle = gradient;
-        if (state === 'eating') {
-          ctx.beginPath(); ctx.ellipse(-bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, -0.4, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, 0.4, 0, Math.PI*2); ctx.fill();
-        } else if (state === 'laughing') {
-          ctx.beginPath(); ctx.ellipse(-bodyW*0.45, -bodyH*0.4, 25*scale, 35*scale, -0.6, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(bodyW*0.45, -bodyH*0.4, 25*scale, 35*scale, 0.6, 0, Math.PI*2); ctx.fill();
-        } else {
-          ctx.beginPath(); ctx.ellipse(-bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, 0.3, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, -0.3, 0, Math.PI*2); ctx.fill();
-        }
+function spawnFalling() {
+  const types = ['⭐','💜','🌠','✨','💎'];
+  const isBad = Math.random() < 0.18;
+  gameFalling.push({
+    x:  20 + Math.random() * (GW - 40),
+    y:  -20,
+    vy: 2.5 + Math.random() * 2.5 + gameTick * 0.002,
+    emoji: isBad ? '💥' : types[Math.floor(Math.random() * types.length)],
+    bad: isBad,
+    size: 24 + Math.random() * 10,
+  });
+}
 
-        const eyeY = -bodyH * 0.12;
-        if (state === 'sleeping') {
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 4*scale;
-          ctx.beginPath(); ctx.moveTo(-45*scale, eyeY-5*scale); ctx.lineTo(-20*scale, eyeY+8*scale); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(20*scale, eyeY+8*scale); ctx.lineTo(45*scale, eyeY-5*scale); ctx.stroke();
-        } else {
-          const dx = mouseX - pos.x;
-          const dy = mouseY - pos.y;
-          const dist = Math.sqrt(dx*dx+dy*dy) || 1;
-          const maxOffset = 12 * scale;
-          const offsetX = (dx/dist) * Math.min(maxOffset, dist*0.08);
-          const offsetY = (dy/dist) * Math.min(maxOffset, dist*0.08);
+function gameLoop() {
+  if (!gameRunning) return;
+  gameTick++;
+  gctx.clearRect(0, 0, GW, GH);
 
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.ellipse(-35*scale + offsetX, eyeY + offsetY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(35*scale + offsetX, eyeY + offsetY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = '#1e1b4b';
-          ctx.beginPath(); ctx.ellipse(-30*scale + offsetX*1.2, eyeY+3*scale + offsetY*1.2, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(40*scale + offsetX*1.2, eyeY+3*scale + offsetY*1.2, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.arc(-38*scale + offsetX, eyeY-8*scale + offsetY, 5*scale, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(32*scale + offsetX, eyeY-8*scale + offsetY, 5*scale, 0, Math.PI*2); ctx.fill();
-        }
+  // BG
+  const gbg = gctx.createLinearGradient(0,0,0,GH);
+  gbg.addColorStop(0, '#07071a'); gbg.addColorStop(1, '#0d0830');
+  gctx.fillStyle = gbg; gctx.fillRect(0,0,GW,GH);
 
-        const mouthY = bodyH * 0.18;
-        let mouthOpen = 0;
-        if (state === 'eating') mouthOpen = 0.8;
-        else if (state === 'talking') mouthOpen = currentMouthOpen;
-        else if (state === 'laughing') mouthOpen = 0.7;
-        else if (state === 'sleeping') mouthOpen = 0.1;
+  // Stars bg dots
+  gctx.fillStyle = 'rgba(255,255,255,0.4)';
+  for (let i = 0; i < 3; i++) {
+    gctx.beginPath();
+    gctx.arc(Math.random()*GW, Math.random()*GH, 0.8, 0, Math.PI*2);
+    gctx.fill();
+  }
 
-        const mouthW = 40 * scale;
-        const mouthH = (8 + mouthOpen * 30) * scale;
-        ctx.fillStyle = '#1a0a2e';
-        ctx.beginPath();
-        ctx.ellipse(0, mouthY, mouthW, mouthH, 0, 0, Math.PI*2);
-        ctx.fill();
-        if (mouthOpen > 0.35) {
-          ctx.fillStyle = '#ff6b8a';
-          ctx.beginPath();
-          ctx.ellipse(0, mouthY + mouthH*0.4, mouthW*0.6, mouthH*0.7, 0, 0, Math.PI);
-          ctx.fill();
-        }
+  // Spawn
+  if (gameTick % 38 === 0) spawnFalling();
 
-        ctx.restore();
+  // Update & draw falling
+  for (let i = gameFalling.length - 1; i >= 0; i--) {
+    const f = gameFalling[i];
+    f.y += f.vy;
+    gctx.font = `${f.size}px serif`;
+    gctx.textAlign = 'center';
+    gctx.fillText(f.emoji, f.x, f.y);
 
-        if (state === 'sleeping') {
-          for (let p of zzzParticles) {
-            p.y -= 1.5;
-            p.opacity -= 0.008;
-            if (p.opacity <= 0) {
-              p.x = pos.x + (Math.random()-0.5)*80;
-              p.y = pos.y - 50;
-              p.opacity = 1;
-            }
-            ctx.save();
-            ctx.font = `${24*scale}px "Comic Sans MS", cursive`;
-            ctx.fillStyle = '#ffffff';
-            ctx.globalAlpha = p.opacity;
-            ctx.fillText('Z', p.x, p.y);
-            ctx.restore();
-          }
-        }
-      }
+    // Catch check
+    if (
+      f.y > gamePlayer.y - 10 && f.y < gamePlayer.y + 50 &&
+      Math.abs(f.x - gamePlayer.x) < gamePlayer.w
+    ) {
+      if (f.bad) { endGame(); return; }
+      gameScore++;
+      document.getElementById('gameScoreDisplay').textContent = gameScore;
+      gameFalling.splice(i, 1);
+      continue;
+    }
+    if (f.y > GH + 20) gameFalling.splice(i, 1);
+  }
 
-      function animateMouth() {
-        if (state === 'talking') {
-          currentMouthOpen += (targetMouthOpen - currentMouthOpen) * 0.25;
-        } else {
-          currentMouthOpen += (0 - currentMouthOpen) * 0.15;
-        }
-        requestAnimationFrame(animateMouth);
-      }
-      animateMouth();
+  // Draw Bruno player (mini, using body image)
+  const px = gamePlayer.x - gamePlayer.w/2;
+  const py = gamePlayer.y;
+  gameBrunoFrame = (gameBrunoFrame + 1) % 20;
+  const pImg = (gameBrunoFrame < 10) ? imgs.bodyDown : imgs.bodyUp;
+  if (pImg?.complete && pImg.naturalWidth) {
+    gctx.drawImage(pImg, px, py, gamePlayer.w, gamePlayer.h);
+  } else {
+    // Fallback
+    gctx.fillStyle = 'rgba(0,200,240,0.85)';
+    gctx.beginPath(); gctx.ellipse(gamePlayer.x, py+30, 28, 32, 0, 0, Math.PI*2); gctx.fill();
+  }
 
-      Events.on(render, 'afterRender', () => {
-        const ctx = render.context;
-        if (!ctx) return;
-        const pos = mainBody.position;
-        const angle = mainBody.angle;
-        const scaleFactor = Math.min(width, height) / 720;
-        drawBruno(ctx, pos, angle, scaleFactor);
-      });
+  // Score HUD
+  gctx.font = 'bold 16px Nunito, sans-serif';
+  gctx.fillStyle = 'rgba(255,255,255,0.5)';
+  gctx.textAlign = 'left';
+  gctx.fillText('Αποφύγε 💥 !', 12, 24);
 
-      // Απόλυτα ασφαλές Resize για Mobile viewports
-      function handleResize() {
-        width = container.clientWidth || window.innerWidth;
-        height = container.clientHeight || window.innerHeight;
-        
-        render.options.width = width;
-        render.options.height = height;
-        render.canvas.width = width;
-        render.canvas.height = height;
-        
-        Matter.Body.setPosition(floor, { x: width/2, y: height+40 });
-        Matter.Body.setPosition(rightWall, { x: width+40, y: height/2 });
-        Matter.Body.setPosition(leftWall, { x: -40, y: height/2 });
-        Matter.Body.setPosition(ceiling, { x: width/2, y: -40 });
-        
-        // Αν ο Bruno βγει εκτός οθόνης κατά το resize, τον επαναφέρουμε στο κέντρο
-        if (mainBody.position.x > width || mainBody.position.y > height || mainBody.position.x < 0 || mainBody.position.y < 0) {
-          Matter.Body.setPosition(mainBody, { x: width/2, y: height/2 });
-          Matter.Body.setVelocity(mainBody, { x: 0, y: 0 });
-        }
-        
-        Matter.Engine.update(engine, 16);
-      }
-      
-      window.addEventListener('resize', handleResize);
-      
-      // Δίνουμε 150ms delay στο runner για να προλάβει το mobile λειτουργικό να δώσει σωστά width/height
-      setTimeout(() => {
-        handleResize();
-        Runner.run(runner, engine);
-      }, 150);
+  gameAnimId = requestAnimationFrame(gameLoop);
+}
 
-    })();
-  </script>
+// ═══════════════════════════════════════
+// LOAD ASSETS THEN START
+// ═══════════════════════════════════════
+loadAssets(() => {
+  // Assets ready – canvas will use real PNGs now
+  console.log('Bruno assets loaded ✅');
+});
+
+</script>
 </body>
 </html>
