@@ -2,7 +2,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Aziram – AI Avatar</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
@@ -26,6 +26,8 @@
     flex-direction: column;
     align-items: center;
     overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 120px; /* Χώρος για το fixed input */
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,229,255,0.15) 0%, transparent 70%),
       radial-gradient(ellipse 60% 40% at 80% 100%, rgba(179,136,255,0.10) 0%, transparent 70%);
@@ -46,8 +48,8 @@
   /* ── Layout ── */
   .container {
     position: relative; z-index: 1;
-    width: 100%; max-width: 480px;
-    padding: 20px 16px 40px;
+    width: 100%; max-width: 500px;
+    padding: 20px 16px 20px;
     display: flex; flex-direction: column; align-items: center; gap: 16px;
   }
 
@@ -59,21 +61,53 @@
     filter: drop-shadow(0 0 12px rgba(0,229,255,.5));
   }
 
-  /* ── Avatar stage ── */
+  /* ── Avatar stage (50% larger) ── */
   #avatar-wrap {
-    position: relative; width: 240px; height: 340px;
+    position: relative; width: 360px; height: 510px;
     filter: drop-shadow(0 0 28px rgba(0,229,255,.35));
     cursor: grab;
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     touch-action: none;
     will-change: transform;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   #avatar-wrap:active { cursor: grabbing; }
 
   #avatar-wrap img { position: absolute; }
 
-  #avatar-img  { width: 240px; height: 340px; left: 0; top: 0; z-index: 1; } /* Ολόκληρο το ανθρωπάκι */
-  #eyes-img    { width: 108px; left: 66px; top: 78px; z-index: 2; transition: opacity .1s; } /* Μάτια (10px κάτω) */
+  #avatar-img  { 
+    width: 360px; height: 510px; 
+    left: 0; top: 0; 
+    z-index: 1; 
+    transform: translateY(50px); /* Κατεβάζει το στόμα 50 πόντους */
+  }
+  
+  #eyes-img    { 
+    width: 162px; 
+    left: 99px; 
+    top: 88px; /* 10 πόντους κάτω από την αρχική θέση (78 → 88) */
+    z-index: 2; 
+    transition: opacity .1s; 
+  }
+
+  /* ── Emoji popup ── */
+  #emoji-popup {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 3rem;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  #emoji-popup.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-60px) scale(1.2);
+  }
 
   /* Talking glow ring */
   #glow-ring {
@@ -95,7 +129,7 @@
   /* Status dot */
   #status-dot {
     position: absolute; top: 6px; right: 6px;
-    width: 12px; height: 12px; border-radius: 50%;
+    width: 14px; height: 14px; border-radius: 50%;
     background: #444; z-index: 3;
     transition: background .3s;
   }
@@ -116,13 +150,25 @@
     color: #e0f7fa;
     font-size: .95rem; line-height: 1.55;
     white-space: pre-wrap;
+    margin-top: 10px;
   }
   #bubble-wrap::-webkit-scrollbar { width: 4px; }
   #bubble-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-  /* ── Input row ── */
+  /* ── Input row (Fixed Bottom) ── */
   #input-row {
-    width: 100%; display: flex; gap: 8px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(5, 16, 26, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 12px 16px 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
   }
   #user-input {
     flex: 1; background: var(--card);
@@ -190,20 +236,21 @@
   <div id="avatar-wrap">
     <div id="glow-ring"></div>
     <div id="status-dot"></div>
-    <img id="avatar-img" src="mouth.png" alt="avatar" /> <!-- Ολόκληρο το ανθρωπάκι (κλειστό στόμα) -->
-    <img id="eyes-img"   src="eyes_open.png"  alt="eyes" /> <!-- Μάτια -->
+    <div id="emoji-popup">✨</div>
+    <img id="avatar-img" src="mouth.png" alt="avatar" />
+    <img id="eyes-img"   src="eyes_open.png"  alt="eyes" />
   </div>
 
-  <!-- Answer bubble -->
-  <div id="bubble-wrap">Γεια σου! Είμαι ο Aziram 👋 Κάνε μου οποιαδήποτε ερώτηση!</div>
+  <!-- Answer bubble (Empty initially) -->
+  <div id="bubble-wrap"></div>
+</div>
 
-  <!-- Input -->
-  <div id="input-row">
-    <input id="user-input" type="text" placeholder="Γράψε κάτι ή πάτα 🎤…"
-           onkeydown="if(event.key==='Enter') sendMessage()" />
-    <button class="btn-icon" id="btn-send" onclick="sendMessage()" title="Αποστολή">➤</button>
-    <button class="btn-icon" id="btn-mic"  onclick="toggleMic()"   title="Μικρόφωνο">🎤</button>
-  </div>
+<!-- Input row (Fixed Bottom) -->
+<div id="input-row">
+  <input id="user-input" type="text" placeholder="Γράψε κάτι ή πάτα 🎤…"
+         onkeydown="if(event.key==='Enter') sendMessage()" />
+  <button class="btn-icon" id="btn-send" onclick="sendMessage()" title="Αποστολή">➤</button>
+  <button class="btn-icon" id="btn-mic"  onclick="toggleMic()"   title="Μικρόφωνο">🎤</button>
 </div>
 
 <script>
@@ -236,6 +283,7 @@ const eyeEl = document.getElementById('eyes-img');
 const bubble = document.getElementById('bubble-wrap');
 const input = document.getElementById('user-input');
 const statusDot = document.getElementById('status-dot');
+const emojiPopup = document.getElementById('emoji-popup');
 
 let currentUtterance = null;
 let conversationHistory = [];
@@ -276,16 +324,42 @@ function stopMouthAnim() {
 function playPopSound() {
   try {
     const audio = new Audio('pop.mp3');
-    audio.volume = 0.4;
+    audio.volume = 0.3;
     audio.play().catch(() => {});
   } catch(e) {}
+}
+
+/* Show emoji reaction */
+function showEmoji() {
+  const emojis = ['🌟', '✨', '🎉', '😄', '💫', '⭐', '🌈', '💖'];
+  const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+  emojiPopup.textContent = emoji;
+  emojiPopup.classList.remove('show');
+  // Force reflow
+  void emojiPopup.offsetWidth;
+  emojiPopup.classList.add('show');
+  setTimeout(() => {
+    emojiPopup.classList.remove('show');
+  }, 1200);
+}
+
+/* Bounce effect */
+function bounceAvatar() {
+  wrap.style.transition = 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  wrap.style.transform = 'scale(1.05) translateY(-10px)';
+  setTimeout(() => {
+    wrap.style.transform = '';
+  }, 300);
 }
 
 /* Avatar click */
 async function avatarClick() {
   if(isTalking || isThinking) return;
   
+  // Χαρούμενες αντιδράσεις
   playPopSound();
+  showEmoji();
+  bounceAvatar();
   
   // Ανοίγει το στόμα
   avatarEl.src = 'mouth1.png';
