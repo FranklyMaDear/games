@@ -83,9 +83,9 @@
     position: relative; width: 240px; height: 340px;
     filter: drop-shadow(0 0 28px rgba(0,229,255,.35));
     cursor: pointer;
-    transition: transform .15s;
+    transition: opacity 0.15s;
   }
-  #avatar-wrap:active { transform: scale(.97); }
+  #avatar-wrap:active { opacity: 0.85; } /* Απλό feedback, χωρίς να μαζεύει το μέγεθος */
 
   #avatar-wrap img { position: absolute; }
 
@@ -164,19 +164,6 @@
   #btn-mic   { background: rgba(255,64,129,.15); border: 1px solid rgba(255,64,129,.4); }
   #btn-mic.active { background: rgba(255,64,129,.5); }
 
-  /* ── Language selector ── */
-  #lang-row {
-    width: 100%; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
-  }
-  .lang-btn {
-    padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
-    background: transparent; color: rgba(255,255,255,.6);
-    font-size: .78rem; cursor: pointer; transition: all .2s;
-  }
-  .lang-btn.active, .lang-btn:hover {
-    background: var(--card); color: var(--teal); border-color: var(--teal);
-  }
-
   /* ── Volume / voice toggle ── */
   #voice-row {
     display: flex; gap: 10px; align-items: center;
@@ -211,20 +198,6 @@
   <div id="key-banner">
     <input id="api-key-input" type="password" placeholder="Βάλε το Gemini API Key σου…" />
     <button onclick="saveKey()">💾 Save</button>
-  </div>
-
-  <!-- Language -->
-  <div id="lang-row">
-    <button class="lang-btn active" data-lang="el-GR">🇬🇷 Ελληνικά</button>
-    <button class="lang-btn" data-lang="en-US">🇬🇧 English</button>
-    <button class="lang-btn" data-lang="de-DE">🇩🇪 Deutsch</button>
-    <button class="lang-btn" data-lang="fr-FR">🇫🇷 Français</button>
-    <button class="lang-btn" data-lang="es-ES">🇪🇸 Español</button>
-    <button class="lang-btn" data-lang="it-IT">🇮🇹 Italiano</button>
-    <button class="lang-btn" data-lang="ru-RU">🇷🇺 Русский</button>
-    <button class="lang-btn" data-lang="zh-CN">🇨🇳 中文</button>
-    <button class="lang-btn" data-lang="ja-JP">🇯🇵 日本語</button>
-    <button class="lang-btn" data-lang="ar-SA">🇸🇦 العربية</button>
   </div>
 
   <!-- Voice toggle -->
@@ -265,7 +238,7 @@
 const MOUTHS = ['mouth.png','mouth1.png','mouth3.png'];
 const BODIES = ['body.png','body2.png','body3.png'];
 let GEMINI_KEY = localStorage.getItem('gemini_key') || '';
-let currentLang = 'el-GR';
+let currentLang = 'el-GR'; // Μόνο Ελληνικά
 let isTalking = false, isListening = false, isThinking = false;
 let blinkTimer, mouthTimer, bodyTimer;
 let recognition = null;
@@ -300,17 +273,6 @@ function saveKey(){
   if(GEMINI_KEY){ localStorage.setItem('gemini_key',GEMINI_KEY); showBubble('✅ API Key αποθηκεύτηκε!'); }
 }
 if(GEMINI_KEY){ document.getElementById('api-key-input').value = '••••••••••••••••••'; }
-
-/* ═══════════════════════════════════════════════
-   LANGUAGE
-═══════════════════════════════════════════════ */
-document.querySelectorAll('.lang-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    currentLang = btn.dataset.lang;
-  });
-});
 
 /* ═══════════════════════════════════════════════
    AVATAR STATES
@@ -384,7 +346,7 @@ async function askGemini(userMsg){
   conversationHistory.push({ role:'user', parts:[{ text: userMsg }] });
 
   const systemPrompt = `You are Aziram, a friendly, cheerful, glittery alien creature.
-You answer in the SAME language the user writes in. Be warm, playful, curious, and helpful.
+You answer in Greek (Ελληνικά). Be warm, playful, curious, and helpful.
 Keep answers concise (2-4 sentences) unless asked for detail.
 Never break character. You love stars, glitter, and adventures!`;
 
@@ -410,18 +372,18 @@ Never break character. You love stars, glitter, and adventures!`;
 }
 
 /* ═══════════════════════════════════════════════
-   SPEECH SYNTHESIS
+   SPEECH SYNTHESIS (Μόνο Ελληνικά)
 ═══════════════════════════════════════════════ */
-function speak(text, lang){
+function speak(text){
   if(!document.getElementById('voice-toggle').checked) return Promise.resolve();
   return new Promise(resolve=>{
     if(currentUtterance){ speechSynthesis.cancel(); }
     const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = lang;
+    utt.lang = 'el-GR'; // Πάντα Ελληνικά
     utt.rate = 1.0; utt.pitch = 1.1;
-    // try to pick a nice voice
+    // try to pick a Greek voice
     const voices = speechSynthesis.getVoices();
-    const match = voices.find(v=>v.lang.startsWith(lang.split('-')[0]));
+    const match = voices.find(v=>v.lang.startsWith('el'));
     if(match) utt.voice = match;
     utt.onend = ()=>{ currentUtterance=null; resolve(); };
     utt.onerror= ()=>{ currentUtterance=null; resolve(); };
@@ -449,7 +411,7 @@ async function sendMessage(text){
   startMouthAnim();
   startBodyAnim();
 
-  await speak(reply, currentLang);
+  await speak(reply);
 
   stopMouthAnim();
   stopBodyAnim();
@@ -457,7 +419,7 @@ async function sendMessage(text){
 }
 
 /* ═══════════════════════════════════════════════
-   SPEECH RECOGNITION (MIC)
+   SPEECH RECOGNITION (MIC - Ελληνικά)
 ═══════════════════════════════════════════════ */
 function toggleMic(){
   const btn = document.getElementById('btn-mic');
@@ -471,7 +433,7 @@ function toggleMic(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Ο browser σου δεν υποστηρίζει αναγνώριση φωνής.'); return; }
   recognition = new SR();
-  recognition.lang = currentLang;
+  recognition.lang = 'el-GR'; // Πάντα Ελληνικά
   recognition.interimResults = false;
   recognition.onresult = e=>{
     const transcript = e.results[0][0].transcript;
@@ -492,11 +454,10 @@ function toggleMic(){
 ═══════════════════════════════════════════════ */
 const greetings = [
   'Γεια σου! Πώς μπορώ να σε βοηθήσω; ✨',
-  'Hello there! Ask me anything! 🌟',
-  'Hola! ¿En qué puedo ayudarte? 💫',
-  '¡Hola! Pregúntame lo que quieras! ⭐',
-  'Ciao! Come posso aiutarti? 🌠',
-  'Bonjour! Posez-moi une question! ✨',
+  'Γεια σου! Θέλεις να μιλήσουμε; 🌟',
+  'Έλα, ρώτα με ό,τι θες! 💫',
+  'Πώς είσαι σήμερα; 😊',
+  'Είμαι εδώ για σένα! 🌠'
 ];
 let gIdx = 0;
 async function avatarClick(){
@@ -506,7 +467,7 @@ async function avatarClick(){
   setState('talking');
   startMouthAnim();
   startBodyAnim();
-  await speak(g, currentLang);
+  await speak(g);
   stopMouthAnim();
   stopBodyAnim();
   setState('');
