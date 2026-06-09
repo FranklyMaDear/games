@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bruno My Talking Slime Pet – HTML5</title>
+  <title>Bruno Galaxy Slime – HTML5</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -75,7 +75,7 @@
 </head>
 <body>
   <div id="canvas-container">
-    <div class="ui-overlay">ΖΟΥΛΗΞΕ ΤΟ ΖΕΛΕ!</div>
+    <div class="ui-overlay">Ο ΓΑΛΑΞΙΑΣ ΖΕΛΕΣ!</div>
     <div class="btn-container">
       <button class="btn" id="btnTalk">🎤</button>
       <button class="btn" id="btnFeed">🍔</button>
@@ -86,7 +86,7 @@
   <script>
     (function() {
       // ---------- Matter.js setup ----------
-      const { Engine, Render, Runner, Composites, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
+      const { Engine, Render, Runner, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
       const engine = Engine.create({ gravity: { y: 0.6 } });
       const world = engine.world;
       const container = document.getElementById('canvas-container');
@@ -113,51 +113,46 @@
       const ceiling = Bodies.rectangle(width/2, -30, width*2, 60, wallOpt);
       Composite.add(world, [floor, leftWall, rightWall, ceiling]);
 
-      // ---------- Φόρτωση Όλων των Assets ----------
-      const imgBodyNormal = new Image(); imgBodyNormal.src = 'body.png';
-      const imgBodyEating = new Image(); imgBodyEating.src = 'body2.png';
-      const imgBodySleeping = new Image(); imgBodySleeping.src = 'body3.png';
+      // ---------- Φόρτωση Assets του Bruno ----------
+      const imgBodyNormal = new Image(); imgBodyNormal.src = 'body.png';       // Χέρια κάτω
+      const imgBodyHappy = new Image(); imgBodyHappy.src = 'body2.png';        // Χέρια ψηλά
+      const imgBodySleep = new Image(); imgBodySleep.src = 'body3.png';        // Υπάρχει; Αν όχι, θα πέσει στο 'body.png'
       
       const imgEyesOpen = new Image(); imgEyesOpen.src = 'eyes_open.png';
       const imgEyesClosed = new Image(); imgEyesClosed.src = 'eyes_closed.PNG';
       
-      const imgMouthNormal = new Image(); imgMouthNormal.src = 'mouth.png';
-      const imgMouthTalking = new Image(); imgMouthTalking.src = 'mouth1.png';
-      const imgMouthLaughing = new Image(); imgMouthLaughing.src = 'mouth3.png';
+      const imgMouthClosed = new Image(); imgMouthClosed.src = 'mouth.png';
+      const imgMouthTalking = new Image(); imgMouthTalking.src = 'mouth1.png'; // Με γλώσσα
+      const imgMouthOpen = new Image(); imgMouthOpen.src = 'mouth3.png';       // Χαμόγελο
 
-      // Μέγεθος ζελέ
-      const particleRadius = Math.max(22, Math.min(40, Math.floor(width / 13)));
-      const cols = 4, rows = 4;
-      const centerX = width/2, centerY = height/2;
-      const jellyAvatar = Composites.softBody(
-        centerX - cols * particleRadius,
-        centerY - rows * particleRadius,
-        cols, rows, 0, 0, true, particleRadius,
-        { frictionAir: 0.04, render: { visible: false } },
-        { stiffness: 0.4, render: { visible: false } }
-      );
-      Composite.add(world, jellyAvatar);
-
-      const contourIndices = [0,1,2,3,7,11,15,14,13,12,8,4];
-      const centerParticle = jellyAvatar.bodies[5];
-      const topParticle = jellyAvatar.bodies[1];
+      // Σώμα για φυσική (μικρό σχήμα για κίνηση χωρίς παραμόρφωση εικόνας)
+      const bodyRadius = Math.min(width, height) * 0.08; 
+      const x = width / 2;
+      const y = height / 2 + 10;
+      
+      // Δημιουργούμε ένα κύριο σώμα που κινείται (τον χρησιμοποιούμε μόνο για φυσική και περιστροφή)
+      const mainBody = Bodies.circle(x, y, bodyRadius, { 
+        render: { visible: false },
+        frictionAir: 0.05,
+        restitution: 0.3
+      });
+      Composite.add(world, mainBody);
 
       // Mouse / Touch
       const mouse = Mouse.create(render.canvas);
       const mouseConstraint = MouseConstraint.create(engine, {
         mouse: mouse,
-        constraint: { stiffness: 0.5, render: { visible: false } }
+        constraint: { stiffness: 0.5, render: { visible: false }, bodyA: mainBody }
       });
       Composite.add(world, mouseConstraint);
       render.mouse = mouse;
 
       // ---------- Καταστάσεις ----------
       let state = 'normal'; // normal | talking | eating | sleeping | laughing
-      let mouthOpen = 0;   
-      let targetMouth = 0;
       let laughTimer = null;
       let sleepTimer = null;
       let talkingAudio = null;
+      let targetMouthOpen = 0; // Για animation ομιλίας
 
       // ---------- Audio Context & Recorder ----------
       let audioCtx = null;
@@ -221,19 +216,19 @@
 
         const updateMouth = () => {
           if (state !== 'talking' || audio.paused) {
-            targetMouth = 0;
+            targetMouthOpen = 0;
             return;
           }
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
           for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
           const avg = sum / dataArray.length;
-          targetMouth = Math.min(1, avg / 128);
+          targetMouthOpen = Math.min(1, avg / 128);
           requestAnimationFrame(updateMouth);
         };
         audio.onended = () => {
           state = 'normal';
-          targetMouth = 0;
+          targetMouthOpen = 0;
           talkingAudio = null;
         };
         audio.play();
@@ -243,24 +238,19 @@
       function laugh() {
         if (state === 'sleeping') return;
         state = 'laughing';
-        targetMouth = 0.7;
-        jellyAvatar.bodies.forEach(b => {
-          Matter.Body.applyForce(b, b.position, {
-            x: (Math.random() - 0.5) * 0.03,
-            y: (Math.random() - 0.8) * 0.04
-          });
-        });
+        Matter.Body.setAngularVelocity(mainBody, (Math.random() - 0.5) * 0.2);
+        Matter.Body.applyForce(mainBody, mainBody.position, { x: 0, y: -0.05 });
+        
         if (laughTimer) clearTimeout(laughTimer);
         laughTimer = setTimeout(() => {
           state = 'normal';
-          targetMouth = 0;
         }, 800);
       }
 
       function feed() {
         if (state === 'sleeping') return;
         state = 'eating';
-        targetMouth = 0.9;
+        // Ήχος φαγητού
         if (talkingAudio) talkingAudio.pause();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -276,7 +266,6 @@
         setTimeout(() => {
           if (state === 'eating') {
             state = 'normal';
-            targetMouth = 0;
           }
         }, 600);
       }
@@ -289,7 +278,7 @@
         } else {
           state = 'sleeping';
           btnSleep.textContent = '⏰';
-          targetMouth = 0;
+          // Αυτόματο ξύπνημα
           sleepTimer = setTimeout(() => {
             if (state === 'sleeping') {
               state = 'normal';
@@ -299,113 +288,115 @@
         }
       }
 
-      // ---------- UI Buttons Events ----------
+      // ---------- UI Buttons ----------
       btnTalk.addEventListener('pointerdown', startRecording);
       btnTalk.addEventListener('pointerup', stopRecording);
       btnTalk.addEventListener('pointerleave', stopRecording);
       btnFeed.addEventListener('click', () => { initAudio(); feed(); });
       btnSleep.addEventListener('click', toggleSleep);
 
+      // Άγγιγμα στον Bruno → γέλιο
       render.canvas.addEventListener('pointerdown', (e) => {
         const rect = render.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const bodies = Matter.Query.point(jellyAvatar.bodies, { x, y });
-        if (bodies.length > 0) {
+        const x = (e.clientX - rect.left) * (render.options.width / rect.width);
+        const y = (e.clientY - rect.top) * (render.options.height / rect.height);
+        
+        if (Matter.Query.point([mainBody], { x, y }).length > 0) {
           laugh();
         }
       });
 
-      // ---------- Custom Render με τα Νέα Assets ----------
+      // ---------- Custom Render (Σχεδίαση του Bruno) ----------
       Events.on(render, 'afterRender', () => {
         const ctx = render.context;
+        const pos = mainBody.position;
+        const angle = mainBody.angle;
 
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        jellyAvatar.bodies.forEach(b => {
-          if (b.position.x < minX) minX = b.position.x;
-          if (b.position.x > maxX) maxX = b.position.x;
-          if (b.position.y < minY) minY = b.position.y;
-          if (b.position.y > maxY) maxY = b.position.y;
-        });
-        const w = maxX - minX;
-        const h = maxY - minY;
-        const cx = minX + w/2;
-        const cy = minY + h/2;
+        // Διαστάσεις σχεδίασης (προσαρμόζονται στο μέγεθος οθόνης)
+        const scale = Math.min(width, height) / 600; 
+        const bodyWidth = 250 * scale;
+        const bodyHeight = 400 * scale;
 
-        // 1. Σώμα (επιλογή εικόνας ανάλογα με την κατάσταση)
+        // 1. Επιλογή σώματος
+        let bodyImg = imgBodyNormal;
+        let eyesImg = imgEyesOpen;
+        let mouthImg = imgMouthClosed;
+
+        if (state === 'eating') {
+          bodyImg = imgBodyHappy; // Χέρια ψηλά
+          mouthImg = imgMouthOpen;
+        } else if (state === 'sleeping') {
+          bodyImg = (imgBodySleep.complete && imgBodySleep.naturalWidth > 0) ? imgBodySleep : imgBodyNormal;
+          eyesImg = (imgEyesClosed.complete && imgEyesClosed.naturalWidth > 0) ? imgEyesClosed : null; // Αν δεν υπάρχει, θα ζωγραφίσουμε γραμμές
+          mouthImg = imgMouthClosed;
+        } else if (state === 'talking') {
+          bodyImg = imgBodyNormal;
+          eyesImg = imgEyesOpen;
+          mouthImg = imgMouthTalking; // Στόμα με γλώσσα
+        } else if (state === 'laughing') {
+          bodyImg = imgBodyNormal;
+          mouthImg = imgMouthOpen;
+        } else { // Normal
+          bodyImg = imgBodyNormal;
+          mouthImg = imgMouthClosed;
+        }
+
+        // 2. Σχεδίαση Σώματος
         ctx.save();
-        ctx.beginPath();
-        contourIndices.forEach((idx, i) => {
-          const p = jellyAvatar.bodies[idx].position;
-          if (i === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        });
-        ctx.closePath();
-        ctx.clip();
-        
-        let imgBodyToDraw = imgBodyNormal;
-        if (state === 'eating') imgBodyToDraw = imgBodyEating;
-        else if (state === 'sleeping') imgBodyToDraw = imgBodySleeping;
-        
-        if (imgBodyToDraw.complete && imgBodyToDraw.naturalWidth > 0) {
-          ctx.drawImage(imgBodyToDraw, cx - w/2 - 20, cy - h/2 - 20, w + 40, h + 40);
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(angle);
+        // Σχεδίαση του σώματος (PNG)
+        if (bodyImg.complete && bodyImg.naturalWidth > 0) {
+          ctx.drawImage(bodyImg, -bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight);
         } else {
-          ctx.fillStyle = '#ff6b8a';
+          ctx.fillStyle = '#00aaff';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, bodyWidth/2, bodyHeight/2, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.restore();
 
-        // 2. Στόμα (επιλογή εικόνας)
-        let imgMouthToDraw = imgMouthNormal;
-        // Αν η κατάσταση είναι 'eating' ή 'laughing', δείχνουμε 'mouth3.png'
-        if (state === 'eating' || state === 'laughing') {
-           imgMouthToDraw = imgMouthLaughing;
-        } else if (state === 'talking') {
-           imgMouthToDraw = imgMouthTalking;
-        } else if (state === 'sleeping') {
-           imgMouthToDraw = imgMouthNormal; // Κλειστό
+        // 3. Σχεδίαση Ματιών
+        if (state !== 'sleeping') {
+          if (eyesImg && eyesImg.complete && eyesImg.naturalWidth > 0) {
+            const eyeW = 60 * scale;
+            const eyeH = 60 * scale;
+            ctx.drawImage(eyesImg, -eyeW/2 - 20*scale, -eyeH/2 - 30*scale, eyeW, eyeH); // Αριστερό μάτι
+            ctx.drawImage(eyesImg, -eyeW/2 + 40*scale, -eyeH/2 - 30*scale, eyeW, eyeH); // Δεξί μάτι
+          }
+        } else {
+          // Σχεδίαση κλειστών ματιών (γραμμές) αν δεν υπάρχει το PNG
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4 * scale;
+          ctx.beginPath();
+          ctx.moveTo(-40*scale, -30*scale);
+          ctx.lineTo(-20*scale, -10*scale);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(20*scale, -10*scale);
+          ctx.lineTo(40*scale, -30*scale);
+          ctx.stroke();
         }
-        
-        // Σχεδίαση του στόματος πάνω στο σώμα
-        ctx.save();
-        // Συντεταγμένες για το στόμα (προσαρμοσμένες στο κέντρο)
-        ctx.translate(centerParticle.position.x, centerParticle.position.y + h * 0.15);
-        const mw = w * 0.25;
-        const mh = h * 0.12;
-        // Κλιμάκωση για να ταιριάζει με το μέγεθος του σώματος
-        if (imgMouthToDraw.complete && imgMouthToDraw.naturalWidth > 0) {
-          ctx.drawImage(imgMouthToDraw, -mw, -mh, mw*2, mh*2);
-        }
-        ctx.restore();
 
-        // 3. Μάτια (κλειστά αν κοιμάται)
-        const eyesOpen = (state !== 'sleeping');
-        if (eyesOpen && imgEyesOpen.complete && imgEyesOpen.naturalWidth > 0) {
-          ctx.save();
-          ctx.translate(centerParticle.position.x, centerParticle.position.y);
-          const angle = Math.atan2(
-            topParticle.position.y - centerParticle.position.y,
-            topParticle.position.x - centerParticle.position.x
-          ) + Math.PI/2;
-          ctx.rotate(angle);
-          const ew = w * 0.25;
-          const eh = h * 0.15;
-          ctx.drawImage(imgEyesOpen, -ew, -eh - h*0.05, ew*2, eh*2);
-          ctx.restore();
-        } else if (!eyesOpen && imgEyesClosed.complete && imgEyesClosed.naturalWidth > 0) {
-          // Σχεδίαση κλειστών ματιών για ύπνο
-          ctx.save();
-          ctx.translate(centerParticle.position.x, centerParticle.position.y);
-          const angle = Math.atan2(
-            topParticle.position.y - centerParticle.position.y,
-            topParticle.position.x - centerParticle.position.x
-          ) + Math.PI/2;
-          ctx.rotate(angle);
-          const ew = w * 0.25;
-          const eh = h * 0.15;
-          ctx.drawImage(imgEyesClosed, -ew, -eh - h*0.05, ew*2, eh*2);
-          ctx.restore();
+        // 4. Σχεδίαση Στόματος
+        if (state === 'talking' && targetMouthOpen > 0.3) {
+            // Αν μιλάει, το στόμα μπορεί να ανοίγει και να κλείνει ανάλογα με την ένταση
+            // Μπορούμε να χρησιμοποιήσουμε το mouth1.png (που έχει γλώσσα)
+            // Αν θέλουμε κίνηση, μπορούμε να το σχεδιάσουμε με διαφορετικό τρόπο
+            // Εδώ απλά ζωγραφίζουμε το PNG του στόματος
+            if (mouthImg && mouthImg.complete && mouthImg.naturalWidth > 0) {
+                const mW = 80 * scale;
+                const mH = 40 * scale;
+                ctx.drawImage(mouthImg, -mW/2, 20*scale, mW, mH);
+            }
+        } else {
+            if (mouthImg && mouthImg.complete && mouthImg.naturalWidth > 0) {
+                const mW = 80 * scale;
+                const mH = 40 * scale;
+                ctx.drawImage(mouthImg, -mW/2, 20*scale, mW, mH);
+            }
         }
+
+        ctx.restore();
       });
 
       // Responsive
@@ -420,6 +411,7 @@
           render.canvas.width = width;
           render.canvas.height = height;
         }
+        // Ενημέρωση ορίων
         Matter.Body.setPosition(floor, { x: width/2, y: height+30 });
         Matter.Body.setPosition(rightWall, { x: width+30, y: height/2 });
         Matter.Body.setPosition(leftWall, { x: -30, y: height/2 });
