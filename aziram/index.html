@@ -1,653 +1,519 @@
 <!DOCTYPE html>
 <html lang="el">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Franklygames - AZIRAM World</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(180deg, #070b19 0%, #0f172a 50%, #1e1b4b 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: white;
-            padding: 10px;
-            padding-bottom: 90px;
-            overflow-x: hidden;
-            overflow-y: auto;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aziram – AI Avatar</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
 
-        /* --- Top Header & Stats --- */
-        .top-header {
-            width: 100%; max-width: 500px; display: flex; justify-content: space-between;
-            align-items: center; margin-bottom: 10px; padding: 0 5px;
-        }
-        .brand-title { font-weight: 900; font-size: 1.3rem; color: #fbbf24; letter-spacing: 0.5px; }
-        .currency { background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .stats-container {
-            display: flex; gap: 12px; width: 100%; max-width: 500px;
-            background: rgba(255,255,255,0.06); backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 12px 15px; margin-bottom: 15px;
-        }
-        .stat { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: bold; }
-        .bar-bg { flex: 1; height: 8px; background: rgba(0,0,0,0.5); border-radius: 10px; overflow: hidden; }
-        .bar-fill { height: 100%; width: 100%; transition: width 0.5s ease; border-radius: 10px; }
-        .hunger-fill { background: linear-gradient(90deg, #ef4444, #f43f5e); }
-        .energy-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-        .mood-fill { background: linear-gradient(90deg, #eab308, #fbbf24); }
+  :root {
+    --teal:   #00e5ff;
+    --purple: #b388ff;
+    --glow:   #7efff5;
+    --dark:   #05101a;
+    --card:   rgba(0,229,255,0.07);
+    --border: rgba(0,229,255,0.18);
+  }
 
-        /* --- Screens --- */
-        .screen { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 500px; }
-        .screen.active { display: flex; animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--dark);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,229,255,0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(179,136,255,0.10) 0%, transparent 70%);
+  }
 
-        /* --- ΑΠΟΛΥΤΗ ΔΙΟΡΘΩΣΗ AVATAR (IMAGE_3.PNG) --- */
-        .avatar-container { 
-            position: relative; 
-            width: 280px; 
-            height: 280px; 
-            margin: 20px 0;
-            cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        /* Χρήση object-fit: fill με κοινό bounding box για απόλυτη στοίχιση των στρώσεων */
-        .avatar-container img { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            object-fit: fill; 
-            pointer-events: none;
-        }
-        
-        /* Εφέ Γαργαλητού / Γέλιου */
-        .avatar-container.tickling {
-            animation: tickleShake 0.15s infinite alternate;
-        }
-        @keyframes tickleShake {
-            0% { transform: rotate(-3deg) scale(1.02); }
-            100% { transform: rotate(3deg) scale(1.02); }
-        }
+  /* ── Stars background ── */
+  #stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .star {
+    position: absolute; border-radius: 50%;
+    background: #fff; opacity: 0;
+    animation: twinkle var(--d) var(--delay) infinite ease-in-out;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: 0; transform: scale(0.5); }
+    50%      { opacity: var(--op); transform: scale(1); }
+  }
 
-        .action-panel {
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); 
-            border-radius: 24px; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%;
-        }
-        .action-btn {
-            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); padding: 16px;
-            border-radius: 18px; color: white; font-weight: bold; cursor: pointer;
-            transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 8px;
-        }
-        .action-btn:active { transform: scale(0.96); }
-        .action-btn i { font-size: 1.4rem; }
-        .action-btn span.cost { font-size: 0.7rem; color: #fbbf24; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 10px; }
-        .action-btn.feed-btn { background: linear-gradient(135deg, #e11d48, #be123c); border: none; }
+  /* ── Layout ── */
+  .container {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 480px;
+    padding: 20px 16px 40px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
 
-        /* --- ΕΞΕΛΙΓΜΕΝΟ BOARD GAME (IMAGE_4.PNG STYLE - ΦΕΤΕΣ ΑΝΑ 3) --- */
-        .board-viewport { 
-            width: 100%; 
-            height: 52vh; 
-            background: radial-gradient(circle at center, #1e1b4b 0%, #090d16 100%);
-            border-radius: 28px; 
-            border: 2px solid rgba(255,255,255,0.08);
-            position: relative; 
-            overflow: hidden; 
-            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
-        }
-        .vertical-track { 
-            position: absolute; 
-            width: 100%; 
-            height: 3000px; /* Επαρκές ύψος για την τοποθέτηση των σκαλιών */
-            top: 0;
-            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        /* 3D Στυλ Πλακιδίων */
-        .tile {
-            position: absolute;
-            width: 75px; height: 55px;
-            background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
-            border-bottom: 6px solid #1e40af;
-            border-radius: 14px; display: flex; justify-content: center;
-            align-items: center; box-shadow: 0 6px 12px rgba(0,0,0,0.4); 
-            transition: 0.3s; font-size: 1.3rem; color: rgba(255,255,255,0.9);
-        }
-        .tile.start { background: linear-gradient(135deg, #16a34a, #15803d); border-bottom-color: #166534; }
-        .tile.finish { background: linear-gradient(135deg, #dc2626, #b91c1c); border-bottom-color: #991b1b; }
-        .tile.star-reward { background: linear-gradient(135deg, #ca8a04, #a16207); border-bottom-color: #854d0e; color: #fef08a; }
-        .tile.roll-reward { background: linear-gradient(135deg, #7c3aed, #6d28d9); border-bottom-color: #5b21b6; color: #f3e8ff; }
-        
-        .tile-number { position: absolute; bottom: -16px; font-size: 0.6rem; font-weight: bold; color: #475569; }
+  h1 {
+    font-size: 2rem; font-weight: 900; letter-spacing: .06em;
+    background: linear-gradient(135deg, var(--teal) 0%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 12px rgba(0,229,255,.5));
+  }
 
-        /* Ανθρωπάκι / Πιόνι πάνω στο ταμπλό */
-        .pawn-on-board { 
-            position: absolute; width: 45px; height: 45px; 
-            transition: left 0.4s ease, top 0.4s ease;
-            z-index: 50; pointer-events: none;
-        }
-        .pawn-on-board img { position: absolute; width: 100%; height: 100%; object-fit: fill; }
-        .pawn-on-board.bounce { animation: pawnJump 0.4s ease-in-out; }
-        @keyframes pawnJump {
-            0% { transform: translateY(0) scale(1); }
-            50% { transform: translateY(-35px) scale(1.2); }
-            100% { transform: translateY(0) scale(1); }
-        }
+  /* ── API KEY banner ── */
+  #key-banner {
+    width: 100%; background: var(--card);
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 16px; display: flex; gap: 8px; align-items: center;
+  }
+  #key-banner input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: #fff; font-family: monospace; font-size: .85rem;
+  }
+  #key-banner input::placeholder { color: rgba(255,255,255,.35); }
+  #key-banner button {
+    background: linear-gradient(135deg, var(--teal), var(--purple));
+    border: none; border-radius: 8px; padding: 6px 14px;
+    color: #05101a; font-weight: 900; font-size: .8rem; cursor: pointer;
+    transition: opacity .2s;
+  }
+  #key-banner button:hover { opacity: .85; }
 
-        /* Controls */
-        .roll-btn {
-            background: linear-gradient(135deg, #ec4899, #d946ef); color: white; border: none; border-radius: 50px;
-            padding: 16px; font-size: 1.25rem; font-weight: 900; margin-top: 15px; letter-spacing: 0.5px;
-            box-shadow: 0 8px 25px rgba(217,70,239,0.4); cursor: pointer; transition: 0.2s; width: 100%;
-        }
-        .roll-btn:disabled { background: #334155; box-shadow: none; opacity: 0.6; cursor: not-allowed; }
-        .roll-cost { text-align: center; font-size: 0.8rem; margin-top: 6px; color: #94a3b8; font-weight: 500; }
+  /* ── Avatar stage ── */
+  #avatar-wrap {
+    position: relative; width: 240px; height: 340px;
+    filter: drop-shadow(0 0 28px rgba(0,229,255,.35));
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  #avatar-wrap:active { transform: scale(.97); }
 
-        /* --- Bottom Navigation --- */
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(7, 11, 25, 0.96);
-            backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.08);
-            display: flex; justify-content: space-around; padding: 12px 6px 22px 6px; z-index: 100;
-        }
-        .nav-item {
-            color: #64748b; display: flex; flex-direction: column; align-items: center;
-            gap: 4px; font-size: 0.7rem; font-weight: bold; cursor: pointer; transition: 0.2s; flex: 1;
-        }
-        .nav-item i { font-size: 1.25rem; }
-        .nav-item.active { color: #fbbf24; transform: translateY(-2px); }
+  #avatar-wrap img { position: absolute; }
 
-        /* --- Popups --- */
-        .bubble-msg {
-            position: fixed; top: 25%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.9); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 14px 28px;
-            border-radius: 20px; font-size: 1rem; font-weight: bold; z-index: 200; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px); animation: fadeInOut 2.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; text-align: center;
-        }
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
-            15% { opacity: 1; transform: translateX(-50%) scale(1); }
-            85% { opacity: 1; transform: translateX(-50%) scale(1); }
-            100% { opacity: 0; transform: translateX(-50%) scale(0.7); }
-        }
-        .placeholder-screen { text-align: center; padding: 60px 20px; color: #64748b; }
-        .placeholder-screen i { font-size: 3.5rem; margin-bottom: 15px; color: #334155; }
-    </style>
+  #body-img   { width: 240px; height: 340px; left: 0; top: 0; z-index: 1; }
+  #eyes-img   { width: 108px; left: 66px; top: 68px; z-index: 2; transition: opacity .1s; }
+  #mouth-img  { width: 96px;  left: 72px; top: 182px; z-index: 2; transition: opacity .1s; }
+
+  /* Talking glow ring */
+  #glow-ring {
+    position: absolute; inset: -8px; border-radius: 50%;
+    border: 3px solid var(--teal);
+    opacity: 0; transition: opacity .3s;
+    animation: none;
+    pointer-events: none; z-index: 0;
+  }
+  .talking #glow-ring {
+    opacity: 1;
+    animation: pulse-ring 0.6s infinite alternate;
+  }
+  @keyframes pulse-ring {
+    from { box-shadow: 0 0 10px var(--teal), 0 0 20px var(--teal); }
+    to   { box-shadow: 0 0 25px var(--teal), 0 0 50px var(--purple); }
+  }
+
+  /* Status dot */
+  #status-dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #444; z-index: 3;
+    transition: background .3s;
+  }
+  .listening #status-dot  { background: #ff4081; animation: blink .7s infinite; }
+  .thinking  #status-dot  { background: #ffd740; animation: blink .9s infinite; }
+  .talking   #status-dot  { background: #69ff74; animation: blink .5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── Chat bubble ── */
+  #bubble-wrap {
+    width: 100%;
+    min-height: 80px; max-height: 220px;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 16px;
+    color: #e0f7fa;
+    font-size: .95rem; line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  #bubble-wrap::-webkit-scrollbar { width: 4px; }
+  #bubble-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Input row ── */
+  #input-row {
+    width: 100%; display: flex; gap: 8px;
+  }
+  #user-input {
+    flex: 1; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; color: #fff; font-size: .95rem;
+    font-family: 'Nunito', sans-serif; outline: none;
+    transition: border-color .2s;
+  }
+  #user-input:focus { border-color: var(--teal); }
+  #user-input::placeholder { color: rgba(255,255,255,.3); }
+
+  .btn-icon {
+    width: 46px; height: 46px; border-radius: 12px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1.25rem;
+    transition: transform .15s, opacity .2s;
+    flex-shrink: 0;
+  }
+  .btn-icon:active { transform: scale(.92); }
+  #btn-send  { background: linear-gradient(135deg, var(--teal), var(--purple)); }
+  #btn-mic   { background: rgba(255,64,129,.15); border: 1px solid rgba(255,64,129,.4); }
+  #btn-mic.active { background: rgba(255,64,129,.5); }
+
+  /* ── Language selector ── */
+  #lang-row {
+    width: 100%; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+  }
+  .lang-btn {
+    padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: rgba(255,255,255,.6);
+    font-size: .78rem; cursor: pointer; transition: all .2s;
+  }
+  .lang-btn.active, .lang-btn:hover {
+    background: var(--card); color: var(--teal); border-color: var(--teal);
+  }
+
+  /* ── Volume / voice toggle ── */
+  #voice-row {
+    display: flex; gap: 10px; align-items: center;
+  }
+  .toggle-label { color: rgba(255,255,255,.5); font-size: .8rem; }
+  .toggle {
+    position: relative; width: 40px; height: 22px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: #333; border-radius: 22px;
+    cursor: pointer; transition: background .3s;
+  }
+  .slider::before {
+    content: ''; position: absolute;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; left: 3px; top: 3px;
+    transition: transform .3s;
+  }
+  input:checked + .slider { background: var(--teal); }
+  input:checked + .slider::before { transform: translateX(18px); }
+</style>
 </head>
 <body>
 
-    <!-- Header & Stats -->
-    <div class="top-header">
-        <div class="brand-title">Franklygames</div>
-        <div class="currency">⭐ <span id="starCount">20</span></div>
-    </div>
+<div id="stars"></div>
 
-    <!-- Stats Bars -->
-    <div class="stats-container">
-        <div class="stat"><i class="fas fa-utensils" style="color:#ef4444;"></i><div class="bar-bg"><div class="bar-fill hunger-fill" id="hungerBar"></div></div></div>
-        <div class="stat"><i class="fas fa-bolt" style="color:#3b82f6;"></i><div class="bar-bg"><div class="bar-fill energy-fill" id="energyBar"></div></div></div>
-        <div class="stat"><i class="fas fa-heart" style="color:#eab308;"></i><div class="bar-bg"><div class="bar-fill mood-fill" id="moodBar"></div></div></div>
-    </div>
+<div class="container">
+  <h1>✨ Aziram</h1>
 
-    <!-- SCREEN: GAMES (Avatar) -->
-    <div id="screen-games" class="screen active">
-        <!-- Διορθωμένο container για pixel perfect στοίχιση -->
-        <div class="avatar-container" id="avatarDisplay" title="Κάνε μου γαργαλητό!">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png" id="avBody">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png" id="avEyes">
-            <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png" id="avMouth">
-        </div>
-        
-        <div class="action-panel">
-            <button class="action-btn feed-btn" id="btnFeed">
-                <i class="fas fa-pizza-slice"></i>
-                Feed AZIRAM
-                <span class="cost">Cost: 5 ⭐</span>
-            </button>
-            <button class="action-btn" id="btnTalk">
-                <i class="fas fa-comment-dots"></i>
-                Talk
-                <span class="cost">Free</span>
-            </button>
-            <button class="action-btn" id="btnSleep" style="grid-column: span 2; background: rgba(59,130,246,0.15);">
-                <i class="fas fa-bed" style="color:#60a5fa;"></i>
-                <span id="sleepText" style="font-weight:bold;">Sleep (Regain Energy)</span>
-            </button>
-        </div>
-    </div>
+  <!-- API Key -->
+  <div id="key-banner">
+    <input id="api-key-input" type="password" placeholder="Βάλε το Gemini API Key σου…" />
+    <button onclick="saveKey()">💾 Save</button>
+  </div>
 
-    <!-- SCREEN: BOARD (ΦΕΤΕΣ ΑΝΑ 3 STYLE) -->
-    <div id="screen-board" class="screen">
-        <div class="board-viewport" id="boardViewport">
-            <div class="vertical-track" id="verticalTrack">
-                <!-- Το Ανθρωπάκι κινείται ελεύθερα μέσα στο Track -->
-                <div class="pawn-on-board" id="pawnOnBoard">
-                    <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/body.png">
-                    <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png">
-                    <img src="https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png">
-                </div>
-            </div>
-        </div>
-        <div style="width: 100%;">
-            <button class="roll-btn" id="rollBtn">🎲 ROLL THE DICE</button>
-            <div class="roll-cost">Κοστίζει 5 ⚡ Ενέργεια</div>
-        </div>
-    </div>
+  <!-- Language -->
+  <div id="lang-row">
+    <button class="lang-btn active" data-lang="el-GR">🇬🇷 Ελληνικά</button>
+    <button class="lang-btn" data-lang="en-US">🇬🇧 English</button>
+    <button class="lang-btn" data-lang="de-DE">🇩🇪 Deutsch</button>
+    <button class="lang-btn" data-lang="fr-FR">🇫🇷 Français</button>
+    <button class="lang-btn" data-lang="es-ES">🇪🇸 Español</button>
+    <button class="lang-btn" data-lang="it-IT">🇮🇹 Italiano</button>
+    <button class="lang-btn" data-lang="ru-RU">🇷🇺 Русский</button>
+    <button class="lang-btn" data-lang="zh-CN">🇨🇳 中文</button>
+    <button class="lang-btn" data-lang="ja-JP">🇯🇵 日本語</button>
+    <button class="lang-btn" data-lang="ar-SA">🇸🇦 العربية</button>
+  </div>
 
-    <!-- OTHER SCREENS -->
-    <div id="screen-missions" class="screen placeholder-screen">
-        <i class="fas fa-tasks"></i>
-        <h2>Missions</h2>
-        <p>Σύντομα διαθέσιμες αποστολές!</p>
-    </div>
-    <div id="screen-ads" class="screen placeholder-screen">
-        <i class="fas fa-video"></i>
-        <h2>Rewarded Ads</h2>
-        <p>Δες διαφημίσεις για δώρα.</p>
-    </div>
-    <div id="screen-wheel" class="screen placeholder-screen">
-        <i class="fas fa-dharmachakra"></i>
-        <h2>Lucky Wheel</h2>
-        <p>Ο τροχός της τύχης έρχεται σύντομα!</p>
-    </div>
+  <!-- Voice toggle -->
+  <div id="voice-row">
+    <span class="toggle-label">🔇</span>
+    <label class="toggle">
+      <input type="checkbox" id="voice-toggle" checked>
+      <span class="slider"></span>
+    </label>
+    <span class="toggle-label">🔊 Φωνή</span>
+  </div>
 
-    <!-- BOTTOM NAVIGATION -->
-    <div class="bottom-nav">
-        <div class="nav-item" data-target="screen-board" id="navBoard"><i class="fas fa-chess-board"></i>Board</div>
-        <div class="nav-item active" data-target="screen-games" id="navGames"><i class="fas fa-gamepad"></i>Games</div>
-        <div class="nav-item" data-target="screen-missions"><i class="fas fa-tasks"></i>Missions</div>
-        <div class="nav-item" data-target="screen-ads"><i class="fas fa-play-circle"></i>Ads</div>
-        <div class="nav-item" data-target="screen-wheel"><i class="fas fa-dharmachakra"></i>Wheel</div>
-    </div>
+  <!-- Avatar -->
+  <div id="avatar-wrap" onclick="avatarClick()">
+    <div id="glow-ring"></div>
+    <div id="status-dot"></div>
+    <img id="body-img"  src="body.png"       alt="body" />
+    <img id="eyes-img"  src="eyes_open.png"  alt="eyes" />
+    <img id="mouth-img" src="mouth.png"      alt="mouth"/>
+  </div>
 
-    <script>
-        // ─── SYNTHESIZED AUDIO ENGINE (WEB AUDIO API) ───
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playSound(type) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
+  <!-- Answer bubble -->
+  <div id="bubble-wrap">Γεια σου! Είμαι ο Aziram 👋 Κάνε μου οποιαδήποτε ερώτηση!</div>
 
-            const now = audioCtx.currentTime;
+  <!-- Input -->
+  <div id="input-row">
+    <input id="user-input" type="text" placeholder="Γράψε κάτι ή πάτα 🎤…"
+           onkeydown="if(event.key==='Enter') sendMessage()" />
+    <button class="btn-icon" id="btn-send" onclick="sendMessage()" title="Αποστολή">➤</button>
+    <button class="btn-icon" id="btn-mic"  onclick="toggleMic()"   title="Μικρόφωνο">🎤</button>
+  </div>
+</div>
 
-            if (type === 'tickle') {
-                // Ήχος γέλιου (γρήγορα pulses)
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(300, now);
-                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
-                gain.gain.setValueAtTime(0.15, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.15);
-                osc.start(now); osc.stop(now + 0.15);
-            } else if (type === 'roll') {
-                // Ήχος ζαριού που κυλάει
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(150 + Math.random() * 100, now);
-                gain.gain.setValueAtTime(0.05, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.08);
-                osc.start(now); osc.stop(now + 0.08);
-            } else if (type === 'jump') {
-                // Ήχος άλματος πιονιού
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(200, now);
-                osc.frequency.exponentialRampToValueAtTime(500, now + 0.2);
-                gain.gain.setValueAtTime(0.15, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.2);
-                osc.start(now); osc.stop(now + 0.2);
-            } else if (type === 'win') {
-                // Πανηγυρικό fanfare κέρδους
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(400, now);
-                osc.frequency.setValueAtTime(523.25, now + 0.1); // Νότα C5
-                osc.frequency.setValueAtTime(659.25, now + 0.2); // Νότα E5
-                osc.frequency.setValueAtTime(783.99, now + 0.3); // Νότα G5
-                gain.gain.setValueAtTime(0.2, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.5);
-                osc.start(now); osc.stop(now + 0.5);
-            }
-        }
+<script>
+/* ═══════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════ */
+const MOUTHS = ['mouth.png','mouth1.png','mouth3.png'];
+const BODIES = ['body.png','body2.png','body3.png'];
+let GEMINI_KEY = localStorage.getItem('gemini_key') || '';
+let currentLang = 'el-GR';
+let isTalking = false, isListening = false, isThinking = false;
+let blinkTimer, mouthTimer, bodyTimer;
+let recognition = null;
+let currentUtterance = null;
+let conversationHistory = [];
 
-        // ─── STATE ───
-        let hunger = 100, energy = 100, mood = 80, isSleeping = false;
-        let stars = 20;
-        let position = 0;
-        let isRolling = false;
-        const TOTAL_TILES = 36;
-        const tileCoords = []; // Αποθήκευση XY συντεταγμένων των κουτιών
+/* ═══════════════════════════════════════════════
+   STARS
+═══════════════════════════════════════════════ */
+(function createStars(){
+  const wrap = document.getElementById('stars');
+  for(let i=0;i<90;i++){
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random()*2.5+0.5;
+    s.style.cssText = `
+      width:${sz}px;height:${sz}px;
+      left:${Math.random()*100}vw;top:${Math.random()*100}vh;
+      --d:${(Math.random()*4+2).toFixed(1)}s;
+      --delay:-${(Math.random()*5).toFixed(1)}s;
+      --op:${(Math.random()*0.7+0.2).toFixed(2)};
+    `;
+    wrap.appendChild(s);
+  }
+})();
 
-        // ─── DOM ───
-        const avatarDisplay = document.getElementById('avatarDisplay');
-        const avatarEyes = document.getElementById('avEyes');
-        const avatarMouth = document.getElementById('avMouth');
-        const trackEl = document.getElementById('verticalTrack');
-        const pawn = document.getElementById('pawnOnBoard');
-        const starDisplay = document.getElementById('starCount');
-        const hungerBar = document.getElementById('hungerBar');
-        const energyBar = document.getElementById('energyBar');
-        const moodBar = document.getElementById('moodBar');
-        const viewportEl = document.getElementById('boardViewport');
+/* ═══════════════════════════════════════════════
+   API KEY
+═══════════════════════════════════════════════ */
+function saveKey(){
+  GEMINI_KEY = document.getElementById('api-key-input').value.trim();
+  if(GEMINI_KEY){ localStorage.setItem('gemini_key',GEMINI_KEY); showBubble('✅ API Key αποθηκεύτηκε!'); }
+}
+if(GEMINI_KEY){ document.getElementById('api-key-input').value = '••••••••••••••••••'; }
 
-        // ─── NAVIGATION ───
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                if(window.Telegram?.WebApp?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-                const targetId = this.getAttribute('data-target');
-                
-                if(targetId === 'screen-board' && isSleeping) {
-                    showMsg('Ο AZIRAM κοιμάται! 🌙<br>Ξύπνησέ τον στα Games.', 3000);
-                    return;
-                }
+/* ═══════════════════════════════════════════════
+   LANGUAGE
+═══════════════════════════════════════════════ */
+document.querySelectorAll('.lang-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLang = btn.dataset.lang;
+  });
+});
 
-                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-                document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-                
-                this.classList.add('active');
-                document.getElementById(targetId).classList.add('active');
+/* ═══════════════════════════════════════════════
+   AVATAR STATES
+═══════════════════════════════════════════════ */
+const wrap  = document.getElementById('avatar-wrap');
+const eyeEl = document.getElementById('eyes-img');
+const mthEl = document.getElementById('mouth-img');
+const bodyEl= document.getElementById('body-img');
 
-                if(targetId === 'screen-board') {
-                    setTimeout(updatePawnPosition, 50);
-                }
-            });
-        });
+function setState(s){
+  wrap.className = s; // talking | listening | thinking | ''
+}
 
-        // ─── ΛΕΙΤΟΥΡΓΙΑ ΓΑΡΓΑΛΗΤΟΥ (TICKLE EFFECT) ───
-        avatarDisplay.addEventListener('click', () => {
-            if (isSleeping) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            // Ενεργοποίηση animation & ήχων γέλιου
-            avatarDisplay.classList.add('tickling');
-            avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
-            avatarMouth.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth.png"; // Ανοιχτό στόμα (γέλιο)
-            
-            // Παίξε επαναλαμβανόμενα γέλια
-            playSound('tickle');
-            setTimeout(() => playSound('tickle'), 120);
-            setTimeout(() => playSound('tickle'), 240);
+/* Blink loop */
+function startBlink(){
+  clearTimeout(blinkTimer);
+  function doBlink(){
+    eyeEl.src = 'eyes_closed.png';
+    setTimeout(()=>{ eyeEl.src = 'eyes_open.png'; },120);
+    blinkTimer = setTimeout(doBlink, 2500 + Math.random()*3000);
+  }
+  blinkTimer = setTimeout(doBlink, 1500);
+}
+startBlink();
 
-            mood = Math.min(100, mood + 5);
-            updateBars();
-            saveData();
+/* Mouth animation while talking */
+let mouthIdx = 0;
+function startMouthAnim(){
+  clearInterval(mouthTimer);
+  mouthTimer = setInterval(()=>{
+    mouthIdx = (mouthIdx+1) % MOUTHS.length;
+    mthEl.src = MOUTHS[mouthIdx];
+  }, 130);
+}
+function stopMouthAnim(){
+  clearInterval(mouthTimer);
+  mthEl.src = 'mouth.png';
+}
 
-            setTimeout(() => {
-                avatarDisplay.classList.remove('tickling');
-                avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png";
-                avatarMouth.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
-            }, 600);
-        });
+/* Body bounce while talking */
+let bodyIdx = 0;
+function startBodyAnim(){
+  clearInterval(bodyTimer);
+  bodyTimer = setInterval(()=>{
+    bodyIdx = (bodyIdx+1) % BODIES.length;
+    bodyEl.src = BODIES[bodyIdx];
+  }, 220);
+}
+function stopBodyAnim(){
+  clearInterval(bodyTimer);
+  bodyEl.src = 'body.png';
+}
 
-        // ─── ΔΗΜΙΟΥΡΓΙΑ ΠΙΣΤΑΣ: ΦΕΤΕΣ ΑΝΑ 3 (IMAGE_4.PNG STYLE) ───
-        function buildBoard() {
-            let currentX = 160; // Ξεκινάμε από τη μέση περίπου
-            let currentY = 50;  // Ξεκινάμε από χαμηλά στο track
-            
-            // Κατευθύνσεις: 0 = Οριζόντια Δεξιά, 1 = Κάθετα/Διαγώνια Πάνω, 2 = Οριζόντια Αριστερά, 3 = Κάθετα/Διαγώνια Πάνω
-            let currentDir = 0; 
-            
-            for (let i = 0; i < TOTAL_TILES; i++) {
-                // Κάθε 3 πλακίδια (φέτα), αλλάζουμε κατεύθυνση
-                if (i > 0 && i % 3 === 0) {
-                    currentDir = (currentDir + 1) % 4;
-                }
+/* ═══════════════════════════════════════════════
+   BUBBLE
+═══════════════════════════════════════════════ */
+function showBubble(text){
+  const b = document.getElementById('bubble-wrap');
+  b.textContent = text;
+  b.scrollTop = b.scrollHeight;
+}
 
-                // Υπολογισμός θέσης επόμενου κουτιού βάσει κατεύθυνσης της φέτας
-                if (i > 0) {
-                    if (currentDir === 0) { currentX += 65; currentY += 5; }       // Φέτα: Οριζόντια Δεξιά
-                    else if (currentDir === 1) { currentX -= 25; currentY += 65; }  // Φέτα: Διαγώνια/Κάθετα Πάνω
-                    else if (currentDir === 2) { currentX -= 65; currentY += 5; }   // Φέτα: Οριζόντια Αριστερά
-                    else if (currentDir === 3) { currentX += 25; currentY += 65; }  // Φέτα: Διαγώνια/Κάθετα Πάνω
-                }
+/* ═══════════════════════════════════════════════
+   GEMINI API
+═══════════════════════════════════════════════ */
+async function askGemini(userMsg){
+  if(!GEMINI_KEY){
+    return 'Παρακαλώ βάλε το Gemini API Key σου στο πεδίο παραπάνω!';
+  }
+  // Add to history
+  conversationHistory.push({ role:'user', parts:[{ text: userMsg }] });
 
-                // Αποθήκευση συντεταγμένων
-                tileCoords.push({ x: currentX, y: currentY });
+  const systemPrompt = `You are Aziram, a friendly, cheerful, glittery alien creature.
+You answer in the SAME language the user writes in. Be warm, playful, curious, and helpful.
+Keep answers concise (2-4 sentences) unless asked for detail.
+Never break character. You love stars, glitter, and adventures!`;
 
-                const tile = document.createElement('div');
-                tile.className = 'tile';
-                tile.id = `tile-${i}`;
-                tile.style.left = currentX + 'px';
-                tile.style.bottom = currentY + 'px'; // Τοποθέτηση από κάτω προς τα πάνω
-                
-                // Ανάθεση ιδιοτήτων και σχεδίων στα κουτάκια
-                if (i === 0) {
-                    tile.classList.add('start');
-                    tile.innerHTML = '<i class="fas fa-flag-checkered"></i>';
-                } else if (i === TOTAL_TILES - 1) {
-                    tile.classList.add('finish');
-                    tile.innerHTML = '<i class="fas fa-trophy"></i>';
-                } else if (i % 6 === 0) {
-                    tile.classList.add('star-reward');
-                    tile.innerHTML = '⭐'; // Κουτάκι για 5 Αστέρια
-                } else if (i % 5 === 0) {
-                    tile.classList.add('roll-reward');
-                    tile.innerHTML = '🎲'; // Κουτάκι για 2 Ελεύθερες Ζαριές
-                } else {
-                    tile.innerHTML = '<i class="fas fa-circle" style="font-size:0.5rem; opacity:0.25;"></i>';
-                }
-                
-                const num = document.createElement('span');
-                num.className = 'tile-number';
-                num.textContent = i + 1;
-                tile.appendChild(num);
-                
-                trackEl.appendChild(tile);
-            }
-        }
+  const body = {
+    system_instruction: { parts:[{ text: systemPrompt }] },
+    contents: conversationHistory,
+    generationConfig: { temperature: 0.85, maxOutputTokens: 512 }
+  };
 
-        // ─── ΜΗΧΑΝΙΣΜΟΣ ROLL UP & ΚΕΝΤΡΑΡΙΣΜΑ ───
-        function updatePawnPosition() {
-            const coords = tileCoords[position];
-            if (!coords) return;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+  const resp = await fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if(data.error){ return '⚠️ ' + data.error.message; }
+  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '…';
+  conversationHistory.push({ role:'model', parts:[{ text: reply }] });
+  // keep history manageable
+  if(conversationHistory.length > 20) conversationHistory = conversationHistory.slice(-16);
+  return reply;
+}
 
-            // Τοποθέτηση πιονιού (ανθρωπάκι) στο κέντρο του τρέχοντος πλακιδίου
-            pawn.style.left = (coords.x + 15) + 'px';
-            pawn.style.bottom = (coords.y + 12) + 'px';
+/* ═══════════════════════════════════════════════
+   SPEECH SYNTHESIS
+═══════════════════════════════════════════════ */
+function speak(text, lang){
+  if(!document.getElementById('voice-toggle').checked) return Promise.resolve();
+  return new Promise(resolve=>{
+    if(currentUtterance){ speechSynthesis.cancel(); }
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = lang;
+    utt.rate = 1.0; utt.pitch = 1.1;
+    // try to pick a nice voice
+    const voices = speechSynthesis.getVoices();
+    const match = voices.find(v=>v.lang.startsWith(lang.split('-')[0]));
+    if(match) utt.voice = match;
+    utt.onend = ()=>{ currentUtterance=null; resolve(); };
+    utt.onerror= ()=>{ currentUtterance=null; resolve(); };
+    currentUtterance = utt;
+    speechSynthesis.speak(utt);
+  });
+}
 
-            // Roll Up Σκρολάρισμα: Φέρνει το τρέχον σκαλί στο κέντρο του viewport κατακόρυφα
-            const viewportHeight = viewportEl.clientHeight;
-            const scrollTarget = coords.y - (viewportHeight / 2) + 30;
-            
-            trackEl.style.transform = `translateY(${scrollTarget}px)`; // Μετακίνηση προς τα κάτω στυλ roll up
-        }
+/* ═══════════════════════════════════════════════
+   SEND MESSAGE
+═══════════════════════════════════════════════ */
+async function sendMessage(text){
+  const input = document.getElementById('user-input');
+  const msg = (text || input.value).trim();
+  if(!msg) return;
+  input.value = '';
 
-        // ─── ROLL THE DICE ───
-        function rollDice() {
-            if (isRolling || isSleeping) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+  showBubble('💭 Σκέφτομαι…');
+  setState('thinking');
 
-            if (energy < 5) {
-                showMsg('Χρειάζεσαι ενέργεια! ⚡<br>Βάλε τον AZIRAM να κοιμηθεί.');
-                return;
-            }
+  const reply = await askGemini(msg);
 
-            if(window.Telegram?.WebApp?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-            
-            energy -= 5;
-            updateBars();
-            
-            isRolling = true;
-            const btn = document.getElementById('rollBtn');
-            btn.disabled = true;
-            btn.textContent = '🎲 ...';
+  showBubble(reply);
+  setState('talking');
+  startMouthAnim();
+  startBodyAnim();
 
-            let count = 0;
-            const interval = setInterval(() => {
-                count++;
-                playSound('roll');
-                if (count > 10) {
-                    clearInterval(interval);
-                    const result = Math.floor(Math.random() * 6) + 1;
-                    btn.textContent = `🎲 Έφερες ${result}!`;
-                    
-                    pawn.classList.add('bounce');
-                    playSound('jump');
-                    movePawn(result);
-                    
-                    isRolling = false;
-                    btn.disabled = false;
-                    setTimeout(() => { 
-                        if (!isRolling) btn.textContent = '🎲 ROLL THE DICE'; 
-                        pawn.classList.remove('bounce');
-                    }, 1400);
-                }
-            }, 90);
-        }
+  await speak(reply, currentLang);
 
-        function movePawn(steps) {
-            const oldPos = position;
-            position = (position + steps);
-            
-            // Αν ξεπεράσει το τέρμα, κάνει κύκλο
-            if (position >= TOTAL_TILES) {
-                position = position % TOTAL_TILES;
-                stars += 10;
-                playSound('win');
-                showMsg('🏁 Ολοκλήρωσες τον γύρο! +10 ⭐');
-            }
-            
-            updatePawnPosition();
+  stopMouthAnim();
+  stopBodyAnim();
+  setState('');
+}
 
-            // Έλεγχος ειδικών επάθλων στα κουτάκια
-            setTimeout(() => {
-                if (position > 0 && position % 6 === 0) { 
-                    stars += 5; 
-                    playSound('win');
-                    showMsg('🎁 Κέρδισες +5 Αστέρια! ⭐'); 
-                }
-                else if (position > 0 && position % 5 === 0) { 
-                    energy = Math.min(100, energy + 10); // 2 δωρεάν ζαριές = 10 ενέργεια πίσω
-                    playSound('win');
-                    showMsg('🎲 Κέρδισες 2 Ελεύθερες Ζαριές!'); 
-                }
-                
-                updateBars(); updateStars(); saveData();
-            }, 450);
-        }
+/* ═══════════════════════════════════════════════
+   SPEECH RECOGNITION (MIC)
+═══════════════════════════════════════════════ */
+function toggleMic(){
+  const btn = document.getElementById('btn-mic');
+  if(isListening){
+    recognition && recognition.stop();
+    isListening = false;
+    btn.classList.remove('active');
+    setState('');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Ο browser σου δεν υποστηρίζει αναγνώριση φωνής.'); return; }
+  recognition = new SR();
+  recognition.lang = currentLang;
+  recognition.interimResults = false;
+  recognition.onresult = e=>{
+    const transcript = e.results[0][0].transcript;
+    sendMessage(transcript);
+  };
+  recognition.onerror = ()=>{ isListening=false; btn.classList.remove('active'); setState(''); };
+  recognition.onend   = ()=>{ isListening=false; btn.classList.remove('active');
+    if(wrap.className==='listening') setState(''); };
+  recognition.start();
+  isListening = true;
+  btn.classList.add('active');
+  setState('listening');
+  showBubble('🎤 Σε ακούω…');
+}
 
-        // ─── UI UPDATES ───
-        function updateBars() {
-            hungerBar.style.width = hunger + '%';
-            energyBar.style.width = energy + '%';
-            moodBar.style.width = mood + '%';
-        }
-        function updateStars() { starDisplay.textContent = stars; }
-        
-        function showMsg(text, duration = 2200) {
-            const el = document.createElement('div');
-            el.className = 'bubble-msg';
-            el.innerHTML = text;
-            document.body.appendChild(el);
-            setTimeout(() => el.remove(), duration);
-        }
+/* ═══════════════════════════════════════════════
+   AVATAR CLICK (idle greeting)
+═══════════════════════════════════════════════ */
+const greetings = [
+  'Γεια σου! Πώς μπορώ να σε βοηθήσω; ✨',
+  'Hello there! Ask me anything! 🌟',
+  'Hola! ¿En qué puedo ayudarte? 💫',
+  '¡Hola! Pregúntame lo que quieras! ⭐',
+  'Ciao! Come posso aiutarti? 🌠',
+  'Bonjour! Posez-moi une question! ✨',
+];
+let gIdx = 0;
+async function avatarClick(){
+  if(isTalking||isThinking) return;
+  const g = greetings[gIdx++ % greetings.length];
+  showBubble(g);
+  setState('talking');
+  startMouthAnim();
+  startBodyAnim();
+  await speak(g, currentLang);
+  stopMouthAnim();
+  stopBodyAnim();
+  setState('');
+}
 
-        // ─── PET ACTIONS ───
-        document.getElementById('btnFeed').addEventListener('click', () => {
-            if(isSleeping) { showMsg('Shhh! Κοιμάται.'); return; }
-            if(hunger >= 100) { showMsg('Είμαι γεμάτος! 🍕'); return; }
-            if(stars < 5) { showMsg('Χρειάζεσαι 5 ⭐ για φαγητό!'); return; }
-            
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            stars -= 5;
-            hunger = Math.min(100, hunger + 25);
-            mood = Math.min(100, mood + 5);
-            
-            updateBars(); updateStars();
-            playSound('win');
-            showMsg('Μμμμ! Νόστιμο 🍕');
-            saveData();
-        });
-
-        document.getElementById('btnTalk').addEventListener('click', () => {
-            if(isSleeping) { showMsg('Ζζζζ...'); return; }
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            mood = Math.min(100, mood + 10);
-            updateBars();
-            
-            showMsg("Πάμε να παίξουμε στο Board! 🔥");
-            playSound('tickle');
-            
-            let open = false;
-            const interval = setInterval(() => {
-                open = !open;
-                avatarMouth.src = open ? 
-                    "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth.png" : 
-                    "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
-            }, 150);
-            setTimeout(() => {
-                clearInterval(interval);
-                avatarMouth.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/mouth_closed.png";
-            }, 1200);
-            saveData();
-        });
-
-        document.getElementById('btnSleep').addEventListener('click', () => {
-            const btnText = document.getElementById('sleepText');
-            if (isSleeping) {
-                isSleeping = false;
-                energy = Math.min(100, energy + 30);
-                avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_open.png";
-                btnText.textContent = "Sleep (Regain Energy)";
-                showMsg('Καλημέρα! ☀️');
-            } else {
-                isSleeping = true;
-                avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
-                btnText.textContent = "Wake Up";
-                showMsg('Ζζζζ... Καληνύχτα 🌙');
-            }
-            updateBars(); saveData();
-        });
-
-        document.getElementById('rollBtn').addEventListener('click', rollDice);
-
-        // ─── SAVE / LOAD ───
-        function saveData() {
-            localStorage.setItem('franklyAziramV3', JSON.stringify({
-                position, stars, hunger, energy, mood, isSleeping
-            }));
-        }
-
-        function loadData() {
-            const saved = localStorage.getItem('franklyAziramV3');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    position = data.position || 0;
-                    stars = data.stars !== undefined ? data.stars : 20;
-                    hunger = data.hunger !== undefined ? data.hunger : 100;
-                    energy = data.energy !== undefined ? data.energy : 100;
-                    mood = data.mood !== undefined ? data.mood : 80;
-                    isSleeping = data.isSleeping || false;
-                    
-                    if (isSleeping) {
-                        avatarEyes.src = "https://raw.githubusercontent.com/FranklyMaDear/games/main/aziram/eyes_closed.png";
-                        document.getElementById('sleepText').textContent = "Wake Up";
-                    }
-                } catch(e) {}
-            }
-            updateBars(); updateStars(); 
-            setTimeout(updatePawnPosition, 150);
-        }
-
-        // ─── AUTO DRAIN ───
-        setInterval(() => {
-            if (!isSleeping) {
-                hunger = Math.max(0, hunger - 1);
-                energy = Math.max(0, energy - 1);
-            } else {
-                energy = Math.min(100, energy + 3);
-            }
-            updateBars(); saveData();
-        }, 20000);
-
-        // ─── INIT ───
-        buildBoard();
-        loadData();
-    </script>
+/* preload voices */
+speechSynthesis.onvoiceschanged = ()=> speechSynthesis.getVoices();
+</script>
 </body>
 </html>
