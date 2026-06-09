@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bruno Galaxy Slime – HTML5</title>
+  <title>Bruno Galaxy Slime – Σταθερό Avatar</title>
   <style>
     * {
       box-sizing: border-box;
@@ -45,10 +45,8 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      text-shadow: none;
       filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
       animation: jellyPulse 2.5s infinite ease-in-out;
-      letter-spacing: 0.05em;
     }
     @keyframes jellyPulse {
       0% { transform: scale(1); opacity: 0.85; }
@@ -76,33 +74,30 @@
       padding: 14px 24px;
       border-radius: 60px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6), 0 0 20px rgba(168, 85, 247, 0.3);
+      transition: all 0.2s;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 20px rgba(168,85,247,0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
       min-width: 70px;
-      text-shadow: 0 2px 4px black;
     }
     .btn:active {
       transform: scale(0.9);
-      background: rgba(180, 130, 255, 0.5);
-      border-color: #ffffff;
+      background: rgba(180,130,255,0.5);
+      border-color: #fff;
     }
     .btn.recording {
       background: #ff3b5c;
-      border-color: #ffffff;
+      border-color: #fff;
       animation: pulse 0.8s infinite;
-      box-shadow: 0 0 30px #ff3b5c;
     }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0.8); }
-      70% { box-shadow: 0 0 0 25px rgba(255, 59, 92, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0); }
+      0% { box-shadow: 0 0 0 0 rgba(255,59,92,0.8); }
+      70% { box-shadow: 0 0 0 25px rgba(255,59,92,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,59,92,0); }
     }
   </style>
-  <!-- Matter.js CDN -->
+  <!-- Φορτώνουμε τη Matter.js με fallback μήνυμα -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 </head>
 <body>
@@ -117,7 +112,12 @@
 
   <script>
     (function() {
-      // ---------- Matter.js εγκατάσταση ----------
+      // Έλεγχος αν το Matter.js φορτώθηκε
+      if (typeof Matter === 'undefined') {
+        document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:40vh;">Παρακαλώ ενεργοποιήστε τη σύνδεση για να φορτωθεί το Matter.js</h2>';
+        return;
+      }
+
       const { Engine, Render, Runner, MouseConstraint, Mouse, Composite, Bodies, Events } = Matter;
       const engine = Engine.create({ gravity: { y: 0.7, scale: 0.001 } });
       const world = engine.world;
@@ -141,7 +141,7 @@
       const runner = Runner.create();
       Runner.run(runner, engine);
 
-      // ---------- Όρια κόσμου ----------
+      // Όρια
       const wallOpt = { isStatic: true, render: { visible: false } };
       const floor = Bodies.rectangle(width / 2, height + 40, width * 2, 80, wallOpt);
       const leftWall = Bodies.rectangle(-40, height / 2, 80, height * 2, wallOpt);
@@ -149,9 +149,9 @@
       const ceiling = Bodies.rectangle(width / 2, -40, width * 2, 80, wallOpt);
       Composite.add(world, [floor, leftWall, rightWall, ceiling]);
 
-      // ---------- Δημιουργία του Bruno (φυσικό σώμα) ----------
-      const bodyRadius = Math.min(width, height) * 0.1;
-      const mainBody = Bodies.circle(width / 2, height / 2, bodyRadius, {
+      // Δημιουργία του Bruno – χρησιμοποιούμε ένα σταθερό αρχικό μέγεθος
+      const BASE_RADIUS = Math.min(width, height) * 0.1;
+      const mainBody = Bodies.circle(width / 2, height / 2, BASE_RADIUS, {
         render: { visible: false },
         frictionAir: 0.08,
         restitution: 0.45,
@@ -169,14 +169,13 @@
       render.mouse = mouse;
 
       // ---------- Καταστάσεις ----------
-      let state = 'normal'; // normal | talking | eating | sleeping | laughing
+      let state = 'normal';
       let laughTimer = null;
       let sleepTimer = null;
       let talkingAudio = null;
-      let targetMouthOpen = 0;   // 0..1 για animation στόματος
-      let currentMouthOpen = 0;  // ομαλή μετάβαση
+      let targetMouthOpen = 0;
+      let currentMouthOpen = 0;
 
-      // ---------- Audio Context & Recorder ----------
       let audioCtx = null;
       let mediaRecorder = null;
       let recordedChunks = [];
@@ -211,8 +210,7 @@
           btnTalk.classList.add('recording');
           btnTalk.textContent = '🔴';
         } catch (err) {
-          alert('Δεν επιτρέπεται η πρόσβαση στο μικρόφωνο ή δεν υποστηρίζεται η ηχογράφηση.');
-          console.error(err);
+          alert('Δεν επιτρέπεται η πρόσβαση στο μικρόφωνο.');
         }
       }
 
@@ -252,13 +250,12 @@
             targetMouthOpen = Math.min(1, avg / 140);
             requestAnimationFrame(updateMouth);
           };
-
           audio.onended = () => {
             state = 'normal';
             targetMouthOpen = 0;
             talkingAudio = null;
           };
-          audio.play().catch(e => console.warn('Autoplay blocked:', e));
+          audio.play().catch(e => console.warn(e));
           updateMouth();
         });
       }
@@ -269,20 +266,14 @@
         Matter.Body.setAngularVelocity(mainBody, (Math.random() - 0.5) * 0.3);
         Matter.Body.applyForce(mainBody, mainBody.position, { x: 0, y: -0.08 });
         if (laughTimer) clearTimeout(laughTimer);
-        laughTimer = setTimeout(() => {
-          if (state === 'laughing') state = 'normal';
-        }, 900);
+        laughTimer = setTimeout(() => { if (state === 'laughing') state = 'normal'; }, 900);
       }
 
       function feed() {
         if (state === 'sleeping') return;
         initAudio().then(() => {
           state = 'eating';
-          if (talkingAudio) {
-            talkingAudio.pause();
-            talkingAudio = null;
-          }
-          // Ήχος φαγητού
+          if (talkingAudio) { talkingAudio.pause(); talkingAudio = null; }
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'triangle';
@@ -294,10 +285,7 @@
           gain.connect(audioCtx.destination);
           osc.start();
           osc.stop(audioCtx.currentTime + 0.25);
-
-          setTimeout(() => {
-            if (state === 'eating') state = 'normal';
-          }, 700);
+          setTimeout(() => { if (state === 'eating') state = 'normal'; }, 700);
         });
       }
 
@@ -319,14 +307,12 @@
         }
       }
 
-      // ---------- UI Buttons ----------
       btnTalk.addEventListener('pointerdown', startRecording);
       btnTalk.addEventListener('pointerup', stopRecording);
       btnTalk.addEventListener('pointerleave', stopRecording);
       btnFeed.addEventListener('click', feed);
       btnSleep.addEventListener('click', toggleSleep);
 
-      // Άγγιγμα πάνω στον Bruno → γέλιο
       render.canvas.addEventListener('pointerdown', (e) => {
         const rect = render.canvas.getBoundingClientRect();
         const scaleX = render.options.width / rect.width;
@@ -338,23 +324,22 @@
         }
       });
 
-      // ---------- Σχεδίαση του Bruno (όλα με Canvas, χωρίς εικόνες) ----------
-      function drawBruno(ctx, pos, angle, scale, stateOverride) {
+      // ---------- Σχεδίαση του Bruno (καθαρά canvas) ----------
+      function drawBruno(ctx, pos, angle, scale) {
         const bodyW = 220 * scale;
         const bodyH = 300 * scale;
         const eyeSize = 35 * scale;
         const pupilSize = 18 * scale;
-
         ctx.save();
         ctx.translate(pos.x, pos.y);
         ctx.rotate(angle);
 
-        // ---- Σώμα (ζελέ με gradient) ----
-        const gradient = ctx.createLinearGradient(-bodyW / 2, 0, bodyW / 2, bodyH / 2);
-        if (stateOverride === 'sleeping') {
+        // Σώμα
+        const gradient = ctx.createLinearGradient(-bodyW/2, 0, bodyW/2, bodyH/2);
+        if (state === 'sleeping') {
           gradient.addColorStop(0, '#7c3aed');
           gradient.addColorStop(0.6, '#4c1d95');
-        } else if (stateOverride === 'eating') {
+        } else if (state === 'eating') {
           gradient.addColorStop(0, '#f97316');
           gradient.addColorStop(0.6, '#c2410c');
         } else {
@@ -364,88 +349,66 @@
         }
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.ellipse(0, 0, bodyW / 2, bodyH / 2, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, bodyW/2, bodyH/2, 0, 0, Math.PI*2);
         ctx.fill();
-        // Περίγραμμα
         ctx.strokeStyle = '#ffffff33';
         ctx.lineWidth = 3 * scale;
         ctx.stroke();
-
-        // Λάμψη (highlight)
         ctx.fillStyle = '#ffffff20';
         ctx.beginPath();
-        ctx.ellipse(-bodyW * 0.2, -bodyH * 0.25, bodyW * 0.15, bodyH * 0.15, 0, 0, Math.PI * 2);
+        ctx.ellipse(-bodyW*0.2, -bodyH*0.25, bodyW*0.15, bodyH*0.15, 0, 0, Math.PI*2);
         ctx.fill();
 
-        // ---- Χέρια (μικρά εξογκώματα) ----
+        // Χέρια
         ctx.fillStyle = gradient;
-        if (stateOverride === 'eating') {
-          // Χέρια ψηλά
-          ctx.beginPath(); ctx.ellipse(-bodyW * 0.45, -bodyH * 0.35, 25 * scale, 35 * scale, -0.4, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(bodyW * 0.45, -bodyH * 0.35, 25 * scale, 35 * scale, 0.4, 0, Math.PI * 2); ctx.fill();
+        if (state === 'eating') {
+          ctx.beginPath(); ctx.ellipse(-bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, -0.4, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, 0.4, 0, Math.PI*2); ctx.fill();
         } else {
-          // Χέρια κάτω
-          ctx.beginPath(); ctx.ellipse(-bodyW * 0.48, bodyH * 0.25, 25 * scale, 35 * scale, 0.3, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(bodyW * 0.48, bodyH * 0.25, 25 * scale, 35 * scale, -0.3, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(-bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, 0.3, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, -0.3, 0, Math.PI*2); ctx.fill();
         }
 
-        // ---- Μάτια ----
+        // Μάτια
         const eyeY = -bodyH * 0.12;
-        if (stateOverride === 'sleeping') {
-          // Κλειστά μάτια (γραμμές)
+        if (state === 'sleeping') {
           ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 4 * scale;
-          ctx.beginPath();
-          ctx.moveTo(-45 * scale, eyeY - 5 * scale);
-          ctx.lineTo(-20 * scale, eyeY + 8 * scale);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(20 * scale, eyeY + 8 * scale);
-          ctx.lineTo(45 * scale, eyeY - 5 * scale);
-          ctx.stroke();
+          ctx.lineWidth = 4*scale;
+          ctx.beginPath(); ctx.moveTo(-45*scale, eyeY-5*scale); ctx.lineTo(-20*scale, eyeY+8*scale); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(20*scale, eyeY+8*scale); ctx.lineTo(45*scale, eyeY-5*scale); ctx.stroke();
         } else {
-          // Ανοιχτά μάτια
           ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.ellipse(-35 * scale, eyeY, eyeSize, eyeSize * 1.1, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(35 * scale, eyeY, eyeSize, eyeSize * 1.1, 0, 0, Math.PI * 2); ctx.fill();
-          // Κόρες
+          ctx.beginPath(); ctx.ellipse(-35*scale, eyeY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(35*scale, eyeY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = '#1e1b4b';
-          ctx.beginPath(); ctx.ellipse(-30 * scale, eyeY + 3 * scale, pupilSize, pupilSize, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(40 * scale, eyeY + 3 * scale, pupilSize, pupilSize, 0, 0, Math.PI * 2); ctx.fill();
-          // Λαμπύρισμα
+          ctx.beginPath(); ctx.ellipse(-30*scale, eyeY+3*scale, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(40*scale, eyeY+3*scale, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
           ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.arc(-38 * scale, eyeY - 8 * scale, 6 * scale, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(32 * scale, eyeY - 8 * scale, 6 * scale, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(-38*scale, eyeY-8*scale, 6*scale, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(32*scale, eyeY-8*scale, 6*scale, 0, Math.PI*2); ctx.fill();
         }
 
-        // ---- Στόμα (με animated άνοιγμα) ----
+        // Στόμα (animated)
         const mouthY = bodyH * 0.15;
-        let mouthOpenAmount = (stateOverride === 'talking') ? currentMouthOpen : 0;
-        if (stateOverride === 'eating') mouthOpenAmount = 0.8;
-        if (stateOverride === 'laughing') mouthOpenAmount = 0.7;
-        if (stateOverride === 'sleeping') mouthOpenAmount = 0.1;
-
-        const mouthWidth = 45 * scale;
-        const mouthHeight = (10 + mouthOpenAmount * 30) * scale;
-
-        // Στόμα (μαύρο εσωτερικό)
+        let mouthOpen = (state === 'talking') ? currentMouthOpen : 0;
+        if (state === 'eating') mouthOpen = 0.8;
+        if (state === 'laughing') mouthOpen = 0.7;
+        if (state === 'sleeping') mouthOpen = 0.1;
+        const mouthW = 45 * scale;
+        const mouthH = (10 + mouthOpen * 30) * scale;
         ctx.fillStyle = '#1a0a2e';
         ctx.beginPath();
-        ctx.ellipse(0, mouthY, mouthWidth, mouthHeight, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, mouthY, mouthW, mouthH, 0, 0, Math.PI*2);
         ctx.fill();
-
-        // Γλώσσα (αν το στόμα είναι αρκετά ανοιχτό)
-        if (mouthOpenAmount > 0.35) {
+        if (mouthOpen > 0.35) {
           ctx.fillStyle = '#ff6b8a';
           ctx.beginPath();
-          ctx.ellipse(0, mouthY + mouthHeight * 0.4, mouthWidth * 0.6, mouthHeight * 0.7, 0, 0, Math.PI);
+          ctx.ellipse(0, mouthY + mouthH*0.4, mouthW*0.6, mouthH*0.7, 0, 0, Math.PI);
           ctx.fill();
         }
-
         ctx.restore();
       }
 
-      // ---------- Ομαλή μετάβαση στόματος ----------
       function animateMouth() {
         if (state === 'talking') {
           currentMouthOpen += (targetMouthOpen - currentMouthOpen) * 0.25;
@@ -456,40 +419,32 @@
       }
       animateMouth();
 
-      // ---------- Custom Render ----------
+      // Σχεδίαση μετά το Matter.js render
       Events.on(render, 'afterRender', () => {
         const ctx = render.context;
+        if (!ctx) return;
         const pos = mainBody.position;
         const angle = mainBody.angle;
         const scaleFactor = Math.min(width, height) / 700;
-        drawBruno(ctx, pos, angle, scaleFactor, state);
+        drawBruno(ctx, pos, angle, scaleFactor);
       });
 
-      // ---------- Responsive resize ----------
+      // Responsive – αλλάζουμε μόνο canvas & όρια, ΟΧΙ το σώμα (διατηρεί το αρχικό του μέγεθος)
       function handleResize() {
         width = window.innerWidth;
         height = window.innerHeight;
-
         render.options.width = width;
         render.options.height = height;
         render.canvas.width = width;
         render.canvas.height = height;
-
-        // Ενημέρωση ορίων
-        Matter.Body.setPosition(floor, { x: width / 2, y: height + 40 });
-        Matter.Body.setPosition(rightWall, { x: width + 40, y: height / 2 });
-        Matter.Body.setPosition(leftWall, { x: -40, y: height / 2 });
-        Matter.Body.setPosition(ceiling, { x: width / 2, y: -40 });
-
-        // Προσαρμογή μεγέθους σώματος
-        const newRadius = Math.min(width, height) * 0.1;
-        Matter.Body.scale(mainBody, newRadius / bodyRadius, newRadius / bodyRadius);
-        // Ενημέρωση της μεταβλητής (δεν χρησιμοποιείται αλλού ζωντανά, αλλά για συνέπεια)
+        Matter.Body.setPosition(floor, { x: width/2, y: height+40 });
+        Matter.Body.setPosition(rightWall, { x: width+40, y: height/2 });
+        Matter.Body.setPosition(leftWall, { x: -40, y: height/2 });
+        Matter.Body.setPosition(ceiling, { x: width/2, y: -40 });
+        // Δεν αλλάζουμε το μέγεθος του mainBody – μένει σταθερό
       }
-
       window.addEventListener('resize', handleResize);
-      // Αρχικό κάλεσμα για σιγουριά
-      handleResize();
+      handleResize(); // αρχική εφαρμογή
 
     })();
   </script>
