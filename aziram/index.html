@@ -82,15 +82,17 @@
   #avatar-wrap {
     position: relative; width: 240px; height: 340px;
     filter: drop-shadow(0 0 28px rgba(0,229,255,.35));
-    cursor: pointer;
-    transition: opacity 0.15s;
+    cursor: grab;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    touch-action: none; /* prevent scroll while dragging */
+    will-change: transform;
   }
-  #avatar-wrap:active { opacity: 0.85; } /* Απλό feedback, χωρίς να μαζεύει το μέγεθος */
+  #avatar-wrap:active { cursor: grabbing; }
 
   #avatar-wrap img { position: absolute; }
 
   #body-img   { width: 240px; height: 340px; left: 0; top: 0; z-index: 1; }
-  #eyes-img   { width: 108px; left: 66px; top: 68px; z-index: 2; transition: opacity .1s; }
+  #eyes-img   { width: 108px; left: 66px; top: 78px; z-index: 2; transition: opacity .1s; } /* 10px κάτω */
   #mouth-img  { width: 96px;  left: 72px; top: 182px; z-index: 2; transition: opacity .1s; }
 
   /* Talking glow ring */
@@ -211,7 +213,7 @@
   </div>
 
   <!-- Avatar -->
-  <div id="avatar-wrap" onclick="avatarClick()">
+  <div id="avatar-wrap">
     <div id="glow-ring"></div>
     <div id="status-dot"></div>
     <img id="body-img"  src="body.png"       alt="body" />
@@ -235,10 +237,8 @@
 /* ═══════════════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════════════ */
-const MOUTHS = ['mouth.png','mouth1.png','mouth3.png'];
-const BODIES = ['body.png','body2.png','body3.png'];
 let GEMINI_KEY = localStorage.getItem('gemini_key') || '';
-let currentLang = 'el-GR'; // Μόνο Ελληνικά
+let currentLang = 'el-GR';
 let isTalking = false, isListening = false, isThinking = false;
 let blinkTimer, mouthTimer, bodyTimer;
 let recognition = null;
@@ -298,32 +298,18 @@ function startBlink(){
 }
 startBlink();
 
-/* Mouth animation while talking */
-let mouthIdx = 0;
+/* Mouth animation while talking (mouth.png vs mouth1.png) */
+let mouthState = 0;
 function startMouthAnim(){
   clearInterval(mouthTimer);
   mouthTimer = setInterval(()=>{
-    mouthIdx = (mouthIdx+1) % MOUTHS.length;
-    mthEl.src = MOUTHS[mouthIdx];
-  }, 130);
+    mouthState = (mouthState + 1) % 2;
+    mthEl.src = mouthState === 0 ? 'mouth.png' : 'mouth1.png';
+  }, 200);
 }
 function stopMouthAnim(){
   clearInterval(mouthTimer);
   mthEl.src = 'mouth.png';
-}
-
-/* Body bounce while talking */
-let bodyIdx = 0;
-function startBodyAnim(){
-  clearInterval(bodyTimer);
-  bodyTimer = setInterval(()=>{
-    bodyIdx = (bodyIdx+1) % BODIES.length;
-    bodyEl.src = BODIES[bodyIdx];
-  }, 220);
-}
-function stopBodyAnim(){
-  clearInterval(bodyTimer);
-  bodyEl.src = 'body.png';
 }
 
 /* ═══════════════════════════════════════════════
@@ -342,7 +328,6 @@ async function askGemini(userMsg){
   if(!GEMINI_KEY){
     return 'Παρακαλώ βάλε το Gemini API Key σου στο πεδίο παραπάνω!';
   }
-  // Add to history
   conversationHistory.push({ role:'user', parts:[{ text: userMsg }] });
 
   const systemPrompt = `You are Aziram, a friendly, cheerful, glittery alien creature.
@@ -366,7 +351,6 @@ Never break character. You love stars, glitter, and adventures!`;
   if(data.error){ return '⚠️ ' + data.error.message; }
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '…';
   conversationHistory.push({ role:'model', parts:[{ text: reply }] });
-  // keep history manageable
   if(conversationHistory.length > 20) conversationHistory = conversationHistory.slice(-16);
   return reply;
 }
@@ -379,14 +363,16 @@ function speak(text){
   return new Promise(resolve=>{
     if(currentUtterance){ speechSynthesis.cancel(); }
     const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = 'el-GR'; // Πάντα Ελληνικά
+    utt.lang = 'el-GR';
     utt.rate = 1.0; utt.pitch = 1.1;
-    // try to pick a Greek voice
     const voices = speechSynthesis.getVoices();
     const match = voices.find(v=>v.lang.startsWith('el'));
     if(match) utt.voice = match;
-    utt.onend = ()=>{ currentUtterance=null; resolve(); };
-    utt.onerror= ()=>{ currentUtterance=null; resolve(); };
+    utt.onstart = () => {
+      startMouthAnim();
+    };
+    utt.onend = ()=>{ currentUtterance=null; stopMouthAnim(); resolve(); };
+    utt.onerror= ()=>{ currentUtterance=null; stopMouthAnim(); resolve(); };
     currentUtterance = utt;
     speechSynthesis.speak(utt);
   });
@@ -409,12 +395,9 @@ async function sendMessage(text){
   showBubble(reply);
   setState('talking');
   startMouthAnim();
-  startBodyAnim();
 
   await speak(reply);
 
-  stopMouthAnim();
-  stopBodyAnim();
   setState('');
 }
 
@@ -428,50 +411,105 @@ function toggleMic(){
     isListening = false;
     btn.classList.remove('active');
     setState('');
+    stopMouthAnim();
     return;
   }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Ο browser σου δεν υποστηρίζει αναγνώριση φωνής.'); return; }
   recognition = new SR();
-  recognition.lang = 'el-GR'; // Πάντα Ελληνικά
+  recognition.lang = 'el-GR';
   recognition.interimResults = false;
   recognition.onresult = e=>{
     const transcript = e.results[0][0].transcript;
     sendMessage(transcript);
   };
-  recognition.onerror = ()=>{ isListening=false; btn.classList.remove('active'); setState(''); };
+  recognition.onerror = ()=>{ isListening=false; btn.classList.remove('active'); setState(''); stopMouthAnim(); };
   recognition.onend   = ()=>{ isListening=false; btn.classList.remove('active');
-    if(wrap.className==='listening') setState(''); };
+    if(wrap.className==='listening') setState('');
+    stopMouthAnim();
+  };
   recognition.start();
   isListening = true;
   btn.classList.add('active');
   setState('listening');
+  startMouthAnim(); // Το avatar ανοίγει το στόμα όσο ακούει
   showBubble('🎤 Σε ακούω…');
 }
 
 /* ═══════════════════════════════════════════════
-   AVATAR CLICK (idle greeting)
+   AVATAR CLICK (Hands up & Mouth open + Sound)
 ═══════════════════════════════════════════════ */
-const greetings = [
-  'Γεια σου! Πώς μπορώ να σε βοηθήσω; ✨',
-  'Γεια σου! Θέλεις να μιλήσουμε; 🌟',
-  'Έλα, ρώτα με ό,τι θες! 💫',
-  'Πώς είσαι σήμερα; 😊',
-  'Είμαι εδώ για σένα! 🌠'
-];
-let gIdx = 0;
+function playPopSound() {
+  try {
+    const audio = new Audio('pop.mp3');
+    audio.volume = 0.4;
+    audio.play().catch(() => {});
+  } catch(e) {}
+}
+
 async function avatarClick(){
   if(isTalking||isThinking) return;
-  const g = greetings[gIdx++ % greetings.length];
+
+  // Σηκώνει χέρια (αν υπάρχει body_hands_up.png)
+  bodyEl.src = 'body_hands_up.png';
+  // Ανοίγει στόμα
+  mthEl.src = 'mouth1.png';
+  // Παίζει ήχος
+  playPopSound();
+
+  // Μικρό delay και επιστροφή
+  setTimeout(() => {
+    bodyEl.src = 'body.png';
+    mthEl.src = 'mouth.png';
+  }, 600);
+
+  const greetings = [
+    'Γεια σου! Πώς μπορώ να σε βοηθήσω; ✨',
+    'Γεια σου! Θέλεις να μιλήσουμε; 🌟',
+    'Έλα, ρώτα με ό,τι θες! 💫',
+    'Πώς είσαι σήμερα; 😊',
+    'Είμαι εδώ για σένα! 🌠'
+  ];
+  const g = greetings[Math.floor(Math.random() * greetings.length)];
   showBubble(g);
   setState('talking');
-  startMouthAnim();
-  startBodyAnim();
   await speak(g);
-  stopMouthAnim();
-  stopBodyAnim();
   setState('');
 }
+
+/* ═══════════════════════════════════════════════
+   JELLY / ELASTIC DRAG SYSTEM
+═══════════════════════════════════════════════ */
+let isDragging = false;
+let startX, startY, currentX = 0, currentY = 0;
+
+wrap.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  startX = e.clientX;
+  startY = e.clientY;
+  wrap.style.transition = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const deltaX = e.clientX - startX;
+  const deltaY = e.clientY - startY;
+  const limit = 30;
+  const limitedX = Math.min(limit, Math.max(-limit, deltaX));
+  const limitedY = Math.min(limit, Math.max(-limit, deltaY));
+  // Εφέ ζελέ: Scale + rotate + skew
+  const stretchX = 1 + limitedX / 100;
+  const stretchY = 1 + limitedY / 100;
+  const rot = limitedX / 8;
+  wrap.style.transform = `translate(${limitedX}px, ${limitedY}px) scale(${stretchX}, ${stretchY}) rotate(${rot}deg)`;
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isDragging) return;
+  isDragging = false;
+  wrap.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  wrap.style.transform = '';
+});
 
 /* preload voices */
 speechSynthesis.onvoiceschanged = ()=> speechSynthesis.getVoices();
