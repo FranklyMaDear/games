@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bruno Galaxy Slime – Με δικά σας assets</title>
+  <title>Bruno Galaxy Slime – ΕΓΓΥΗΜΕΝΗ ΕΜΦΑΝΙΣΗ</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -68,7 +68,7 @@
   <script>
     (function() {
       if (typeof Matter === 'undefined') {
-        document.body.innerHTML = '<h2 style="color:white;text-align:center;margin-top:40vh;">Το Matter.js δεν φορτώθηκε.</h2>';
+        document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:40vh;">Το Matter.js δεν φορτώθηκε. Ελέγξτε τη σύνδεση.</h2>';
         return;
       }
 
@@ -119,25 +119,27 @@
       Composite.add(world, mouseConstraint);
       render.mouse = mouse;
 
-      // ---------- Φόρτωση όλων των εικόνων ----------
+      // ---------- (ΠΡΟΑΙΡΕΤΙΚΑ) Φόρτωση εικόνων ----------
+      // Αν θες να χρησιμοποιήσεις τα δικά σου assets, απλώς ξεσχολίασε τις παρακάτω γραμμές
+      // και αντικατέστησε τη συνάρτηση drawBruno με την έκδοση που σχεδιάζει εικόνες.
+      /*
       const assets = {
-        bodyNormal: 'body.png',      // κανονικό σώμα
-        bodyHappy: 'body2.png',      // χέρια ψηλά (Eating)
-        bodySleep: 'body3.png',      // ύπνος
+        bodyNormal: 'body.png',
+        bodyHappy: 'body2.png',
+        bodySleep: 'body3.png',
         eyesOpen: 'eyes_open.png',
         eyesClosed: 'eyes_closed.PNG',
         mouthClosed: 'mouth.png',
-        mouthTalk: 'mouth1.png',     // στόμα ομιλίας / γλώσσα
-        mouthOpen: 'mouth3.png',     // χαμόγελο / ανοιχτό στόμα
+        mouthTalk: 'mouth1.png',
+        mouthOpen: 'mouth3.png',
       };
-
       const images = {};
       for (const [key, src] of Object.entries(assets)) {
         const img = new Image();
         img.src = src;
-        img.onerror = () => console.warn(`Δεν βρέθηκε το αρχείο: ${src}`);
         images[key] = img;
       }
+      */
 
       // ---------- Καταστάσεις ----------
       let state = 'normal';
@@ -318,106 +320,105 @@
         }
       });
 
-      // ---------- Σχεδίαση με τα assets ----------
-      function getBodyImage() {
-        switch (state) {
-          case 'eating': return images.bodyHappy;
-          case 'sleeping': return images.bodySleep;
-          default: return images.bodyNormal;
-        }
-      }
-
-      function getEyesImage() {
-        return (state === 'sleeping') ? images.eyesClosed : images.eyesOpen;
-      }
-
-      function getMouthImage() {
-        if (state === 'talking') return images.mouthTalk;
-        if (state === 'eating' || state === 'laughing') return images.mouthOpen;
-        return images.mouthClosed;
-      }
-
-      function isImageReady(img) {
-        return img && img.complete && img.naturalWidth > 0;
-      }
-
+      // ---------- ΣΧΕΔΙΑΣΗ (100% canvas, χωρίς εικόνες) ----------
       function drawBruno(ctx, pos, angle, scale) {
-        const bodyW = 260 * scale;
-        const bodyH = 380 * scale;
+        const bodyW = 220 * scale;
+        const bodyH = 300 * scale;
+        const eyeSize = 35 * scale;
+        const pupilSize = 18 * scale;
 
         ctx.save();
         ctx.translate(pos.x, pos.y);
-        // Στον ύπνο δίνουμε μια κλίση 90° (ξαπλωμένος)
+        // Στον ύπνο δίνουμε μια κλίση 90° για να φαίνεται ξαπλωμένος
         const finalAngle = (state === 'sleeping') ? angle + Math.PI/2 : angle;
         ctx.rotate(finalAngle);
 
-        // 1. Σώμα
-        const bodyImg = getBodyImage();
-        if (isImageReady(bodyImg)) {
-          ctx.drawImage(bodyImg, -bodyW/2, -bodyH/2, bodyW, bodyH);
+        // Χρώματα ανά κατάσταση
+        let bodyColor1, bodyColor2;
+        if (state === 'sleeping') { bodyColor1 = '#7c3aed'; bodyColor2 = '#4c1d95'; }
+        else if (state === 'eating') { bodyColor1 = '#f97316'; bodyColor2 = '#c2410c'; }
+        else { bodyColor1 = '#a78bfa'; bodyColor2 = '#4f46e5'; }
+
+        // Σώμα (ζελέ)
+        const gradient = ctx.createLinearGradient(-bodyW/2, 0, bodyW/2, bodyH/2);
+        gradient.addColorStop(0, bodyColor1);
+        gradient.addColorStop(1, bodyColor2);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, bodyW/2, bodyH/2, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff33';
+        ctx.lineWidth = 3*scale;
+        ctx.stroke();
+        // Λάμψη
+        ctx.fillStyle = '#ffffff20';
+        ctx.beginPath();
+        ctx.ellipse(-bodyW*0.2, -bodyH*0.25, bodyW*0.15, bodyH*0.15, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Χέρια
+        ctx.fillStyle = gradient;
+        if (state === 'eating') {
+          ctx.beginPath(); ctx.ellipse(-bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, -0.4, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(bodyW*0.45, -bodyH*0.35, 25*scale, 35*scale, 0.4, 0, Math.PI*2); ctx.fill();
+        } else if (state === 'laughing') {
+          ctx.beginPath(); ctx.ellipse(-bodyW*0.45, -bodyH*0.4, 25*scale, 35*scale, -0.6, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(bodyW*0.45, -bodyH*0.4, 25*scale, 35*scale, 0.6, 0, Math.PI*2); ctx.fill();
         } else {
-          // Fallback
-          ctx.fillStyle = '#a78bfa';
+          ctx.beginPath(); ctx.ellipse(-bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, 0.3, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(bodyW*0.48, bodyH*0.25, 25*scale, 35*scale, -0.3, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Μάτια (με eye tracking)
+        const eyeY = -bodyH * 0.12;
+        if (state === 'sleeping') {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4*scale;
+          ctx.beginPath(); ctx.moveTo(-45*scale, eyeY-5*scale); ctx.lineTo(-20*scale, eyeY+8*scale); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(20*scale, eyeY+8*scale); ctx.lineTo(45*scale, eyeY-5*scale); ctx.stroke();
+        } else {
+          const dx = mouseX - pos.x;
+          const dy = mouseY - pos.y;
+          const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+          const maxOffset = 12 * scale;
+          const offsetX = (dx/dist) * Math.min(maxOffset, dist*0.08);
+          const offsetY = (dy/dist) * Math.min(maxOffset, dist*0.08);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.ellipse(-35*scale + offsetX, eyeY + offsetY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(35*scale + offsetX, eyeY + offsetY, eyeSize, eyeSize*1.1, 0, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#1e1b4b';
+          ctx.beginPath(); ctx.ellipse(-30*scale + offsetX*1.2, eyeY+3*scale + offsetY*1.2, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(40*scale + offsetX*1.2, eyeY+3*scale + offsetY*1.2, pupilSize, pupilSize, 0, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.arc(-38*scale + offsetX, eyeY-8*scale + offsetY, 5*scale, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(32*scale + offsetX, eyeY-8*scale + offsetY, 5*scale, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Στόμα (δυναμικό)
+        const mouthY = bodyH * 0.18;
+        let mouthOpen = 0;
+        if (state === 'eating') mouthOpen = 0.8;
+        else if (state === 'talking') mouthOpen = currentMouthOpen;
+        else if (state === 'laughing') mouthOpen = 0.7;
+        else if (state === 'sleeping') mouthOpen = 0.1;
+
+        const mouthW = 40 * scale;
+        const mouthH = (8 + mouthOpen * 30) * scale;
+        ctx.fillStyle = '#1a0a2e';
+        ctx.beginPath();
+        ctx.ellipse(0, mouthY, mouthW, mouthH, 0, 0, Math.PI*2);
+        ctx.fill();
+        if (mouthOpen > 0.35) {
+          ctx.fillStyle = '#ff6b8a';
           ctx.beginPath();
-          ctx.ellipse(0, 0, bodyW/2, bodyH/2, 0, 0, Math.PI*2);
+          ctx.ellipse(0, mouthY + mouthH*0.4, mouthW*0.6, mouthH*0.7, 0, 0, Math.PI);
           ctx.fill();
-        }
-
-        // 2. Μάτια (μετακινούνται ελαφρώς προς το ποντίκι)
-        const eyesImg = getEyesImage();
-        if (isImageReady(eyesImg)) {
-          const eyeW = 80 * scale;
-          const eyeH = 40 * scale;
-          const eyeBaseY = -bodyH * 0.12;
-
-          if (state !== 'sleeping') {
-            // Eye tracking: υπολογίζουμε offset
-            const dx = mouseX - pos.x;
-            const dy = mouseY - pos.y;
-            const dist = Math.sqrt(dx*dx+dy*dy) || 1;
-            const maxOffset = 15 * scale;
-            const offsetX = (dx/dist) * Math.min(maxOffset, dist*0.1);
-            const offsetY = (dy/dist) * Math.min(maxOffset, dist*0.1);
-
-            // Αριστερό μάτι
-            ctx.drawImage(eyesImg, -45*scale + offsetX, eyeBaseY + offsetY, eyeW, eyeH);
-            // Δεξί μάτι
-            ctx.drawImage(eyesImg, 45*scale + offsetX, eyeBaseY + offsetY, eyeW, eyeH);
-          } else {
-            // Στον ύπνο τα μάτια κλειστά, κεντραρισμένα
-            ctx.drawImage(eyesImg, -45*scale, eyeBaseY, eyeW, eyeH);
-            ctx.drawImage(eyesImg, 45*scale, eyeBaseY, eyeW, eyeH);
-          }
-        }
-
-        // 3. Στόμα (με lip-sync / animation)
-        const mouthImg = getMouthImage();
-        if (isImageReady(mouthImg)) {
-          const mouthY = bodyH * 0.16;
-          let mouthW = 70 * scale;
-          let mouthH = 40 * scale;
-
-          if (state === 'talking') {
-            // Lip-sync: κλιμάκωση ύψους βάσει currentMouthOpen
-            const openFactor = 0.8 + currentMouthOpen * 1.5;
-            mouthH = (25 + currentMouthOpen * 35) * scale;
-            mouthW = 65 * scale * openFactor;
-          } else if (state === 'eating') {
-            // Animation μασήματος
-            const chew = Math.sin(Date.now() * 0.06) * 0.15 + 0.9;
-            mouthW *= chew;
-            mouthH *= chew;
-          } else if (state === 'laughing') {
-            mouthW = 80 * scale;
-            mouthH = 50 * scale;
-          }
-
-          ctx.drawImage(mouthImg, -mouthW/2, mouthY, mouthW, mouthH);
         }
 
         ctx.restore();
 
-        // 4. Zzz για ύπνο
+        // Zzz για ύπνο
         if (state === 'sleeping') {
           for (let p of zzzParticles) {
             p.y -= 1.5;
@@ -437,6 +438,7 @@
         }
       }
 
+      // Ομαλό άνοιγμα στόματος
       function animateMouth() {
         if (state === 'talking') {
           currentMouthOpen += (targetMouthOpen - currentMouthOpen) * 0.25;
@@ -447,6 +449,7 @@
       }
       animateMouth();
 
+      // Σχεδίαση μετά το Matter.js render
       Events.on(render, 'afterRender', () => {
         const ctx = render.context;
         if (!ctx) return;
