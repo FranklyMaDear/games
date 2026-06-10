@@ -790,6 +790,23 @@
             .game-card h3 { font-size: 0.8rem; }
             .shop-grid, .wardrobe-grid { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* Board iframe container */
+        .board-iframe-container {
+            width: 100%;
+            height: calc(100vh - 155px);
+            height: calc(100dvh - 155px);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-default);
+            background: #0a0e27;
+            margin: 0 auto;
+        }
+        .board-iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -810,9 +827,12 @@
             <button class="dark-action-btn btn-top" onclick="navigateTo('top')"><i class="fas fa-trophy"></i> Top</button>
         </div>
 
+        <!-- === BOARD SECTION (NOW WITH IFRAME) === -->
         <div class="section active" id="section-board">
             <h2 class="section-title">🏆 Board</h2>
-            <div class="coming-soon-card"><span class="coming-soon-icon">🎮</span><p class="coming-soon-text">Something premium is coming soon...</p></div>
+            <div class="board-iframe-container">
+                <iframe id="boardIframe" src="board/index.html" allow="autoplay"></iframe>
+            </div>
         </div>
 
         <div class="section" id="section-top">
@@ -966,8 +986,66 @@
                 document.getElementById('wheelFreeSpins').textContent = freeSpins; document.getElementById('wheelStars').textContent = stars;
                 document.getElementById('happinessVal').textContent = board.happiness || 50;
                 document.getElementById('happinessFill').style.width = (board.happiness || 50) + '%';
+
+                // Send state to board iframe
+                sendToGame({ type: 'setState', stars: stars, points: board.total_points, spins: freeSpins });
             } catch(e) { console.warn(e); }
         }
+
+        // ----- Communication with Board Game -----
+        function sendToGame(msg) {
+            const iframe = document.getElementById('boardIframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage(msg, '*');
+            }
+        }
+
+        window.addEventListener('message', async (event) => {
+            const data = event.data;
+            if (!data || !data.type) return;
+
+            switch(data.type) {
+                case 'addPoints':
+                    try {
+                        await apiCall('POST', '/add-points', { userId, game: 'Gold Fest 2', points: data.value });
+                        showToast(`+${data.value} Points from Board Game!`);
+                    } catch(e) { showToast(e.message); }
+                    refreshUI();
+                    break;
+                case 'addStars':
+                    try {
+                        await apiCall('POST', '/add-stars', { userId, stars: data.value });
+                        showToast(`+${data.value} Stars from Board Game!`);
+                    } catch(e) { showToast(e.message); }
+                    refreshUI();
+                    break;
+                case 'useSpin':
+                    try { await apiCall('POST', '/use-free-spin', { userId }); } catch(e) {}
+                    refreshUI();
+                    break;
+                case 'watchAd':
+                    try {
+                        await callMonetagAd();
+                        await apiCall('POST', '/add-free-spins', { userId, spins: data.value || 3 });
+                        sendToGame({ type: 'adWatched', value: data.value || 3 });
+                    } catch(e) {
+                        sendToGame({ type: 'adFailed' });
+                    }
+                    refreshUI();
+                    break;
+                case 'claimDaily':
+                    try {
+                        if (data.rewardType === 'spins') await apiCall('POST', '/add-free-spins', { userId, spins: 5 });
+                        else if (data.rewardType === 'stars') await apiCall('POST', '/add-stars', { userId, stars: 5 });
+                        else if (data.rewardType === 'points') await apiCall('POST', '/add-points', { userId, game: 'Daily Reward', points: 5 });
+                        localStorage.setItem('gf_board_lastReward', Date.now());
+                        sendToGame({ type: 'dailyClaimed' });
+                    } catch(e) { showToast('Error claiming daily reward'); }
+                    refreshUI();
+                    break;
+            }
+        });
+        // ----- End of Board Game Communication -----
 
         function refreshAll() { refreshUI(); if (document.getElementById('section-missions').classList.contains('active')) loadMissions(); if (document.getElementById('section-top').classList.contains('active')) loadTopLeaderboard(); }
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
