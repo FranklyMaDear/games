@@ -430,7 +430,7 @@
             transform: translateX(-50%) translateY(0);
         }
 
-        /* Bottom Bar – ομοιόμορφα κουμπιά */
+        /* Bottom Bar */
         .bottom-bar {
             position: fixed;
             bottom: 0;
@@ -691,7 +691,8 @@
 
         function getPlayerScreenPos() {
             const r = boardArea.getBoundingClientRect();
-            return { x: r.width / 2, y: r.height * 0.65 };
+            // Κατεβάζουμε το κέντρο πιο κοντά στα κουμπιά (0.72 αντί για 0.65)
+            return { x: r.width / 2, y: r.height * 0.72 };
         }
 
         function renderAllTiles() {
@@ -790,18 +791,27 @@
         async function handleAdDouble(rew) {
             showMonetagAd().then(() => {
                 const doubled = rew.value * 2;
-                if (rew.type.startsWith('points')) gameState.points += doubled;
-                else if (rew.type.startsWith('rolls')) gameState.spins += doubled;
+                applyRewardAndNotify(rew.type, doubled);
                 showRewardBanner(rew.icon, rew.label, doubled);
-                sendToParent({ type: 'updatePoints', points: gameState.points });
-                updateRollsDisplay();
             }).catch(() => {
-                if (rew.type.startsWith('points')) gameState.points += rew.value;
-                else if (rew.type.startsWith('rolls')) gameState.spins += rew.value;
+                applyRewardAndNotify(rew.type, rew.value);
                 showRewardBanner(rew.icon, rew.label, rew.value);
-                sendToParent({ type: 'updatePoints', points: gameState.points });
-                updateRollsDisplay();
             });
+        }
+
+        function applyRewardAndNotify(type, value) {
+            if (type.startsWith('points')) {
+                gameState.points += value;
+                sendToParent({ type: 'addPoints', value: value });
+            } else if (type.startsWith('rolls')) {
+                gameState.spins += value;
+                updateRollsDisplay();
+                // Δεν χρειάζεται να στείλουμε spins στο backend από εδώ, 
+                // το board διαχειρίζεται τοπικά τα spins
+            } else if (type === 'stars') {
+                gameState.stars += value;
+                sendToParent({ type: 'addStars', value: value });
+            }
         }
 
         function handleReward(reward) {
@@ -810,15 +820,9 @@
                 showAdsPopup(reward);
                 return;
             }
-            if (reward.type === 'points5' || reward.type === 'points10') {
-                gameState.points += reward.value;
-                showRewardBanner('⭐', 'Points', reward.value);
-                sendToParent({ type: 'updatePoints', points: gameState.points });
-            } else if (reward.type === 'rolls5' || reward.type === 'rolls10') {
-                gameState.spins += reward.value;
-                updateRollsDisplay();
-                showRewardBanner('🎰', 'Rolls', reward.value);
-            }
+            // Κανονικές ανταμοιβές: προσθήκη τοπικά και αποστολή στο parent
+            applyRewardAndNotify(reward.type, reward.value);
+            showRewardBanner(reward.icon || '⭐', reward.label || 'Reward', reward.value);
         }
 
         function showAdsPopup(reward) {
@@ -837,8 +841,8 @@
                 overlay.remove();
                 showMonetagAd().then(() => {
                     gameState.points += 20;
+                    sendToParent({ type: 'addPoints', value: 20 });
                     showRewardBanner('📢', 'Points', 20);
-                    sendToParent({ type: 'updatePoints', points: gameState.points });
                 }).catch(() => showToast('Ad not completed'));
             };
             document.getElementById('exitAdBtn').onclick = () => overlay.remove();
@@ -904,9 +908,9 @@
         });
 
         function init() {
-            if (!localStorage.getItem('mariza_board_50spins_v5')) {
+            if (!localStorage.getItem('mariza_board_50spins_v6')) {
                 gameState.spins = 50;
-                localStorage.setItem('mariza_board_50spins_v5', '1');
+                localStorage.setItem('mariza_board_50spins_v6', '1');
                 showToast('🎉 50 Free Rolls!');
             } else {
                 const saved = localStorage.getItem('mariza_spins');
@@ -920,6 +924,7 @@
             window.addEventListener('beforeunload', () => {
                 localStorage.setItem('mariza_spins', gameState.spins);
             });
+            // Ενημερώνουμε το parent για τα αρχικά spins/points
             sendToParent({ type: 'updatePoints', points: gameState.points });
         }
 
