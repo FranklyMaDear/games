@@ -663,7 +663,7 @@
             </div>
 
             <div class="bottom-bar">
-                <!-- ΝΕΟ ΚΟΥΜΠΙ ΕΥΚΑΙΡΙΩΝ (ΑΝΤΙΚΑΤΑΣΤΑΣΗ ΤΟΥ ΠΑΛΙΟΥ ROLLS-INDICATOR) -->
+                <!-- ΝΕΟ ΚΟΥΜΠΙ ΕΥΚΑΙΡΙΩΝ -->
                 <button class="spins-btn" id="spinsBtn" onclick="handleSpinsButton()">
                     <span id="spinsIcon">🎰</span> <span id="spinsLabel">0 ευκαιρίες</span>
                 </button>
@@ -750,7 +750,7 @@
             spins: 0,
             points: 0,
             stars: 0,
-            doublePointsRemaining: 0 // Πόσες ανταμοιβές πόντων θα διπλασιαστούν
+            doublePointsRemaining: 0
         };
         let isRolling = false;
         let currentIdx = 0;
@@ -791,23 +791,20 @@
             }
         }
 
-        // ===== ΝΕΕΣ ΑΝΤΑΜΟΙΒΕΣ (ΟΛΕΣ ΟΙ ΠΑΛΙΕΣ ΑΦΑΙΡΕΘΗΚΑΝ) =====
+        // ===== ΝΕΕΣ ΑΝΤΑΜΟΙΒΕΣ =====
         function getRewardType(idx) {
             if (idx <= 0) return { type: 'empty', icon: '', label: '', value: 0 };
 
-            // Τα ads εμφανίζονται ΠΙΟ ΣΥΧΝΑ: κάθε 3ο και κάθε 7ο tile
             if (idx % 3 === 0 || idx % 7 === 0) {
                 return { type: 'ads', icon: '📢', label: 'ΔΙΑΦΗΜΙΣΗ', value: 0 };
             }
 
-            // Κατανομή των υπολοίπων ανταμοιβών
             const mod = idx % 10;
             if (mod === 1) return { type: 'rolls2', icon: '🎰', label: '+2 Rolls', value: 2 };
             if (mod === 4) return { type: 'rolls3', icon: '🎰', label: '+3 Rolls', value: 3 };
             if (mod === 5) return { type: 'points3', icon: '⭐', label: '+3 Πόντοι', value: 3 };
             if (mod === 8) return { type: 'points5', icon: '🌟', label: '+5 Πόντοι', value: 5 };
 
-            // Κάποια κενά tiles για ποικιλία
             return { type: 'empty', icon: '', label: '', value: 0 };
         }
 
@@ -890,7 +887,6 @@
             }, 2000);
         }
 
-        // ===== ΕΝΗΜΕΡΩΣΗ ΝΕΟΥ ΚΟΥΜΠΙΟΥ ΕΥΚΑΙΡΙΩΝ =====
         function updateSpinsButton() {
             if (gameState.spins > 0) {
                 spinsIcon.textContent = '🎰';
@@ -911,33 +907,28 @@
                     finalValue = value * 2;
                     gameState.doublePointsRemaining--;
                     showToast('🔥 Διπλάσιοι πόντοι! ×' + finalValue);
-                    if (gameState.doublePointsRemaining <= 0) {
-                        // Το flag καθαρίζει αυτόματα
-                    }
                 }
                 gameState.points += finalValue;
                 sendToParent({ type: 'addPoints', value: finalValue });
             } else if (type.startsWith('rolls')) {
                 gameState.spins += value;
                 updateSpinsButton();
+                // ΑΠΟΣΤΟΛΗ ΣΤΟ PARENT ΓΙΑ ΕΝΗΜΕΡΩΣΗ ΤΩΝ SPINS
+                sendToParent({ type: 'addSpins', value: value });
             }
         }
 
-        // ===== ΧΕΙΡΙΣΜΟΣ ΑΝΤΑΜΟΙΒΗΣ =====
         function handleReward(reward) {
             if (reward.type === 'empty') return;
             if (reward.type === 'ads') {
                 showAdsPopup(reward);
                 return;
             }
-            // Κανονικές ανταμοιβές
             applyRewardAndNotify(reward.type, reward.value);
             playRewardSound();
-            // Ενημέρωση κουμπιού μετά από αλλαγή spins
             updateSpinsButton();
         }
 
-        // ===== POPUP ΔΙΑΦΗΜΙΣΗΣ ΑΠΟ ADS TILE (ΔΙΠΛΑΣΙΟΙ ΠΟΝΤΟΙ) =====
         function showAdsPopup(reward) {
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
@@ -964,10 +955,8 @@
             document.getElementById('exitAdBtn').onclick = () => overlay.remove();
         }
 
-        // ===== ΧΕΙΡΙΣΜΟΣ ΤΟΥ ΝΕΟΥ ΚΟΥΜΠΙΟΥ ΕΥΚΑΙΡΙΩΝ =====
         function handleSpinsButton() {
             if (gameState.spins <= 0) {
-                // Προβολή διαφήμισης για 20 ευκαιρίες
                 initAudio();
                 showMonetagAd().then(() => {
                     gameState.spins += 20;
@@ -976,10 +965,8 @@
                     playRewardSound();
                 }).catch(() => showToast('Η διαφήμιση δεν ολοκληρώθηκε'));
             }
-            // Αν έχει ευκαιρίες, το κλικ δεν κάνει τίποτα (απλά ενημερωτικό)
         }
 
-        // ===== ROLL DICE =====
         function rollDice() {
             if (isRolling) return;
             if (gameState.spins <= 0) {
@@ -1001,12 +988,10 @@
                 handleReward(rew);
                 isRolling = false;
                 rollBtn.disabled = false;
-                // Αποθήκευση spins
                 localStorage.setItem('mariza_spins', gameState.spins);
             }, 600);
         }
 
-        // ===== BACKGROUND PARTICLES =====
         function createBgParticles() {
             const container = document.getElementById('bgParticles');
             for (let i = 0; i < 25; i++) {
@@ -1025,7 +1010,6 @@
             player.className = `player color-${color}`;
         }
 
-        // ===== ΛΗΨΗ ΜΗΝΥΜΑΤΩΝ ΑΠΟ PARENT =====
         window.addEventListener('message', (event) => {
             const data = event.data;
             if (!data || !data.type) return;
@@ -1037,12 +1021,9 @@
             }
         });
 
-        // ===== ΑΡΧΙΚΟΠΟΙΗΣΗ =====
         function init() {
-            // Ενεργοποίηση ήχου με το πρώτο άγγιγμα
             document.body.addEventListener('click', initAudio, { once: true });
 
-            // Ο επισκέπτης κερδίζει αυτόματα 20 ευκαιρίες κατά την πρώτη είσοδο
             if (!localStorage.getItem('mariza_board_20spins_v2')) {
                 gameState.spins = 20;
                 localStorage.setItem('mariza_board_20spins_v2', '1');
@@ -1058,7 +1039,6 @@
             renderAllTiles();
             createBgParticles();
 
-            // Αποθήκευση spins κατά την έξοδο
             window.addEventListener('beforeunload', () => {
                 localStorage.setItem('mariza_spins', gameState.spins);
             });
