@@ -351,38 +351,6 @@
             100% { transform: rotateY(360deg) scale(1); }
         }
 
-        /* Floating Reward Banner */
-        .reward-banner {
-            position: absolute;
-            top: 8%;
-            left: 50%;
-            transform: translate(-50%, -30px);
-            background: rgba(0,0,0,0.9);
-            color: #ffeb3b;
-            padding: 12px 28px;
-            border-radius: 30px;
-            font-weight: 900;
-            font-size: 19px;
-            z-index: 150;
-            pointer-events: none;
-            animation: bannerIn 0.4s ease-out, bannerOut 0.4s 1.8s ease-in forwards;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 0 30px rgba(255,235,59,0.8);
-            border: 2px solid #ffd700;
-        }
-
-        @keyframes bannerIn {
-            from { opacity: 0; transform: translate(-50%, -40px); }
-            to { opacity: 1; transform: translate(-50%, -30px); }
-        }
-
-        @keyframes bannerOut {
-            from { opacity: 1; transform: translate(-50%, -30px); }
-            to { opacity: 0; transform: translate(-50%, -50px); }
-        }
-
         /* Toast */
         .toast {
             position: fixed;
@@ -593,6 +561,50 @@
     <script>
         'use strict';
 
+        // ===== ΗΧΟΙ =====
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playDiceSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            [800, 600, 1000].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + i * 0.08);
+                gain.gain.setValueAtTime(0.15, now + i * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.08);
+                osc.stop(now + i * 0.08 + 0.15);
+            });
+        }
+
+        function playRewardSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            [523.25, 659.25, 783.99].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + i * 0.12);
+                gain.gain.setValueAtTime(0.2, now + i * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.12);
+                osc.stop(now + i * 0.12 + 0.35);
+            });
+        }
+
+        // ===== ΔΙΑΦΗΜΙΣΗ MONETAG =====
         function showMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_11108267 === 'function') {
@@ -606,6 +618,7 @@
             });
         }
 
+        // ===== DOM =====
         const world = document.getElementById('world');
         const player = document.getElementById('player');
         const boardArea = document.getElementById('boardArea');
@@ -614,6 +627,7 @@
         const rollBtn = document.getElementById('rollBtn');
         const rollsCount = document.getElementById('rollsCount');
 
+        // ===== ΚΑΤΑΣΤΑΣΗ =====
         let gameState = { spins: 0, points: 0, stars: 0 };
         let isRolling = false;
         let currentIdx = 0;
@@ -628,6 +642,7 @@
             if (window.parent !== window) window.parent.postMessage(msg, '*');
         }
 
+        // ===== ΔΙΑΔΡΟΜΗ =====
         function generateDirections() {
             while (directions.length < pathPoints.length + 50) {
                 const l = directions.length;
@@ -653,6 +668,7 @@
             }
         }
 
+        // ===== ΑΝΤΑΜΟΙΒΕΣ =====
         function getRewardType(idx) {
             if (idx <= 0) return { type: 'empty', icon: '', label: '', value: 0 };
             if (idx % 3 === 0) return { type: 'points5', icon: '⭐', label: '+5 Points', value: 5 };
@@ -726,15 +742,8 @@
             const icons = ['🎲', '1️⃣', '2️⃣', '3️⃣'];
             diceDisplay.textContent = icons[n] || '🎲';
             dicePopup.classList.add('show');
+            playDiceSound(); // ΗΧΟΣ ΖΑΡΙΟΥ
             setTimeout(() => dicePopup.classList.remove('show'), 550);
-        }
-
-        function showRewardBanner(icon, label, value) {
-            const banner = document.createElement('div');
-            banner.className = 'reward-banner';
-            banner.innerHTML = `<span>${icon}</span> <span>+${value} ${label}</span>`;
-            boardArea.appendChild(banner);
-            setTimeout(() => banner.remove(), 2200);
         }
 
         function showToast(msg) {
@@ -769,9 +778,9 @@
                 showAdsPopup(reward);
                 return;
             }
-            // Κανονικές ανταμοιβές: μόνο floating banner, χωρίς δεύτερο popup
+            // Κανονικές ανταμοιβές – χωρίς banner, μόνο ενημέρωση parent & ήχος
             applyRewardAndNotify(reward.type, reward.value);
-            showRewardBanner(reward.icon || '⭐', reward.label || 'Reward', reward.value);
+            playRewardSound(); // ΗΧΟΣ ΕΠΙΒΡΑΒΕΥΣΗΣ
         }
 
         function showAdsPopup(reward) {
@@ -789,9 +798,10 @@
             document.getElementById('watchAdBtn').onclick = () => {
                 overlay.remove();
                 showMonetagAd().then(() => {
-                    gameState.points += reward.value; // 10 πόντοι
+                    gameState.points += reward.value;
                     sendToParent({ type: 'addPoints', value: reward.value });
-                    showRewardBanner('📢', 'Points', reward.value);
+                    playRewardSound();
+                    showToast('+10 Points!');
                 }).catch(() => showToast('Ad not completed'));
             };
             document.getElementById('exitAdBtn').onclick = () => overlay.remove();
@@ -845,6 +855,7 @@
             player.className = `player color-${color}`;
         }
 
+        // Λήψη μηνυμάτων από το parent
         window.addEventListener('message', (event) => {
             const data = event.data;
             if (!data || !data.type) return;
@@ -857,6 +868,9 @@
         });
 
         function init() {
+            // Ενεργοποίηση ήχου με το πρώτο άγγιγμα
+            document.body.addEventListener('click', initAudio, { once: true });
+
             if (!localStorage.getItem('mariza_board_25spins_v1')) {
                 gameState.spins = 25;
                 localStorage.setItem('mariza_board_25spins_v1', '1');
