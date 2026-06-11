@@ -712,15 +712,21 @@
         .section { display: none; }
         .section.active { display: block; }
 
-        .coming-soon-card {
-            background: var(--bg-tertiary); border: 1px dashed var(--neon);
-            border-radius: var(--radius-xl); padding: 40px 20px;
-            text-align: center; max-width: 400px; margin: 30px auto;
-            transition: all 0.3s;
+        .board-iframe-container {
+            width: 100%;
+            height: calc(100vh - 155px);
+            height: calc(100dvh - 155px);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-default);
+            background: #0a0e27;
+            margin: 0 auto;
         }
-        .coming-soon-card:hover { border-color: var(--neon); border-style: solid; box-shadow: 0 0 30px var(--neon-soft); }
-        .coming-soon-icon { font-size: 3.5rem; display: block; margin-bottom: 16px; }
-        .coming-soon-text { color: var(--text-secondary); font-size: 0.9rem; font-weight: 600; letter-spacing: 0.5px; }
+        .board-iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
 
         .welcome-full-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -773,59 +779,52 @@
         }
         .btn-lets-play:active { transform: translateY(1px); box-shadow: 0 0 55px var(--neon); }
 
-        /* ========== NEO BANNER ΓΙΑ ΤΟ BOARD ========== */
-        .board-contest-banner {
-            background: linear-gradient(135deg, rgba(0,0,0,0.8), rgba(20,20,40,0.9));
+        /* ========== POP-UP BANNER ========== */
+        .popup-banner {
+            position: fixed;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.95));
             border: 2px solid #ffd700;
             border-radius: 30px;
-            padding: 10px 20px;
-            margin: 10px auto 15px;
-            text-align: center;
+            padding: 10px 24px;
             color: #ffeb3b;
             font-weight: 800;
             font-size: 15px;
+            z-index: 2000;
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 10px;
-            box-shadow: 0 0 25px rgba(255,215,0,0.4);
-            max-width: 500px;
+            box-shadow: 0 0 30px rgba(255,215,0,0.5);
+            white-space: nowrap;
+            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            pointer-events: none;
         }
-        .board-contest-banner .trophy {
+
+        .popup-banner.show {
+            top: 20px;
+        }
+
+        .popup-banner .trophy {
             font-size: 24px;
             animation: trophyBounce 2s ease-in-out infinite;
         }
+
         @keyframes trophyBounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-8px); }
-        }
-
-        /* Board iframe container */
-        .board-iframe-container {
-            width: 100%;
-            height: calc(100vh - 155px);
-            height: calc(100dvh - 155px);
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--border-default);
-            background: #0a0e27;
-            margin: 0 auto;
-        }
-        .board-iframe-container iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
         }
 
         @media (max-width: 600px) {
             .games-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .game-card { padding: 16px 8px 14px; min-height: 110px; }
             .game-card .game-icon { font-size: 2.2rem; }
-            .game-card h3 { font-size: 0.9rem; }
             #wheelCanvas { max-width: 320px; }
             .btn-spin { font-size: 1rem; padding: 14px 36px; }
             .welcome-card { padding: 30px 18px 24px; }
             .shop-grid, .wardrobe-grid { grid-template-columns: repeat(3, 1fr); }
+            .popup-banner { font-size: 13px; padding: 8px 16px; }
         }
         @media (max-width: 380px) {
             .games-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -838,6 +837,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- POP-UP BANNER -->
+    <div class="popup-banner" id="popupBanner">
+        <span class="trophy">🏆</span>
+        <span>Play, win 1000 points and enter contests!</span>
+    </div>
+
     <div class="glass-header">
         <div class="level-box">
             <div class="level-label"><span>⚡ Level <span id="levelVal">1</span></span><span><span id="levelPts">0</span> / 1000 XP</span></div>
@@ -857,11 +862,6 @@
         <!-- === BOARD SECTION === -->
         <div class="section active" id="section-board">
             <h2 class="section-title">🏆 Board</h2>
-            <!-- ΝΕΟ BANNER -->
-            <div class="board-contest-banner">
-                <span class="trophy">🏆</span>
-                <span>Play the game, win 1000 points and enter contests!</span>
-            </div>
             <div class="board-iframe-container">
                 <iframe id="boardIframe" src="board/index.html" allow="autoplay"></iframe>
             </div>
@@ -1017,14 +1017,13 @@
                 document.getElementById('happinessFill').style.width = (board.happiness || 50) + '%';
 
                 sendToGame({ type: 'setState', stars: stars, points: board.total_points, spins: freeSpins });
-                // Έλεγχος milestones για Tally
                 checkContestMilestones(board.total_points);
             } catch(e) { console.warn(e); }
         }
 
         // ========== TALLY CONTEST LOGIC ==========
         const TALLY_URLS = {
-            1000: 'https://tally.so/r/xxxxxxxx',  // ΑΝΤΙΚΑΤΑΣΤΗΣΕ ΜΕ ΤΟ ΛΙΝΚ ΣΟΥ
+            1000: 'https://tally.so/r/xxxxxxxx',
             2000: 'https://tally.so/r/xxxxxxxx',
             3000: 'https://tally.so/r/xxxxxxxx',
             4000: 'https://tally.so/r/xxxxxxxx'
@@ -1119,7 +1118,6 @@
                     break;
             }
         });
-        // ----- End of Board Game Communication -----
 
         function refreshAll() { refreshUI(); if (document.getElementById('section-missions').classList.contains('active')) loadMissions(); if (document.getElementById('section-top').classList.contains('active')) loadTopLeaderboard(); }
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
@@ -1332,6 +1330,17 @@
             const container = document.getElementById('topLeaderboardList');
             try { const data = await apiCall('GET', '/leaderboard?limit=20'); let html = ''; data.leaderboard.forEach((entry, idx) => { const isMe = entry.userId === userId; const position = idx + 1; let medal = ''; if (position === 1) medal = '🥇'; else if (position === 2) medal = '🥈'; else if (position === 3) medal = '🥉'; html += `<div class="lb-row ${isMe ? 'lb-self' : ''}"><span class="lb-rank">${medal} ${position}.</span><span class="lb-user">${isMe ? '⭐ You' : entry.nickname}</span><span class="lb-points">💰 ${entry.points.toLocaleString()} Pts</span><span class="lb-stars">⭐ ${entry.stars}</span></div>`; }); container.innerHTML = html || '<p style="text-align:center;color:var(--text-secondary);">No players yet.</p>'; } catch (e) { container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);">Error loading leaderboard</p>'; }
         }
+
+        // ========== POP-UP BANNER ==========
+        const popupBanner = document.getElementById('popupBanner');
+        function showPopupBanner() {
+            popupBanner.classList.add('show');
+            setTimeout(() => {
+                popupBanner.classList.remove('show');
+            }, 4000);
+        }
+        setInterval(() => { showPopupBanner(); }, 20000);
+        setTimeout(() => { showPopupBanner(); }, 3000);
 
         // ========== WELCOME SCREEN ==========
         document.addEventListener("DOMContentLoaded", () => {
