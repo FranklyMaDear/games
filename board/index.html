@@ -236,32 +236,6 @@
             50% { box-shadow: -8px 8px 16px rgba(0,0,0,0.4), 0 0 25px rgba(255,112,67,0.9); }
         }
 
-        .ad-badge {
-            position: absolute;
-            top: -12px;
-            right: -12px;
-            background: linear-gradient(135deg, #ffd700, #ff8c00);
-            color: #000;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.5), 0 0 20px rgba(255,215,0,0.6);
-            z-index: 70;
-            cursor: pointer;
-            pointer-events: auto;
-            animation: badgePulse 2s ease-in-out infinite;
-        }
-
-        @keyframes badgePulse {
-            0%, 100% { box-shadow: 0 3px 10px rgba(0,0,0,0.5), 0 0 20px rgba(255,215,0,0.6); }
-            50% { box-shadow: 0 3px 15px rgba(0,0,0,0.6), 0 0 35px rgba(255,215,0,0.9); }
-        }
-
         /* Player – King Chess Piece */
         .player {
             position: absolute;
@@ -377,7 +351,7 @@
             100% { transform: rotateY(360deg) scale(1); }
         }
 
-        /* Reward Banner */
+        /* Floating Reward Banner */
         .reward-banner {
             position: absolute;
             top: 8%;
@@ -515,7 +489,7 @@
             flex-shrink: 0;
         }
 
-        /* Modal */
+        /* Modal (MONO για ADS) */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -607,10 +581,10 @@
             </div>
 
             <div class="bottom-bar">
-                <div class="free-rolls-ad-btn" onclick="watchAdForRolls()">📢 20 Rolls</div>
+                <div class="free-rolls-ad-btn" onclick="watchAdForRolls()">📢 +20</div>
                 <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 ROLL</button>
                 <div class="rolls-indicator" id="rollsIndicator">
-                    <span>🎰</span> <span id="rollsCount">50</span>
+                    <span>🎰</span> <span id="rollsCount">25</span>
                 </div>
             </div>
         </div>
@@ -685,13 +659,12 @@
             if (idx % 5 === 0) return { type: 'points10', icon: '🌟', label: '+10 Points', value: 10 };
             if (idx % 7 === 0) return { type: 'rolls5', icon: '🎰', label: '+5 Rolls', value: 5 };
             if (idx % 9 === 0) return { type: 'rolls10', icon: '🎰', label: '+10 Rolls', value: 10 };
-            if (idx % 11 === 0) return { type: 'ads', icon: '📢', label: 'ADS', value: 20 };
+            if (idx % 11 === 0) return { type: 'ads', icon: '📢', label: 'ADS', value: 10 };
             return { type: 'empty', icon: '', label: '', value: 0 };
         }
 
         function getPlayerScreenPos() {
             const r = boardArea.getBoundingClientRect();
-            // Κατεβάζουμε το κέντρο πιο κοντά στα κουμπιά (0.72 αντί για 0.65)
             return { x: r.width / 2, y: r.height * 0.72 };
         }
 
@@ -720,17 +693,6 @@
                 const ry = (pt.y - pp.y) * step;
                 tile.style.left = (sp.x + rx - tileSize / 2) + 'px';
                 tile.style.top = (sp.y + ry - tileSize / 2) + 'px';
-
-                if ((rew.type === 'points5' || rew.type === 'points10' || rew.type === 'rolls5' || rew.type === 'rolls10') && rew.value > 0) {
-                    const badge = document.createElement('div');
-                    badge.className = 'ad-badge';
-                    badge.textContent = '📢';
-                    badge.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        handleAdDouble(rew);
-                    });
-                    tile.appendChild(badge);
-                }
 
                 world.appendChild(tile);
             }
@@ -788,17 +750,6 @@
             rollsCount.textContent = gameState.spins;
         }
 
-        async function handleAdDouble(rew) {
-            showMonetagAd().then(() => {
-                const doubled = rew.value * 2;
-                applyRewardAndNotify(rew.type, doubled);
-                showRewardBanner(rew.icon, rew.label, doubled);
-            }).catch(() => {
-                applyRewardAndNotify(rew.type, rew.value);
-                showRewardBanner(rew.icon, rew.label, rew.value);
-            });
-        }
-
         function applyRewardAndNotify(type, value) {
             if (type.startsWith('points')) {
                 gameState.points += value;
@@ -806,8 +757,6 @@
             } else if (type.startsWith('rolls')) {
                 gameState.spins += value;
                 updateRollsDisplay();
-                // Δεν χρειάζεται να στείλουμε spins στο backend από εδώ, 
-                // το board διαχειρίζεται τοπικά τα spins
             } else if (type === 'stars') {
                 gameState.stars += value;
                 sendToParent({ type: 'addStars', value: value });
@@ -820,7 +769,7 @@
                 showAdsPopup(reward);
                 return;
             }
-            // Κανονικές ανταμοιβές: προσθήκη τοπικά και αποστολή στο parent
+            // Κανονικές ανταμοιβές: μόνο floating banner, χωρίς δεύτερο popup
             applyRewardAndNotify(reward.type, reward.value);
             showRewardBanner(reward.icon || '⭐', reward.label || 'Reward', reward.value);
         }
@@ -832,17 +781,17 @@
                 <div class="modal-box">
                     <div class="modal-title">📢 ${reward.label}</div>
                     <div class="modal-emoji">📺</div>
-                    <p style="color:#e8e8ed; margin-bottom:16px;">Watch an ad to get <strong>20 Points</strong>?</p>
+                    <p style="color:#e8e8ed; margin-bottom:16px;">Watch an ad to get <strong>10 Points</strong>?</p>
                     <button class="modal-btn watch" id="watchAdBtn">Watch Ad</button>
-                    <button class="modal-btn exit" id="exitAdBtn">Exit</button>
+                    <button class="modal-btn exit" id="exitAdBtn">✕ Exit</button>
                 </div>`;
             document.body.appendChild(overlay);
             document.getElementById('watchAdBtn').onclick = () => {
                 overlay.remove();
                 showMonetagAd().then(() => {
-                    gameState.points += 20;
-                    sendToParent({ type: 'addPoints', value: 20 });
-                    showRewardBanner('📢', 'Points', 20);
+                    gameState.points += reward.value; // 10 πόντοι
+                    sendToParent({ type: 'addPoints', value: reward.value });
+                    showRewardBanner('📢', 'Points', reward.value);
                 }).catch(() => showToast('Ad not completed'));
             };
             document.getElementById('exitAdBtn').onclick = () => overlay.remove();
@@ -852,7 +801,7 @@
             showMonetagAd().then(() => {
                 gameState.spins += 20;
                 updateRollsDisplay();
-                showToast('+20 Rolls! 🎉');
+                showToast('+20 Ευκαιρίες! 🎉');
             }).catch(() => showToast('Ad not completed'));
         }
 
@@ -908,10 +857,10 @@
         });
 
         function init() {
-            if (!localStorage.getItem('mariza_board_50spins_v6')) {
-                gameState.spins = 50;
-                localStorage.setItem('mariza_board_50spins_v6', '1');
-                showToast('🎉 50 Free Rolls!');
+            if (!localStorage.getItem('mariza_board_25spins_v1')) {
+                gameState.spins = 25;
+                localStorage.setItem('mariza_board_25spins_v1', '1');
+                showToast('🎉 25 Free Rolls!');
             } else {
                 const saved = localStorage.getItem('mariza_spins');
                 gameState.spins = saved ? parseInt(saved) : 0;
@@ -924,7 +873,6 @@
             window.addEventListener('beforeunload', () => {
                 localStorage.setItem('mariza_spins', gameState.spins);
             });
-            // Ενημερώνουμε το parent για τα αρχικά spins/points
             sendToParent({ type: 'updatePoints', points: gameState.points });
         }
 
