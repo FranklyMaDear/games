@@ -627,6 +627,7 @@
             applyRewardAndNotify(reward.type, reward.value);
             playRewardSound();
             updateEnergyUI();
+            saveProgress();
         }
 
         async function watchAdForRolls() {
@@ -637,6 +638,7 @@
                 updateEnergyUI();
                 showToast('+5 Rolls! 🎉');
                 sendToParent({ type: 'watchAdForRolls', value: 5 });
+                saveProgress();
             } catch (e) {
                 showToast('Ad not completed');
             }
@@ -663,7 +665,26 @@
                 handleReward(rew);
                 isRolling = false;
                 updateEnergyUI();
+                saveProgress();
             }, 600);
+        }
+
+        function saveProgress() {
+            localStorage.setItem('board_energy', gameState.spins);
+            localStorage.setItem('board_points', gameState.points);
+            localStorage.setItem('board_currentIdx', currentIdx);
+        }
+
+        function loadProgress() {
+            const savedEnergy = localStorage.getItem('board_energy');
+            const savedPoints = localStorage.getItem('board_points');
+            const savedIdx = localStorage.getItem('board_currentIdx');
+            if (savedIdx !== null) {
+                currentIdx = parseInt(savedIdx);
+                buildPath();
+            }
+            if (savedEnergy !== null) gameState.spins = parseInt(savedEnergy);
+            if (savedPoints !== null) gameState.points = parseInt(savedPoints);
         }
 
         function createBgParticles() {
@@ -709,19 +730,24 @@
         }
 
         function init() {
-            // Start with 10 energy - NO localStorage, always fresh
-            gameState.spins = 10;
-            gameState.points = 0;
-            currentIdx = 0;
-            pathPoints = [];
+            loadProgress();
+            // If first time, give 10 energy
+            if (!localStorage.getItem('board_initialized_v3')) {
+                gameState.spins = 10;
+                localStorage.setItem('board_initialized_v3', '1');
+                saveProgress();
+                showToast('🎉 10 Free Rolls!');
+            } else if (gameState.spins === undefined || gameState.spins === null) {
+                gameState.spins = 0;
+            }
 
-            buildPath();
-            renderAllTiles();
             updateEnergyUI();
             randomizeColor();
+            buildPath();
+            renderAllTiles();
             createBgParticles();
             startEnergyRegeneration();
-            showToast('🎉 10 Free Rolls!');
+            window.addEventListener('beforeunload', saveProgress);
         }
 
         init();
