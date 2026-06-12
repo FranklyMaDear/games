@@ -777,9 +777,6 @@
             box-shadow: 0 -4px 20px rgba(0,0,0,0.8);
         }
 
-        .board-styles .spins-btn {
-            background:rgba(255,255,255,0.08); border:2px solid #ffd700; border-radius:30px; padding:12px 16px; color:#ffd700; font-weight:900; font-size:16px; display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0; cursor:default; transition:all 0.2s; font-family:inherit;
-        }
         .board-styles .roll-btn {
             background:linear-gradient(135deg,#ff4081,#c51162); border:2px solid #ff69b4; border-radius:40px; padding:16px 36px; color:#fff; font-size:22px; font-weight:900; display:flex; align-items:center; gap:8px; box-shadow:0 8px 0 #880e4f, 0 12px 28px rgba(0,0,0,0.5); cursor:pointer; transition:all 0.1s; letter-spacing:2px; -webkit-appearance:none; flex-shrink:0; font-family:inherit;
         }
@@ -790,13 +787,41 @@
         }
         .board-styles .watch-ad-btn:active { transform:translateY(3px); box-shadow:0 1px 0 #bf360c,0 3px 6px rgba(0,0,0,0.3); }
 
+        .board-styles .energy-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0 10px;
+            font-weight: 900;
+            color: #ffd700;
+        }
+        .board-styles .energy-bar .boxes {
+            display: flex;
+            gap: 2px;
+        }
+        .board-styles .energy-bar .box {
+            width: 16px;
+            height: 16px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+        .board-styles .energy-bar .box.filled {
+            background: #ffd700;
+            border-color: #ffd700;
+            box-shadow: 0 0 8px rgba(255,215,0,0.5);
+        }
+        .board-styles .energy-bar .count {
+            font-size: 16px;
+            margin-left: 4px;
+        }
+
         @media (max-width:480px) {
             .board-styles { --tile-size:62px; --gap:10px; }
             .board-styles .board-area { margin-bottom:100px; }
             .board-styles .player { width:50px; height:75px; }
             .board-styles .roll-btn { font-size:18px; padding:14px 24px; }
-            .board-styles .spins-btn { font-size:14px; padding:10px 12px; }
-            .board-styles .watch-ad-btn { font-size:12px; padding:10px 10px; }
+            .board-styles .energy-bar .box { width:12px; height:12px; }
         }
 
         .board-container .board-inner .board-styles {
@@ -1467,11 +1492,12 @@
                                 </div>
                             </div>
                             <div class="bottom-bar" id="boardBottomBar">
-                                <div class="spins-btn" id="spinsBtn">
-                                    <span>🎰</span> <span id="spinsLabel">0</span>
+                                <div class="energy-bar" id="energyBar">
+                                    <div class="boxes" id="energyBoxes"></div>
+                                    <span class="count" id="energyCount">⚡ 0</span>
                                 </div>
                                 <button class="roll-btn" id="rollBtn" onclick="window.boardGame.rollDice()">🎲 ROLL</button>
-                                <button class="watch-ad-btn" onclick="window.boardGame.watchAdForRolls()">📢 Watch Ad +5 Rolls</button>
+                                <button class="watch-ad-btn" onclick="window.boardGame.watchAdForRolls()">📢 +5 Rolls</button>
                             </div>
                         </div>
                     </div>
@@ -1529,7 +1555,8 @@
                 const dicePopup = document.getElementById('dicePopup');
                 const diceDisplay = document.getElementById('diceDisplay');
                 const rollBtn = document.getElementById('rollBtn');
-                const spinsLabel = document.getElementById('spinsLabel');
+                const energyBoxes = document.getElementById('energyBoxes');
+                const energyCount = document.getElementById('energyCount');
 
                 let gameState = { spins: 0, points: 0 };
                 let isRolling = false;
@@ -1561,8 +1588,6 @@
                             stepCount = 0;
                             dir = (dir + 1) % 4;
                             turnCount++;
-                            // Αν θέλουμε το μονοπάτι να συνεχίζει με 4 βήματα κάθε φορά (L-shape)
-                            // Η αλλαγή κατεύθυνσης γίνεται κάθε 4 βήματα.
                         }
                     }
                     return path;
@@ -1570,12 +1595,11 @@
 
                 function buildPath() {
                     if (pathPoints.length === 0) {
-                        // Generate a path of at least 100 points for the game
                         pathPoints = generateLShapePath(200);
                     }
                 }
 
-                // ===== REWARD TYPES (Μόνο: +5 points, +10 points, +2 rolls, +3 rolls, empty) =====
+                // ===== REWARD TYPES =====
                 function getRewardType(idx) {
                     if (idx <= 0) return { type: 'empty', icon: '', label: '', value: 0 };
                     const mod = idx % 10;
@@ -1601,7 +1625,6 @@
                         let tileClass = 'path-tile';
                         if (i === currentIdx) tileClass += ' active';
 
-                        // Set tile color based on reward type
                         if (rew.type === 'empty') {
                             tileClass += ' blue';
                         } else if (rew.type.startsWith('rolls')) {
@@ -1665,8 +1688,15 @@
                     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2000);
                 }
 
-                function updateSpinsDisplay() {
-                    spinsLabel.textContent = gameState.spins;
+                function updateEnergyUI() {
+                    const maxDisplay = 10;
+                    const filled = Math.min(gameState.spins, maxDisplay);
+                    let html = '';
+                    for (let i = 0; i < maxDisplay; i++) {
+                        html += `<div class="box ${i < filled ? 'filled' : ''}"></div>`;
+                    }
+                    energyBoxes.innerHTML = html;
+                    energyCount.textContent = '⚡ ' + gameState.spins;
                     rollBtn.disabled = gameState.spins <= 0;
                 }
 
@@ -1676,7 +1706,7 @@
                         sendToParent({ type: 'addPoints', value: value });
                     } else if (type === 'rolls2' || type === 'rolls3') {
                         gameState.spins += value;
-                        updateSpinsDisplay();
+                        updateEnergyUI();
                         sendToParent({ type: 'addRolls', value: value });
                     }
                 }
@@ -1685,7 +1715,7 @@
                     if (reward.type === 'empty') return;
                     applyRewardAndNotify(reward.type, reward.value);
                     playRewardSound();
-                    updateSpinsDisplay();
+                    updateEnergyUI();
                     saveProgress();
                 }
 
@@ -1694,7 +1724,7 @@
                     try {
                         await showMonetagAd();
                         gameState.spins += 5;
-                        updateSpinsDisplay();
+                        updateEnergyUI();
                         showToast('+5 Rolls! 🎉');
                         sendToParent({ type: 'watchAdForRolls', value: 5 });
                         saveProgress();
@@ -1712,7 +1742,7 @@
                     isRolling = true;
                     rollBtn.disabled = true;
                     gameState.spins--;
-                    updateSpinsDisplay();
+                    updateEnergyUI();
                     sendToParent({ type: 'useRoll' });
 
                     const dice = Math.floor(Math.random() * 3) + 1;
@@ -1723,7 +1753,7 @@
                         const rew = getRewardType(currentIdx);
                         handleReward(rew);
                         isRolling = false;
-                        updateSpinsDisplay();
+                        updateEnergyUI();
                         saveProgress();
                     }, 600);
                 }
@@ -1772,27 +1802,46 @@
                     player.className = `player color-${colors[Math.floor(Math.random() * colors.length)]}`;
                 }
 
+                // ===== ΑΥΤΟΜΑΤΗ ΑΝΑΠΛΗΡΩΣΗ ΕΝΕΡΓΕΙΑΣ =====
+                let regenInterval = null;
+                function startEnergyRegeneration() {
+                    if (regenInterval) clearInterval(regenInterval);
+                    regenInterval = setInterval(() => {
+                        if (!isRolling) {
+                            // Μέγιστο όριο ενέργειας: 100 (μπορείς να το αλλάξεις)
+                            if (gameState.spins < 100) {
+                                gameState.spins++;
+                                updateEnergyUI();
+                                saveProgress();
+                                showToast('+1 Energy (regen)');
+                            }
+                        }
+                    }, 60000); // 60 δευτερόλεπτα
+                }
+
                 window.boardGame = {
                     rollDice,
                     watchAdForRolls,
                     setState: (state) => {
                         if (typeof state.spins === 'number') gameState.spins = state.spins;
                         if (typeof state.points === 'number') gameState.points = state.points;
-                        updateSpinsDisplay();
+                        updateEnergyUI();
                     },
                     init: function() {
-                        // Πάντα 15 δωρεάν Rolls κατά την εκκίνηση
-                        gameState.spins = 15;
-                        gameState.points = 0;
-                        currentIdx = 0;
-                        pathPoints = [];
+                        loadProgress();
+                        // Αν δεν υπάρχει αποθηκευμένη ενέργεια, ξεκινάμε με 10
+                        if (gameState.spins === 0 && !localStorage.getItem('mariza_spins')) {
+                            gameState.spins = 10;
+                        }
+                        if (!localStorage.getItem('mariza_board_initialized_v3')) {
+                            localStorage.setItem('mariza_board_initialized_v3', '1');
+                        }
+                        updateEnergyUI();
+                        randomizeColor();
                         buildPath();
                         renderAllTiles();
-                        updateSpinsDisplay();
-                        saveProgress();
                         createBgParticles();
-                        randomizeColor();
-                        showToast('🎉 15 Free Rolls!');
+                        startEnergyRegeneration();
                         window.addEventListener('beforeunload', saveProgress);
                     }
                 };
