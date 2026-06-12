@@ -698,7 +698,7 @@
             position:absolute; top:0; left:0; width:100%; height:100%; transition:transform 0.35s cubic-bezier(0.22,0.61,0.36,1); will-change:transform;
         }
 
-        /* NEW PATH TILES */
+        /* NEW PATH TILES - L-SHAPE (STAIRCASE) */
         .board-styles .path-tile {
             position: absolute;
             width: var(--tile-size);
@@ -1017,8 +1017,8 @@
 
         <div class="section" id="section-ads">
             <h2 class="section-title">Earn Rewards</h2>
-            <div class="free-spins-info" style="text-align:center; margin-bottom:12px;">🎫 Free Spins: <span id="adsFreeSpins">0</span></div>
-            <button class="ad-button" id="adSpinsBtn">Watch Ad 5 Free Spins</button>
+            <div class="free-spins-info" style="text-align:center; margin-bottom:12px;">🎫 Free Rolls: <span id="adsFreeRolls">0</span></div>
+            <button class="ad-button" id="adRollsBtn">Watch Ad 5 Free Rolls</button>
             <button class="ad-button" id="adPointsBtn">Watch Ad 10 Points</button>
         </div>
 
@@ -1114,12 +1114,13 @@
                 document.getElementById('listTotalPoints').textContent = board.total_points;
                 document.getElementById('listNextLevel').textContent = nextLevelPts;
                 const freeSpins = board.free_spins;
-                document.getElementById('adsFreeSpins').textContent = freeSpins;
+                const freeRolls = board.free_rolls || 0; // Αν το API υποστηρίζει free_rolls, αλλιώς 0
+                document.getElementById('adsFreeRolls').textContent = freeRolls;
                 document.getElementById('wheelFreeSpins').textContent = freeSpins;
 
                 const boardInstance = window.boardGame;
                 if (boardInstance && typeof boardInstance.setState === 'function') {
-                    boardInstance.setState({ points: board.total_points, spins: freeSpins });
+                    boardInstance.setState({ points: board.total_points, spins: freeRolls });
                 }
                 checkContestMilestones(board.total_points);
             } catch(e) { console.warn(e); }
@@ -1152,10 +1153,6 @@
                 contestMilestonesReached = [];
                 localStorage.setItem('frankly_contest_milestones', JSON.stringify(contestMilestonesReached));
                 localStorage.setItem('frankly_contest_week', now.toString());
-                // Εδώ θα μπορούσαμε να μηδενίσουμε και τους πόντους στο API, αλλά για την ώρα απλά εμφανίζουμε τα νέα milestones.
-                // Αν θέλεις να μηδενίσεις τους πόντους, θα χρειαστεί API call.
-                // Για λόγους ασφαλείας, δεν μηδενίζουμε αυτόματα τους πόντους εδώ.
-                // Μόνο το checkContestMilestones θα ελέγχει για τα νέα σημεία.
             }
         }
 
@@ -1202,23 +1199,23 @@
                     } catch(e) { showToast(e.message); }
                     refreshUI();
                     break;
-                case 'addSpins':
+                case 'addRolls': // Νέο event για rolls
                     try {
-                        await apiCall('POST', '/add-free-spins', { userId, spins: data.value });
+                        await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value }); // Αν το API έχει endpoint
                     } catch(e) { showToast(e.message); }
                     refreshUI();
                     break;
-                case 'useSpin':
-                    try { await apiCall('POST', '/use-free-spin', { userId }); } catch(e) {}
+                case 'useRoll':
+                    try { await apiCall('POST', '/use-free-roll', { userId }); } catch(e) {}
                     refreshUI();
                     break;
-                case 'watchAd':
+                case 'watchAdForRolls':
                     try {
                         await callMonetagAd();
-                        await apiCall('POST', '/add-free-spins', { userId, spins: data.value || 3 });
+                        await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value || 5 });
                         const boardInstance = window.boardGame;
                         if (boardInstance && typeof boardInstance.setState === 'function') {
-                            boardInstance.setState({ spins: (await apiCall('GET', `/board?userId=${userId}`)).free_spins });
+                            boardInstance.setState({ spins: (await apiCall('GET', `/board?userId=${userId}`)).free_rolls });
                         }
                     } catch(e) {}
                     refreshUI();
@@ -1274,13 +1271,13 @@
         }
 
         function setupAdButtons() {
-            document.getElementById('adSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); };
+            document.getElementById('adRollsBtn').onclick = () => { callMonetagAd().then(() => creditReward('rolls',5)).catch(() => showToast('Watch until the end!')); };
             document.getElementById('adPointsBtn').onclick = () => { callMonetagAd().then(() => creditReward('points',10)).catch(() => showToast('Watch until the end!')); };
         }
 
         function creditReward(type, value, callback) {
             if (type === 'points') { apiCall('POST', '/add-points', { userId, game: 'Ad Reward', points: value }).then(data => { showToast(`+${data.added} Points!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
-            else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
+            else if (type === 'rolls') { apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(data => { showToast(`+${data.rolls} Rolls!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
         }
 
         document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
@@ -1349,33 +1346,50 @@
         async function spinWheel() { if (isSpinning) return; try { const adStatus=await apiCall('GET',`/ad-status?userId=${userId}`); if (adStatus.free_spins<1) { showToast('Not enough free spins!'); return; } } catch(e) { showToast(e.message); return; } let prizeIndex; try { const result=await apiCall('POST','/wheel/spin',{userId}); prizeIndex=result.prizeIndex; } catch(e) { showToast(e.message); return; } runHighlightAnimation(prizeIndex); }
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; document.getElementById('wheelAdSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); }; }
 
-        // ========== MISSIONS (Points & Spins μόνο) ==========
+        // ========== DAILY MISSIONS (Συγκεκριμένες) ==========
         let currentMissionsTab = 'daily';
         function switchMissionsTab(tab) { currentMissionsTab = tab; document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active')); event.target.classList.add('active'); document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none'; document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none'; loadMissions(); }
         async function loadMissions() { if (currentMissionsTab === 'daily') await loadDailyMissions(); else await loadWeeklyMissions(); }
 
         async function loadDailyMissions() {
             const container = document.getElementById('dailyMissionsContainer');
-            try {
-                const data = await apiCall('GET', `/missions?userId=${userId}&type=daily`);
-                let html = '';
-                data.missions.forEach(m => {
-                    const pct = Math.min(100, (m.progress / m.target) * 100);
-                    const canClaim = m.progress >= m.target && !m.claimed;
-                    let btnHTML = '';
-                    if (!m.completed) {
-                        btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Go to Game</button>`;
-                    } else if (canClaim) {
-                        btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">Claim</button>`;
-                    } else {
-                        btnHTML = `<button class="mission-btn done" disabled>Completed</button>`;
-                    }
-                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${!m.completed?`openMissionLink('${m.link}')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div>${btnHTML}</div>`;
-                });
-                container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No daily missions available.</p>';
-            } catch (e) {
-                container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading daily missions.</p>';
-            }
+            // Συγκεκριμένες αποστολές: Chess, Sudoku, Connect 4, Balloons, Animals
+            const dailyMissions = [
+                { description: 'Play 1 Match of Chess', link: 'https://t.me/Franklygames_bot/chess', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' },
+                { description: 'Play 1 Match of Sudoku', link: 'https://t.me/Franklygames_bot/sudoku', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' },
+                { description: 'Play 1 Match of Connect 4', link: 'https://t.me/Franklygames_bot/connectfour', reward_type: 'rolls', reward_value: 3, reward_label: '+3 Rolls' },
+                { description: 'Play 1 Match of Balloons', link: 'https://t.me/Franklygames_bot/balloons', reward_type: 'rolls', reward_value: 3, reward_label: '+3 Rolls' },
+                { description: 'Play 1 Match of Animals', link: 'https://t.me/Franklygames_bot/animals', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' }
+            ];
+
+            let html = '';
+            // Προσομοίωση: κάθε αποστολή έχει progress 0/1 (δεν έχει ολοκληρωθεί)
+            dailyMissions.forEach((m, index) => {
+                const progress = 0; // 0 or 1
+                const target = 1;
+                const pct = (progress / target) * 100;
+                const completed = progress >= target;
+                const claimed = false;
+                let btnHTML = '';
+                if (!completed) {
+                    btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Play</button>`;
+                } else if (completed && !claimed) {
+                    btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('daily_${index}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">Claim</button>`;
+                } else {
+                    btnHTML = `<button class="mission-btn done" disabled>Claimed</button>`;
+                }
+                html += `<div class="mission-card ${claimed?'claimed':''}">
+                            <div class="mission-info">
+                                <span class="mission-title">${m.description}</span>
+                                <span class="mission-reward">${m.reward_label}</span>
+                                <div class="progress-bg" style="height:5px; margin-top:4px;">
+                                    <div class="progress-fg" style="width:${pct}%;"></div>
+                                </div>
+                            </div>
+                            ${btnHTML}
+                        </div>`;
+            });
+            container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No daily missions available.</p>';
         }
 
         async function loadWeeklyMissions() {
@@ -1403,7 +1417,7 @@
         }
 
         function claimMission(missionId, type, value, rewardLabel, missionType) {
-            const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='free_spin'?'🔄':'🎲' };
+            const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='rolls'?'🔄':'🎲' };
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
             overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${rewardLabel}</div><span class="modal-emoji">${seg.icon}</span><p style="color:var(--text-secondary);">Double your reward?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button></div>`;
@@ -1416,11 +1430,11 @@
             let value = seg.value;
             if (doubled) value *= 2;
             if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            else if (seg.type === 'free_spin') apiCall('POST', '/add-free-spins', { userId, spins: value }).then(() => refreshUI()).catch(err => showToast(err.message));
+            else if (seg.type === 'rolls') apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(() => refreshUI()).catch(err => showToast(err.message));
             apiCall('POST', '/missions/claim', { userId, missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {});
         }
 
-        // ========== ΕΝΣΩΜΑΤΩΣΗ BOARD (ROLLS αποκλειστικά) ==========
+        // ========== ΕΝΣΩΜΑΤΩΣΗ BOARD (ROLLS αποκλειστικά, L-Shape Path) ==========
         function injectBoardGame() {
             const container = document.getElementById('boardInner');
             container.innerHTML = `
@@ -1520,11 +1534,11 @@
                 const tileSize = 75, gap = 14;
                 let pathPoints = [];
 
-                // ===== NEW PATH GENERATION (SPIRAL) =====
-                function generateSpiralPath(count) {
+                // ===== L-SHAPE PATH GENERATION (STAIRCASE) =====
+                function generateLShapePath(count) {
                     const path = [{x:0, y:0}];
-                    let dir = 0; // 0:right, 1:up, 2:left, 3:down
-                    let steps = 1;
+                    let dir = 0; // 0:right, 1:down, 2:left, 3:up
+                    let steps = 4;
                     let stepCount = 0;
                     let turnCount = 0;
 
@@ -1532,9 +1546,9 @@
                         const last = path[path.length-1];
                         let nx = last.x, ny = last.y;
                         if (dir === 0) nx++;
-                        else if (dir === 1) ny--;
+                        else if (dir === 1) ny++;
                         else if (dir === 2) nx--;
-                        else if (dir === 3) ny++;
+                        else if (dir === 3) ny--;
 
                         path.push({x:nx, y:ny});
                         stepCount++;
@@ -1543,7 +1557,8 @@
                             stepCount = 0;
                             dir = (dir + 1) % 4;
                             turnCount++;
-                            if (turnCount % 2 === 0) steps++;
+                            // Αν θέλουμε το μονοπάτι να συνεχίζει με 4 βήματα κάθε φορά (L-shape)
+                            // Η αλλαγή κατεύθυνσης γίνεται κάθε 4 βήματα.
                         }
                     }
                     return path;
@@ -1552,7 +1567,7 @@
                 function buildPath() {
                     if (pathPoints.length === 0) {
                         // Generate a path of at least 100 points for the game
-                        pathPoints = generateSpiralPath(200);
+                        pathPoints = generateLShapePath(200);
                     }
                 }
 
@@ -1658,7 +1673,7 @@
                     } else if (type.startsWith('rolls')) {
                         gameState.spins += value;
                         updateSpinsDisplay();
-                        sendToParent({ type: 'addSpins', value: value });
+                        sendToParent({ type: 'addRolls', value: value });
                     }
                 }
 
@@ -1677,7 +1692,7 @@
                         gameState.spins += 5;
                         updateSpinsDisplay();
                         showToast('+5 Rolls! 🎉');
-                        sendToParent({ type: 'addSpins', value: 5 });
+                        sendToParent({ type: 'watchAdForRolls', value: 5 });
                         saveProgress();
                     } catch (e) {
                         showToast('Ad not completed');
@@ -1694,7 +1709,7 @@
                     rollBtn.disabled = true;
                     gameState.spins--;
                     updateSpinsDisplay();
-                    sendToParent({ type: 'useSpin' });
+                    sendToParent({ type: 'useRoll' });
 
                     const dice = Math.floor(Math.random() * 3) + 1;
                     showDice(dice);
