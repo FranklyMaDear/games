@@ -698,7 +698,7 @@
             position:absolute; top:0; left:0; width:100%; height:100%; transition:transform 0.35s cubic-bezier(0.22,0.61,0.36,1); will-change:transform;
         }
 
-        /* NEW PATH TILES - L-SHAPE (STAIRCASE) */
+        /* PATH TILES */
         .board-styles .path-tile {
             position: absolute;
             width: var(--tile-size);
@@ -1017,9 +1017,10 @@
 
         <div class="section" id="section-ads">
             <h2 class="section-title">Earn Rewards</h2>
-            <div class="free-spins-info" style="text-align:center; margin-bottom:12px;">🎫 Free Rolls: <span id="adsFreeRolls">0</span></div>
+            <div class="free-spins-info" style="text-align:center; margin-bottom:12px;">🎫 Free Rolls: <span id="adsFreeRolls">0</span> | 🎫 Free Spins: <span id="adsFreeSpins">0</span></div>
             <button class="ad-button" id="adRollsBtn">Watch Ad 5 Free Rolls</button>
             <button class="ad-button" id="adPointsBtn">Watch Ad 10 Points</button>
+            <button class="ad-button" id="adSpinsBtn">Watch Ad 5 Free Spins</button>
         </div>
 
         <div class="section" id="section-wheel">
@@ -1113,9 +1114,10 @@
                 document.getElementById('levelProgress').style.width = (currentProgress / 1000 * 100) + '%';
                 document.getElementById('listTotalPoints').textContent = board.total_points;
                 document.getElementById('listNextLevel').textContent = nextLevelPts;
-                const freeSpins = board.free_spins;
                 const freeRolls = board.free_rolls || 0; // Αν το API υποστηρίζει free_rolls, αλλιώς 0
+                const freeSpins = board.free_spins || 0;
                 document.getElementById('adsFreeRolls').textContent = freeRolls;
+                document.getElementById('adsFreeSpins').textContent = freeSpins;
                 document.getElementById('wheelFreeSpins').textContent = freeSpins;
 
                 const boardInstance = window.boardGame;
@@ -1273,11 +1275,13 @@
         function setupAdButtons() {
             document.getElementById('adRollsBtn').onclick = () => { callMonetagAd().then(() => creditReward('rolls',5)).catch(() => showToast('Watch until the end!')); };
             document.getElementById('adPointsBtn').onclick = () => { callMonetagAd().then(() => creditReward('points',10)).catch(() => showToast('Watch until the end!')); };
+            document.getElementById('adSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); };
         }
 
         function creditReward(type, value, callback) {
             if (type === 'points') { apiCall('POST', '/add-points', { userId, game: 'Ad Reward', points: value }).then(data => { showToast(`+${data.added} Points!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
             else if (type === 'rolls') { apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(data => { showToast(`+${data.rolls} Rolls!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
+            else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
         }
 
         document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
@@ -1571,14 +1575,14 @@
                     }
                 }
 
-                // ===== REWARD TYPES =====
+                // ===== REWARD TYPES (Μόνο: +5 points, +10 points, +2 rolls, +3 rolls, empty) =====
                 function getRewardType(idx) {
                     if (idx <= 0) return { type: 'empty', icon: '', label: '', value: 0 };
                     const mod = idx % 10;
-                    if (mod === 1) return { type: 'rolls2', icon: '⚡', label: '+2 Rolls', value: 2 };
-                    if (mod === 4) return { type: 'rolls3', icon: '⚡', label: '+3 Rolls', value: 3 };
-                    if (mod === 5) return { type: 'points3', icon: '⭐', label: '+3 Points', value: 3 };
-                    if (mod === 8) return { type: 'points5', icon: '🌟', label: '+5 Points', value: 5 };
+                    if (mod === 1) return { type: 'points5', icon: '⭐', label: '+5 Points', value: 5 };
+                    if (mod === 4) return { type: 'points10', icon: '🌟', label: '+10 Points', value: 10 };
+                    if (mod === 5) return { type: 'rolls2', icon: '⚡', label: '+2 Rolls', value: 2 };
+                    if (mod === 8) return { type: 'rolls3', icon: '⚡', label: '+3 Rolls', value: 3 };
                     return { type: 'empty', icon: '', label: '', value: 0 };
                 }
 
@@ -1614,8 +1618,8 @@
                         if (rew.type === 'empty') icon = '';
                         else if (rew.type === 'rolls2') icon = '⚡';
                         else if (rew.type === 'rolls3') icon = '⚡';
-                        else if (rew.type === 'points3') icon = '⭐';
-                        else if (rew.type === 'points5') icon = '🌟';
+                        else if (rew.type === 'points5') icon = '⭐';
+                        else if (rew.type === 'points10') icon = '🌟';
                         else icon = '';
 
                         tile.innerHTML = `<span class="tile-emoji">${icon}</span>`;
@@ -1667,10 +1671,10 @@
                 }
 
                 function applyRewardAndNotify(type, value) {
-                    if (type.startsWith('points')) {
+                    if (type === 'points5' || type === 'points10') {
                         gameState.points += value;
                         sendToParent({ type: 'addPoints', value: value });
-                    } else if (type.startsWith('rolls')) {
+                    } else if (type === 'rolls2' || type === 'rolls3') {
                         gameState.spins += value;
                         updateSpinsDisplay();
                         sendToParent({ type: 'addRolls', value: value });
