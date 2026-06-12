@@ -701,12 +701,15 @@
             width: var(--tile-size);
             height: var(--tile-size);
             z-index: 5;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             transition: transform 0.2s ease;
             border: 2px solid rgba(255, 255, 255, 0.1);
         }
@@ -719,8 +722,13 @@
         .board-styles .path-tile.blue { background: linear-gradient(145deg, #1a237e, #0d47a1); }
         .board-styles .path-tile.energy { background: linear-gradient(145deg, #f57f17, #f9a825); }
         .board-styles .path-tile.xp { background: linear-gradient(145deg, #4a148c, #6a1b9a); }
+        .board-styles .path-tile.empty { background: linear-gradient(145deg, #2c3e50, #34495e); }
 
-        .board-styles .path-tile .tile-emoji { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)); }
+        .board-styles .path-tile .tile-label {
+            font-size: 12px;
+            font-weight: 700;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+        }
 
         .board-styles .player {
             position:absolute; width:60px; height:90px; z-index:60; pointer-events:none; transition:left 0.35s ease, top 0.35s ease; filter:drop-shadow(0 12px 20px rgba(0,0,0,0.7)); will-change:left, top;
@@ -873,6 +881,46 @@
             height: 100%;
             width: 100%;
             position: relative;
+        }
+
+        /* ===== IMPROVED REWARDS LEVELS STYLES ===== */
+        .level-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 10px;
+            border-bottom: 1px solid var(--border-default);
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .level-row:hover {
+            background: rgba(255,255,255,0.03);
+        }
+        .level-row .level-points {
+            font-weight: 700;
+            color: var(--gold);
+        }
+        .level-row .level-status {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .level-row.level-reached {
+            background: rgba(132,204,22,0.08);
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(132,204,22,0.2);
+        }
+        .level-row.level-reached .level-status {
+            color: var(--neon);
+        }
+        .level-row .level-icon {
+            font-size: 1.2rem;
+            margin-right: 8px;
+        }
+        .level-row .level-locked-icon {
+            color: var(--text-muted);
+        }
+        .level-row .level-unlocked-icon {
+            color: var(--neon);
         }
 
         @media (max-width: 600px) {
@@ -1215,7 +1263,12 @@
             milestones.forEach(level => {
                 const reached = contestMilestonesReached.includes(level);
                 const statusText = reached ? '✅ Entered' : '🔒 Locked';
-                html += `<div class="level-row ${reached ? 'level-reached' : ''}"><span class="level-points">🏆 ${level} Pts</span><span class="level-status">${statusText}</span></div>`;
+                const icon = reached ? '🏆' : '🔒';
+                const iconClass = reached ? 'level-unlocked-icon' : 'level-locked-icon';
+                html += `<div class="level-row ${reached ? 'level-reached' : ''}">
+                            <span class="level-points"><span class="level-icon ${iconClass}">${icon}</span> ${level} Pts</span>
+                            <span class="level-status">${statusText}</span>
+                        </div>`;
             });
             container.innerHTML = html;
         }
@@ -1631,7 +1684,7 @@
                         if (i === currentIdx) tileClass += ' active';
 
                         if (rew.type === 'empty') {
-                            tileClass += ' blue';
+                            tileClass += ' empty';
                         } else if (rew.type.startsWith('rolls')) {
                             tileClass += ' energy';
                         } else if (rew.type.startsWith('points')) {
@@ -1643,14 +1696,28 @@
                         tile.className = tileClass;
 
                         let icon = '';
-                        if (rew.type === 'empty') icon = '';
-                        else if (rew.type === 'rolls2') icon = '⚡';
-                        else if (rew.type === 'rolls3') icon = '⚡';
-                        else if (rew.type === 'points5') icon = '⭐';
-                        else if (rew.type === 'points10') icon = '🌟';
-                        else icon = '';
+                        let label = '';
+                        if (rew.type === 'empty') {
+                            icon = '';
+                            label = '⬜';
+                        } else if (rew.type === 'rolls2') {
+                            icon = '⚡';
+                            label = '+2';
+                        } else if (rew.type === 'rolls3') {
+                            icon = '⚡';
+                            label = '+3';
+                        } else if (rew.type === 'points5') {
+                            icon = '⭐';
+                            label = '+5';
+                        } else if (rew.type === 'points10') {
+                            icon = '🌟';
+                            label = '+10';
+                        }
 
-                        tile.innerHTML = `<span class="tile-emoji">${icon}</span>`;
+                        tile.innerHTML = `
+                            <span class="tile-emoji">${icon}</span>
+                            <span class="tile-label">${label}</span>
+                        `;
 
                         const rx = (pt.x - pp.x) * (tileSize + gap);
                         const ry = (pt.y - pp.y) * (tileSize + gap);
