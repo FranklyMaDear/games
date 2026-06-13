@@ -768,6 +768,97 @@
         .btn-lets-play:active {
             transform: scale(0.95);
         }
+
+        /* Styles for Mission Cards */
+        .missions-tabs {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+            justify-content: center;
+        }
+        .missions-tab {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            padding: 8px 24px;
+            border-radius: var(--radius-pill);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .missions-tab.active {
+            background: var(--neon);
+            color: #000;
+            border-color: var(--neon);
+            box-shadow: 0 0 12px var(--neon-glow);
+        }
+        .mission-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .mission-card.claimed {
+            opacity: 0.6;
+        }
+        .mission-info {
+            flex: 1;
+        }
+        .mission-title {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .mission-reward {
+            color: var(--gold);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .mission-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: var(--radius-pill);
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 10px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .mission-btn.claim {
+            background: var(--neon);
+            color: #000;
+            border: none;
+            box-shadow: 0 0 10px var(--neon-soft);
+        }
+        .mission-btn.done {
+            background: transparent;
+            color: var(--text-muted);
+            cursor: default;
+        }
+        .multi-bar {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .mini-progress {
+            flex: 1;
+            height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .mini-progress-fg {
+            height: 100%;
+            width: 0%;
+            background: var(--neon);
+            border-radius: 10px;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -836,7 +927,10 @@
 
         <div class="section" id="section-missions">
             <h2 class="section-title">Missions</h2>
-            <div class="missions-tabs"><button class="missions-tab active" onclick="switchMissionsTab('daily')">Daily</button><button class="missions-tab" onclick="switchMissionsTab('weekly')">Weekly</button></div>
+            <div class="missions-tabs">
+                <button class="missions-tab active" onclick="switchMissionsTab('daily')">Daily</button>
+                <button class="missions-tab" onclick="switchMissionsTab('weekly')">Weekly</button>
+            </div>
             <div id="dailyMissionsContainer"></div>
             <div id="weeklyMissionsContainer" style="display:none;"></div>
         </div>
@@ -1291,63 +1385,241 @@
         async function spinWheel() { if (isSpinning) return; try { const adStatus=await apiCall('GET',`/ad-status?userId=${userId}`); if (adStatus.free_spins<1) { showToast('Not enough free spins!'); return; } } catch(e) { showToast(e.message); return; } let prizeIndex; try { const result=await apiCall('POST','/wheel/spin',{userId}); prizeIndex=result.prizeIndex; } catch(e) { showToast(e.message); return; } runHighlightAnimation(prizeIndex); }
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; document.getElementById('wheelAdSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); }; }
 
+        // ========== MISSIONS LOGIC (UPDATED) ==========
         let currentMissionsTab = 'daily';
-        function switchMissionsTab(tab) { currentMissionsTab = tab; document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active')); event.target.classList.add('active'); document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none'; document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none'; loadMissions(); }
-        async function loadMissions() { if (currentMissionsTab === 'daily') await loadDailyMissions(); else await loadWeeklyMissions(); }
+        let gameStats = {
+            chess_wins_today: 0, chess_played_week: 0,
+            sudoku_completed_today: 0, sudoku_completed_week: 0,
+            connect4_played_today: 0, connect4_wins_week: 0,
+            animal_whack_score_today: 0
+        };
 
-        async function loadDailyMissions() {
+        // Φέρνει τα game stats από το backend (υποθέτει endpoint /game-stats)
+        async function fetchGameStats() {
+            try {
+                const data = await apiCall('GET', `/game-stats?userId=${userId}`);
+                if (data) {
+                    gameStats = {
+                        chess_wins_today: data.chess_wins_today || 0,
+                        chess_played_week: data.chess_played_week || 0,
+                        sudoku_completed_today: data.sudoku_completed_today || 0,
+                        sudoku_completed_week: data.sudoku_completed_week || 0,
+                        connect4_played_today: data.connect4_played_today || 0,
+                        connect4_wins_week: data.connect4_wins_week || 0,
+                        animal_whack_score_today: data.animal_whack_score_today || 0
+                    };
+                }
+            } catch(e) {
+                console.warn('Could not fetch game stats, using defaults');
+            }
+        }
+
+        function switchMissionsTab(tab) {
+            currentMissionsTab = tab;
+            document.querySelectorAll('.missions-tab').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('dailyMissionsContainer').style.display = tab === 'daily' ? 'block' : 'none';
+            document.getElementById('weeklyMissionsContainer').style.display = tab === 'weekly' ? 'block' : 'none';
+            loadMissions();
+        }
+
+        async function loadMissions() {
+            await fetchGameStats(); // πρώτα πάρε τα δεδομένα
+            if (currentMissionsTab === 'daily') {
+                loadDailyMissions();
+            } else {
+                loadWeeklyMissions();
+            }
+        }
+
+        function loadDailyMissions() {
             const container = document.getElementById('dailyMissionsContainer');
-            const dailyMissions = [
-                { description: 'Play 1 Match of Chess', link: 'https://t.me/Franklygames_bot/chess', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' },
-                { description: 'Play 1 Match of Sudoku', link: 'https://t.me/Franklygames_bot/sudoku', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' },
-                { description: 'Play 1 Match of Connect 4', link: 'https://t.me/Franklygames_bot/connectfour', reward_type: 'rolls', reward_value: 3, reward_label: '+3 Rolls' },
-                { description: 'Play 1 Match of Balloons', link: 'https://t.me/Franklygames_bot/balloons', reward_type: 'rolls', reward_value: 3, reward_label: '+3 Rolls' },
-                { description: 'Play 1 Match of Animals', link: 'https://t.me/Franklygames_bot/animals', reward_type: 'points', reward_value: 5, reward_label: '+5 Points' }
+            const missions = [
+                {
+                    id: 'daily_chess',
+                    description: 'Win 1 match of Chess today',
+                    link: 'https://t.me/Franklygames_bot/chess',
+                    progress: gameStats.chess_wins_today,
+                    target: 1,
+                    reward: 30,
+                    unit: 'points'
+                },
+                {
+                    id: 'daily_sudoku',
+                    description: 'Complete 1 grid of Sudoku today',
+                    link: 'https://t.me/Franklygames_bot/sudoku',
+                    progress: gameStats.sudoku_completed_today,
+                    target: 1,
+                    reward: 30,
+                    unit: 'points'
+                },
+                {
+                    id: 'daily_connect4',
+                    description: 'Play 3 matches of Connect 4 today',
+                    link: 'https://t.me/Franklygames_bot/connectfour',
+                    progress: gameStats.connect4_played_today,
+                    target: 3,
+                    reward: 30,
+                    unit: 'points'
+                },
+                {
+                    id: 'daily_animalwhack',
+                    description: 'Score 500 points in Animal Whack today',
+                    link: 'https://t.me/Franklygames_bot/animals',
+                    progress: gameStats.animal_whack_score_today,
+                    target: 500,
+                    reward: 30,
+                    unit: 'points'
+                }
             ];
 
             let html = '';
-            dailyMissions.forEach((m, index) => {
-                const progress = 0;
-                const target = 1;
-                const pct = (progress / target) * 100;
-                const completed = progress >= target;
-                const claimed = false;
+            missions.forEach(m => {
+                const pct = Math.min(100, (m.progress / m.target) * 100);
+                const completed = m.progress >= m.target;
+                const claimed = localStorage.getItem(`claimed_${m.id}_${getCurrentDate()}`) === 'true';
                 let btnHTML = '';
-                if (!completed) {
-                    btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Play</button>`;
-                } else if (completed && !claimed) {
-                    btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('daily_${index}','${m.reward_type}',${m.reward_value},'${m.reward_label}','daily')">Claim</button>`;
-                } else {
+                if (claimed) {
                     btnHTML = `<button class="mission-btn done" disabled>Claimed</button>`;
+                } else if (completed) {
+                    btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}', 'points', ${m.reward}, '+${m.reward} Points', 'daily')">Claim</button>`;
+                } else {
+                    btnHTML = `<button class="mission-btn play" onclick="openMissionLink('${m.link}')">Play</button>`;
                 }
-                html += `<div class="mission-card ${claimed?'claimed':''}">
-                            <div class="mission-info">
-                                <span class="mission-title">${m.description}</span>
-                                <span class="mission-reward">${m.reward_label}</span>
-                                <div class="progress-bg" style="height:5px; margin-top:4px;">
-                                    <div class="progress-fg" style="width:${pct}%;"></div>
-                                </div>
+                html += `
+                    <div class="mission-card ${claimed ? 'claimed' : ''}">
+                        <div class="mission-info">
+                            <span class="mission-title">${m.description}</span>
+                            <span class="mission-reward">+${m.reward} POINTS</span>
+                            <div class="progress-bg" style="height:5px; margin-top:4px;">
+                                <div class="progress-fg" style="width:${pct}%;"></div>
                             </div>
-                            ${btnHTML}
-                        </div>`;
+                            <small style="color:var(--text-muted);">${m.progress}/${m.target}</small>
+                        </div>
+                        ${btnHTML}
+                    </div>
+                `;
             });
+
             container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No daily missions available.</p>';
         }
 
-        async function loadWeeklyMissions() {
+        function loadWeeklyMissions() {
             const container = document.getElementById('weeklyMissionsContainer');
-            try {
-                const data = await apiCall('GET', `/missions?userId=${userId}&type=weekly`);
-                let html = '';
-                data.missions.forEach(m => {
+            const missions = [
+                {
+                    id: 'weekly_chess',
+                    description: 'Play 7 matches of Chess this week',
+                    progress: gameStats.chess_played_week,
+                    target: 7,
+                    reward: 150,
+                    unit: 'points'
+                },
+                {
+                    id: 'weekly_sudoku',
+                    description: 'Complete 5 grids of Sudoku this week',
+                    progress: gameStats.sudoku_completed_week,
+                    target: 5,
+                    reward: 150,
+                    unit: 'points'
+                },
+                {
+                    id: 'weekly_connect4',
+                    description: 'Win 8 matches of Connect 4 this week',
+                    progress: gameStats.connect4_wins_week,
+                    target: 8,
+                    reward: 150,
+                    unit: 'points'
+                },
+                {
+                    id: 'weekly_combined',
+                    description: 'Complete 3 Chess, 3 Sudoku, and 3 Connect 4 matches this week',
+                    progressChess: gameStats.chess_played_week,
+                    progressSudoku: gameStats.sudoku_completed_week,
+                    progressConnect4: gameStats.connect4_wins_week,
+                    target: 3,
+                    reward: 300,
+                    unit: 'points',
+                    isCombined: true
+                }
+            ];
+
+            let html = '';
+            missions.forEach(m => {
+                if (m.isCombined) {
+                    const chessPct = Math.min(100, (m.progressChess / m.target) * 100);
+                    const sudokuPct = Math.min(100, (m.progressSudoku / m.target) * 100);
+                    const connect4Pct = Math.min(100, (m.progressConnect4 / m.target) * 100);
+                    const allDone = m.progressChess >= m.target && m.progressSudoku >= m.target && m.progressConnect4 >= m.target;
+                    const claimed = localStorage.getItem(`claimed_${m.id}_${getCurrentWeek()}`) === 'true';
+                    let btnHTML = '';
+                    if (claimed) {
+                        btnHTML = `<button class="mission-btn done" disabled>Claimed</button>`;
+                    } else if (allDone) {
+                        btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}', 'points', ${m.reward}, '+${m.reward} Points', 'weekly')">Claim</button>`;
+                    } else {
+                        btnHTML = `<button class="mission-btn play" disabled style="opacity:0.5;">In Progress</button>`;
+                    }
+                    html += `
+                        <div class="mission-card ${claimed ? 'claimed' : ''}">
+                            <div class="mission-info">
+                                <span class="mission-title">${m.description}</span>
+                                <span class="mission-reward">+${m.reward} POINTS</span>
+                                <div class="multi-bar">
+                                    <div style="flex:1; text-align:center; font-size:0.7rem; color:var(--text-muted);">Chess ${m.progressChess}/${m.target}</div>
+                                    <div style="flex:1; text-align:center; font-size:0.7rem; color:var(--text-muted);">Sudoku ${m.progressSudoku}/${m.target}</div>
+                                    <div style="flex:1; text-align:center; font-size:0.7rem; color:var(--text-muted);">Connect4 ${m.progressConnect4}/${m.target}</div>
+                                </div>
+                                <div class="multi-bar">
+                                    <div class="mini-progress"><div class="mini-progress-fg" style="width:${chessPct}%;"></div></div>
+                                    <div class="mini-progress"><div class="mini-progress-fg" style="width:${sudokuPct}%;"></div></div>
+                                    <div class="mini-progress"><div class="mini-progress-fg" style="width:${connect4Pct}%;"></div></div>
+                                </div>
+                            </div>
+                            ${btnHTML}
+                        </div>
+                    `;
+                } else {
                     const pct = Math.min(100, (m.progress / m.target) * 100);
-                    const canClaim = m.progress >= m.target && !m.claimed;
-                    html += `<div class="mission-card ${m.claimed?'claimed':''}" onclick="${canClaim?`claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')`:''}"><div class="mission-info"><span class="mission-title">${m.description}</span><span class="mission-reward">+${m.reward_value} ${m.reward_type.toUpperCase()}</span><div class="progress-bg" style="height:5px; margin-top:4px;"><div class="progress-fg" style="width:${pct}%;"></div></div></div><button class="mission-btn ${canClaim?'claim':'done'}" ${canClaim?'':'disabled'} onclick="event.stopPropagation(); claimMission('${m.id}','${m.reward_type}',${m.reward_value},'${m.reward_label}','weekly')">${canClaim?'Claim':'Completed'}</button></div>`;
-                });
-                container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No weekly missions available.</p>';
-            } catch (e) {
-                container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;">Error loading weekly missions.</p>';
-            }
+                    const completed = m.progress >= m.target;
+                    const claimed = localStorage.getItem(`claimed_${m.id}_${getCurrentWeek()}`) === 'true';
+                    let btnHTML = '';
+                    if (claimed) {
+                        btnHTML = `<button class="mission-btn done" disabled>Claimed</button>`;
+                    } else if (completed) {
+                        btnHTML = `<button class="mission-btn claim" onclick="event.stopPropagation(); claimMission('${m.id}', 'points', ${m.reward}, '+${m.reward} Points', 'weekly')">Claim</button>`;
+                    } else {
+                        btnHTML = `<button class="mission-btn play" disabled style="opacity:0.5;">In Progress</button>`;
+                    }
+                    html += `
+                        <div class="mission-card ${claimed ? 'claimed' : ''}">
+                            <div class="mission-info">
+                                <span class="mission-title">${m.description}</span>
+                                <span class="mission-reward">+${m.reward} POINTS</span>
+                                <div class="progress-bg" style="height:5px; margin-top:4px;">
+                                    <div class="progress-fg" style="width:${pct}%;"></div>
+                                </div>
+                                <small style="color:var(--text-muted);">${m.progress}/${m.target}</small>
+                            </div>
+                            ${btnHTML}
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html || '<p style="color:var(--text-secondary);text-align:center;">No weekly missions available.</p>';
+        }
+
+        function getCurrentDate() {
+            const now = new Date();
+            return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+        }
+
+        function getCurrentWeek() {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            const weekNumber = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+            return `${now.getFullYear()}-W${weekNumber}`;
         }
 
         function openMissionLink(link) {
@@ -1359,7 +1631,7 @@
         }
 
         function claimMission(missionId, type, value, rewardLabel, missionType) {
-            const seg = { type: type, value: value, fullLabel: rewardLabel, icon: type==='points'?'🪙':type==='rolls'?'🔄':'🎲' };
+            const seg = { type: type, value: value, fullLabel: rewardLabel, icon: '🪙' };
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
             overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${rewardLabel}</div><span class="modal-emoji">${seg.icon}</span><p style="color:var(--text-secondary);">Double your reward?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button></div>`;
@@ -1371,9 +1643,28 @@
         function creditMissionReward(seg, doubled, missionId, missionType) {
             let value = seg.value;
             if (doubled) value *= 2;
-            if (seg.type === 'points') apiCall('POST', '/add-points', { userId, game: 'Mission', points: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            else if (seg.type === 'rolls') apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(() => refreshUI()).catch(err => showToast(err.message));
-            apiCall('POST', '/missions/claim', { userId, missionId, type: missionType }).then(() => { showToast('Reward claimed!'); loadMissions(); }).catch(() => {});
+            if (seg.type === 'points') {
+                apiCall('POST', '/add-points', { userId, game: 'Mission', points: value })
+                    .then(() => {
+                        showToast(`+${value} Points!`);
+                        refreshUI();
+                        // Σημείωσε ως claimed
+                        const key = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
+                        localStorage.setItem(`claimed_${missionId}_${key}`, 'true');
+                        loadMissions(); // ανανέωσε την προβολή
+                    })
+                    .catch(err => showToast(err.message));
+            } else if (seg.type === 'rolls') {
+                apiCall('POST', '/add-free-rolls', { userId, rolls: value })
+                    .then(() => {
+                        showToast(`+${value} Rolls!`);
+                        refreshUI();
+                        const key = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
+                        localStorage.setItem(`claimed_${missionId}_${key}`, 'true');
+                        loadMissions();
+                    })
+                    .catch(err => showToast(err.message));
+            }
         }
 
         document.addEventListener("DOMContentLoaded", () => {
