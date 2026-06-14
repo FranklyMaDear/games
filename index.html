@@ -1245,11 +1245,9 @@
                         await apiCall('POST', '/add-points', { userId, game: 'Board Game', points: data.value });
                     } catch(e) { showToast(e.message); }
                     refreshUI();
-                    // ΠΡΟΣΘΗΚΗ: Ενημέρωση missions αν είμαστε στην καρτέλα missions
-                    if (document.getElementById('section-missions').classList.contains('active')) {
-                        await fetchGameStats();
-                        loadMissions();
-                    }
+                    // ΠΡΟΣΘΗΚΗ: Ενημέρωσε missions πάντα
+                    await fetchGameStats();
+                    loadMissions();
                     break;
                 case 'addRolls':
                     try {
@@ -1270,6 +1268,22 @@
                             iframe.contentWindow.postMessage({ type: 'setState', spins: (await apiCall('GET', `/board?userId=${userId}`)).free_rolls }, '*');
                         }
                     } catch(e) {}
+                    refreshUI();
+                    break;
+                // ΝΕΟ: Χειρισμός updateGameStats
+                case 'updateGameStats':
+                    try {
+                        await apiCall('POST', '/missions/update', {
+                            userId: userId,
+                            game: data.game,
+                            win: data.win || false,
+                            played: data.played || false,
+                            score: data.score || 0
+                        });
+                    } catch(e) { console.warn('Missions update error:', e); }
+                    // Ανανέωσε τα missions αμέσως
+                    await fetchGameStats();
+                    loadMissions();
                     refreshUI();
                     break;
             }
