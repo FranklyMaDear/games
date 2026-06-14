@@ -127,6 +127,46 @@ async def update_mission_progress(request: Request):
     save_user(user_id, u)
     return {"status": "ok"}
 
+# NEW: Κεντρικό Endpoint για αυτόνομη κλήση από οποιοδήποτε παιχνίδι
+@app.post("/api/game-complete")
+async def api_game_complete(request: Request):
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    game_name = data.get("game")  # Πρέπει να ταιριάζει με το "game" στο DAILY_MISSIONS (π.χ. "Connect 4")
+    
+    if not user_id or not game_name:
+        raise HTTPException(status_code=400, detail="Missing userId or game name")
+        
+    u = get_user(user_id)
+    updated = False
+    current_progress = 0
+    target_value = 0
+    
+    for m in DAILY_MISSIONS:
+        mid = m["id"]
+        if mid not in u["daily_missions"]:
+            u["daily_missions"][mid] = {"progress": 0, "claimed": False}
+            
+        if m["game"] == game_name:
+            u["daily_missions"][mid]["progress"] = min(m["target"], u["daily_missions"][mid].get("progress", 0) + 1)
+            current_progress = u["daily_missions"][mid]["progress"]
+            target_value = m["target"]
+            updated = True
+            
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Game '{game_name}' not found in daily missions")
+        
+    save_user(user_id, u)
+    logger.info(f"User {user_id} registered progress for {game_name}. Progress: {current_progress}/{target_value}")
+    
+    return {
+        "status": "ok",
+        "game": game_name,
+        "progress": current_progress,
+        "target": target_value
+    }
+
 @app.post("/missions/claim")
 async def claim_mission(request: Request):
     check_auth(request)
