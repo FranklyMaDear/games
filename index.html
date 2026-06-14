@@ -653,6 +653,28 @@
             padding-right: 5px;
         }
 
+        /* ---------- ΔΙΟΡΘΩΣΗ SCROLL ΓΙΑ MISSIONS ---------- */
+        #section-missions {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+            padding-bottom: 20px;
+        }
+
+        #section-missions .section-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
+            padding-right: 5px;
+        }
+
+        #dailyMissionsContainer, #weeklyMissionsContainer {
+            padding-bottom: 20px;
+        }
+
         @media (max-width: 600px) {
             .games-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .game-card { padding: 16px 8px 14px; min-height: 110px; }
@@ -925,17 +947,20 @@
             </div>
         </div>
 
+        <!-- ---------- MISSIONS SECTION (ΔΙΟΡΘΩΣΗ SCROLL) ---------- -->
         <div class="section" id="section-missions">
-            <h2 class="section-title">Missions</h2>
-            <div class="missions-tabs">
-                <button class="missions-tab active" onclick="switchMissionsTab('daily')">Daily</button>
-                <button class="missions-tab" onclick="switchMissionsTab('weekly')">Weekly</button>
+            <div class="section-content">
+                <h2 class="section-title">Missions</h2>
+                <div class="missions-tabs">
+                    <button class="missions-tab active" onclick="switchMissionsTab('daily')">Daily</button>
+                    <button class="missions-tab" onclick="switchMissionsTab('weekly')">Weekly</button>
+                </div>
+                <div style="text-align:center; margin:6px 0;">
+                    <button onclick="refreshMissions()" style="background:var(--bg-tertiary); border:1px solid var(--border-default); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-pill); font-weight:700; cursor:pointer; font-size:0.8rem;">🔄 Ανανέωση</button>
+                </div>
+                <div id="dailyMissionsContainer"></div>
+                <div id="weeklyMissionsContainer" style="display:none;"></div>
             </div>
-            <div style="text-align:center; margin:6px 0;">
-                <button onclick="refreshMissions()" style="background:var(--bg-tertiary); border:1px solid var(--border-default); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-pill); font-weight:700; cursor:pointer; font-size:0.8rem;">🔄 Ανανέωση</button>
-            </div>
-            <div id="dailyMissionsContainer"></div>
-            <div id="weeklyMissionsContainer" style="display:none;"></div>
         </div>
 
         <div class="section" id="section-ads">
@@ -1031,10 +1056,12 @@
             try {
                 const board = await apiCall('GET', `/board?userId=${userId}`);
                 document.getElementById('pointsDisplay').textContent = board.total_points;
-                const level = board.level, nextLevelPts = 500, currentProgress = board.total_points % 500;
+                const level = board.level;
+                const nextLevelPts = board.next_level_points || 500;
+                const currentProgress = board.total_points % nextLevelPts;
                 document.getElementById('levelVal').textContent = level;
                 document.getElementById('levelPts').textContent = currentProgress;
-                document.getElementById('levelProgress').style.width = (currentProgress / 500 * 100) + '%';
+                document.getElementById('levelProgress').style.width = (currentProgress / nextLevelPts * 100) + '%';
                 document.getElementById('listTotalPoints').textContent = board.total_points;
                 document.getElementById('listNextLevel').textContent = nextLevelPts;
                 const freeRolls = board.free_rolls || 0;
@@ -1043,7 +1070,6 @@
                 document.getElementById('adsFreeSpins').textContent = freeSpins;
                 document.getElementById('wheelFreeSpins').textContent = freeSpins;
 
-                // Ενημερώνουμε το iframe για την κατάσταση
                 const iframe = document.getElementById('boardIframe');
                 if (iframe && iframe.contentWindow) {
                     iframe.contentWindow.postMessage({ type: 'setState', points: board.total_points, spins: freeRolls }, '*');
@@ -1435,7 +1461,7 @@
             animal_whack_score_today: 0
         };
 
-        // Φέρνει τα game stats από το backend (υποθέτει endpoint /game-stats)
+        // Φέρνει τα game stats από το backend (endpoint /game-stats)
         async function fetchGameStats() {
             try {
                 const data = await apiCall('GET', `/game-stats?userId=${userId}`);
@@ -1475,6 +1501,7 @@
 
         function loadDailyMissions() {
             const container = document.getElementById('dailyMissionsContainer');
+            // Τα IDs εδώ πρέπει να είναι ίδια με αυτά του backend (DAILY_MISSIONS)
             const missions = [
                 {
                     id: 'daily_chess',
@@ -1547,6 +1574,7 @@
 
         function loadWeeklyMissions() {
             const container = document.getElementById('weeklyMissionsContainer');
+            // Τα IDs εδώ πρέπει να είναι ίδια με αυτά του backend (WEEKLY_MISSIONS)
             const missions = [
                 {
                     id: 'weekly_chess',
@@ -1690,8 +1718,8 @@
                         showToast(`+${value} Points!`);
                         refreshUI();
                         // Σημείωσε ως claimed
-                        const key = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
-                        localStorage.setItem(`claimed_${missionId}_${key}`, 'true');
+                        const dateKey = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
+                        localStorage.setItem(`claimed_${missionId}_${dateKey}`, 'true');
                         loadMissions(); // ανανέωσε την προβολή
                     })
                     .catch(err => showToast(err.message));
@@ -1700,8 +1728,8 @@
                     .then(() => {
                         showToast(`+${value} Rolls!`);
                         refreshUI();
-                        const key = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
-                        localStorage.setItem(`claimed_${missionId}_${key}`, 'true');
+                        const dateKey = missionType === 'daily' ? getCurrentDate() : getCurrentWeek();
+                        localStorage.setItem(`claimed_${missionId}_${dateKey}`, 'true');
                         loadMissions();
                     })
                     .catch(err => showToast(err.message));
