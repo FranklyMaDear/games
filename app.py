@@ -257,19 +257,33 @@ async def update_mission_progress(request: Request):
     data = await request.json()
     user_id = data.get("userId")
     game = data.get("game", "")
+    win = data.get("win", False)        # ΝΕΟ
+    played = data.get("played", False)  # ΝΕΟ
     score = data.get("score", 0)
-    playtime = data.get("playtime", 0)
+    
     if not user_id:
         raise HTTPException(status_code=400, detail="Missing userId")
+    
     u = get_user(user_id)
+    
     for mlist, key in [(DAILY_MISSIONS, "daily_missions"), (WEEKLY_MISSIONS, "weekly_missions")]:
         for m in mlist:
             mid = m["id"]
             if mid not in u[key]:
                 u[key][mid] = {"progress": 0, "claimed": False}
+            
+            # Έλεγξε αν το mission αφορά αυτό το παιχνίδι
             if m["game"] == game or m["game"] == "Multi":
-                if playtime > 0 or score > 0:
+                # Αν θέλει νίκη (π.χ. "Win 8 matches")
+                if "win" in m["description"].lower() and win:
                     u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
+                # Αν θέλει απλά να παίξει (π.χ. "Play 7 matches")
+                elif "play" in m["description"].lower() and played:
+                    u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
+                # Αν θέλει σκορ (π.χ. "Score 500 points")
+                elif "score" in m["description"].lower() and score > 0:
+                    u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + score)
+    
     save_user(user_id, u)
     return {"status": "ok"}
 
