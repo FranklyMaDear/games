@@ -26,28 +26,22 @@ POINTS_LOG_FILE = "points_log.json"
 SHOP_FILE = "shop.json"
 
 # ---------- ΣΤΑΘΕΡΕΣ ----------
-POINTS_PER_LEVEL = 1000
+POINTS_PER_LEVEL = 500  # Διορθώθηκε από 1000 σε 500 για συμβατότητα με UI
 
-# Daily Missions
+# Daily Missions (με σωστά IDs που χρησιμοποιεί το frontend)
 DAILY_MISSIONS = [
-    {"id": "d1", "day": 1, "description": "Play 1 match of Chess", "target": 1, "game": "Chess", "reward_type": "points", "reward_value": 20, "reward_label": "+20 Points", "link": "https://t.me/Franklygames_bot/chess"},
-    {"id": "d2", "day": 2, "description": "Solve 1 Sudoku Puzzle", "target": 1, "game": "Sudoku", "reward_type": "stars", "reward_value": 10, "reward_label": "+10 Stars", "link": "https://t.me/Franklygames_bot/sudoku"},
-    {"id": "d3", "day": 3, "description": "Play 1 match of Connect 4", "target": 1, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 2, "reward_label": "+2 Free Spins", "link": "https://t.me/Franklygames_bot/connectfour"},
-    {"id": "d4", "day": 4, "description": "Check your Daily Omen", "target": 1, "game": "Omen", "reward_type": "stars", "reward_value": 15, "reward_label": "+15 Stars", "link": "https://t.me/omenread_bot/omen"},
-    {"id": "d5", "day": 5, "description": "Play 1 match of Balloons", "target": 1, "game": "Balloons", "reward_type": "points", "reward_value": 30, "reward_label": "+30 Points", "link": "https://t.me/Franklygames_bot/balloons"},
-    {"id": "d6", "day": 6, "description": "Play Codewords once", "target": 1, "game": "Codewords", "reward_type": "free_spin", "reward_value": 3, "reward_label": "+3 Free Spins", "link": "https://t.me/crackthecodes_bot/codewords"},
-    {"id": "d7", "day": 7, "description": "Visit LifeLine (Palmistry)", "target": 1, "game": "LifeLine", "reward_type": "stars", "reward_value": 20, "reward_label": "+20 Stars", "link": "https://t.me/lifeline2026_bot/games"},
-    {"id": "d8", "day": 8, "description": "Play 2 matches of Connect 4", "target": 2, "game": "Connect 4", "reward_type": "points", "reward_value": 50, "reward_label": "+50 Points", "link": "https://t.me/Franklygames_bot/connectfour"},
-    {"id": "d9", "day": 9, "description": "Win 2 matches of Chess", "target": 2, "game": "Chess", "reward_type": "free_spin", "reward_value": 5, "reward_label": "+5 Free Spins", "link": "https://t.me/Franklygames_bot/chess"},
-    {"id": "d10", "day": 10, "description": "Complete 1 Chess, 1 Sudoku, 1 Connect 4", "target": 3, "game": "Multi", "reward_type": "points", "reward_value": 100, "reward_label": "+100 Points", "link": "https://t.me/Franklygames_bot/chess"},
+    {"id": "daily_chess", "day": 1, "description": "Win 1 match of Chess today", "target": 1, "game": "Chess", "reward_type": "points", "reward_value": 20, "reward_label": "+20 Points", "link": "https://t.me/Franklygames_bot/chess"},
+    {"id": "daily_sudoku", "day": 2, "description": "Complete 1 grid of Sudoku today", "target": 1, "game": "Sudoku", "reward_type": "stars", "reward_value": 10, "reward_label": "+10 Stars", "link": "https://t.me/Franklygames_bot/sudoku"},
+    {"id": "daily_connect4", "day": 3, "description": "Play 3 matches of Connect 4 today", "target": 3, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 2, "reward_label": "+2 Free Spins", "link": "https://t.me/Franklygames_bot/connectfour"},
+    {"id": "daily_animalwhack", "day": 5, "description": "Score 500 points in Animal Whack today", "target": 500, "game": "Animal Whack", "reward_type": "points", "reward_value": 30, "reward_label": "+30 Points", "link": "https://t.me/Franklygames_bot/animals"},
 ]
 
-# Weekly Missions
+# Weekly Missions (με σωστά IDs)
 WEEKLY_MISSIONS = [
-    {"id": "w1", "description": "Play 7 matches of Chess this week", "target": 7, "game": "Chess", "reward_type": "points", "reward_value": 150, "reward_label": "+150 Points"},
-    {"id": "w2", "description": "Complete 5 grids of Sudoku this week", "target": 5, "game": "Sudoku", "reward_type": "stars", "reward_value": 100, "reward_label": "+100 Stars"},
-    {"id": "w3", "description": "Win 8 matches of Connect 4 this week", "target": 8, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 10, "reward_label": "+10 Free Spins"},
-    {"id": "w4", "description": "Complete 3 Chess, 3 Sudoku, 3 Connect 4", "target": 9, "game": "Multi", "reward_type": "points", "reward_value": 300, "reward_label": "+300 Points"},
+    {"id": "weekly_chess", "description": "Play 7 matches of Chess this week", "target": 7, "game": "Chess", "reward_type": "points", "reward_value": 150, "reward_label": "+150 Points"},
+    {"id": "weekly_sudoku", "description": "Complete 5 grids of Sudoku this week", "target": 5, "game": "Sudoku", "reward_type": "stars", "reward_value": 100, "reward_label": "+100 Stars"},
+    {"id": "weekly_connect4", "description": "Win 8 matches of Connect 4 this week", "target": 8, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 10, "reward_label": "+10 Free Spins"},
+    {"id": "weekly_combined", "description": "Complete 3 Chess, 3 Sudoku, and 3 Connect 4 matches this week", "target": 3, "game": "Multi", "reward_type": "points", "reward_value": 300, "reward_label": "+300 Points"},
 ]
 
 WHEEL_SEGMENTS = [
@@ -257,8 +251,8 @@ async def update_mission_progress(request: Request):
     data = await request.json()
     user_id = data.get("userId")
     game = data.get("game", "")
-    win = data.get("win", False)        # ΝΕΟ
-    played = data.get("played", False)  # ΝΕΟ
+    win = data.get("win", False)
+    played = data.get("played", False)
     score = data.get("score", 0)
     
     if not user_id:
@@ -272,15 +266,11 @@ async def update_mission_progress(request: Request):
             if mid not in u[key]:
                 u[key][mid] = {"progress": 0, "claimed": False}
             
-            # Έλεγξε αν το mission αφορά αυτό το παιχνίδι
             if m["game"] == game or m["game"] == "Multi":
-                # Αν θέλει νίκη (π.χ. "Win 8 matches")
                 if "win" in m["description"].lower() and win:
                     u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
-                # Αν θέλει απλά να παίξει (π.χ. "Play 7 matches")
                 elif "play" in m["description"].lower() and played:
                     u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + 1)
-                # Αν θέλει σκορ (π.χ. "Score 500 points")
                 elif "score" in m["description"].lower() and score > 0:
                     u[key][mid]["progress"] = min(m["target"], u[key][mid].get("progress", 0) + score)
     
@@ -415,6 +405,35 @@ async def set_display_name(request: Request):
     u["display_name"] = display_name
     save_user(user_id, u)
     return {"status": "ok", "display_name": display_name}
+
+
+# ========== ΝΕΟ ENDPOINT /game-stats ==========
+@app.get("/game-stats")
+async def get_game_stats(request: Request, userId: str):
+    check_auth(request)
+    u = get_user(userId)
+    
+    daily = u.get("daily_missions", {})
+    weekly = u.get("weekly_missions", {})
+    
+    chess_wins_today = daily.get("daily_chess", {}).get("progress", 0)
+    sudoku_completed_today = daily.get("daily_sudoku", {}).get("progress", 0)
+    connect4_played_today = daily.get("daily_connect4", {}).get("progress", 0)
+    animal_whack_score_today = daily.get("daily_animalwhack", {}).get("progress", 0)
+    
+    chess_played_week = weekly.get("weekly_chess", {}).get("progress", 0)
+    sudoku_completed_week = weekly.get("weekly_sudoku", {}).get("progress", 0)
+    connect4_wins_week = weekly.get("weekly_connect4", {}).get("progress", 0)
+    
+    return {
+        "chess_wins_today": chess_wins_today,
+        "chess_played_week": chess_played_week,
+        "sudoku_completed_today": sudoku_completed_today,
+        "sudoku_completed_week": sudoku_completed_week,
+        "connect4_played_today": connect4_played_today,
+        "connect4_wins_week": connect4_wins_week,
+        "animal_whack_score_today": animal_whack_score_today,
+    }
 
 
 # ========== AVATAR ENDPOINTS ==========
