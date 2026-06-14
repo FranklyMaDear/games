@@ -931,6 +931,9 @@
                 <button class="missions-tab active" onclick="switchMissionsTab('daily')">Daily</button>
                 <button class="missions-tab" onclick="switchMissionsTab('weekly')">Weekly</button>
             </div>
+            <div style="text-align:center; margin:6px 0;">
+                <button onclick="refreshMissions()" style="background:var(--bg-tertiary); border:1px solid var(--border-default); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-pill); font-weight:700; cursor:pointer; font-size:0.8rem;">🔄 Ανανέωση</button>
+            </div>
             <div id="dailyMissionsContainer"></div>
             <div id="weeklyMissionsContainer" style="display:none;"></div>
         </div>
@@ -1242,6 +1245,11 @@
                         await apiCall('POST', '/add-points', { userId, game: 'Board Game', points: data.value });
                     } catch(e) { showToast(e.message); }
                     refreshUI();
+                    // ΠΡΟΣΘΗΚΗ: Ενημέρωση missions αν είμαστε στην καρτέλα missions
+                    if (document.getElementById('section-missions').classList.contains('active')) {
+                        await fetchGameStats();
+                        loadMissions();
+                    }
                     break;
                 case 'addRolls':
                     try {
@@ -1267,16 +1275,35 @@
             }
         });
 
-        function refreshAll() { refreshUI(); if (document.getElementById('section-missions').classList.contains('active')) loadMissions(); if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); }
+        function refreshAll() { 
+            refreshUI(); 
+            if (document.getElementById('section-missions').classList.contains('active')) {
+                fetchGameStats().then(() => loadMissions());
+            }
+            if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
+        }
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
         window.addEventListener('pageshow', (event) => { if (event.persisted) refreshAll(); });
         if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.onEvent('viewportChanged', () => refreshAll()); window.Telegram.WebApp.ready(); }
+
+        // ΠΡΟΣΘΗΚΗ: Συνάρτηση για χειροκίνητη ανανέωση missions
+        function refreshMissions() {
+            fetchGameStats().then(() => loadMissions());
+            showToast('Missions updated!');
+        }
 
         function playGame(url, gameName) {
             localStorage.setItem('franklymadear_userId', userId);
             if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink(url); }
             else { window.open(url, '_blank'); }
             apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
+            // ΠΡΟΣΘΗΚΗ: Ενημέρωση stats όταν παίζει παιχνίδι
+            setTimeout(async () => {
+                await fetchGameStats();
+                if (document.getElementById('section-missions').classList.contains('active')) {
+                    loadMissions();
+                }
+            }, 3000);
         }
 
         function buildGamesGrid() {
