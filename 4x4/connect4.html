@@ -441,7 +441,7 @@
         </div>
     </div>
 
-    <!-- AD POPUP (εμφανίζεται μετά από νίκη/ισοπαλία) -->
+    <!-- AD POPUP -->
     <div class="popup-overlay" id="adPopup" style="display:none;">
         <div class="popup-dialog">
             <button class="popup-close" id="popupCloseBtn">&times;</button>
@@ -554,7 +554,13 @@
                 document.getElementById('restartBtn').addEventListener('click', () => this.restartGame());
                 document.getElementById('newGameBtn').addEventListener('click', () => this.newGame());
 
-                this.popupCloseBtn.addEventListener('click', () => this.closePopup());
+                // Κλείσιμο popup με Χ ή κενό → διαφήμιση
+                this.popupCloseBtn.addEventListener('click', () => this.closePopupWithAd());
+                this.adPopup.addEventListener('click', (e) => {
+                    if (e.target === this.adPopup) this.closePopupWithAd();
+                });
+
+                // Κουμπί Watch Ad
                 this.popupAdBtn.addEventListener('click', () => this.handleAdClick());
             }
 
@@ -590,7 +596,7 @@
 
                 this.board[row][col] = this.currentPlayer;
                 this.animateDiscDrop(row, col, this.currentPlayer);
-                this.audio.playDropSound();   // 🔊 ήχος drop
+                this.audio.playDropSound();
 
                 if (this.checkWinCondition(row, col)) {
                     this.handleWinState();
@@ -683,7 +689,7 @@
                 this.gameInProgress = false;
                 this.scores[this.currentPlayer]++;
                 this.updateScores();
-                this.audio.playVictorySound();   // 🔊 νικητήρια μουσική
+                this.audio.playVictorySound();
                 this.triggerConfettiEffect();
 
                 if (this.currentPlayer === 1) {
@@ -755,7 +761,7 @@
 
                 let bestScore = -Infinity;
                 let bestCols = [validMoves[0]];
-                const depth = 5;   // Hard
+                const depth = 5;
 
                 for (let c of validMoves) {
                     let r = this.getAvailableRow(c);
@@ -895,7 +901,11 @@
                 this.popupAdBtn.textContent = '🎮 Watch Ad';
             }
 
-            closePopup() {
+            closePopupWithAd() {
+                // Πάντα καλεί διαφήμιση πριν κλείσει
+                if (typeof show_11108267 === 'function') {
+                    show_11108267().catch(() => {});
+                }
                 this.adPopup.style.display = 'none';
             }
 
@@ -913,18 +923,20 @@
                         btn.textContent = '🎮 Watch Ad';
                         msg.style.color = '#27ae60';
                         msg.textContent = 'Ad completed!';
-                        setTimeout(() => this.closePopup(), 1200);
+                        this.adPopup.style.display = 'none';
                     }).catch(() => {
                         btn.classList.remove('loading');
                         btn.textContent = '🎮 Watch Ad';
                         msg.style.color = '#e74c3c';
                         msg.textContent = 'Ad could not be loaded.';
+                        this.adPopup.style.display = 'none';
                     });
                 } else {
                     btn.classList.remove('loading');
                     btn.textContent = '🎮 Watch Ad';
                     msg.style.color = '#e74c3c';
                     msg.textContent = 'Ad blocker or SDK missing.';
+                    this.adPopup.style.display = 'none';
                 }
             }
 
@@ -935,7 +947,7 @@
                 this.updateStatus();
                 this.updatePlayerIndicators();
                 document.querySelectorAll('.confetti').forEach(c => c.remove());
-                this.closePopup();
+                this.adPopup.style.display = 'none';
             }
 
             newGame() {
