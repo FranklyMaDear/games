@@ -29,7 +29,6 @@ DAILY_MISSIONS = [
     {"id": "daily_animalwhack", "description": "Play 3 rounds of Animal Whack", "target": 3, "game": "Animal Whack", "reward_type": "points", "reward_value": 30, "reward_label": "+30 Points", "link": "https://t.me/Franklygames_bot/animals"},
 ]
 
-# ---------- WHEEL SEGMENTS (must match frontend) ----------
 WHEEL_SEGMENTS = [
     {"type": "points", "value": 5},
     {"type": "points", "value": 10},
@@ -65,8 +64,8 @@ def get_user(user_id: str) -> dict:
             "stars": 0,
             "level": 1,
             "display_name": user_id[:12],
-            "free_spins": 5,        # για τον τροχό
-            "free_rolls": 0,        # για το board game
+            "free_spins": 5,
+            "free_rolls": 0,
             "daily_missions": {},
             "last_daily_reset": None,
         }
@@ -99,7 +98,7 @@ async def get_board(request: Request, userId: str):
         "stars": u.get("stars", 0),
         "level": u["level"],
         "free_spins": u.get("free_spins", 0),
-        "free_rolls": u.get("free_rolls", 0),  # <-- προστέθηκε
+        "free_rolls": u.get("free_rolls", 0),
         "next_level_points": u["level"] * POINTS_PER_LEVEL,
     }
 
@@ -142,45 +141,6 @@ async def update_mission_progress(request: Request):
             u["daily_missions"][mid]["progress"] = min(m["target"], u["daily_missions"][mid].get("progress", 0) + 1)
     save_user(user_id, u)
     return {"status": "ok"}
-
-@app.post("/api/game-complete")
-async def api_game_complete(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game_name = data.get("game")
-    
-    if not user_id or not game_name:
-        raise HTTPException(status_code=400, detail="Missing userId or game name")
-        
-    u = get_user(user_id)
-    updated = False
-    current_progress = 0
-    target_value = 0
-    
-    for m in DAILY_MISSIONS:
-        mid = m["id"]
-        if mid not in u["daily_missions"]:
-            u["daily_missions"][mid] = {"progress": 0, "claimed": False}
-            
-        if m["game"] == game_name:
-            u["daily_missions"][mid]["progress"] = min(m["target"], u["daily_missions"][mid].get("progress", 0) + 1)
-            current_progress = u["daily_missions"][mid]["progress"]
-            target_value = m["target"]
-            updated = True
-            
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"Game '{game_name}' not found in daily missions")
-        
-    save_user(user_id, u)
-    logger.info(f"User {user_id} registered progress for {game_name}. Progress: {current_progress}/{target_value}")
-    
-    return {
-        "status": "ok",
-        "game": game_name,
-        "progress": current_progress,
-        "target": target_value
-    }
 
 @app.post("/missions/claim")
 async def claim_mission(request: Request):
@@ -254,15 +214,12 @@ async def add_free_spins(request: Request):
     save_user(user_id, u)
     return {"status": "ok", "free_spins": u["free_spins"]}
 
-# ---------- ΝΕΑ ENDPOINTS ----------
 @app.post("/add-free-rolls")
 async def add_free_rolls(request: Request):
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
     rolls = data.get("rolls", 0)
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
     u = get_user(user_id)
     u["free_rolls"] = u.get("free_rolls", 0) + rolls
     save_user(user_id, u)
@@ -273,8 +230,6 @@ async def use_free_roll(request: Request):
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
     u = get_user(user_id)
     if u.get("free_rolls", 0) <= 0:
         raise HTTPException(status_code=400, detail="No free rolls left")
@@ -293,16 +248,12 @@ async def spin_wheel(request: Request):
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
     u = get_user(user_id)
     if u.get("free_spins", 0) < 1:
         raise HTTPException(status_code=400, detail="Not enough free spins")
     u["free_spins"] -= 1
-    # Επιλογή τυχαίου segment
     prize_index = random.randint(0, len(WHEEL_SEGMENTS) - 1)
     segment = WHEEL_SEGMENTS[prize_index]
-    # Άμεση πίστωση αν δεν είναι zonk (το frontend θα το ξαναπιστώσει μέσω του modal, αλλά εδώ το κάνουμε server-side για ασφάλεια)
     if segment["type"] == "points":
         u["total_points"] = u.get("total_points", 0) + segment["value"]
         u["level"] = max(1, (u["total_points"] // POINTS_PER_LEVEL) + 1)
@@ -313,7 +264,6 @@ async def spin_wheel(request: Request):
 
 @app.post("/log")
 async def log_game(request: Request):
-    """Καταγραφή παιχνιδιού (απλό log, χωρίς αλλαγή δεδομένων)."""
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
