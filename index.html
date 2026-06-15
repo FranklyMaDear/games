@@ -636,7 +636,18 @@
             padding-right: 5px;
         }
 
-        /* ---------- DAILY MISSIONS UI ---------- */
+        /* ---------- DAILY MISSIONS UI (ΝΕΟ) ---------- */
+        .mission-category-title {
+            font-size: 1rem;
+            color: var(--neon);
+            margin: 20px 0 10px;
+            padding-left: 10px;
+            border-left: 3px solid var(--neon);
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+
         .daily-mission-card {
             background: var(--bg-card);
             border: 1px solid var(--border-default);
@@ -739,8 +750,30 @@
             opacity: 0.5;
         }
 
+        /* Πολλαπλές μπάρες για την αποστολή All Games */
+        .multi-progress-container {
+            margin-top: 6px;
+        }
+        .multi-progress-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .multi-progress-item .mini-label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            min-width: 50px;
+        }
+        .multi-progress-item .progress-bar-daily {
+            width: 100px;
+            height: 5px;
+        }
+        .multi-progress-item .daily-mission-count {
+            font-size: 0.65rem;
+        }
+
         #section-missions {
-            
             flex-direction: column;
             height: 100%;
             overflow: hidden;
@@ -753,7 +786,7 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* ΑΠΟΛΥΤΗ ΑΠΟΚΡΥΨΗ ΤΩΝ MISSIONS CONTAINER ΑΠΟ ΤΑ ΑΛΛΑ SECTIONS */
+        /* Απόκρυψη missions από άλλα sections (όπως πριν) */
         #section-board .daily-mission-card,
         #section-board #dailyMissionsContainer,
         #section-board .section-content,
@@ -944,14 +977,21 @@
             </div>
         </div>
 
-        <!-- MISSIONS SECTION (ONLY DAILY) -->
+        <!-- MISSIONS SECTION (ΝΕΟ - Daily & Weekly) -->
         <div class="section" id="section-missions">
             <div class="section-content">
-                <h2 class="section-title">📋 Daily Missions</h2>
+                <h2 class="section-title">📋 Αποστολές</h2>
                 <div style="text-align:center; margin:6px 0 12px;">
                     <button onclick="refreshMissions()" style="background:var(--bg-tertiary); border:1px solid var(--border-default); color:var(--text-primary); padding:6px 16px; border-radius:var(--radius-pill); font-weight:700; cursor:pointer; font-size:0.8rem;">🔄 Ανανέωση</button>
                 </div>
+
+                <!-- Daily Missions -->
+                <div class="mission-category-title">📅 Ημερήσιες Αποστολές</div>
                 <div id="dailyMissionsContainer"></div>
+
+                <!-- Weekly Missions (συνδυαστική) -->
+                <div class="mission-category-title">🗓️ Εβδομαδιαίες Αποστολές</div>
+                <div id="weeklyMissionsContainer"></div>
             </div>
         </div>
 
@@ -987,6 +1027,7 @@
     </nav>
 
     <script>
+        // ========== ΡΥΘΜΙΣΕΙΣ & ΒΑΣΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ ==========
         const API_ENDPOINT = "https://franklymadear-games.hf.space";
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
         let userId = localStorage.getItem('franklymadear_userId');
@@ -1001,6 +1042,7 @@
             }
         }
         if (!displayName) { displayName = userId; }
+
         async function syncDisplayName() {
             if (displayName && displayName !== userId) {
                 try { await apiCall('POST', '/set-display-name', { userId, display_name: displayName }); } catch(e) {}
@@ -1208,127 +1250,19 @@
             return `${h}h ${m}m ${s}s`;
         }
 
+        // ========== ΔΙΑΣΥΝΔΕΣΗ ΜΕ IFRAME (Connect 4) ==========
         window.addEventListener('message', async (event) => {
             const data = event.data;
-            if (!data || !data.type) return;
-            switch(data.type) {
-                case 'updatePoints':
-                    if (typeof data.points === 'number') checkContestMilestones(data.points);
-                    break;
-                case 'addPoints':
-                    await apiCall('POST', '/add-points', { userId, game: 'Board Game', points: data.value });
-                    refreshUI();
-                    await fetchGameStats();
-                    loadMissions();
-                    break;
-                case 'addRolls':
-                    await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value });
-                    refreshUI();
-                    break;
-                case 'useRoll':
-                    await apiCall('POST', '/use-free-roll', { userId });
-                    refreshUI();
-                    break;
-                case 'watchAdForRolls':
-                    await callMonetagAd();
-                    await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value || 5 });
-                    refreshUI();
-                    break;
-                case 'updateGameStats':
-                    await apiCall('POST', '/missions/update', { userId, game: data.game, played: data.played || false });
-                    await fetchGameStats();
-                    loadMissions();
-                    refreshUI();
-                    break;
-            }
+            if (!data || data.type !== 'connect4_completed') return;
+
+            console.log('Connect 4 completed! Updating mission...');
+            await updateMissionForGame('Connect 4');
+            await fetchGameStats();
+            loadMissions();
+            refreshUI();
         });
 
-        function refreshAll() { 
-            refreshUI(); 
-            if (document.getElementById('section-missions').classList.contains('active')) {
-                fetchGameStats().then(() => loadMissions());
-            }
-            if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
-        }
-        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
-        window.addEventListener('pageshow', (event) => { if (event.persisted) refreshAll(); });
-        if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.onEvent('viewportChanged', () => refreshAll()); window.Telegram.WebApp.ready(); }
-
-        function refreshMissions() {
-            fetchGameStats().then(() => loadMissions());
-            showToast('Missions updated!');
-        }
-
-        async function updateMissionForGame(gameName) {
-            const mapping = {
-                'Chess': 'daily_chess',
-                'Sudoku': 'daily_sudoku',
-                'Connect 4': 'daily_connect4',
-                'Animals': 'daily_animalwhack',
-                'Animal Whack': 'daily_animalwhack'
-            };
-            const missionId = mapping[gameName];
-            if (!missionId) return;
-            try {
-                await apiCall('POST', '/missions/update', { userId, game: gameName, played: true });
-            } catch(e) { console.warn('Mission update failed:', e); }
-        }
-
-        function playGame(url, gameName) {
-            localStorage.setItem('franklymadear_userId', userId);
-            if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink(url); }
-            else { window.open(url, '_blank'); }
-            apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
-            
-            updateMissionForGame(gameName);
-
-            setTimeout(async () => {
-                await fetchGameStats();
-                if (document.getElementById('section-missions').classList.contains('active')) {
-                    loadMissions();
-                }
-            }, 3000);
-        }
-
-        function buildGamesGrid() {
-            const rewards = [
-                { url:'https://t.me/Franklygames_bot/chess', icon:'♔', name:'Chess', desc:'Classic strategy' },
-                { url:'https://t.me/Franklygames_bot/animals', icon:'🦁', name:'Animals', desc:'Fun with animals!' },
-                { url:'https://t.me/Franklygames_bot/connectfour', icon:'🔴', name:'Connect 4', desc:'Play with friends!' },
-                { url:'https://t.me/Franklygames_bot/sudoku', icon:'🔢', name:'Sudoku', desc:'Test your logic!' },
-                { url:'https://t.me/Franklygames_bot/balloons', icon:'🎈', name:'Balloons', desc:'Pop balloons!' },
-                { url:'https://t.me/crackthecodes_bot/codewords', icon:'📝', name:'Codewords', desc:'Unlock words!' }
-            ];
-            const mystic = [
-                { url:'https://t.me/lifeline2026_bot/games', icon:'✋', name:'LifeLine', desc:'Palmistry Reading', cls:'mystic-card' },
-                { url:'https://t.me/omenread_bot/omen', icon:'☕', name:'Omen', desc:'AI Coffee Reading', cls:'mystic-card' }
-            ];
-            const greece = [
-                { url:'https://t.me/crackthecodes_bot/kids', icon:'🧸', name:'Kids', desc:'Word Finder', cls:'greece-card' },
-                { url:'https://t.me/crackthecodes_bot/games', icon:'🇬🇷', name:'CrackTheCode', desc:'', cls:'greece-card' }
-            ];
-            function renderGrid(id, items) {
-                document.getElementById(id).innerHTML = items.map(i => `<div class="game-card ${i.cls||''}" onclick="playGame('${i.url}','${i.name}')"><div class="game-icon">${i.icon}</div><h3>${i.name}</h3><p>${i.desc}</p></div>`).join('');
-            }
-            renderGrid('rewardsGrid', rewards);
-            renderGrid('mysticGrid', mystic);
-            renderGrid('greeceGrid', greece);
-        }
-
-        function setupAdButtons() {
-            document.getElementById('adRollsBtn').onclick = () => { callMonetagAd().then(() => creditReward('rolls',5)).catch(() => showToast('Watch until the end!')); };
-            document.getElementById('adPointsBtn').onclick = () => { callMonetagAd().then(() => creditReward('points',10)).catch(() => showToast('Watch until the end!')); };
-            document.getElementById('adSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); };
-        }
-
-        function creditReward(type, value, callback) {
-            if (type === 'points') { apiCall('POST', '/add-points', { userId, game: 'Ad Reward', points: value }).then(data => { showToast(`+${data.added} Points!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
-            else if (type === 'rolls') { apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(data => { showToast(`+${data.rolls} Rolls!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
-            else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
-        }
-
-        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
-
+        // ========== WHEEL & AD BUTTONS (όπως πριν) ==========
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#1a1a10' },
@@ -1391,7 +1325,61 @@
         async function spinWheel() { if (isSpinning) return; try { const adStatus=await apiCall('GET',`/ad-status?userId=${userId}`); if (adStatus.free_spins<1) { showToast('Not enough free spins!'); return; } } catch(e) { showToast(e.message); return; } let prizeIndex; try { const result=await apiCall('POST','/wheel/spin',{userId}); prizeIndex=result.prizeIndex; } catch(e) { showToast(e.message); return; } runHighlightAnimation(prizeIndex); }
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; document.getElementById('wheelAdSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); }; }
 
-        // ---------- MISSIONS LOGIC ----------
+        function setupAdButtons() {
+            document.getElementById('adRollsBtn').onclick = () => { callMonetagAd().then(() => creditReward('rolls',5)).catch(() => showToast('Watch until the end!')); };
+            document.getElementById('adPointsBtn').onclick = () => { callMonetagAd().then(() => creditReward('points',10)).catch(() => showToast('Watch until the end!')); };
+            document.getElementById('adSpinsBtn').onclick = () => { callMonetagAd().then(() => creditReward('free_spin',5)).catch(() => showToast('Watch until the end!')); };
+        }
+
+        function creditReward(type, value, callback) {
+            if (type === 'points') { apiCall('POST', '/add-points', { userId, game: 'Ad Reward', points: value }).then(data => { showToast(`+${data.added} Points!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
+            else if (type === 'rolls') { apiCall('POST', '/add-free-rolls', { userId, rolls: value }).then(data => { showToast(`+${data.rolls} Rolls!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
+            else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
+        }
+
+        // ========== GAMES GRID (όπως πριν) ==========
+        function buildGamesGrid() {
+            const rewards = [
+                { url:'https://t.me/Franklygames_bot/chess', icon:'♔', name:'Chess', desc:'Classic strategy' },
+                { url:'https://t.me/Franklygames_bot/animals', icon:'🦁', name:'Animals', desc:'Fun with animals!' },
+                { url:'https://t.me/Franklygames_bot/connectfour', icon:'🔴', name:'Connect 4', desc:'Play with friends!' },
+                { url:'https://t.me/Franklygames_bot/sudoku', icon:'🔢', name:'Sudoku', desc:'Test your logic!' },
+                { url:'https://t.me/Franklygames_bot/balloons', icon:'🎈', name:'Balloons', desc:'Pop balloons!' },
+                { url:'https://t.me/crackthecodes_bot/codewords', icon:'📝', name:'Codewords', desc:'Unlock words!' }
+            ];
+            const mystic = [
+                { url:'https://t.me/lifeline2026_bot/games', icon:'✋', name:'LifeLine', desc:'Palmistry Reading', cls:'mystic-card' },
+                { url:'https://t.me/omenread_bot/omen', icon:'☕', name:'Omen', desc:'AI Coffee Reading', cls:'mystic-card' }
+            ];
+            const greece = [
+                { url:'https://t.me/crackthecodes_bot/kids', icon:'🧸', name:'Kids', desc:'Word Finder', cls:'greece-card' },
+                { url:'https://t.me/crackthecodes_bot/games', icon:'🇬🇷', name:'CrackTheCode', desc:'', cls:'greece-card' }
+            ];
+            function renderGrid(id, items) {
+                document.getElementById(id).innerHTML = items.map(i => `<div class="game-card ${i.cls||''}" onclick="playGame('${i.url}','${i.name}')"><div class="game-icon">${i.icon}</div><h3>${i.name}</h3><p>${i.desc}</p></div>`).join('');
+            }
+            renderGrid('rewardsGrid', rewards);
+            renderGrid('mysticGrid', mystic);
+            renderGrid('greeceGrid', greece);
+        }
+
+        function playGame(url, gameName) {
+            localStorage.setItem('franklymadear_userId', userId);
+            if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink(url); }
+            else { window.open(url, '_blank'); }
+            apiCall('POST', '/log', { userId, game: gameName }).catch(() => {});
+            
+            updateMissionForGame(gameName);
+
+            setTimeout(async () => {
+                await fetchGameStats();
+                if (document.getElementById('section-missions').classList.contains('active')) {
+                    loadMissions();
+                }
+            }, 3000);
+        }
+
+        // ========== ΣΥΣΤΗΜΑ ΑΠΟΣΤΟΛΩΝ (ΝΕΟ) ==========
         let gameStats = {
             chess_played_today: 0,
             sudoku_played_today: 0,
@@ -1418,6 +1406,7 @@
             if (!missionsSection || !missionsSection.classList.contains('active')) return;
             await fetchGameStats();
             loadDailyMissions();
+            loadWeeklyMissions();
         }
 
         function loadDailyMissions() {
@@ -1452,6 +1441,55 @@
             container.innerHTML = html;
         }
 
+        function loadWeeklyMissions() {
+            const container = document.getElementById('weeklyMissionsContainer');
+            // Υπολογισμός προόδου για την εβδομαδιαία αποστολή: παίξε και τα 3 παιχνίδια (Chess, Sudoku, Connect 4)
+            const chessProgress = Math.min(gameStats.chess_played_today, 3);
+            const sudokuProgress = Math.min(gameStats.sudoku_played_today, 3);
+            const connect4Progress = Math.min(gameStats.connect4_played_today, 3);
+            const totalProgress = chessProgress + sudokuProgress + connect4Progress;
+            const target = 9; // 3 * 3
+            const pct = Math.min(100, (totalProgress / target) * 100);
+            const completed = totalProgress >= target;
+            const claimed = localStorage.getItem(`claimed_weekly_allgames_${getCurrentWeek()}`) === 'true';
+
+            let claimClass = 'claim-btn-daily', claimText = '🔒 Claim', claimDisabled = true;
+            if (claimed) { claimClass += ' claimed'; claimText = '✅ Claimed'; }
+            else if (completed) { claimClass += ' unlocked'; claimText = '🎯 Claim'; claimDisabled = false; }
+            else { claimClass += ' locked'; }
+
+            const html = `
+                <div class="daily-mission-card">
+                    <div class="daily-mission-info">
+                        <div class="daily-mission-title"><i>🎯</i> All Games (Chess, Sudoku, Connect 4)</div>
+                        <div class="daily-mission-progress">
+                            <div class="progress-bar-daily"><div class="progress-fill-daily" style="width:${pct}%;"></div></div>
+                            <span class="daily-mission-count">${totalProgress}/${target}</span>
+                        </div>
+                        <div class="multi-progress-container">
+                            <div class="multi-progress-item">
+                                <span class="mini-label">♔ Chess</span>
+                                <div class="progress-bar-daily"><div class="progress-fill-daily" style="width:${(chessProgress/3)*100}%;"></div></div>
+                                <span class="daily-mission-count">${chessProgress}/3</span>
+                            </div>
+                            <div class="multi-progress-item">
+                                <span class="mini-label">🔢 Sudoku</span>
+                                <div class="progress-bar-daily"><div class="progress-fill-daily" style="width:${(sudokuProgress/3)*100}%;"></div></div>
+                                <span class="daily-mission-count">${sudokuProgress}/3</span>
+                            </div>
+                            <div class="multi-progress-item">
+                                <span class="mini-label">🔴 Connect 4</span>
+                                <div class="progress-bar-daily"><div class="progress-fill-daily" style="width:${(connect4Progress/3)*100}%;"></div></div>
+                                <span class="daily-mission-count">${connect4Progress}/3</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="${claimClass}" onclick="event.stopPropagation(); claimMission('weekly_allgames', 'points', 50, '50 Points', 'weekly')" ${claimDisabled ? 'disabled' : ''}>${claimText}</button>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
         function claimMission(missionId, type, value, rewardLabel, missionType) {
             const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
             overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${rewardLabel}</div><span class="modal-emoji">🪙</span><p style="color:var(--text-secondary);">Double your reward?</p><button class="modal-btn win" id="modalClaim">Claim</button><button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button></div>`;
@@ -1481,6 +1519,29 @@
         function getCurrentDate() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`; }
         function getCurrentWeek() { const now = new Date(); const startOfYear = new Date(now.getFullYear(), 0, 1); const weekNumber = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7); return `${now.getFullYear()}-W${weekNumber}`; }
 
+        async function updateMissionForGame(gameName) {
+            const mapping = {
+                'Chess': 'daily_chess',
+                'Sudoku': 'daily_sudoku',
+                'Connect 4': 'daily_connect4',
+                'Animals': 'daily_animalwhack',
+                'Animal Whack': 'daily_animalwhack'
+            };
+            const missionId = mapping[gameName];
+            if (!missionId) return;
+            try {
+                await apiCall('POST', '/missions/update', { userId, game: gameName, played: true });
+            } catch(e) { console.warn('Mission update failed:', e); }
+        }
+
+        function refreshMissions() {
+            fetchGameStats().then(() => loadMissions());
+            showToast('Missions updated!');
+        }
+
+        // ========== NAVIGATION & DOCUMENT READY ==========
+        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') { refreshUI(); loadMissions(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
+
         document.addEventListener("DOMContentLoaded", () => {
             buildGamesGrid();
             refreshUI();
@@ -1496,16 +1557,8 @@
                 }
             });
 
-            // ---------- ΔΙΑΣΥΝΔΕΣΗ ΜΕ CONNECT 4 ----------
-            window.addEventListener('load', () => {
-                if (localStorage.getItem('mission_connect4_done') === 'true') {
-                    updateMissionForGame('Connect 4').then(() => {
-                        loadMissions();
-                        refreshUI();
-                    });
-                    localStorage.removeItem('mission_connect4_done');
-                }
-            });
+            // Αρχική φόρτωση αποστολών
+            loadMissions();
         });
     </script>
 </body>
