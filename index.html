@@ -636,6 +636,74 @@
             padding-right: 5px;
         }
 
+        /* ---------- MISSION CARDS ---------- */
+        .mission-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            cursor: default;
+        }
+        .mission-card.completed {
+            border-color: var(--neon);
+            box-shadow: 0 0 12px var(--neon-soft);
+        }
+        .mission-title {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .mission-progress {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .mission-claim-btn {
+            background: var(--neon);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-pill);
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: all 0.2s;
+            display: none;
+            width: 100%;
+        }
+        .mission-card.completed .mission-claim-btn {
+            display: block;
+        }
+        .mission-claim-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px var(--neon-glow);
+        }
+        .mission-claim-btn:disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            pointer-events: none;
+            display: none;
+        }
+        .progress-bar-daily {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 4px 0;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .progress-fill-daily {
+            height: 100%;
+            background: var(--neon);
+            border-radius: 10px;
+            transition: width 0.5s;
+            box-shadow: 0 0 8px var(--neon-glow);
+        }
+
         @media (max-width: 600px) {
             .games-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .game-card { padding: 16px 8px 14px; min-height: 110px; }
@@ -779,7 +847,7 @@
     </div>
 
     <div class="main-container">
-        <div class="blink-banner">🏆 Play, win points and enter contests!</div>
+        <div class="blink-banner">🏆 Play, win 500 points and enter contests!</div>
 
         <!-- BOARD SECTION -->
         <div class="section active" id="section-board">
@@ -788,10 +856,20 @@
             </div>
         </div>
 
-        <!-- CONNECT 4 SECTION -->
+        <!-- CONNECT 4 SECTION (προσβάσιμο από το Missions) -->
         <div class="section" id="section-connect4">
             <div class="board-iframe-container">
-                <iframe id="connect4Iframe" src="connect4/index.html?v=1.0" allow="autoplay"></iframe>
+                <iframe id="connect4Iframe" src="connect4/index.html?v=1.1" allow="autoplay"></iframe>
+            </div>
+        </div>
+
+        <!-- MISSIONS SECTION -->
+        <div class="section" id="section-missions">
+            <div style="padding: 15px; overflow-y: auto; height: 100%;">
+                <h2 class="section-title">📋 Daily Missions</h2>
+                <p style="text-align:center; color: var(--text-secondary); margin-bottom: 15px;">Complete Connect 4 missions to earn rewards!</p>
+                <div id="missionsContainer"></div>
+                <button class="ad-button" onclick="navigateTo('connect4')" style="margin-top: 10px;">🎮 Play Connect 4</button>
             </div>
         </div>
 
@@ -845,7 +923,7 @@
 
     <nav class="bottom-nav">
         <button class="nav-tab active" data-tab="board"><i class="fas fa-dice"></i><span>Board</span></button>
-        <button class="nav-tab" data-tab="connect4"><i class="fas fa-circle"></i><span>Connect 4</span></button>
+        <button class="nav-tab" data-tab="missions"><i class="fas fa-shield-alt"></i><span>Missions</span></button>
         <button class="nav-tab" data-tab="games"><i class="fas fa-gamepad"></i><span>Games</span></button>
         <button class="nav-tab" data-tab="wheel"><i class="fas fa-dharmachakra"></i><span>Wheel</span></button>
         <button class="nav-tab" data-tab="list"><i class="fas fa-list"></i><span>List</span></button>
@@ -904,7 +982,7 @@
             if (sectionEl) sectionEl.classList.add('active');
             if (tab === 'wheel') initWheel();
             if (tab === 'board') refreshUI();
-            if (tab === 'connect4') { /* nothing needed */ }
+            if (tab === 'missions') updateMissionsUI();
             if (tab === 'list') { refreshUI(); loadRewardsLevels(); }
             if (tab === 'ads') { setupAdButtons(); refreshUI(); }
         }
@@ -1073,6 +1151,108 @@
             return `${h}h ${m}m ${s}s`;
         }
 
+        // ---- DAILY MISSIONS (Connect 4) ----
+        function getToday() {
+            return new Date().toISOString().slice(0,10);
+        }
+
+        function getMissionData() {
+            const today = getToday();
+            const saved = localStorage.getItem(`c4_missions_${today}`);
+            if (saved) {
+                return JSON.parse(saved);
+            }
+            return { gamesPlayed: 0, wins: 0, claimed: {} };
+        }
+
+        function saveMissionData(data) {
+            const today = getToday();
+            localStorage.setItem(`c4_missions_${today}`, JSON.stringify(data));
+        }
+
+        function updateMissionsUI() {
+            const data = getMissionData();
+            const container = document.getElementById('missionsContainer');
+            if (!container) return;
+
+            const missions = [
+                { id: 'play3', desc: '🎮 Play 3 games', current: data.gamesPlayed, target: 3, reward: 20, unit: 'points' },
+                { id: 'win2', desc: '🏆 Win 2 games', current: data.wins, target: 2, reward: 30, unit: 'points' }
+            ];
+
+            container.innerHTML = missions.map(m => {
+                const completed = m.current >= m.target;
+                const claimed = data.claimed[m.id] || false;
+                const pct = Math.min(100, (m.current / m.target) * 100);
+                return `
+                    <div class="mission-card ${completed && !claimed ? 'completed' : ''}">
+                        <div class="mission-title">${m.desc}</div>
+                        <div class="mission-progress">${m.current}/${m.target}</div>
+                        <div class="progress-bar-daily">
+                            <div class="progress-fill-daily" style="width:${pct}%;"></div>
+                        </div>
+                        <button class="mission-claim-btn" 
+                            onclick="claimMissionC4('${m.id}', ${m.reward}, '${m.unit}')"
+                            ${completed && !claimed ? '' : 'style="display:none;"'}>
+                            ${claimed ? '✅ Claimed' : 'Claim +' + m.reward}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function incrementMission(type) {
+            const data = getMissionData();
+            if (type === 'win') {
+                data.gamesPlayed++;
+                data.wins++;
+            } else if (type === 'loss' || type === 'draw') {
+                data.gamesPlayed++;
+            }
+            saveMissionData(data);
+            updateMissionsUI();
+        }
+
+        async function claimMissionC4(id, reward, unit) {
+            const data = getMissionData();
+            if (data.claimed[id]) return;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+                <div class="modal-box">
+                    <div class="modal-title">+${reward} ${unit}!</div>
+                    <span class="modal-emoji">🪙</span>
+                    <p style="color:var(--text-secondary);">Double your reward with an ad?</p>
+                    <button class="modal-btn win" id="modalClaim">Claim</button>
+                    <button class="modal-btn double" id="modalDouble">Double! (Watch Ad)</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            document.getElementById('modalClaim').onclick = async () => {
+                overlay.remove();
+                await creditReward(unit, reward);
+                data.claimed[id] = true;
+                saveMissionData(data);
+                updateMissionsUI();
+            };
+
+            document.getElementById('modalDouble').onclick = async () => {
+                overlay.remove();
+                try {
+                    await callMonetagAd();
+                    await creditReward(unit, reward * 2);
+                } catch(e) {
+                    showToast('Ad not completed. Getting normal reward.');
+                    await creditReward(unit, reward);
+                }
+                data.claimed[id] = true;
+                saveMissionData(data);
+                updateMissionsUI();
+            };
+        }
+
         window.addEventListener('message', async (event) => {
             const data = event.data;
             if (!data || !data.type) return;
@@ -1097,12 +1277,18 @@
                     await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value || 5 });
                     refreshUI();
                     break;
+                case 'updateMission':
+                    if (data.game === 'connect4') {
+                        incrementMission(data.result);
+                    }
+                    break;
             }
         });
 
         function refreshAll() { 
             refreshUI(); 
             if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
+            if (document.getElementById('section-missions').classList.contains('active')) updateMissionsUI();
         }
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
         window.addEventListener('pageshow', (event) => { if (event.persisted) refreshAll(); });
@@ -1152,7 +1338,7 @@
             else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
         }
 
-        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'connect4') { } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
+        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') updateMissionsUI(); if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
 
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
