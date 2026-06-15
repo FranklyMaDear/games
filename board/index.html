@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0e27">
     <title>Board</title>
-    
+
     <!-- Monetag SDK -->
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
@@ -18,7 +18,7 @@
     <style>
         :root {
             --tile-size: 100px;
-            --gap: 6px;
+            --gap: 0px;
         }
 
         * {
@@ -270,7 +270,7 @@
             display: inline-block;
         }
 
-        /* ===== NEW CHESS PAWN WITH COLOR SHIFT ===== */
+        /* ===== PLAYER PAWN ===== */
         .player {
             position: absolute;
             width: 60px;
@@ -280,7 +280,7 @@
             transition: left 0.35s ease, top 0.35s ease;
             filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.7));
             will-change: left, top;
-            transform: translate(-50%, -100%);
+            transform: translate(-50%, -60%);
             display: flex;
             justify-content: center;
             align-items: flex-end;
@@ -411,6 +411,33 @@
         .reward-btn:hover { transform: scale(1.02); }
         .reward-btn:active { transform: scale(0.95); }
 
+        /* ===== FLOATING ENERGY ORB ===== */
+        .floating-energy {
+            position: fixed;
+            z-index: 900;
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #ffd700;
+            text-shadow: 0 0 25px #ffd700, 0 0 50px #ffaa00;
+            left: -70px;
+            animation: floatAcross 5s linear forwards;
+            cursor: pointer;
+            pointer-events: auto;
+            user-select: none;
+            background: rgba(0,0,0,0.3);
+            border-radius: 50%;
+            padding: 5px 10px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,215,0,0.4);
+        }
+
+        @keyframes floatAcross {
+            from { transform: translateX(0) scale(1); opacity: 0; }
+            10% { opacity: 1; transform: translateX(10vw) scale(1.2); }
+            90% { opacity: 1; transform: translateX(90vw) scale(1.1); }
+            to { transform: translateX(100vw) scale(0.8); opacity: 0; }
+        }
+
         .bottom-bar {
             position: fixed; bottom: 0; left: 0; width: 100%; z-index: 100;
             background: linear-gradient(180deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.95));
@@ -515,7 +542,7 @@
         .watch-ad-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #bf360c, 0 3px 6px rgba(0, 0, 0, 0.3); }
 
         @media (max-width: 480px) {
-            :root { --tile-size: 75px; --gap: 5px; }
+            :root { --tile-size: 75px; --gap: 0px; }
             .board-area { margin-bottom: 90px; }
             .player { width: 40px; height: 50px; }
             .pawn-emoji { font-size: 45px; }
@@ -524,11 +551,13 @@
             .energy-bar .box { width: 10px; height: 10px; }
             .tile-icon { font-size: 28px; }
             .tile-label { font-size: 11px; }
+            .floating-energy { font-size: 2rem; }
         }
         @media (max-width: 380px) {
-            :root { --tile-size: 60px; --gap: 4px; }
+            :root { --tile-size: 60px; --gap: 0px; }
             .roll-btn { font-size: 12px; padding: 8px 10px; height: 36px; max-width: 120px; }
             .watch-ad-btn { font-size: 10px; padding: 6px 8px; height: 36px; max-width: 100px; }
+            .floating-energy { font-size: 1.8rem; }
         }
     </style>
 </head>
@@ -670,7 +699,7 @@
         let currentIdx = 0;
         let pendingReward = null;
 
-        const tileSize = 100, gap = 6;
+        const tileSize = 100, gap = 0;
         let pathPoints = [];
 
         function sendToParent(msg) {
@@ -801,7 +830,7 @@
             }
             player.style.left = sp.x + 'px';
             player.style.top = sp.y + 'px';
-            player.style.transform = 'translate(-50%, -100%)';
+            player.style.transform = 'translate(-50%, -60%)';
         }
 
         function movePlayer(steps) {
@@ -810,7 +839,7 @@
                 function step() {
                     if (remaining <= 0) { resolve(); return; }
                     currentIdx++; buildPath(); renderAllTiles();
-                    playMoveSound(); // Move sound
+                    playMoveSound();
                     remaining--;
                     setTimeout(step, 400);
                 }
@@ -819,7 +848,6 @@
         }
 
         function showDice(n) {
-            // Dice Animation
             const diceFaces = ['🎲', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
             let i = 0;
             const interval = setInterval(() => {
@@ -829,7 +857,7 @@
 
             setTimeout(() => {
                 clearInterval(interval);
-                const icons = ['🎲', '1️⃣', '2️⃣', '3️⃣'];
+                const icons = ['🎲', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
                 diceDisplay.textContent = icons[n] || '🎲';
                 dicePopup.classList.add('show');
                 playDiceSound();
@@ -868,7 +896,7 @@
                 updateEnergyUI();
                 sendToParent({ type: 'addEnergy', value: value });
             }
-            playRewardSound(); // Win sound
+            playRewardSound();
             updateEnergyUI();
             saveProgress();
             showToast(`+${value} ${reward.label.split(' ')[1]}!`);
@@ -891,16 +919,15 @@
         }
 
         async function doubleReward() {
-            if (pendingReward) {
-                try {
-                    await showMonetagAd(); // Ad for Double
-                    applyReward(pendingReward, 2);
-                    pendingReward = null;
-                    rewardModal.classList.remove('show');
-                } catch (e) {
-                    showToast('Ad not completed. Claiming normal reward.');
-                    claimReward();
-                }
+            if (!pendingReward) return;
+            try {
+                await showMonetagAd(); // Ad for Double
+                applyReward(pendingReward, 2);
+                pendingReward = null;
+                rewardModal.classList.remove('show');
+            } catch (e) {
+                showToast('Ad not completed. Reward not doubled.');
+                // Δεν πιστώνεται το κανονικό reward αν δεν ολοκληρωθεί η διαφήμιση
             }
         }
 
@@ -935,7 +962,7 @@
             updateEnergyUI();
             sendToParent({ type: 'useEnergy' });
 
-            const dice = Math.floor(Math.random() * 3) + 1;
+            const dice = Math.floor(Math.random() * 6) + 1;
             showDice(dice);
 
             setTimeout(async () => {
@@ -966,18 +993,50 @@
             if (savedPoints !== null) gameState.points = parseInt(savedPoints);
         }
 
-        let regenInterval = null;
-        function startEnergyRegeneration() {
-            if (regenInterval) clearInterval(regenInterval);
-            regenInterval = setInterval(() => {
-                if (!isRolling) {
-                    if (gameState.energy < 100) {
-                        gameState.energy++;
-                        updateEnergyUI();
-                        showToast('+1 Energy⚡️');
-                    }
+        // ===== ΝΕΟΣ ΜΗΧΑΝΙΣΜΟΣ ΙΠΤΑΜΕΝΗΣ ΕΝΕΡΓΕΙΑΣ =====
+        function spawnFloatingEnergy() {
+            // Δημιουργούμε το στοιχείο ακόμα κι αν είμαστε απασχολημένοι, αλλά ο χειρισμός tap θα το αγνοεί
+            const energyEl = document.createElement('div');
+            energyEl.className = 'floating-energy';
+            energyEl.textContent = '+1⚡️';
+            // Τυχαία κατακόρυφη θέση 20% - 60% ώστε να είναι ορατό πάνω από το board
+            energyEl.style.top = (20 + Math.random() * 40) + '%';
+            document.body.appendChild(energyEl);
+
+            let collected = false;
+
+            const onClick = (e) => {
+                e.stopPropagation();
+                if (collected) return;
+                // Αν ο παίκτης παίζει ή έχει ανοιχτό modal, δεν κάνουμε τίποτα
+                if (isRolling || rewardModal.classList.contains('show')) {
+                    return;
                 }
-            }, 60000);
+                collected = true;
+                gameState.energy += 1;
+                updateEnergyUI();
+                showToast('+1 Energy! ⚡');
+                saveProgress();
+                // Εξαφάνιση στοιχείου
+                energyEl.remove();
+                energyEl.removeEventListener('click', onClick);
+                clearTimeout(autoRemove);
+            };
+
+            energyEl.addEventListener('click', onClick);
+
+            const autoRemove = setTimeout(() => {
+                if (!collected) {
+                    energyEl.remove();
+                    energyEl.removeEventListener('click', onClick);
+                }
+            }, 5000); // Διαρκεί 5 δευτερόλεπτα όσο το animation
+        }
+
+        function startFloatingEnergyInterval() {
+            setInterval(() => {
+                spawnFloatingEnergy();
+            }, 45000); // Κάθε 45 δευτερόλεπτα
         }
 
         function init() {
@@ -995,7 +1054,7 @@
             updateEnergyUI();
             buildPath();
             renderAllTiles();
-            startEnergyRegeneration();
+            startFloatingEnergyInterval(); // Ενεργοποίηση του νέου μηχανισμού
 
             // Reward Modal Listeners
             rewardClaimBtn.addEventListener('click', claimReward);
