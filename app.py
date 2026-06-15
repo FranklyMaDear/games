@@ -29,6 +29,20 @@ DAILY_MISSIONS = [
     {"id": "daily_animalwhack", "description": "Play 3 rounds of Animal Whack", "target": 3, "game": "Animal Whack", "reward_type": "points", "reward_value": 30, "reward_label": "+30 Points", "link": "https://t.me/Franklygames_bot/animals"},
 ]
 
+# ---------- WHEEL SEGMENTS (must match frontend) ----------
+WHEEL_SEGMENTS = [
+    {"type": "points", "value": 5},
+    {"type": "points", "value": 10},
+    {"type": "free_spin", "value": 1},
+    {"type": "zonk", "value": 0},
+    {"type": "free_spin", "value": 2},
+    {"type": "zonk", "value": 0},
+    {"type": "points", "value": 5},
+    {"type": "points", "value": 10},
+    {"type": "free_spin", "value": 1},
+    {"type": "free_spin", "value": 2},
+]
+
 # ---------- JSON helpers ----------
 def read_json(filename):
     if not os.path.exists(filename):
@@ -51,7 +65,8 @@ def get_user(user_id: str) -> dict:
             "stars": 0,
             "level": 1,
             "display_name": user_id[:12],
-            "free_spins": 5,
+            "free_spins": 5,        # για τον τροχό
+            "free_rolls": 0,        # για το board game
             "daily_missions": {},
             "last_daily_reset": None,
         }
@@ -84,6 +99,7 @@ async def get_board(request: Request, userId: str):
         "stars": u.get("stars", 0),
         "level": u["level"],
         "free_spins": u.get("free_spins", 0),
+        "free_rolls": u.get("free_rolls", 0),  # <-- προστέθηκε
         "next_level_points": u["level"] * POINTS_PER_LEVEL,
     }
 
@@ -127,13 +143,12 @@ async def update_mission_progress(request: Request):
     save_user(user_id, u)
     return {"status": "ok"}
 
-# NEW: Κεντρικό Endpoint για αυτόνομη κλήση από οποιοδήποτε παιχνίδι
 @app.post("/api/game-complete")
 async def api_game_complete(request: Request):
     check_auth(request)
     data = await request.json()
     user_id = data.get("userId")
-    game_name = data.get("game")  # Πρέπει να ταιριάζει με το "game" στο DAILY_MISSIONS (π.χ. "Connect 4")
+    game_name = data.get("game")
     
     if not user_id or not game_name:
         raise HTTPException(status_code=400, detail="Missing userId or game name")
@@ -238,6 +253,73 @@ async def add_free_spins(request: Request):
     u["free_spins"] = u.get("free_spins", 0) + spins
     save_user(user_id, u)
     return {"status": "ok", "free_spins": u["free_spins"]}
+
+# ---------- ΝΕΑ ENDPOINTS ----------
+@app.post("/add-free-rolls")
+async def add_free_rolls(request: Request):
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    rolls = data.get("rolls", 0)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    u = get_user(user_id)
+    u["free_rolls"] = u.get("free_rolls", 0) + rolls
+    save_user(user_id, u)
+    return {"status": "ok", "rolls": u["free_rolls"]}
+
+@app.post("/use-free-roll")
+async def use_free_roll(request: Request):
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    u = get_user(user_id)
+    if u.get("free_rolls", 0) <= 0:
+        raise HTTPException(status_code=400, detail="No free rolls left")
+    u["free_rolls"] -= 1
+    save_user(user_id, u)
+    return {"status": "ok", "free_rolls": u["free_rolls"]}
+
+@app.get("/ad-status")
+async def ad_status(request: Request, userId: str):
+    check_auth(request)
+    u = get_user(userId)
+    return {"free_spins": u.get("free_spins", 0), "free_rolls": u.get("free_rolls", 0)}
+
+@app.post("/wheel/spin")
+async def spin_wheel(request: Request):
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing userId")
+    u = get_user(user_id)
+    if u.get("free_spins", 0) < 1:
+        raise HTTPException(status_code=400, detail="Not enough free spins")
+    u["free_spins"] -= 1
+    # Επιλογή τυχαίου segment
+    prize_index = random.randint(0, len(WHEEL_SEGMENTS) - 1)
+    segment = WHEEL_SEGMENTS[prize_index]
+    # Άμεση πίστωση αν δεν είναι zonk (το frontend θα το ξαναπιστώσει μέσω του modal, αλλά εδώ το κάνουμε server-side για ασφάλεια)
+    if segment["type"] == "points":
+        u["total_points"] = u.get("total_points", 0) + segment["value"]
+        u["level"] = max(1, (u["total_points"] // POINTS_PER_LEVEL) + 1)
+    elif segment["type"] == "free_spin":
+        u["free_spins"] = u.get("free_spins", 0) + segment["value"]
+    save_user(user_id, u)
+    return {"status": "ok", "prizeIndex": prize_index, "segment": segment}
+
+@app.post("/log")
+async def log_game(request: Request):
+    """Καταγραφή παιχνιδιού (απλό log, χωρίς αλλαγή δεδομένων)."""
+    check_auth(request)
+    data = await request.json()
+    user_id = data.get("userId")
+    game = data.get("game", "unknown")
+    logger.info(f"User {user_id} played {game}")
+    return {"status": "ok"}
 
 @app.get("/leaderboard")
 async def get_leaderboard(request: Request, limit: int = 20):
