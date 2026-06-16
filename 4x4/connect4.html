@@ -454,6 +454,32 @@
     </div>
 
     <script>
+        // ========== API CONFIG ==========
+        const API_ENDPOINT = "https://franklymadear-games.hf.space";
+        const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+
+        // ========== USER ID (από Telegram ή localStorage) ==========
+        let userId = localStorage.getItem('franklymadear_userId');
+        if (!userId && window.Telegram && window.Telegram.WebApp) {
+            const initData = window.Telegram.WebApp.initDataUnsafe;
+            if (initData && initData.user) {
+                userId = 'tg_' + initData.user.id;
+                localStorage.setItem('franklymadear_userId', userId);
+            }
+        }
+        if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substr(2,9) + '_' + Date.now();
+            localStorage.setItem('franklymadear_userId', userId);
+        }
+
+        // ========== API CALL ==========
+        async function apiCall(method, path, body = null) {
+            const headers = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY };
+            const res = await fetch(API_ENDPOINT + path, { method, headers, body: body ? JSON.stringify(body) : null });
+            if (!res.ok) throw new Error((await res.json()).detail || 'Request failed');
+            return res.json();
+        }
+
         // ========== AUDIO ENGINE ==========
         class GameAudio {
             constructor() {
@@ -683,7 +709,7 @@
                 return this.board[0].every(cell => cell !== 0);
             }
 
-            handleWinState() {
+            async handleWinState() {
                 this.gameInProgress = false;
                 this.scores[this.currentPlayer]++;
                 this.updateScores();
@@ -694,6 +720,17 @@
                     this.domStatus.textContent = 'You Win! +30 Points 🎉';
                     this.sendPointsToParent(30);
                     this.sendMissionUpdate('win');
+
+                    // ====== ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗ ΣΤΟ API ======
+                    try {
+                        await apiCall('POST', '/add-points', { userId, game: 'Connect 4', points: 30 });
+                        await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 30, playtime: 1, words: 0 });
+                        console.log('✅ Reward sent to backend');
+                    } catch (e) {
+                        console.warn('⚠️ Could not send to API:', e);
+                    }
+                    // ====== ΤΕΛΟΣ ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗΣ ======
+
                 } else {
                     this.domStatus.textContent = 'AI Wins! 😞';
                     this.sendMissionUpdate('loss');
@@ -702,11 +739,20 @@
                 setTimeout(() => this.showAdPopup(), 1200);
             }
 
-            handleDrawState() {
+            async handleDrawState() {
                 this.gameInProgress = false;
                 this.domStatus.textContent = "It's a Draw! 🤝";
                 this.sendPointsToParent(0);
                 this.sendMissionUpdate('draw');
+
+                // ====== ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗ ΣΤΟ API (για logging) ======
+                try {
+                    await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 0, playtime: 1, words: 0 });
+                } catch (e) {
+                    console.warn('⚠️ Could not send draw to API:', e);
+                }
+                // ====== ΤΕΛΟΣ ======
+
                 setTimeout(() => this.showAdPopup(), 1200);
             }
 
