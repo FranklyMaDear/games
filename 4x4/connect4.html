@@ -273,6 +273,16 @@
             box-shadow: 0 4px 0 #4d7c0f, 0 6px 12px rgba(0, 0, 0, 0.4);
         }
 
+        .game-btn.small-btn {
+            background: linear-gradient(135deg, #f39c12, #d35400);
+            border: 2px solid #f1c40f;
+            box-shadow: 0 4px 0 #b9770e, 0 6px 12px rgba(0, 0, 0, 0.4);
+            font-size: 0.75rem;
+            padding: 8px 12px;
+            min-width: 80px;
+            max-width: 120px;
+        }
+
         @keyframes confettiFall {
             0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
             100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
@@ -438,6 +448,7 @@
         <div class="game-buttons">
             <button class="game-btn" id="restartBtn">Restart</button>
             <button class="game-btn new-game" id="newGameBtn">New Game</button>
+            <button class="game-btn small-btn" id="toggleFirstBtn">🤖 AI First</button>
         </div>
     </div>
 
@@ -458,7 +469,7 @@
         const API_ENDPOINT = "https://franklymadear-games.hf.space";
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
 
-        // ========== USER ID (από Telegram ή localStorage) ==========
+        // ========== USER ID ==========
         let userId = localStorage.getItem('franklymadear_userId');
         if (!userId && window.Telegram && window.Telegram.WebApp) {
             const initData = window.Telegram.WebApp.initDataUnsafe;
@@ -478,6 +489,27 @@
             const res = await fetch(API_ENDPOINT + path, { method, headers, body: body ? JSON.stringify(body) : null });
             if (!res.ok) throw new Error((await res.json()).detail || 'Request failed');
             return res.json();
+        }
+
+        // ========== LOCAL STORAGE (εβδομαδιαίος μετρητής νικών) ==========
+        function getWeekKey() {
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+            startOfWeek.setHours(0, 0, 0, 0);
+            return 'c4_wins_' + startOfWeek.getTime();
+        }
+
+        function getLocalWins() {
+            const key = getWeekKey();
+            return parseInt(localStorage.getItem(key) || '0');
+        }
+
+        function incrementLocalWins() {
+            const key = getWeekKey();
+            const current = parseInt(localStorage.getItem(key) || '0');
+            localStorage.setItem(key, (current + 1).toString());
+            return current + 1;
         }
 
         // ========== AUDIO ENGINE ==========
@@ -561,10 +593,12 @@
                 this.isAiTurn = false;
                 this.scores = { 1: 0, 2: 0 };
                 this.audio = new GameAudio();
+                this.aiFirst = false; // αν το AI παίζει πρώτο
 
                 this.domBoard = document.getElementById('board');
                 this.domStatus = document.getElementById('status');
                 this.domScore = document.getElementById('scoreDisplay');
+                this.toggleFirstBtn = document.getElementById('toggleFirstBtn');
 
                 this.adPopup = document.getElementById('adPopup');
                 this.popupAdBtn = document.getElementById('popupAdBtn');
@@ -579,6 +613,7 @@
             initDOMEvents() {
                 document.getElementById('restartBtn').addEventListener('click', () => this.restartGame());
                 document.getElementById('newGameBtn').addEventListener('click', () => this.newGame());
+                this.toggleFirstBtn.addEventListener('click', () => this.toggleFirstPlayer());
 
                 this.popupCloseBtn.addEventListener('click', () => this.closePopupWithAd());
                 this.adPopup.addEventListener('click', (e) => {
@@ -586,6 +621,12 @@
                 });
 
                 this.popupAdBtn.addEventListener('click', () => this.handleAdClick());
+            }
+
+            toggleFirstPlayer() {
+                this.aiFirst = !this.aiFirst;
+                this.toggleFirstBtn.textContent = this.aiFirst ? '👤 You First' : '🤖 AI First';
+                this.newGame();
             }
 
             initializeBoard() {
@@ -607,10 +648,23 @@
                     }
                 }
                 this.gameInProgress = true;
+                this.currentPlayer = 1;
+
+                // Αν το AI παίζει πρώτο, ξεκινάει αμέσως
+                if (this.aiFirst) {
+                    this.currentPlayer = 2;
+                    this.updateStatus();
+                    this.updatePlayerIndicators();
+                    this.triggerAiTurn();
+                } else {
+                    this.updateStatus();
+                    this.updatePlayerIndicators();
+                }
             }
 
             handleSlotClick(col) {
                 if (!this.gameInProgress || this.isAiTurn) return;
+                if (this.aiFirst && this.currentPlayer === 2) return; // ο παίκτης δεν παίζει όταν είναι σειρά του AI
                 this.makeMove(col);
             }
 
@@ -721,7 +775,11 @@
                     this.sendPointsToParent(30);
                     this.sendMissionUpdate('win');
 
-                    // ====== ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗ ΣΤΟ API ======
+                    // Αποθήκευση νίκης τοπικά
+                    const totalWins = incrementLocalWins();
+                    console.log('🏆 Local wins this week:', totalWins);
+
+                    // Αποστολή στο API
                     try {
                         await apiCall('POST', '/add-points', { userId, game: 'Connect 4', points: 30 });
                         await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 30, playtime: 1, words: 0 });
@@ -729,8 +787,6 @@
                     } catch (e) {
                         console.warn('⚠️ Could not send to API:', e);
                     }
-                    // ====== ΤΕΛΟΣ ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗΣ ======
-
                 } else {
                     this.domStatus.textContent = 'AI Wins! 😞';
                     this.sendMissionUpdate('loss');
@@ -745,13 +801,11 @@
                 this.sendPointsToParent(0);
                 this.sendMissionUpdate('draw');
 
-                // ====== ΑΠΕΥΘΕΙΑΣ ΚΛΗΣΗ ΣΤΟ API (για logging) ======
                 try {
                     await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 0, playtime: 1, words: 0 });
                 } catch (e) {
                     console.warn('⚠️ Could not send draw to API:', e);
                 }
-                // ====== ΤΕΛΟΣ ======
 
                 setTimeout(() => this.showAdPopup(), 1200);
             }
