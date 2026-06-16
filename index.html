@@ -904,35 +904,32 @@
             </div>
         </div>
 
-        <!-- MISSIONS SECTION (REWRITTEN) -->
+        <!-- MISSIONS SECTION -->
         <div class="section" id="section-missions">
             <div style="padding: 15px; overflow-y: auto; height: 100%;">
                 <h2 class="section-title">📋 Daily Missions</h2>
-                <p style="text-align:center; color: var(--text-secondary); margin-bottom: 15px;">Win 3 games to earn 150 points!</p>
+                <p style="text-align:center; color: var(--text-secondary); margin-bottom: 15px;">Complete missions to earn 150 points per game!</p>
                 
-                <!-- Game Cards + Rewards Button -->
                 <div class="mission-game-grid" id="missionsGameGrid">
                     <!-- Chess -->
                     <div class="mission-game-item">
                         <span class="game-icon">♔</span>
                         <h4>Chess</h4>
+                        <p style="font-size:0.8rem; color:var(--text-secondary);">Win 3 Games</p>
                         <a href="https://t.me/Franklygames_bot/chess" target="_blank" class="play-link">Play Chess</a>
-                        <div class="progress-wins" id="chessWinsDisplay">Wins: 0</div>
+                        <div class="progress-wins" id="chessWinsDisplay">Wins: 0 / 3</div>
+                        <button id="claimChessBtn" class="reward-btn">🔒 Claim 150 Points</button>
                     </div>
                     <!-- Connect 4 -->
                     <div class="mission-game-item">
                         <span class="game-icon">🔴</span>
                         <h4>Connect 4</h4>
+                        <p style="font-size:0.8rem; color:var(--text-secondary);">Win 3 Games</p>
                         <a href="https://t.me/Franklygames_bot/connectfour" target="_blank" class="play-link">Play Connect 4</a>
-                        <div class="progress-wins" id="c4WinsDisplay">Wins: 0</div>
+                        <div class="progress-wins" id="c4WinsDisplay">Wins: 0 / 3</div>
+                        <button id="claimC4Btn" class="reward-btn">🔒 Claim 150 Points</button>
                     </div>
                 </div>
-
-                <!-- Global Reward Button -->
-                <div style="margin-top: 20px; display: flex; justify-content: center;">
-                    <button id="claimRewardBtn" class="reward-btn">Claim 150 Points</button>
-                </div>
-                <p style="text-align:center; color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;" id="rewardStatusMsg">Complete 3 wins to unlock reward.</p>
             </div>
         </div>
 
@@ -1077,7 +1074,8 @@
             } catch(e) { console.warn(e); }
         }
 
-        function showTallyPopup(points) {
+        // ========== CONTEST POPUP (Tally) ==========
+        function showContestPopup(points) {
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
             overlay.innerHTML = `
@@ -1111,7 +1109,7 @@
                 if (points >= milestone && !contestMilestonesReached.includes(milestone)) {
                     contestMilestonesReached.push(milestone);
                     localStorage.setItem('frankly_contest_milestones', JSON.stringify(contestMilestonesReached));
-                    showTallyPopup(milestone);
+                    showContestPopup(milestone);
                 }
             });
         }
@@ -1215,73 +1213,70 @@
             return `${h}h ${m}m ${s}s`;
         }
 
-        // ========== DAILY REWARDS SYSTEM ==========
-        const DAILY_WINS_KEY = 'frankly_daily_wins';
-        const DAILY_CLAIMED_KEY = 'frankly_daily_claimed';
+        // ========== DAILY REWARDS SYSTEM (SEPARATE PER GAME) ==========
+        const CHESS_WINS_KEY = 'frankly_chess_wins';
+        const CHESS_CLAIMED_KEY = 'frankly_chess_claimed';
+        const C4_WINS_KEY = 'frankly_connect4_wins';
+        const C4_CLAIMED_KEY = 'frankly_connect4_claimed';
         const REWARD_THRESHOLD = 3;
         const REWARD_AMOUNT = 150;
 
-        function getDailyWins() {
-            return parseInt(localStorage.getItem(DAILY_WINS_KEY) || '0');
-        }
-
-        function setDailyWins(val) {
-            localStorage.setItem(DAILY_WINS_KEY, val.toString());
-        }
-
-        function isRewardClaimed() {
-            return localStorage.getItem(DAILY_CLAIMED_KEY) === 'true';
-        }
-
-        function setRewardClaimed(val) {
-            localStorage.setItem(DAILY_CLAIMED_KEY, val ? 'true' : 'false');
-        }
+        function getWins(key) { return parseInt(localStorage.getItem(key) || '0'); }
+        function setWins(key, val) { localStorage.setItem(key, val.toString()); }
+        function isClaimed(key) { return localStorage.getItem(key) === 'true'; }
+        function setClaimed(key, val) { localStorage.setItem(key, val ? 'true' : 'false'); }
 
         function updateMissionsUI() {
-            const wins = getDailyWins();
-            const claimed = isRewardClaimed();
-
-            document.getElementById('chessWinsDisplay').textContent = `Wins: ${wins}`;
-            document.getElementById('c4WinsDisplay').textContent = `Wins: ${wins}`;
-
-            const btn = document.getElementById('claimRewardBtn');
-            const msg = document.getElementById('rewardStatusMsg');
-
-            if (claimed) {
-                btn.className = 'reward-btn claimed';
-                btn.textContent = '✅ Claimed';
-                msg.textContent = 'Reward already claimed today!';
-                return;
+            // Chess
+            const chessWins = getWins(CHESS_WINS_KEY);
+            const chessClaimed = isClaimed(CHESS_CLAIMED_KEY);
+            document.getElementById('chessWinsDisplay').textContent = `Wins: ${chessWins} / 3`;
+            const chessBtn = document.getElementById('claimChessBtn');
+            if (chessClaimed) {
+                chessBtn.className = 'reward-btn claimed';
+                chessBtn.textContent = '✅ Claimed';
+            } else if (chessWins >= REWARD_THRESHOLD) {
+                chessBtn.className = 'reward-btn active';
+                chessBtn.textContent = '🎁 Claim 150 Points';
+            } else {
+                chessBtn.className = 'reward-btn';
+                chessBtn.textContent = '🔒 Claim 150 Points';
             }
 
-            if (wins >= REWARD_THRESHOLD) {
-                btn.className = 'reward-btn active';
-                btn.textContent = '🎁 Claim 150 Points';
-                msg.textContent = 'You have 3 wins! Click to claim.';
+            // Connect4
+            const c4Wins = getWins(C4_WINS_KEY);
+            const c4Claimed = isClaimed(C4_CLAIMED_KEY);
+            document.getElementById('c4WinsDisplay').textContent = `Wins: ${c4Wins} / 3`;
+            const c4Btn = document.getElementById('claimC4Btn');
+            if (c4Claimed) {
+                c4Btn.className = 'reward-btn claimed';
+                c4Btn.textContent = '✅ Claimed';
+            } else if (c4Wins >= REWARD_THRESHOLD) {
+                c4Btn.className = 'reward-btn active';
+                c4Btn.textContent = '🎁 Claim 150 Points';
             } else {
-                btn.className = 'reward-btn';
-                btn.textContent = '🔒 Claim 150 Points';
-                msg.textContent = `Complete ${REWARD_THRESHOLD - wins} more win(s) to unlock reward.`;
+                c4Btn.className = 'reward-btn';
+                c4Btn.textContent = '🔒 Claim 150 Points';
             }
         }
 
-        function addWin() {
-            const current = getDailyWins();
+        function addWin(key) {
+            const current = getWins(key);
             if (current < REWARD_THRESHOLD) {
-                setDailyWins(current + 1);
+                setWins(key, current + 1);
                 updateMissionsUI();
                 showToast('+1 Win!');
             }
         }
 
-        async function claimReward() {
-            if (isRewardClaimed()) return;
-            const wins = getDailyWins();
+        async function claimReward(key, claimedKey) {
+            if (isClaimed(claimedKey)) return;
+            const wins = getWins(key);
             if (wins < REWARD_THRESHOLD) return;
 
             try {
                 await apiCall('POST', '/add-points', { userId, game: 'Daily Reward', points: REWARD_AMOUNT });
-                setRewardClaimed(true);
+                setClaimed(claimedKey, true);
                 updateMissionsUI();
                 showToast(`+${REWARD_AMOUNT} Points!`);
             } catch(e) {
@@ -1289,7 +1284,42 @@
             }
         }
 
-        document.getElementById('claimRewardBtn').addEventListener('click', claimReward);
+        document.getElementById('claimChessBtn').addEventListener('click', () => claimReward(CHESS_WINS_KEY, CHESS_CLAIMED_KEY));
+        document.getElementById('claimC4Btn').addEventListener('click', () => claimReward(C4_WINS_KEY, C4_CLAIMED_KEY));
+
+        // ========== AUDIO ENGINE ==========
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(freq, duration, volume = 0.15, type = 'sine') {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function playStartupSound() {
+            initAudio();
+            [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+                setTimeout(() => playSound(freq, 0.3, 0.1, 'sine'), i * 120);
+            });
+        }
+
+        function playBoardClickSound() {
+            playSound(600, 0.1, 0.08, 'square');
+        }
 
         // ========== POSTMESSAGE LISTENER ==========
         window.addEventListener('message', async (event) => {
@@ -1318,17 +1348,21 @@
                     refreshUI();
                     break;
                 case 'updateMission':
-                    if (data.game === 'connect4' || data.game === 'chess') {
-                        if (data.result === 'win') {
-                            addWin();
-                        }
+                    if (data.game === 'connect4') {
+                        if (data.result === 'win') addWin(C4_WINS_KEY);
+                    } else if (data.game === 'chess') {
+                        if (data.result === 'win') addWin(CHESS_WINS_KEY);
                     }
                     break;
                 case 'gameScore':
-                    // Also handle from chess or connect4
                     if (data.game === 'Chess' && data.score === 100) {
-                        addWin();
+                        addWin(CHESS_WINS_KEY);
+                    } else if (data.game === 'Connect 4' && data.score === 30) {
+                        addWin(C4_WINS_KEY);
                     }
+                    break;
+                case 'playBoardSound':
+                    playBoardClickSound();
                     break;
             }
         });
@@ -1401,10 +1435,13 @@
             { type:'free_spin', value:2, label:'+2 SPINS', mode:'double', color:'#1a1a08' }
         ];
         const segAngle = (2 * Math.PI) / segments.length;
-        let currentHighlightIdx = -1, isSpinning = false, audioCtx = null;
-        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
-        function playTick() { if (!audioCtx) return; try { const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g);g.connect(audioCtx.destination);o.type='sine';o.frequency.setValueAtTime(900,audioCtx.currentTime);g.gain.setValueAtTime(0.06,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.04);o.start();o.stop(audioCtx.currentTime+0.04); } catch(e){} }
-        function playWin() { if (!audioCtx) return; try { const n=audioCtx.currentTime; [523.25,659.25,783.99,1046.5].forEach((f,i)=>{ const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.type='sine';o.connect(g);g.connect(audioCtx.destination);o.frequency.setValueAtTime(f,n+i*0.12);g.gain.setValueAtTime(0.25,n+i*0.12);g.gain.exponentialRampToValueAtTime(0.001,n+i*0.12+0.4);o.start(n+i*0.12);o.stop(n+i*0.12+0.4); }); } catch(e){} }
+        let currentHighlightIdx = -1, isSpinning = false;
+        function playTick() { playSound(900, 0.04, 0.06); }
+        function playWin() { 
+            [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+                setTimeout(() => playSound(f, 0.4, 0.2, 'sine'), i * 120);
+            });
+        }
 
         function drawStaticWheel() {
             const canvas = document.getElementById('wheelCanvas'); if (!canvas) return;
@@ -1456,24 +1493,28 @@
             setupAdButtons();
             syncDisplayName();
             setInterval(refreshUI, 30000);
+            
+            // Initial Audio & Startup sound
+            initAudio();
             document.getElementById('letsPlayBtn').addEventListener('click', () => {
                 const modal = document.getElementById('welcomeModal');
                 if (modal) {
                     modal.style.transition = 'opacity 0.5s, transform 0.5s';
                     modal.style.opacity = '0'; modal.style.transform = 'scale(0.9)';
-                    setTimeout(() => { modal.remove(); if (typeof initAudio === 'function') initAudio(); }, 500);
+                    setTimeout(() => { modal.remove(); }, 500);
                 }
+                playStartupSound();
             });
 
             // Initialize Missions UI
             updateMissionsUI();
 
-            // Cleanup: reset daily wins if needed (optional, e.g. every day)
+            // Cleanup: reset daily wins if needed (e.g. every day)
             const lastReset = localStorage.getItem('frankly_daily_reset');
             const today = new Date().toDateString();
             if (lastReset !== today) {
-                setDailyWins(0);
-                setRewardClaimed(false);
+                if (!isClaimed(CHESS_CLAIMED_KEY)) setWins(CHESS_WINS_KEY, 0);
+                if (!isClaimed(C4_CLAIMED_KEY)) setWins(C4_WINS_KEY, 0);
                 localStorage.setItem('frankly_daily_reset', today);
                 updateMissionsUI();
             }
