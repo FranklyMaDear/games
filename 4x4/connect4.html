@@ -469,7 +469,7 @@
         const API_ENDPOINT = "https://franklymadear-games.hf.space";
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
 
-        // ========== USER ID ==========
+        // ========== USER ID (κοινό με το hub) ==========
         let userId = localStorage.getItem('franklymadear_userId');
         if (!userId && window.Telegram && window.Telegram.WebApp) {
             const initData = window.Telegram.WebApp.initDataUnsafe;
@@ -772,14 +772,12 @@
 
                 if (this.currentPlayer === 1) {
                     this.domStatus.textContent = 'You Win! +30 Points 🎉';
-                    this.sendPointsToParent(30);
-                    this.sendMissionUpdate('win');
 
-                    // Αποθήκευση νίκης τοπικά
+                    // 1. Αποθήκευση νίκης τοπικά (για τοπική αναφορά)
                     const totalWins = incrementLocalWins();
                     console.log('🏆 Local wins this week:', totalWins);
 
-                    // Αποστολή στο API
+                    // 2. Αποστολή στο backend (πόντοι & missions)
                     try {
                         await apiCall('POST', '/add-points', { userId, game: 'Connect 4', points: 30 });
                         await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 30, playtime: 1, words: 0 });
@@ -787,9 +785,12 @@
                     } catch (e) {
                         console.warn('⚠️ Could not send to API:', e);
                     }
+
+                    // 3. Ενημέρωση hub (αν είναι ανοιχτό σε άλλο tab/iframe)
+                    this.notifyHub('win', 30);
                 } else {
                     this.domStatus.textContent = 'AI Wins! 😞';
-                    this.sendMissionUpdate('loss');
+                    this.notifyHub('loss', 0);
                 }
 
                 setTimeout(() => this.showAdPopup(), 1200);
@@ -798,8 +799,7 @@
             async handleDrawState() {
                 this.gameInProgress = false;
                 this.domStatus.textContent = "It's a Draw! 🤝";
-                this.sendPointsToParent(0);
-                this.sendMissionUpdate('draw');
+                this.notifyHub('draw', 0);
 
                 try {
                     await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 0, playtime: 1, words: 0 });
@@ -810,23 +810,24 @@
                 setTimeout(() => this.showAdPopup(), 1200);
             }
 
-            sendPointsToParent(points) {
+            // Στέλνει postMessage στο hub για άμεση ενημέρωση (χωρίς διπλό add-points)
+            notifyHub(result, points) {
                 if (window.parent !== window) {
-                    window.parent.postMessage({
-                        type: 'addPoints',
-                        value: points,
-                        game: 'Connect 4'
-                    }, '*');
-                }
-            }
-
-            sendMissionUpdate(result) {
-                if (window.parent !== window) {
+                    // Στέλνουμε μόνο το αποτέλεσμα της αποστολής (mission update) – το hub θα κάνει refreshUI μόνο του
                     window.parent.postMessage({
                         type: 'updateMission',
                         game: 'connect4',
                         result: result
                     }, '*');
+
+                    // Προαιρετικά, για άμεση εμφάνιση πόντων χωρίς refresh:
+                    if (result === 'win') {
+                        window.parent.postMessage({
+                            type: 'gameScore',
+                            game: 'Connect 4',
+                            score: points
+                        }, '*');
+                    }
                 }
             }
 
