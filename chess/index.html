@@ -579,9 +579,8 @@
                     }
                     if (p.type == 'k') {
                         for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-                            if (dr || dc) {
-                                const rr = r+dr, cc = c+dc;
-                                if (ib(rr, cc) && (!b[rr][cc] || en(rr, cc))) m.push({ r: rr, c: cc });
+                            if ((dr || dc) && ib(r+dr, c+dc) && (!b[r+dr][c+dc] || en(r+dr, c+dc))) {
+                                m.push({ r: r+dr, c: c+dc });
                             }
                         }
                     }
@@ -993,62 +992,7 @@
             const pieces = ['q', 'r', 'b', 'n'];
             const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
 
-            pieces.forEach(type => {
-                const option = document.createElement('div');
-                option.className = 'promotion-option';
-                option.innerHTML = `<img src="${getPieceImg(type, color)}" alt="${names[type]}">`;
-                option.title = names[type];
-                option.addEventListener('click', () => {
-                    promotionOverlay.style.display = 'none';
-                    completePromotion(type);
-                });
-                promotionDialog.appendChild(option);
-            });
-
-            promotionOverlay.style.display = 'flex';
-        }
-
-        function completePromotion(promotionType) {
-            if (!promotionPending) return;
-
-            const { r, c } = promotionPending;
-            board[r][c].type = promotionType;
-            promotionPending = null;
-
-            // Τώρα ολοκληρώνουμε την κίνηση
-            // Βρίσκουμε την τελευταία κίνηση από το moveHistory (δεν έχει προστεθεί ακόμα)
-            // Ξέρουμε ότι το πιόνι μετακινήθηκε από κάπου – το from είναι το προηγούμενο τετράγωνο
-            // Απλά ολοκληρώνουμε: αλλαγή σειράς, render, notation, check
-            whiteToMove = !whiteToMove;
-
-            requestAnimationFrame(() => {
-                render();
-                sfxMove();
-                haptic('light');
-
-                // Βρες το from κοιτάζοντας την προηγούμενη κατάσταση – θα το πάρουμε από το board
-                // Εναλλακτικά, κράτα το from στην promotionPending
-                // Προς το παρόν, απλά προσθέτουμε notation χωρίς from (θα φτιάξουμε σωστά)
-                const lastFrom = moveHistory.length > 0 ? moveHistory[moveHistory.length-1].move.to : {r: r, c: c};
-                addNotation({ from: lastFrom, to: {r, c} }, false);
-                checkGameState();
-                if (kingInCheck) sfxCheck();
-                saveGame();
-
-                // Αν είναι η σειρά του AI, ξεκίνα τον
-                if (gameActive && whiteToMove === (aiColor === 'w')) {
-                    setTimeout(makeAIMove, 300);
-                }
-            });
-        }
-
-        // Βελτιωμένη completePromotion που κρατάει σωστά το from
-        function showPromotionUI(color) {
-            promotionDialog.innerHTML = '';
-            const pieces = ['q', 'r', 'b', 'n'];
-            const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
-
-            // Αποθήκευσε το from κοιτάζοντας ποιο τετράγωνο ήταν το πιόνι πριν
+            // Αποθήκευση του from κοιτάζοντας ποιο τετράγωνο ήταν το πιόνι πριν
             const promoR = promotionPending.r, promoC = promotionPending.c;
 
             pieces.forEach(type => {
@@ -1171,7 +1115,9 @@
             }
             if (p.type==='k') {
                 for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {
-                    if (dr||dc && ib(r+dr,c+dc) && (!b[r+dr][c+dc]||en(r+dr,c+dc))) m.push({r:r+dr,c:c+dc});
+                    if ((dr || dc) && ib(r+dr, c+dc) && (!b[r+dr][c+dc] || en(r+dr, c+dc))) {
+                        m.push({r:r+dr,c:c+dc});
+                    }
                 }
             }
             return m;
