@@ -184,11 +184,7 @@
             display: none;
         }
         
-        .difficulty-selector { display: flex; flex-direction: column; gap: 10px; margin: 15px 0; }
-        .difficulty-btn { background: #5d4037; }
-        .difficulty-btn.active { background: #d19a4c; }
-        .game-mode-btn { background: #2a5298; }
-        .game-mode-btn.active { background: #d19a4c; }
+        .first-player-selector { margin: 15px 0; }
         .first-player-btn { background: #5d4037; }
         .first-player-btn.active { background: #d19a4c; }
         
@@ -287,7 +283,6 @@
                 <div class="controls">
                     <button id="resetBtn">New Game</button>
                     <button id="flipBtn">Flip Board</button>
-                    <button id="aiBtn">Play vs AI</button>
                 </div>
             </div>
         </div>
@@ -295,23 +290,12 @@
     
     <div class="thinking" id="thinkingIndicator">AI is thinking...</div>
     
-    <!-- WELCOME / SETUP MODAL -->
+    <!-- WELCOME / SETUP MODAL (AI only, choose who plays first) -->
     <div class="modal" id="welcomeModal">
         <div class="modal-content">
-            <h2>♕ Chess Deluxe Pro ♛</h2>
-            <p style="color: #fff; margin-bottom: 20px;">Select game mode:</p>
-            <div class="modal-options">
-                <button class="modal-btn game-mode-btn active" data-mode="twoPlayers">Two Players</button>
-                <button class="modal-btn game-mode-btn" data-mode="vsAI">Play vs AI</button>
-            </div>
-            <div class="difficulty-selector" id="difficultySelector" style="display: none;">
-                <h3 style="color: white; margin: 10px 0;">Select Difficulty</h3>
-                <button class="modal-btn difficulty-btn" data-depth="2">Easy</button>
-                <button class="modal-btn difficulty-btn" data-depth="3">Medium</button>
-                <button class="modal-btn difficulty-btn active" data-depth="4">Hard</button>
-                <button class="modal-btn difficulty-btn" data-depth="5">Extreme</button>
-            </div>
-            <div class="first-player-selector" id="firstPlayerSelector" style="display: none; margin: 15px 0;">
+            <h2>♕ Chess vs AI ♛</h2>
+            <p style="color: #fff; margin-bottom: 20px;">You play against the AI (Extreme difficulty)</p>
+            <div class="first-player-selector" id="firstPlayerSelector">
                 <h3 style="color: white; margin: 10px 0;">Who plays first?</h3>
                 <button class="modal-btn first-player-btn active" data-first="player">You (White)</button>
                 <button class="modal-btn first-player-btn" data-first="ai">AI (White)</button>
@@ -424,8 +408,6 @@
         const playAgainBtn = document.getElementById("playAgainBtn");
         const mainMenuBtn = document.getElementById("mainMenuBtn");
         
-        let selectedGameMode = 'twoPlayers';
-        let selectedDifficulty = 4;    // 2=E, 3=M, 4=H, 5=Extreme
         let selectedFirstPlayer = 'player'; // 'player' ή 'ai'
         
         // ========== GAME STATE ==========
@@ -434,10 +416,10 @@
         let selected = null;
         let legalMoves = [];
         let flipped = false;
-        let vsAI = false;
-        let aiColor = 'b';       // ποιο χρώμα παίζει το AI
+        let vsAI = true;           // Πάντα εναντίον AI
+        let aiColor = 'b';         // Το χρώμα του AI εξαρτάται από την επιλογή
         let gameActive = true;
-        let aiDepth = 4;
+        const aiDepth = 5;         // Σταθερό βάθος 5 (Extreme)
         let kingInCheck = false;
         let promotionPending = null;
         let audioCtx = null;
@@ -537,11 +519,8 @@
 
         function initGame() {
             initAudio();
-            vsAI = (selectedGameMode === 'vsAI');
-            aiDepth = selectedDifficulty;
-            if (vsAI) {
-                aiColor = (selectedFirstPlayer === 'player') ? 'b' : 'w';
-            }
+            // Καθορισμός χρώματος AI με βάση την επιλογή
+            aiColor = (selectedFirstPlayer === 'player') ? 'b' : 'w';
             
             board = [];
             for (let r=0;r<8;r++) {
@@ -566,7 +545,7 @@
             render();
             
             // Αν το AI παίζει πρώτο (White), ξεκινάει αμέσως
-            if (vsAI && aiColor === 'w') {
+            if (aiColor === 'w') {
                 setTimeout(makeAIMove, 500);
             }
         }
@@ -604,20 +583,23 @@
                         img.src=getPieceImg(p.type,p.color);
                         img.className="piece";
                         img.draggable=true;
-                        if(!vsAI||(vsAI&&whiteToMove!==(aiColor==='w'))){
+                        // Ο παίκτης μπορεί να παίξει μόνο αν είναι η σειρά του (όχι του AI)
+                        if(whiteToMove !== (aiColor === 'w')){
                             img.addEventListener("click",(e)=>{e.stopPropagation();onSquareTap(row,col);});
                         }
                         sq.appendChild(img);
                     }
-                    if(!vsAI||(vsAI&&whiteToMove!==(aiColor==='w'))) sq.addEventListener("click",()=>onSquareTap(row,col));
+                    if(whiteToMove !== (aiColor === 'w')) sq.addEventListener("click",()=>onSquareTap(row,col));
                     boardEl.appendChild(sq);
                 }
             }
-            if(vsAI&&gameActive&&whiteToMove===(aiColor==='w')) setTimeout(makeAIMove,500);
+            // Αν είναι σειρά του AI και το παιχνίδι είναι ενεργό, κάνε κίνηση
+            if(gameActive && whiteToMove === (aiColor === 'w')) setTimeout(makeAIMove,500);
         }
         
         function onSquareTap(r,c){
-            if(vsAI&&whiteToMove===(aiColor==='w')) return;
+            // Μόνο αν είναι η σειρά του παίκτη
+            if(whiteToMove === (aiColor === 'w')) return;
             if(selected&&legalMoves.find(m=>m.r===r&&m.c===c)){
                 movePiece(selected.r,selected.c,r,c); selected=null; legalMoves=[]; render(); return;
             }
@@ -765,10 +747,10 @@
             if(!gameActive) return;
             if(kingInCheck) gameInfoEl.innerHTML=`<span class="status-check">${whiteToMove?"White is in check!":"Black is in check!"}</span>`;
             else gameInfoEl.textContent=whiteToMove?"White's turn":"Black's turn";
-            if(vsAI) gameInfoEl.textContent+=` (AI plays ${aiColor==='w'?'White':'Black'})`;
+            gameInfoEl.textContent += ` (AI plays ${aiColor==='w'?'White':'Black'})`;
         }
 
-        // ========== AI (MINIMAX + ALPHA-BETA) ==========
+        // ========== AI (MINIMAX + ALPHA-BETA, DEPTH 5) ==========
         function makeAIMove(){
             thinkingIndicator.style.display='block';
             setTimeout(()=>{
@@ -799,6 +781,7 @@
             const moves = getAllLegalMoves(aiColor);
             if (moves.length === 0) return null;
             
+            // Ταξινόμηση κινήσεων για καλύτερο pruning (captures πρώτα)
             moves.sort((a, b) => {
                 const captA = board[a.to.r][a.to.c] ? PIECE_VALUES[board[a.to.r][a.to.c].type] : 0;
                 const captB = board[b.to.r][b.to.c] ? PIECE_VALUES[board[b.to.r][b.to.c].type] : 0;
@@ -840,9 +823,9 @@
             const moves = getAllLegalMoves(currentColor);
             if (moves.length === 0) {
                 if (isKingInCheck(currentColor)) {
-                    return isMaximizing ? -99999 : 99999;
+                    return isMaximizing ? -99999 : 99999; // checkmate
                 }
-                return 0;
+                return 0; // stalemate
             }
 
             if (isMaximizing) {
@@ -942,26 +925,8 @@
         // ========== EVENT LISTENERS ==========
         document.getElementById("resetBtn").addEventListener("click", ()=>{ welcomeModal.style.display='flex'; });
         document.getElementById("flipBtn").addEventListener("click", ()=>{ flipped=!flipped; render(); });
-        document.getElementById("aiBtn").addEventListener("click", ()=>{ welcomeModal.style.display='flex'; });
         
-        document.querySelectorAll(".game-mode-btn").forEach(btn=>{
-            btn.addEventListener("click", ()=>{
-                document.querySelectorAll(".game-mode-btn").forEach(b=>b.classList.remove("active"));
-                btn.classList.add("active");
-                selectedGameMode = btn.dataset.mode;
-                document.getElementById("difficultySelector").style.display = selectedGameMode==='vsAI' ? 'flex' : 'none';
-                document.getElementById("firstPlayerSelector").style.display = selectedGameMode==='vsAI' ? 'block' : 'none';
-            });
-        });
-        
-        document.querySelectorAll(".difficulty-btn").forEach(btn=>{
-            btn.addEventListener("click", ()=>{
-                document.querySelectorAll(".difficulty-btn").forEach(b=>b.classList.remove("active"));
-                btn.classList.add("active");
-                selectedDifficulty = parseInt(btn.dataset.depth);
-            });
-        });
-
+        // First player buttons
         document.querySelectorAll(".first-player-btn").forEach(btn=>{
             btn.addEventListener("click", ()=>{
                 document.querySelectorAll(".first-player-btn").forEach(b=>b.classList.remove("active"));
