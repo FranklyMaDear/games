@@ -271,7 +271,7 @@
         const TIME_CONTROL = 300;
         const DAILY_WINS_NEEDED = 3;
         const DAILY_REWARD = 50;
-        const AI_TIME_LIMIT = 4500;
+        const AI_DEPTH = 3; // Σταθερό βάθος, αξιόπιστο χωρίς χρονικό όριο
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -489,14 +489,13 @@
         let whiteTimeLeft = TIME_CONTROL, blackTimeLeft = TIME_CONTROL;
         let timerInterval = null, lastTimerTick = 0;
         let isDailyChallenge = false, postGamePending = false;
+        let aiThinking = false; // Flag για αποφυγή queue
 
-        // ==================== WEB WORKER (AI) ====================
+        // ==================== SIMPLE AI WORKER (DEPTH 3, NO TIME LIMIT) ====================
         let aiWorker = null;
         function initWorker() {
             const code = `
                 const V={p:100,n:320,b:330,r:500,q:900,k:20000};
-                const PT=${JSON.stringify([[0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],[5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],[5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]])};
-                const NT=${JSON.stringify([[-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],[-30,0,10,15,15,10,0,-30],[-30,5,15,20,20,15,5,-30],[-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],[-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]])};
                 function getMoves(b,r,c){const p=b[r][c];if(!p)return[];const m=[],col=p.color,d=col=='w'?-1:1;
                 const ib=(rr,cc)=>rr>=0&&rr<8&&cc>=0&&cc<8;
                 const em=(rr,cc)=>ib(rr,cc)&&!b[rr][cc];
@@ -509,37 +508,28 @@
                 function isCheck(b,col){let kp=null;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(p&&p.type=='k'&&p.color==col){kp={r,c};break;}}if(!kp)return false;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(p&&p.color!=col&&getMoves(b,r,c).some(m=>m.r==kp.r&&m.c==kp.c))return true;}return false;}
                 function legalMoves(b,r,c){return getMoves(b,r,c).filter(m=>{const o=b[m.r][m.c],p=b[r][c];b[m.r][m.c]=p;b[r][c]=null;const ck=isCheck(b,p.color);b[r][c]=p;b[m.r][m.c]=o;return!ck;});}
                 function allMoves(b,col){const m=[];for(let r=0;r<8;r++)for(let c=0;c<8;c++){if(b[r][c]&&b[r][c].color==col)legalMoves(b,r,c).forEach(t=>m.push({from:{r,c},to:t}));}return m;}
-                function evalBoard(b,ai){let s=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(!p)continue;let v=V[p.type];const row=p.color=='w'?r:7-r;if(p.type=='p')v+=PT[row][c]*0.3;else if(p.type=='n')v+=NT[row][c]*0.3;s+=p.color==ai?v:-v;}return s+Math.random()*8-4;}
-                function minimax(b,depth,a,beta,isMax,ai,startTime,timeLimit){
-                    if (Date.now() - startTime > (timeLimit - 100)) return evalBoard(b, ai);
+                function evalBoard(b,ai){let s=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(!p)continue;let v=V[p.type];s+=p.color==ai?v:-v;}return s+Math.random()*8-4;}
+                function minimax(b,depth,a,beta,isMax,ai){
                     const col=isMax?ai:(ai=='w'?'b':'w');
                     if(depth==0)return evalBoard(b,ai);
                     const moves=allMoves(b,col);
                     if(moves.length==0)return isCheck(b,col)?(isMax?-99999:99999):0;
                     moves.sort((x,y)=>{const ca=b[x.to.r][x.to.c]?V[b[x.to.r][x.to.c].type]:0;const cb=b[y.to.r][y.to.c]?V[b[y.to.r][y.to.c].type]:0;return cb-ca;});
-                    if(isMax){let best=-Infinity;for(const m of moves){const o=b[m.to.r][m.to.c],p=b[m.from.r][m.from.c];b[m.to.r][m.to.c]=p;b[m.from.r][m.from.c]=null;const v=minimax(b,depth-1,a,beta,false,ai,startTime,timeLimit);b[m.from.r][m.from.c]=p;b[m.to.r][m.to.c]=o;best=Math.max(best,v);a=Math.max(a,v);if(beta<=a)break;}return best;}
-                    else{let best=Infinity;for(const m of moves){const o=b[m.to.r][m.to.c],p=b[m.from.r][m.from.c];b[m.to.r][m.to.c]=p;b[m.from.r][m.from.c]=null;const v=minimax(b,depth-1,a,beta,true,ai,startTime,timeLimit);b[m.from.r][m.from.c]=p;b[m.to.r][m.to.c]=o;best=Math.min(best,v);beta=Math.min(beta,v);if(beta<=a)break;}return best;}
+                    if(isMax){let best=-Infinity;for(const m of moves){const o=b[m.to.r][m.to.c],p=b[m.from.r][m.from.c];b[m.to.r][m.to.c]=p;b[m.from.r][m.from.c]=null;const v=minimax(b,depth-1,a,beta,false,ai);b[m.from.r][m.from.c]=p;b[m.to.r][m.to.c]=o;best=Math.max(best,v);a=Math.max(a,v);if(beta<=a)break;}return best;}
+                    else{let best=Infinity;for(const m of moves){const o=b[m.to.r][m.to.c],p=b[m.from.r][m.from.c];b[m.to.r][m.to.c]=p;b[m.from.r][m.from.c]=null;const v=minimax(b,depth-1,a,beta,true,ai);b[m.from.r][m.from.c]=p;b[m.to.r][m.to.c]=o;best=Math.min(best,v);beta=Math.min(beta,v);if(beta<=a)break;}return best;}
                 }
                 self.onmessage=function(e){
-                    const {board, aiColor, timeLimit} = e.data;
-                    const startTime = Date.now();
+                    const {board, aiColor} = e.data;
                     const moves = allMoves(board, aiColor);
                     if(!moves.length){ self.postMessage(null); return; }
                     moves.sort((x,y)=>{const ca=board[x.to.r][x.to.c]?V[board[x.to.r][x.to.c].type]:0;const cb=board[y.to.r][y.to.c]?V[board[y.to.r][y.to.c].type]:0;return cb-ca;});
                     let best=-Infinity, bestMoves=[];
-                    for(let depth=1; depth<=5; depth++){
-                        let currentBest=-Infinity, currentBestMoves=[];
-                        for(const m of moves){
-                            if(Date.now() - startTime > (timeLimit - 100)) break;
-                            const o=board[m.to.r][m.to.c],p=board[m.from.r][m.from.c];
-                            board[m.to.r][m.to.c]=p;board[m.from.r][m.from.c]=null;
-                            const s=minimax(board,depth-1,-Infinity,Infinity,false,aiColor,startTime,timeLimit);
-                            board[m.from.r][m.from.c]=p;board[m.to.r][m.to.c]=o;
-                            if(s>currentBest){ currentBest=s; currentBestMoves=[m]; }
-                            else if(s==currentBest) currentBestMoves.push(m);
-                        }
-                        if(Date.now() - startTime > (timeLimit - 100)) break;
-                        best=currentBest; bestMoves=currentBestMoves;
+                    for(const m of moves){
+                        const o=board[m.to.r][m.to.c],p=board[m.from.r][m.from.c];
+                        board[m.to.r][m.to.c]=p;board[m.from.r][m.from.c]=null;
+                        const s=minimax(board,${AI_DEPTH-1},-Infinity,Infinity,false,aiColor);
+                        board[m.from.r][m.from.c]=p;board[m.to.r][m.to.c]=o;
+                        if(s>best){best=s;bestMoves=[m];}else if(s==best)bestMoves.push(m);
                     }
                     self.postMessage(bestMoves[Math.floor(Math.random()*bestMoves.length)]);
                 };
@@ -547,9 +537,11 @@
             aiWorker = new Worker(URL.createObjectURL(new Blob([code], {type:'application/javascript'})));
             aiWorker.onmessage = function(e) {
                 aiFooter.style.display = 'none';
-                if (e.data && gameActive && !postGamePending) {
+                aiThinking = false;
+                // ΑΥΣΤΗΡΟΣ ΕΛΕΓΧΟΣ: μόνο αν το παιχνίδι είναι ακόμα ενεργό
+                if (!gameActive || postGamePending) return;
+                if (e.data && whiteToMove === (aiColor === 'w')) {
                     movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c);
-                    // Το render καλείται μέσα στην movePiece πλέον
                 }
             };
         }
@@ -562,7 +554,7 @@
             aiColor = playerColor === 'w' ? 'b' : 'w';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false;
+            kingInCheck = false; aiThinking = false;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = false; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -584,7 +576,7 @@
             playerColor = 'w'; aiColor = 'b';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false;
+            kingInCheck = false; aiThinking = false;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = true; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -639,8 +631,6 @@
             blackTimeEl.textContent = fmt(Math.max(0, blackTimeLeft));
             whiteTimeEl.classList.toggle('low', whiteTimeLeft < 30);
             blackTimeEl.classList.toggle('low', blackTimeLeft < 30);
-            
-            // FIX: Αν το παιχνίδι είναι ενεργό, ο timer ΠΡΕΠΕΙ να τρέχει
             if (gameActive && !timerInterval) startTimer();
         }
 
@@ -670,16 +660,19 @@
         }
 
         function makeAIMove() {
-            if (!gameActive || postGamePending || whiteToMove !== (aiColor === 'w')) return;
+            if (!gameActive || postGamePending || aiThinking) return;
+            if (whiteToMove !== (aiColor === 'w')) return;
+            aiThinking = true;
             aiFooter.style.display = 'block';
             const boardCopy = board.map(r => r.map(c => c ? { ...c } : null));
             if (aiWorker) {
-                aiWorker.postMessage({ board: boardCopy, aiColor, timeLimit: AI_TIME_LIMIT });
+                aiWorker.postMessage({ board: boardCopy, aiColor });
             }
         }
 
-        // ==================== RENDER ====================
+        // ==================== RENDER (HARD SYNC) ====================
         function render() {
+            // Πλήρης καθαρισμός και αναδημιουργία του DOM
             boardEl.innerHTML = '';
             let kp = null;
             if (kingInCheck) {
@@ -713,14 +706,15 @@
         }
 
         function handleClick(r, c) {
-            // Χρησιμοποιούμε πάντα το τρέχον board state (δεν υπάρχει cached copy)
-            if (!gameActive || postGamePending || whiteToMove === (aiColor==='w')) return;
+            if (!gameActive || postGamePending || aiThinking) return;
+            if (whiteToMove === (aiColor==='w')) return;
             
             if (selected && legalMoves.some(m=>m.r===r&&m.c===c)) {
                 movePiece(selected.r, selected.c, r, c);
                 selected = null; legalMoves = [];
-                // Το render καλείται μέσα στην movePiece
-                if (gameActive && !postGamePending && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 250);
+                if (gameActive && !postGamePending && whiteToMove === (aiColor==='w')) {
+                    setTimeout(makeAIMove, 250);
+                }
                 return;
             }
             
@@ -735,28 +729,32 @@
             render();
         }
 
-        // ==================== FIX: MOVE PIECE (διορθωμένη σειρά) ====================
+        // ==================== MOVE PIECE (ΕΓΓΥΗΜΕΝΟ RENDER) ====================
         function movePiece(sr, sc, tr, tc) {
-            // 1. Ενημέρωση του board array
+            // 1. Καθαρισμός selection
+            selected = null;
+            legalMoves = [];
+            
+            // 2. Ενημέρωση board
             const captured = board[tr][tc];
             board[tr][tc] = board[sr][sc];
             board[sr][sc] = null;
             
-            // 2. Εναλλαγή σειράς ΠΡΙΝ το render ώστε να φαίνεται σωστά η κατάσταση
+            // 3. Εναλλαγή σειράς
             whiteToMove = !whiteToMove;
             
-            // 3. ΑΜΕΣΗ ενημέρωση UI
+            // 4. ΑΜΕΣΟ render – το πιόνι μετακινείται οπτικά τώρα
             render();
             
-            // 4. Ήχοι
+            // 5. Ήχοι
             captured ? (sfxCapture(), haptic('heavy')) : (sfxMove(), haptic('light'));
             
-            // 5. Promotion
+            // 6. Promotion
             if (board[tr][tc].type === 'p' && (tr === 0 || tr === 7)) {
                 board[tr][tc].type = 'q';
             }
             
-            // 6. Καταγραφή και έλεγχος κατάστασης
+            // 7. Notation & state check
             addNotation({ from: {r:sr,c:sc}, to: {r:tr,c:tc} }, captured);
             checkGameState();
             if (kingInCheck) sfxCheck();
@@ -871,7 +869,7 @@
 
         // ==================== POST-GAME ====================
         function showPostGame(winner, resultType) {
-            gameActive = false;
+            gameActive = false; aiThinking = false;
             clearInterval(timerInterval); timerInterval = null;
             aiFooter.style.display = 'none';
             localStorage.removeItem('chess_saved'); hideMainButton();
