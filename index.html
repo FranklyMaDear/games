@@ -637,7 +637,7 @@
             padding-right: 5px;
         }
 
-        /* ====== NEW MISSION REWARDS UI ====== */
+        /* ====== MISSION REWARDS UI ====== */
         .mission-game-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -741,8 +741,6 @@
             background: rgba(255,255,255,0.03);
             border-radius: var(--radius-sm);
         }
-
-        /* ====== END NEW MISSION REWARDS UI ====== */
 
         @media (max-width: 600px) {
             .games-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -897,7 +895,7 @@
             </div>
         </div>
 
-        <!-- CONNECT 4 SECTION (iframe) - kept for direct play if needed, not in bottom nav -->
+        <!-- CONNECT 4 SECTION (iframe) -->
         <div class="section" id="section-connect4">
             <div class="board-iframe-container">
                 <iframe id="connect4Iframe" src="connect4/index.html?v=1.1" allow="autoplay"></iframe>
@@ -1042,12 +1040,13 @@
             const sectionEl = document.getElementById('section-' + tab);
             if (sectionEl) sectionEl.classList.add('active');
             if (tab === 'wheel') initWheel();
-            if (tab === 'board') refreshUI();
-            if (tab === 'missions') updateMissionsUI();
-            if (tab === 'list') { refreshUI(); loadRewardsLevels(); }
-            if (tab === 'ads') { setupAdButtons(); refreshUI(); }
+            if (tab === 'board') refreshAll();
+            if (tab === 'missions') { refreshAll(); updateMissionsUI(); }
+            if (tab === 'list') { refreshAll(); loadRewardsLevels(); }
+            if (tab === 'ads') { setupAdButtons(); refreshAll(); }
         }
 
+        // ========== REFRESH UI (πόντοι, επίπεδο) ==========
         async function refreshUI() {
             try {
                 const board = await apiCall('GET', `/board?userId=${userId}`);
@@ -1072,6 +1071,32 @@
                 }
                 checkContestMilestones(board.total_points);
             } catch(e) { console.warn(e); }
+        }
+
+        // ========== ΣΥΓΧΡΟΝΙΣΜΟΣ DAILY MISSIONS ΑΠΟ ΤΟ BACKEND ==========
+        async function syncMissionProgress() {
+            try {
+                const data = await apiCall('GET', `/missions?userId=${userId}`);
+                // Υποθέτουμε ότι το backend επιστρέφει: { chess: { wins: number, claimed: boolean }, connect4: { wins: number, claimed: boolean } }
+                if (data.chess) {
+                    localStorage.setItem(CHESS_WINS_KEY, data.chess.wins);
+                    localStorage.setItem(CHESS_CLAIMED_KEY, data.chess.claimed ? 'true' : 'false');
+                }
+                if (data.connect4) {
+                    localStorage.setItem(C4_WINS_KEY, data.connect4.wins);
+                    localStorage.setItem(C4_CLAIMED_KEY, data.connect4.claimed ? 'true' : 'false');
+                }
+                // Αφού ενημερωθούν τα τοπικά δεδομένα, ανανέωσε το UI
+                updateMissionsUI();
+            } catch (e) {
+                console.warn('Sync mission progress failed', e);
+            }
+        }
+
+        function refreshAll() { 
+            refreshUI(); 
+            syncMissionProgress(); // Συγχρονισμός αποστολών από server
+            if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
         }
 
         // ========== CONTEST POPUP (Tally) ==========
@@ -1266,6 +1291,7 @@
                 setWins(key, current + 1);
                 updateMissionsUI();
                 showToast('+1 Win!');
+                // Στείλε και στο backend την ενημέρωση (το παιχνίδι το κάνει ήδη, αλλά για σιγουριά)
             }
         }
 
@@ -1279,6 +1305,8 @@
                 setClaimed(claimedKey, true);
                 updateMissionsUI();
                 showToast(`+${REWARD_AMOUNT} Points!`);
+                // Ενημέρωσε και το backend ότι έγινε claim
+                await apiCall('POST', '/missions/claim', { userId, game: key === CHESS_WINS_KEY ? 'chess' : 'connect4' });
             } catch(e) {
                 showToast('Error claiming reward. Try again.');
             }
@@ -1367,11 +1395,7 @@
             }
         });
 
-        function refreshAll() { 
-            refreshUI(); 
-            if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
-            if (document.getElementById('section-missions').classList.contains('active')) updateMissionsUI();
-        }
+        // Αυτόματη ανανέωση όταν η σελίδα γίνεται ορατή
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshAll(); });
         window.addEventListener('pageshow', (event) => { if (event.persisted) refreshAll(); });
         if (window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.onEvent('viewportChanged', () => refreshAll()); window.Telegram.WebApp.ready(); }
@@ -1420,7 +1444,7 @@
             else if (type === 'free_spin') { apiCall('POST', '/add-free-spins', { userId, spins: value }).then(data => { showToast(`+${data.free_spins} Free Spins!`); refreshUI(); if(callback) callback(); }).catch(err => showToast(err.message)); }
         }
 
-        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshUI(); if (btn.dataset.tab === 'missions') updateMissionsUI(); if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshUI(); } if (btn.dataset.tab === 'list') { refreshUI(); loadRewardsLevels(); } }); });
+        document.querySelectorAll('.nav-tab').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.section').forEach(el => el.classList.remove('active')); const sectionEl = document.getElementById('section-' + btn.dataset.tab); if (sectionEl) sectionEl.classList.add('active'); document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); if (btn.dataset.tab === 'board') refreshAll(); if (btn.dataset.tab === 'missions') { refreshAll(); updateMissionsUI(); } if (btn.dataset.tab === 'wheel') initWheel(); if (btn.dataset.tab === 'ads') { setupAdButtons(); refreshAll(); } if (btn.dataset.tab === 'list') { refreshAll(); loadRewardsLevels(); } }); });
 
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
@@ -1489,10 +1513,9 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             buildGamesGrid();
-            refreshUI();
             setupAdButtons();
             syncDisplayName();
-            setInterval(refreshUI, 30000);
+            setInterval(refreshAll, 30000);
             
             // Initial Audio & Startup sound
             initAudio();
@@ -1506,13 +1529,16 @@
                 playStartupSound();
             });
 
-            // Initialize Missions UI
+            // Αρχικοποίηση missions UI και συγχρονισμός
+            refreshAll();
             updateMissionsUI();
 
-            // Cleanup: reset daily wins if needed (e.g. every day)
+            // Καθημερινό reset (μόνο αν ο server δεν το κάνει)
             const lastReset = localStorage.getItem('frankly_daily_reset');
             const today = new Date().toDateString();
             if (lastReset !== today) {
+                // Μηδενισμός μόνο αν δεν έχει γίνει claim (ο server θα στείλει τα σωστά)
+                // Οπότε απλά καθαρίζουμε για να μην υπάρχουν παλιά δεδομένα
                 if (!isClaimed(CHESS_CLAIMED_KEY)) setWins(CHESS_WINS_KEY, 0);
                 if (!isClaimed(C4_CLAIMED_KEY)) setWins(C4_WINS_KEY, 0);
                 localStorage.setItem('frankly_daily_reset', today);
