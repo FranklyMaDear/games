@@ -11,96 +11,112 @@
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
     <style>
         :root {
-            --board-size: min(92vw, 92vh, 800px);
+            --board-size: min(88vw, 88vh, 700px);
             --square-size: calc(var(--board-size) / 8);
             --piece-size: calc(var(--square-size) * 0.88);
-            --dot-size: calc(var(--square-size) * 0.22);
-            --perspective: 1200px;
+            --dot-size: calc(var(--square-size) * 0.2);
+            --eval-width: 14px;
+            --sidebar-width: 130px;
         }
         * { box-sizing: border-box; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
         body {
             background: linear-gradient(160deg, #0d1b2a 0%, #1b2838 30%, #1e3c72 60%, #2a5298 100%);
-            display: flex; justify-content: center; align-items: center;
-            min-height: 100vh; margin: 0; padding: 6px;
+            display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; margin: 0; padding: 6px; padding-bottom: 60px;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            overflow-x: hidden;
-            perspective: var(--perspective);
+            overflow-x: hidden; perspective: 1200px;
         }
-        .container {
-            display: flex; flex-direction: column; align-items: center;
-            width: 100%; max-width: 820px; gap: 8px;
+        .main-layout {
+            display: flex; gap: 8px; align-items: flex-start;
+            width: 100%; max-width: calc(var(--board-size) + var(--sidebar-width) + 20px);
+            justify-content: center; flex-wrap: wrap;
+        }
+        .board-area {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
         }
         .stats-bar {
             display: flex; justify-content: space-between; align-items: center;
-            width: 100%; max-width: var(--board-size); gap: 8px;
+            width: 100%; max-width: var(--board-size); gap: 6px;
             padding: 6px 10px; background: rgba(0,0,0,0.35); border-radius: 12px;
             backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08);
         }
         .level-badge {
             display: flex; align-items: center; gap: 6px;
-            color: #ffcb2e; font-weight: 700; font-size: 13px;
+            color: #ffcb2e; font-weight: 700; font-size: 12px;
             background: rgba(0,0,0,0.4); padding: 5px 12px; border-radius: 20px;
             border: 1px solid rgba(255,203,46,0.3);
             text-shadow: 0 0 8px rgba(255,203,46,0.4);
         }
         .streak-badge {
             display: flex; align-items: center; gap: 4px;
-            color: #ff6b6b; font-weight: 700; font-size: 12px;
+            color: #ff6b6b; font-weight: 700; font-size: 11px;
             background: rgba(255,107,107,0.15); padding: 5px 10px; border-radius: 20px;
             border: 1px solid rgba(255,107,107,0.3);
         }
         .daily-mission-bar {
             width: 100%; max-width: var(--board-size);
-            background: rgba(0,0,0,0.35); border-radius: 10px; padding: 8px 14px;
+            background: rgba(0,0,0,0.35); border-radius: 10px; padding: 6px 12px;
             backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08);
-            display: flex; align-items: center; gap: 10px;
+            display: flex; align-items: center; gap: 8px;
         }
-        .daily-mission-label {
-            color: #e0e0e0; font-size: 12px; font-weight: 600; white-space: nowrap;
-        }
-        .daily-mission-track {
-            flex: 1; height: 8px; background: rgba(255,255,255,0.1);
-            border-radius: 10px; overflow: hidden;
-        }
+        .daily-mission-label { color: #e0e0e0; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .daily-mission-track { flex: 1; height: 7px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
         .daily-mission-fill {
             height: 100%; border-radius: 10px;
             background: linear-gradient(90deg, #4CAF50, #8BC34A);
             transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
-            box-shadow: 0 0 12px rgba(76,175,80,0.5);
+            box-shadow: 0 0 10px rgba(76,175,80,0.5);
         }
-        .daily-mission-count {
-            color: #ffcb2e; font-weight: 700; font-size: 13px; min-width: 36px; text-align: center;
-        }
+        .daily-mission-count { color: #ffcb2e; font-weight: 700; font-size: 12px; min-width: 30px; text-align: center; }
         .daily-mission-reward {
             background: linear-gradient(135deg, #ffcb2e, #ff9f00); color: #000;
-            padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 11px;
+            padding: 5px 10px; border-radius: 20px; font-weight: 700; font-size: 10px;
             cursor: pointer; border: none;
             box-shadow: 0 4px 0 #b37400, 0 6px 15px rgba(0,0,0,0.4);
             transition: all 0.2s; white-space: nowrap;
             transform: translateZ(4px);
         }
         .daily-mission-reward:active { transform: translateY(3px) translateZ(2px); box-shadow: 0 1px 0 #b37400, 0 3px 8px rgba(0,0,0,0.3); }
-        .daily-mission-reward:disabled { opacity: 0.5; cursor: not-allowed; }
+        .daily-mission-reward:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .board-row {
+            display: flex; gap: 6px; align-items: stretch;
+        }
+        .eval-bar-container {
+            width: var(--eval-width); min-height: var(--board-size);
+            background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
+            display: flex; flex-direction: column;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .eval-bar-black {
+            flex: 1; background: #1a1a1a; transition: flex 0.6s ease;
+            display: flex; align-items: flex-end; justify-content: center;
+            color: #888; font-size: 9px; padding-bottom: 2px;
+        }
+        .eval-bar-white {
+            flex: 1; background: #e8e8e8; transition: flex 0.6s ease;
+            display: flex; align-items: flex-start; justify-content: center;
+            color: #555; font-size: 9px; padding-top: 2px;
+        }
         .board-container {
             display: flex; flex-direction: column; align-items: center;
             background: linear-gradient(145deg, #4a3820, #3a2e16);
-            padding: 10px; border-radius: 16px;
+            padding: 8px; border-radius: 14px;
             box-shadow:
                 0 20px 50px rgba(0,0,0,0.5),
                 0 4px 0 #2a1f0e,
                 inset 0 1px 0 rgba(255,255,255,0.08);
             width: var(--board-size);
-            transform: rotateX(2deg);
+            transform: rotateX(1.5deg);
         }
         .board {
             width: var(--board-size); height: var(--board-size);
             display: grid; grid-template-columns: repeat(8, 1fr);
-            border: 5px solid #2a1f0e;
+            border: 4px solid #2a1f0e;
             box-shadow:
-                inset 0 0 30px rgba(0,0,0,0.6),
-                0 8px 0 #1a1008,
-                0 12px 25px rgba(0,0,0,0.5);
-            border-radius: 3px;
+                inset 0 0 25px rgba(0,0,0,0.5),
+                0 6px 0 #1a1008,
+                0 10px 20px rgba(0,0,0,0.5);
+            border-radius: 2px;
         }
         .square {
             position: relative; width: var(--square-size); height: var(--square-size);
@@ -109,7 +125,7 @@
         }
         .sq-light { background: #e8d5b7; }
         .sq-dark { background: #b58863; }
-        .sq-light:hover, .sq-dark:hover { filter: brightness(1.08); }
+        .sq-light:hover, .sq-dark:hover { filter: brightness(1.07); }
         .piece {
             width: var(--piece-size); height: var(--piece-size);
             cursor: grab; transition: transform 0.12s, filter 0.12s;
@@ -117,42 +133,69 @@
             filter: drop-shadow(2px 3px 3px rgba(0,0,0,0.45));
             z-index: 2;
         }
-        .piece:active { cursor: grabbing; transform: scale(1.12); filter: drop-shadow(3px 5px 5px rgba(0,0,0,0.55)); }
+        .piece:active { cursor: grabbing; transform: scale(1.1); filter: drop-shadow(3px 5px 5px rgba(0,0,0,0.55)); }
         .highlight {
-            box-shadow: inset 0 0 0 4px #ffcb2e, inset 0 0 12px rgba(255,203,46,0.4);
+            box-shadow: inset 0 0 0 3px #ffcb2e, inset 0 0 10px rgba(255,203,46,0.35);
             animation: glowPulse 0.8s ease-in-out infinite;
         }
         @keyframes glowPulse {
-            0%,100% { box-shadow: inset 0 0 0 4px #ffcb2e, inset 0 0 12px rgba(255,203,46,0.4); }
-            50% { box-shadow: inset 0 0 0 5px #ffe066, inset 0 0 18px rgba(255,203,46,0.6); }
+            0%,100% { box-shadow: inset 0 0 0 3px #ffcb2e, inset 0 0 10px rgba(255,203,46,0.35); }
+            50% { box-shadow: inset 0 0 0 4px #ffe066, inset 0 0 15px rgba(255,203,46,0.5); }
         }
         .move-dot::after {
             content: ''; position: absolute; width: var(--dot-size); height: var(--dot-size);
-            border-radius: 50%; background: rgba(0,0,0,0.22);
-            z-index: 1;
+            border-radius: 50%; background: rgba(0,0,0,0.22); z-index: 1;
         }
         .check {
-            box-shadow: inset 0 0 0 4px #ff3333, inset 0 0 16px rgba(255,51,51,0.5) !important;
+            box-shadow: inset 0 0 0 3px #ff3333, inset 0 0 14px rgba(255,51,51,0.5) !important;
             animation: checkPulse 0.6s ease-in-out infinite !important;
         }
         @keyframes checkPulse {
-            0%,100% { box-shadow: inset 0 0 0 4px #ff3333, inset 0 0 16px rgba(255,51,51,0.5); }
-            50% { box-shadow: inset 0 0 0 7px #ff5555, inset 0 0 24px rgba(255,51,51,0.7); }
+            0%,100% { box-shadow: inset 0 0 0 3px #ff3333, inset 0 0 14px rgba(255,51,51,0.5); }
+            50% { box-shadow: inset 0 0 0 6px #ff5555, inset 0 0 20px rgba(255,51,51,0.7); }
         }
         .game-info {
             display: flex; justify-content: space-between; align-items: center;
-            width: 100%; padding: 6px 8px; gap: 8px; color: #fff;
-            font-size: 13px; font-weight: 600;
+            width: 100%; padding: 4px 6px; gap: 6px; color: #fff;
+            font-size: 11px; font-weight: 600;
         }
         .timer {
-            color: #ffcb2e; font-weight: 700; font-size: 15px;
-            background: rgba(0,0,0,0.4); padding: 5px 14px; border-radius: 20px;
+            color: #ffcb2e; font-weight: 700; font-size: 14px;
+            background: rgba(0,0,0,0.4); padding: 4px 12px; border-radius: 20px;
             border: 1px solid rgba(255,203,46,0.25);
             box-shadow: 0 3px 0 rgba(0,0,0,0.3);
             transform: translateZ(3px);
         }
         .timer.low { color: #ff4444; border-color: rgba(255,68,68,0.4); animation: timerBlink 0.5s infinite; }
         @keyframes timerBlink { 50% { opacity: 0.4; } }
+        .side-panel {
+            width: var(--sidebar-width); display: flex; flex-direction: column; gap: 6px;
+            min-width: 110px;
+        }
+        .panel-box {
+            background: rgba(0,0,0,0.35); border-radius: 10px; padding: 8px;
+            border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2), 0 8px 20px rgba(0,0,0,0.3);
+        }
+        .panel-title {
+            color: #ffcb2e; font-size: 11px; font-weight: 700; margin-bottom: 6px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .notation-list {
+            max-height: 180px; overflow-y: auto; color: #ccc; font-size: 11px;
+            font-family: 'Courier New', monospace; line-height: 1.5;
+        }
+        .notation-list div { padding: 1px 0; }
+        .notation-list div:nth-child(odd) { color: #e0e0e0; }
+        .notation-list div:nth-child(even) { color: #aaa; }
+        .undo-btn {
+            width: 100%; padding: 8px; background: #5d4037; color: white;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 11px;
+            box-shadow: 0 3px 0 #3e2723, 0 5px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s; transform: translateZ(2px);
+        }
+        .undo-btn:active { transform: translateY(2px) translateZ(1px); box-shadow: 0 1px 0 #3e2723; }
+        .undo-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
@@ -167,8 +210,8 @@
         }
         .modal-content {
             background: linear-gradient(160deg, #3a2e16, #2a1f0e);
-            padding: 24px 20px; border-radius: 18px;
-            max-width: 92%; width: 420px; text-align: center;
+            padding: 22px 18px; border-radius: 16px;
+            max-width: 92%; width: 400px; text-align: center;
             box-shadow:
                 0 25px 60px rgba(0,0,0,0.6),
                 0 0 0 3px #d19a4c,
@@ -177,79 +220,95 @@
             transform-style: preserve-3d;
             border: 1px solid rgba(255,255,255,0.1);
         }
-        .modal-content h2 { color: #ffcb2e; margin-top: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.4); }
-        .modal-content h3 { color: #e0c080; margin: 8px 0; font-size: 15px; }
-        .modal-options { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; }
+        .modal-content h2 { color: #ffcb2e; margin: 0 0 8px; text-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+        .modal-content h3 { color: #e0c080; margin: 6px 0; font-size: 14px; }
+        .modal-options { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
         .modal-btn {
-            width: 100%; padding: 13px; border: none; border-radius: 12px;
+            width: 100%; padding: 12px; border: none; border-radius: 10px;
             background: #5d4037; color: white; font-weight: 700; cursor: pointer;
-            font-size: 15px; transition: all 0.2s;
+            font-size: 14px; transition: all 0.2s;
             box-shadow: 0 4px 0 #3e2723, 0 6px 12px rgba(0,0,0,0.3);
             transform: translateZ(3px);
         }
         .modal-btn:active { transform: translateY(3px) translateZ(1px); box-shadow: 0 1px 0 #3e2723, 0 3px 6px rgba(0,0,0,0.3); }
         .modal-btn.active { background: #d19a4c; box-shadow: 0 4px 0 #8b6914, 0 6px 15px rgba(209,154,76,0.4); }
-        .start-btn { background: #4CAF50; box-shadow: 0 4px 0 #2e7d32, 0 6px 15px rgba(76,175,80,0.4); font-size: 18px; margin-top: 8px; }
-        .status-mate { color: #ff4444; font-weight: 800; font-size: 1.1em; text-shadow: 0 0 12px rgba(255,68,68,0.5); }
-        .status-check { color: #ff8c00; font-weight: 700; animation: checkPulse 0.8s infinite; }
-        .thinking-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            display: none; justify-content: center; align-items: center;
-            z-index: 180; pointer-events: none;
+        .start-btn { background: #4CAF50; box-shadow: 0 4px 0 #2e7d32, 0 6px 15px rgba(76,175,80,0.4); font-size: 17px; margin-top: 6px; }
+        .status-mate { color: #ff4444; font-weight: 800; font-size: 1em; text-shadow: 0 0 12px rgba(255,68,68,0.5); }
+        .status-check { color: #ff8c00; font-weight: 700; }
+        .ai-thinking-footer {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(0,0,0,0.85); color: #ffcb2e;
+            text-align: center; padding: 12px; font-weight: 700; font-size: 15px;
+            z-index: 150; display: none;
+            border-top: 2px solid rgba(255,203,46,0.3);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+            animation: footerPulse 1.5s infinite;
         }
-        .thinking-box {
-            background: rgba(0,0,0,0.85); color: #ffcb2e; padding: 16px 28px;
-            border-radius: 16px; font-size: 17px; font-weight: 700;
-            border: 2px solid rgba(255,203,46,0.4);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 30px rgba(255,203,46,0.2);
-            animation: thinkPulse 1.5s infinite;
-        }
-        @keyframes thinkPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
-        .leaderboard-modal .modal-content { width: 440px; }
+        @keyframes footerPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .leaderboard-modal .modal-content { width: 420px; }
         .lb-row {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
-            color: #e0e0e0; font-size: 14px;
+            padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.06);
+            color: #e0e0e0; font-size: 13px;
         }
-        .lb-rank { font-weight: 800; color: #ffcb2e; min-width: 40px; }
-        .lb-name { flex: 1; text-align: left; margin: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .lb-streak { font-weight: 700; color: #ff6b6b; min-width: 50px; text-align: right; }
-        @media (max-width: 600px) {
-            .stats-bar { font-size: 11px; padding: 5px 8px; }
-            .timer { font-size: 13px; padding: 4px 10px; }
-            .game-info { font-size: 11px; }
-            .modal-content { width: 95%; padding: 18px 14px; }
+        .lb-rank { font-weight: 800; color: #ffcb2e; min-width: 36px; }
+        .lb-name { flex: 1; text-align: left; margin: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .lb-streak { font-weight: 700; color: #ff6b6b; min-width: 44px; text-align: right; }
+        @media (max-width: 700px) {
+            .side-panel { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+            .side-panel .panel-box { flex: 1; min-width: 100px; }
+            .notation-list { max-height: 100px; }
+            .eval-bar-container { display: none; }
+            .main-layout { flex-direction: column; align-items: center; }
+            .board-area { width: 100%; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Stats Bar -->
-        <div class="stats-bar" id="statsBar">
-            <div class="level-badge" id="levelBadge">🏅 Rookie</div>
-            <div class="streak-badge" id="streakBadge" style="display:none;">🔥 0</div>
-            <button class="modal-btn" id="leaderboardBtn" style="width:auto;padding:6px 14px;font-size:12px;border-radius:20px;">🏆 Top 10</button>
-        </div>
-
-        <!-- Daily Mission Bar -->
-        <div class="daily-mission-bar" id="dailyMissionBar">
-            <span class="daily-mission-label">📋 Daily: 3 Wins</span>
-            <div class="daily-mission-track"><div class="daily-mission-fill" id="dailyMissionFill" style="width:0%;"></div></div>
-            <span class="daily-mission-count" id="dailyMissionCount">0/3</span>
-            <button class="daily-mission-reward" id="dailyClaimBtn" disabled>🎁 Claim</button>
-        </div>
-
-        <!-- Board -->
-        <div class="board-container">
-            <div class="game-info">
-                <span id="gameStatus">White's turn</span>
-                <span class="timer" id="whiteTime">5:00</span>
-                <span style="color:#aaa;">vs</span>
-                <span class="timer" id="blackTime">5:00</span>
+    <div class="main-layout">
+        <div class="board-area">
+            <!-- Stats Bar -->
+            <div class="stats-bar">
+                <div class="level-badge" id="levelBadge">🏅 Rookie</div>
+                <div class="streak-badge" id="streakBadge" style="display:none;">🔥 0</div>
+                <button class="modal-btn" id="leaderboardBtn" style="width:auto;padding:5px 12px;font-size:11px;border-radius:20px;">🏆 Top 10</button>
             </div>
-            <div id="board" class="board"></div>
+            <!-- Daily Mission -->
+            <div class="daily-mission-bar">
+                <span class="daily-mission-label">📋 Daily: 3 Wins</span>
+                <div class="daily-mission-track"><div class="daily-mission-fill" id="dailyMissionFill" style="width:0%;"></div></div>
+                <span class="daily-mission-count" id="dailyMissionCount">0/3</span>
+                <button class="daily-mission-reward" id="dailyClaimBtn" disabled>🎁 50pts</button>
+            </div>
+            <!-- Board + Eval -->
+            <div class="board-row">
+                <div class="eval-bar-container" id="evalBarContainer">
+                    <div class="eval-bar-black" id="evalBarBlack">B</div>
+                    <div class="eval-bar-white" id="evalBarWhite">W</div>
+                </div>
+                <div class="board-container">
+                    <div class="game-info">
+                        <span id="gameStatus">White's turn</span>
+                        <span class="timer" id="whiteTime">5:00</span>
+                        <span style="color:#aaa;">vs</span>
+                        <span class="timer" id="blackTime">5:00</span>
+                    </div>
+                    <div id="board" class="board"></div>
+                </div>
+            </div>
+        </div>
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <div class="panel-box">
+                <div class="panel-title">📝 Notation</div>
+                <div class="notation-list" id="notationList"></div>
+            </div>
+            <button class="undo-btn" id="undoBtn" disabled>↩️ Undo (1 left)</button>
         </div>
     </div>
+
+    <!-- AI Thinking Footer -->
+    <div class="ai-thinking-footer" id="aiThinkingFooter">🤔 AI is thinking...</div>
 
     <!-- Setup Modal -->
     <div class="modal-overlay" id="setupModal">
@@ -286,12 +345,9 @@
         <div class="modal-content">
             <h2>🏆 Top Win Streaks</h2>
             <div id="leaderboardList"></div>
-            <button class="modal-btn" id="closeLbBtn" style="margin-top:10px;">Close</button>
+            <button class="modal-btn" id="closeLbBtn" style="margin-top:8px;">Close</button>
         </div>
     </div>
-
-    <!-- Thinking Overlay -->
-    <div class="thinking-overlay" id="thinkingOverlay"><div class="thinking-box">🤔 AI is thinking...</div></div>
 
     <script>
         // ==================== CONFIG ====================
@@ -299,7 +355,7 @@
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
         const TIME_CONTROL = 300;
         const DAILY_WINS_NEEDED = 3;
-        const DAILY_REWARD = 150;
+        const DAILY_REWARD = 50;
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -335,7 +391,7 @@
             if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
-        function playTone(f, d, t='sine', v=0.1) {
+        function playTone(f, d, t='sine', v=0.08) {
             if (!audioCtx) return;
             const o=audioCtx.createOscillator(), g=audioCtx.createGain();
             o.connect(g);g.connect(audioCtx.destination);
@@ -344,11 +400,11 @@
             g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d);
             o.start();o.stop(audioCtx.currentTime+d);
         }
-        function sfxMove(){ playTone(600,0.08); }
-        function sfxCapture(){ playTone(800,0.12,'triangle'); }
-        function sfxCheck(){ playTone(1200,0.12);setTimeout(()=>playTone(900,0.12),80); }
-        function sfxMate(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.25,'sine',0.15),i*100)); }
-        function sfxClaim(){ [440,554,660,880].forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'sine',0.12),i*80)); }
+        function sfxMove(){ playTone(600,0.07); }
+        function sfxCapture(){ playTone(800,0.1,'triangle'); }
+        function sfxCheck(){ playTone(1200,0.1);setTimeout(()=>playTone(900,0.1),70); }
+        function sfxMate(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.22,'sine',0.13),i*90)); }
+        function sfxClaim(){ [440,554,660,880].forEach((f,i)=>setTimeout(()=>playTone(f,0.18,'sine',0.1),i*70)); }
         function haptic(type='medium'){ window.Telegram?.WebApp?.HapticFeedback?.impactOccurred(type); }
 
         // ==================== TELEGRAM MAIN BUTTON ====================
@@ -363,13 +419,8 @@
 
         // ==================== LEVEL SYSTEM ====================
         const LEVELS = [
-            { name: 'Rookie', min: 0 },
-            { name: 'Beginner', min: 10 },
-            { name: 'Intermediate', min: 25 },
-            { name: 'Advanced', min: 50 },
-            { name: 'Expert', min: 100 },
-            { name: 'Master', min: 200 },
-            { name: 'Grandmaster', min: 500 }
+            { name: 'Rookie', min: 0 }, { name: 'Beginner', min: 10 }, { name: 'Intermediate', min: 25 },
+            { name: 'Advanced', min: 50 }, { name: 'Expert', min: 100 }, { name: 'Master', min: 200 }, { name: 'Grandmaster', min: 500 }
         ];
         function getTotalWins() { return parseInt(localStorage.getItem('chess_total_wins')||'0'); }
         function addTotalWin() { const w = getTotalWins()+1; localStorage.setItem('chess_total_wins', w.toString()); updateLevelUI(); return w; }
@@ -388,36 +439,39 @@
         function getDailyWins() { return parseInt(localStorage.getItem(getDailyKey())||'0'); }
         function addDailyWin() {
             const key = getDailyKey(); const w = getDailyWins()+1;
-            localStorage.setItem(key, w.toString()); updateDailyUI(); return w;
+            localStorage.setItem(key, w.toString()); updateDailyUI();
+            if (w === DAILY_WINS_NEEDED && !isDailyClaimed()) {
+                autoClaimDailyReward();
+            }
+            return w;
         }
         function isDailyClaimed() { return localStorage.getItem(getDailyKey()+'_claimed')==='true'; }
         function setDailyClaimed() { localStorage.setItem(getDailyKey()+'_claimed', 'true'); }
+        async function autoClaimDailyReward() {
+            if (isDailyClaimed()) return;
+            setDailyClaimed();
+            sfxClaim(); haptic('heavy');
+            await sendScoreToBackend(DAILY_REWARD, 'daily_mission');
+            updateDailyUI();
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#4CAF50;color:#fff;padding:10px 24px;border-radius:20px;font-weight:700;z-index:300;box-shadow:0 8px 20px rgba(0,0,0,0.4);';
+            toast.textContent = `🎉 Daily Mission Complete! +${DAILY_REWARD} pts!`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
         function updateDailyUI() {
             const w = getDailyWins(), claimed = isDailyClaimed();
             const pct = Math.min(100, (w/DAILY_WINS_NEEDED)*100);
             document.getElementById('dailyMissionFill').style.width = pct+'%';
             document.getElementById('dailyMissionCount').textContent = `${Math.min(w,DAILY_WINS_NEEDED)}/${DAILY_WINS_NEEDED}`;
             const btn = document.getElementById('dailyClaimBtn');
-            if (claimed) {
-                btn.textContent = '✅ Done'; btn.disabled = true;
-                btn.style.background = '#666'; btn.style.boxShadow = '0 3px 0 #444';
-            } else if (w >= DAILY_WINS_NEEDED) {
-                btn.textContent = '🎁 Claim'; btn.disabled = false;
-                btn.style.background = 'linear-gradient(135deg, #ffcb2e, #ff9f00)';
-            } else {
-                btn.textContent = '🔒 Claim'; btn.disabled = true;
-                btn.style.background = '#555'; btn.style.boxShadow = '0 3px 0 #333';
-            }
+            if (claimed) { btn.textContent = '✅ Done'; btn.disabled = true; btn.style.background = '#666'; }
+            else if (w >= DAILY_WINS_NEEDED) { btn.textContent = '🎁 50pts'; btn.disabled = false; btn.style.background = 'linear-gradient(135deg, #ffcb2e, #ff9f00)'; }
+            else { btn.textContent = '🔒 50pts'; btn.disabled = true; btn.style.background = '#555'; }
         }
-
         document.getElementById('dailyClaimBtn').addEventListener('click', async () => {
             if (isDailyClaimed() || getDailyWins() < DAILY_WINS_NEEDED) return;
-            setDailyClaimed();
-            sfxClaim();
-            haptic('heavy');
-            await sendScoreToBackend(DAILY_REWARD, 'daily_mission');
-            updateDailyUI();
-            alert(`🎉 Daily Mission Complete! +${DAILY_REWARD} points!`);
+            await autoClaimDailyReward();
         });
 
         // ==================== WIN STREAK ====================
@@ -428,24 +482,19 @@
             const badge = document.getElementById('streakBadge');
             if (s >= 2) {
                 badge.style.display = 'flex'; badge.textContent = `🔥 ${s}`;
-                if (s >= 5) badge.style.color = '#ff4444';
-                else if (s >= 3) badge.style.color = '#ff8c00';
-                else badge.style.color = '#ff6b6b';
+                badge.style.color = s >= 5 ? '#ff4444' : s >= 3 ? '#ff8c00' : '#ff6b6b';
             } else { badge.style.display = 'none'; }
         }
 
         // ==================== LEADERBOARD ====================
-        function getLocalLeaderboard() {
-            return JSON.parse(localStorage.getItem('chess_leaderboard')||'[]');
-        }
+        function getLocalLeaderboard() { return JSON.parse(localStorage.getItem('chess_leaderboard')||'[]'); }
         function updateLeaderboard(streak) {
             const lb = getLocalLeaderboard();
             const existing = lb.find(e => e.userId === userId);
             if (existing) { if (streak > existing.streak) existing.streak = streak; }
             else { lb.push({ userId, name: userId.substr(-6), streak }); }
             lb.sort((a,b) => b.streak - a.streak);
-            const top10 = lb.slice(0, 10);
-            localStorage.setItem('chess_leaderboard', JSON.stringify(top10));
+            localStorage.setItem('chess_leaderboard', JSON.stringify(lb.slice(0, 10)));
         }
         function showLeaderboard() {
             const lb = getLocalLeaderboard();
@@ -454,9 +503,70 @@
                     <span class="lb-rank">${i+1}. ${i===0?'🥇':i===1?'🥈':i===2?'🥉':''}</span>
                     <span class="lb-name">${e.userId===userId?'⭐ You':e.name}</span>
                     <span class="lb-streak">🔥 ${e.streak}</span>
-                </div>`).join('') : '<p style="color:#aaa;">No players yet. Play to rank!</p>';
+                </div>`).join('') : '<p style="color:#aaa;">No players yet.</p>';
             document.getElementById('leaderboardList').innerHTML = html;
             document.getElementById('leaderboardModal').style.display = 'flex';
+        }
+
+        // ==================== NOTATION & UNDO ====================
+        let moveHistory = [];
+        let capturedHistory = [];
+        let undoUsed = false;
+        const notationList = document.getElementById('notationList');
+        const undoBtn = document.getElementById('undoBtn');
+
+        function addNotation(move, captured) {
+            const piece = board[move.to.r][move.to.c];
+            const pieceSymbol = { p:'', n:'N', b:'B', r:'R', q:'Q', k:'K' }[piece.type];
+            const files = 'abcdefgh';
+            const from = files[move.from.c] + (8 - move.from.r);
+            const to = files[move.to.c] + (8 - move.to.r);
+            const cap = captured ? 'x' : '-';
+            const text = `${pieceSymbol}${from}${cap}${to}`;
+            moveHistory.push({ move, captured, text });
+            const div = document.createElement('div');
+            div.textContent = text;
+            notationList.appendChild(div);
+            notationList.scrollTop = notationList.scrollHeight;
+            updateUndoButton();
+        }
+
+        function undoLastMove() {
+            if (undoUsed || moveHistory.length < 2) return;
+            undoUsed = true;
+            // Undo AI move + player move
+            for (let i = 0; i < 2 && moveHistory.length > 0; i++) {
+                const last = moveHistory.pop();
+                board[last.move.from.r][last.move.from.c] = board[last.move.to.r][last.move.to.c];
+                board[last.move.to.r][last.move.to.c] = last.captured;
+                whiteToMove = !whiteToMove;
+                notationList.removeChild(notationList.lastChild);
+            }
+            selected = null; legalMoves = [];
+            gameActive = true; kingInCheck = false;
+            checkGameState();
+            render();
+            updateUndoButton();
+            if (gameActive && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 300);
+        }
+
+        function updateUndoButton() {
+            undoBtn.disabled = undoUsed || moveHistory.length < 2 || !gameActive;
+            undoBtn.textContent = undoUsed ? '↩️ Undo (used)' : '↩️ Undo (1 left)';
+        }
+
+        // ==================== EVALUATION BAR ====================
+        function updateEvalBar() {
+            let whiteScore = 0, blackScore = 0;
+            for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
+                const p = board[r][c]; if (!p) continue;
+                const v = PIECE_VALUES[p.type];
+                if (p.color === 'w') whiteScore += v; else blackScore += v;
+            }
+            const total = whiteScore + blackScore || 1;
+            const whitePct = Math.max(5, Math.min(95, (whiteScore / total) * 100));
+            document.getElementById('evalBarWhite').style.flex = whitePct;
+            document.getElementById('evalBarBlack').style.flex = (100 - whitePct);
         }
 
         // ==================== DOM REFS ====================
@@ -464,7 +574,7 @@
         const gameStatusEl = document.getElementById('gameStatus');
         const whiteTimeEl = document.getElementById('whiteTime');
         const blackTimeEl = document.getElementById('blackTime');
-        const thinkingOverlay = document.getElementById('thinkingOverlay');
+        const aiFooter = document.getElementById('aiThinkingFooter');
         const setupModal = document.getElementById('setupModal');
         const postGameModal = document.getElementById('postGameModal');
         const savedGameInfo = document.getElementById('savedGameInfo');
@@ -472,14 +582,10 @@
 
         // ==================== GAME STATE ====================
         const START_POSITION = [
-            ['r','n','b','q','k','b','n','r'],
-            ['p','p','p','p','p','p','p','p'],
-            [null,null,null,null,null,null,null,null],
-            [null,null,null,null,null,null,null,null],
-            [null,null,null,null,null,null,null,null],
-            [null,null,null,null,null,null,null,null],
-            ['P','P','P','P','P','P','P','P'],
-            ['R','N','B','Q','K','B','N','R']
+            ['r','n','b','q','k','b','n','r'],['p','p','p','p','p','p','p','p'],
+            [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
+            [null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],
+            ['P','P','P','P','P','P','P','P'],['R','N','B','Q','K','B','N','R']
         ];
         const PIECE_VALUES = { p:100, n:320, b:330, r:500, q:900, k:20000 };
         const PAWN_TABLE = [
@@ -497,8 +603,7 @@
         let board = [], whiteToMove = true, selected = null, legalMoves = [];
         let gameActive = false, aiColor = 'b', playerColor = 'w', kingInCheck = false;
         let whiteTimeLeft = TIME_CONTROL, blackTimeLeft = TIME_CONTROL, timerInterval = null;
-        let isDailyChallenge = false;
-        let postGamePending = false; // Debounce για το game over bug
+        let isDailyChallenge = false, postGamePending = false, flipped = false;
 
         // ==================== WEB WORKER ====================
         let aiWorker = null;
@@ -532,8 +637,8 @@
             `;
             aiWorker = new Worker(URL.createObjectURL(new Blob([code], {type:'application/javascript'})));
             aiWorker.onmessage = function(e) {
-                thinkingOverlay.style.display = 'none';
-                if (e.data && gameActive) {
+                aiFooter.style.display = 'none';
+                if (e.data && gameActive && !postGamePending) {
                     movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c);
                     render();
                 }
@@ -546,13 +651,16 @@
             if (colorChoice === 'random') colorChoice = Math.random() < 0.5 ? 'white' : 'black';
             playerColor = colorChoice === 'white' ? 'w' : 'b';
             aiColor = playerColor === 'w' ? 'b' : 'w';
+            flipped = (playerColor === 'b'); // Board orientation: αν ο παίκτης είναι μαύρος, περιστροφή
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
             kingInCheck = false; whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL;
-            isDailyChallenge = false; postGamePending = false;
+            isDailyChallenge = false; postGamePending = false; undoUsed = false;
+            moveHistory = []; notationList.innerHTML = '';
             clearInterval(timerInterval); startTimer();
-            updateTimerDisplay(); render();
-            if (aiColor === 'w') setTimeout(makeAIMove, 400);
+            updateTimerDisplay(); updateEvalBar(); render();
+            updateUndoButton();
+            if (aiColor === 'w') setTimeout(makeAIMove, 500);
             setupMainButton('🏳️ Resign', () => {
                 if (!gameActive) return;
                 gameActive = false; clearInterval(timerInterval);
@@ -563,20 +671,19 @@
         function loadDailyChallenge() {
             initAudio();
             const puzzles = [
-                { fen: 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 0 1', desc: 'Mate in 1' },
-                { fen: 'rnbqkbnr/ppp2ppp/3p4/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1', desc: 'Mate in 1' },
-                { fen: 'r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1', desc: 'Mate in 1' }
+                { desc: 'Mate in 1' }, { desc: 'Mate in 1' }, { desc: 'Mate in 1' }
             ];
             const idx = new Date().toDateString().split('').reduce((a,c) => a + c.charCodeAt(0), 0) % puzzles.length;
-            playerColor = 'w'; aiColor = 'b';
+            playerColor = 'w'; aiColor = 'b'; flipped = false;
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
             kingInCheck = false; whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL;
-            isDailyChallenge = true; postGamePending = false;
+            isDailyChallenge = true; postGamePending = false; undoUsed = false;
+            moveHistory = []; notationList.innerHTML = '';
             clearInterval(timerInterval); startTimer();
-            updateTimerDisplay();
+            updateTimerDisplay(); updateEvalBar();
             gameStatusEl.textContent = `📅 Daily: ${puzzles[idx].desc}`;
-            render();
+            render(); updateUndoButton();
             setupMainButton('Give Up', () => {
                 if (!gameActive) return;
                 gameActive = false; clearInterval(timerInterval);
@@ -587,7 +694,7 @@
         function startTimer() {
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
-                if (!gameActive) return;
+                if (!gameActive || postGamePending) return;
                 if (whiteToMove) {
                     whiteTimeLeft--;
                     if (whiteTimeLeft <= 0) { gameActive = false; showPostGame('Black', 'timeout'); }
@@ -609,7 +716,11 @@
 
         function saveGame() {
             if (!gameActive) { localStorage.removeItem('chess_saved'); return; }
-            localStorage.setItem('chess_saved', JSON.stringify({ board, whiteToMove, aiColor, playerColor, gameActive, whiteTimeLeft, blackTimeLeft, isDailyChallenge }));
+            localStorage.setItem('chess_saved', JSON.stringify({
+                board, whiteToMove, aiColor, playerColor, gameActive,
+                whiteTimeLeft, blackTimeLeft, isDailyChallenge, flipped,
+                moveHistory, undoUsed
+            }));
         }
         function loadGame() {
             const s = localStorage.getItem('chess_saved');
@@ -619,19 +730,27 @@
                 board = d.board; whiteToMove = d.whiteToMove; aiColor = d.aiColor;
                 playerColor = d.playerColor; gameActive = d.gameActive;
                 whiteTimeLeft = d.whiteTimeLeft; blackTimeLeft = d.blackTimeLeft;
-                isDailyChallenge = d.isDailyChallenge || false; return true;
+                isDailyChallenge = d.isDailyChallenge || false;
+                flipped = d.flipped || false; moveHistory = d.moveHistory || [];
+                undoUsed = d.undoUsed || false;
+                notationList.innerHTML = '';
+                moveHistory.forEach(m => {
+                    const div = document.createElement('div');
+                    div.textContent = m.text; notationList.appendChild(div);
+                });
+                return true;
             } catch(e) { return false; }
         }
 
         function makeAIMove() {
             if (!gameActive || postGamePending || whiteToMove !== (aiColor === 'w')) return;
-            thinkingOverlay.style.display = 'flex';
+            aiFooter.style.display = 'block';
             const boardCopy = board.map(r => r.map(c => c ? { ...c } : null));
             if (aiWorker) aiWorker.postMessage({ board: boardCopy, aiColor, depth: 5 });
-            else setTimeout(() => { thinkingOverlay.style.display = 'none'; }, 100);
+            else setTimeout(() => { aiFooter.style.display = 'none'; }, 100);
         }
 
-        // ==================== RENDER & INTERACTION ====================
+        // ==================== RENDER ====================
         function render() {
             boardEl.innerHTML = '';
             let kingInCheckPos = null;
@@ -641,28 +760,32 @@
                     const p=board[r][c]; if(p&&p.type==='k'&&p.color===col){kingInCheckPos={r,c};break;}
                 }
             }
-            for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
-                const sq = document.createElement('div');
-                sq.className = 'square '+((r+c)%2?'sq-dark':'sq-light');
-                sq.dataset.r = r; sq.dataset.c = c;
-                if (kingInCheckPos && kingInCheckPos.r===r && kingInCheckPos.c===c) sq.classList.add('check');
-                if (legalMoves.some(m=>m.r===r&&m.c===c)) sq.classList.add('move-dot');
-                if (selected && selected.r===r && selected.c===c) sq.classList.add('highlight');
-                const piece = board[r][c];
-                if (piece) {
-                    const img = document.createElement('img');
-                    img.src = getPieceImg(piece.type, piece.color);
-                    img.className = 'piece'; img.draggable = true;
-                    if (gameActive && whiteToMove !== (aiColor==='w')) {
-                        img.addEventListener('click', e => { e.stopPropagation(); handleClick(r,c); });
+            const rows = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+            const cols = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+            for (const r of rows) {
+                for (const c of cols) {
+                    const sq = document.createElement('div');
+                    sq.className = 'square '+((r+c)%2?'sq-dark':'sq-light');
+                    sq.dataset.r = r; sq.dataset.c = c;
+                    if (kingInCheckPos && kingInCheckPos.r===r && kingInCheckPos.c===c) sq.classList.add('check');
+                    if (legalMoves.some(m=>m.r===r&&m.c===c)) sq.classList.add('move-dot');
+                    if (selected && selected.r===r && selected.c===c) sq.classList.add('highlight');
+                    const piece = board[r][c];
+                    if (piece) {
+                        const img = document.createElement('img');
+                        img.src = getPieceImg(piece.type, piece.color);
+                        img.className = 'piece'; img.draggable = true;
+                        if (gameActive && whiteToMove !== (aiColor==='w')) {
+                            img.addEventListener('click', e => { e.stopPropagation(); handleClick(r,c); });
+                        }
+                        sq.appendChild(img);
                     }
-                    sq.appendChild(img);
+                    if (gameActive && whiteToMove !== (aiColor==='w')) sq.addEventListener('click', () => handleClick(r,c));
+                    boardEl.appendChild(sq);
                 }
-                if (gameActive && whiteToMove !== (aiColor==='w')) sq.addEventListener('click', () => handleClick(r,c));
-                boardEl.appendChild(sq);
             }
             gameStatusEl.textContent = gameActive ? `${whiteToMove?'White':'Black'}'s turn` : '';
-            updateTimerDisplay();
+            updateTimerDisplay(); updateEvalBar();
         }
 
         function handleClick(r, c) {
@@ -688,6 +811,7 @@
             if (captured) { sfxCapture(); haptic('heavy'); } else { sfxMove(); haptic('light'); }
             const piece = board[tr][tc];
             if (piece && piece.type === 'p' && (tr === 0 || tr === 7)) piece.type = 'q';
+            addNotation({ from: {r:sr,c:sc}, to: {r:tr,c:tc} }, captured);
             checkGameState();
             if (kingInCheck) sfxCheck();
             saveGame();
@@ -708,7 +832,6 @@
             kingInCheck = isKingInCheckSync(board, color);
             const hasMoves = getAllLegalMovesSync(board, color).length > 0;
             if (!hasMoves) {
-                // *** FIX: Debounce – καθυστέρηση 500ms πριν το modal ***
                 postGamePending = true;
                 const winner = kingInCheck ? (color === 'w' ? 'Black' : 'White') : null;
                 const resultType = kingInCheck ? 'checkmate' : 'stalemate';
@@ -732,7 +855,7 @@
             }
         }
 
-        // ==================== SYNC HELPERS (για γρήγορη πρόσβαση) ====================
+        // ==================== SYNC HELPERS ====================
         function getMovesSync(b, r, c) {
             const p = b[r][c]; if (!p) return [];
             const m = [], col = p.color, d = col === 'w' ? -1 : 1;
@@ -803,6 +926,7 @@
         // ==================== POST-GAME ====================
         function showPostGame(winner, resultType) {
             gameActive = false; clearInterval(timerInterval);
+            aiFooter.style.display = 'none';
             localStorage.removeItem('chess_saved'); hideMainButton();
             let baseScore = 0, title = '', message = '';
             const isPlayerWin = winner && ((playerColor==='w'&&winner==='White')||(playerColor==='b'&&winner==='Black'));
@@ -810,7 +934,7 @@
             if (resultType === 'checkmate') {
                 baseScore = isPlayerWin ? 100 : 0;
                 title = isPlayerWin ? '🎉 You Win!' : '😞 AI Wins';
-                message = isPlayerWin ? 'Checkmate! You defeated the AI!' : 'The AI checkmated you.';
+                message = isPlayerWin ? 'Checkmate!' : 'AI checkmated you.';
             } else if (resultType === 'stalemate') {
                 baseScore = 25; title = '🤝 Draw'; message = 'Stalemate.';
             } else if (resultType === 'timeout') {
@@ -822,26 +946,25 @@
                 baseScore = 0; title = '📅 Challenge Failed';
             }
 
-            // Win streak
             if (isPlayerWin && resultType === 'checkmate') {
                 const streak = getWinStreak() + 1; setWinStreak(streak);
-                updateLeaderboard(streak);
-                addTotalWin();
-                addDailyWin();
-                if (streak >= 5) { baseScore = Math.floor(baseScore * 2); message += ` 🔥 ${streak}x Streak! (2x)`; }
-                else if (streak >= 3) { baseScore = Math.floor(baseScore * 1.5); message += ` ⚡ ${streak}x Streak! (1.5x)`; }
+                updateLeaderboard(streak); addTotalWin(); addDailyWin();
+                if (streak >= 5) { baseScore = Math.floor(baseScore * 2); message += ` 🔥 ${streak}x (2x)`; }
+                else if (streak >= 3) { baseScore = Math.floor(baseScore * 1.5); message += ` ⚡ ${streak}x (1.5x)`; }
             } else if (!isPlayerWin && resultType !== 'stalemate') {
                 setWinStreak(0);
             }
 
             document.getElementById('postGameTitle').textContent = title;
             document.getElementById('postGameMessage').textContent = message;
-            document.getElementById('streakInfo').innerHTML = getWinStreak() >= 2 ? `<span class="streak-badge">🔥 ${getWinStreak()} Win Streak</span>` : '';
+            document.getElementById('streakInfo').innerHTML = getWinStreak() >= 2 ? `<span class="streak-badge">🔥 ${getWinStreak()}</span>` : '';
             const levelUpInfo = document.getElementById('levelUpInfo');
             levelUpInfo.style.display = 'none';
-            const prevLevel = getLevel().name;
-            if (isPlayerWin) {
+            if (isPlayerWin && resultType === 'checkmate') {
                 const newLevel = getLevel().name;
+                const prevWins = getTotalWins() - 1;
+                let prevLevel = 'Rookie';
+                for (let i = LEVELS.length-1; i >= 0; i--) if (prevWins >= LEVELS[i].min) { prevLevel = LEVELS[i].name; break; }
                 if (prevLevel !== newLevel) {
                     levelUpInfo.textContent = `⬆️ Level Up: ${newLevel}!`;
                     levelUpInfo.style.display = 'block';
@@ -864,7 +987,7 @@
         document.getElementById('resumeGameBtn').addEventListener('click', () => {
             if (loadGame()) {
                 setupModal.style.display = 'none';
-                startTimer(); updateTimerDisplay(); render();
+                startTimer(); updateTimerDisplay(); updateEvalBar(); render(); updateUndoButton();
                 if (gameActive && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 400);
                 setupMainButton('🏳️ Resign', () => {
                     gameActive = false; clearInterval(timerInterval);
@@ -885,6 +1008,7 @@
         document.getElementById('closeLbBtn').addEventListener('click', () => {
             document.getElementById('leaderboardModal').style.display = 'none';
         });
+        undoBtn.addEventListener('click', undoLastMove);
         function checkSaved() {
             const has = !!localStorage.getItem('chess_saved');
             savedGameInfo.style.display = has ? 'block' : 'none';
