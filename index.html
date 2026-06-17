@@ -14,6 +14,39 @@
     <!-- Monetag SDK -->
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
+    <!-- ΚΡΙΣΙΜΗ ΠΡΟΣΘΗΚΗ: Διόρθωση για να ανοίγουν τα links στο Telegram Mini App -->
+    <script>
+        (function fixTelegramLinks() {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const originalOpen = window.open;
+                window.open = function(url, target, features) {
+                    try {
+                        // Δημιουργούμε έναν πραγματικό σύνδεσμο και κάνουμε click
+                        // Αυτό παρακάμπτει το "Open link?" popup του Telegram
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (e) {
+                        console.warn("Fallback to Telegram.WebApp.openLink:", e);
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            Telegram.WebApp.openLink(url);
+                        } else {
+                            originalOpen(url, target, features);
+                        }
+                    }
+                    return null;
+                };
+                console.log("✅ Επιδιορθώθηκε το window.open για να λειτουργεί μέσα στο Telegram!");
+            } else {
+                console.warn("⚠️ Το παιχνίδι δεν τρέχει σε Telegram WebApp.");
+            }
+        })();
+    </script>
+
     <style>
         :root {
             --bg-primary: #121214;
@@ -1009,13 +1042,14 @@
             }
         }
 
+        // ΕΔΩ ΑΛΛΑΞΑ ΤΗ ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΝΑ ΚΑΛΕΙ ΤΟ 'pop'
         function callMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_11108267 === 'function') {
-                    show_11108267().then(resolve).catch(reject);
+                    show_11108267('pop').then(resolve).catch(reject);
                 } else {
                     setTimeout(() => {
-                        if (typeof show_11108267 === 'function') show_11108267().then(resolve).catch(reject);
+                        if (typeof show_11108267 === 'function') show_11108267('pop').then(resolve).catch(reject);
                         else resolve();
                     }, 500);
                 }
@@ -1077,7 +1111,6 @@
         async function syncMissionProgress() {
             try {
                 const data = await apiCall('GET', `/missions?userId=${userId}`);
-                // Υποθέτουμε ότι το backend επιστρέφει: { chess: { wins: number, claimed: boolean }, connect4: { wins: number, claimed: boolean } }
                 if (data.chess) {
                     localStorage.setItem(CHESS_WINS_KEY, data.chess.wins);
                     localStorage.setItem(CHESS_CLAIMED_KEY, data.chess.claimed ? 'true' : 'false');
@@ -1086,7 +1119,6 @@
                     localStorage.setItem(C4_WINS_KEY, data.connect4.wins);
                     localStorage.setItem(C4_CLAIMED_KEY, data.connect4.claimed ? 'true' : 'false');
                 }
-                // Αφού ενημερωθούν τα τοπικά δεδομένα, ανανέωσε το UI
                 updateMissionsUI();
             } catch (e) {
                 console.warn('Sync mission progress failed', e);
@@ -1095,7 +1127,7 @@
 
         function refreshAll() { 
             refreshUI(); 
-            syncMissionProgress(); // Συγχρονισμός αποστολών από server
+            syncMissionProgress(); 
             if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); 
         }
 
@@ -1291,7 +1323,6 @@
                 setWins(key, current + 1);
                 updateMissionsUI();
                 showToast('+1 Win!');
-                // Στείλε και στο backend την ενημέρωση (το παιχνίδι το κάνει ήδη, αλλά για σιγουριά)
             }
         }
 
@@ -1305,7 +1336,6 @@
                 setClaimed(claimedKey, true);
                 updateMissionsUI();
                 showToast(`+${REWARD_AMOUNT} Points!`);
-                // Ενημέρωσε και το backend ότι έγινε claim
                 await apiCall('POST', '/missions/claim', { userId, game: key === CHESS_WINS_KEY ? 'chess' : 'connect4' });
             } catch(e) {
                 showToast('Error claiming reward. Try again.');
@@ -1373,6 +1403,11 @@
                 case 'watchAdForRolls':
                     await callMonetagAd();
                     await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value || 5 });
+                    refreshUI();
+                    break;
+                // ΠΡΟΣΘΗΚΗ: Ενημέρωση για την ενέργεια από το Board
+                case 'addEnergy':
+                    await apiCall('POST', '/add-free-rolls', { userId, rolls: data.value });
                     refreshUI();
                     break;
                 case 'updateMission':
@@ -1533,12 +1568,10 @@
             refreshAll();
             updateMissionsUI();
 
-            // Καθημερινό reset (μόνο αν ο server δεν το κάνει)
+            // Καθημερινό reset
             const lastReset = localStorage.getItem('frankly_daily_reset');
             const today = new Date().toDateString();
             if (lastReset !== today) {
-                // Μηδενισμός μόνο αν δεν έχει γίνει claim (ο server θα στείλει τα σωστά)
-                // Οπότε απλά καθαρίζουμε για να μην υπάρχουν παλιά δεδομένα
                 if (!isClaimed(CHESS_CLAIMED_KEY)) setWins(CHESS_WINS_KEY, 0);
                 if (!isClaimed(C4_CLAIMED_KEY)) setWins(C4_WINS_KEY, 0);
                 localStorage.setItem('frankly_daily_reset', today);
