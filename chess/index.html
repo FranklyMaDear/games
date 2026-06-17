@@ -8,27 +8,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="index.png">
     <link rel="icon" type="image/png" sizes="16x16" href="index.png">
     <link rel="apple-touch-icon" sizes="180x180" href="index.png">
-    <link rel="mask-icon" href="safari-pinned-tab.svg" color="#5bb5ad">
-    <meta name="msapplication-TileColor" content="#da532c">
     <meta name="theme-color" content="#1e3c72">
-    
-    <meta property="og:title" content="Chess Deluxe Pro">
-    <meta property="og:description" content="Play Chess Deluxe Pro with sound effects, multiple AI difficulties, and stunning visuals.">
-    <meta property="og:image" content="index.png">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="512">
-    <meta property="og:image:height" content="512">
-    <meta property="og:url" content="https://yourwebsite.com/chess">
-    <meta property="og:type" content="website">
-    
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Chess Deluxe Pro">
-    <meta name="twitter:description" content="Play Chess Deluxe Pro: Two Players or vs AI. Sound effects, celebrations, and more!">
-    <meta name="twitter:image" content="index.png">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Chess Pro">
     
     <!-- Monetag SDK -->
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
@@ -207,6 +189,8 @@
         .difficulty-btn.active { background: #d19a4c; }
         .game-mode-btn { background: #2a5298; }
         .game-mode-btn.active { background: #d19a4c; }
+        .first-player-btn { background: #5d4037; }
+        .first-player-btn.active { background: #d19a4c; }
         
         .status-check { color: #ff6b6b; font-weight: bold; }
         .status-mate { color: #ff0000; font-weight: bold; font-size: 1.2em; }
@@ -311,6 +295,7 @@
     
     <div class="thinking" id="thinkingIndicator">AI is thinking...</div>
     
+    <!-- WELCOME / SETUP MODAL -->
     <div class="modal" id="welcomeModal">
         <div class="modal-content">
             <h2>♕ Chess Deluxe Pro ♛</h2>
@@ -324,11 +309,18 @@
                 <button class="modal-btn difficulty-btn" data-depth="2">Easy</button>
                 <button class="modal-btn difficulty-btn" data-depth="3">Medium</button>
                 <button class="modal-btn difficulty-btn active" data-depth="4">Hard</button>
+                <button class="modal-btn difficulty-btn" data-depth="5">Extreme</button>
+            </div>
+            <div class="first-player-selector" id="firstPlayerSelector" style="display: none; margin: 15px 0;">
+                <h3 style="color: white; margin: 10px 0;">Who plays first?</h3>
+                <button class="modal-btn first-player-btn active" data-first="player">You (White)</button>
+                <button class="modal-btn first-player-btn" data-first="ai">AI (White)</button>
             </div>
             <button class="modal-btn start-btn" id="startGameBtn">Start Game</button>
         </div>
     </div>
     
+    <!-- POST-GAME MODAL -->
     <div class="modal post-game-modal" id="postGameModal" style="display: none;">
         <div class="modal-content">
             <h2 class="post-game-title" id="postGameTitle">🎉 Congratulations!</h2>
@@ -340,6 +332,7 @@
         </div>
     </div>
     
+    <!-- PROMOTION MODAL -->
     <div class="promotion-modal" id="promotionModal">
         <div class="promotion-options" id="promotionOptions"></div>
     </div>
@@ -355,88 +348,67 @@
         const API_ENDPOINT = "https://franklymadear-games.hf.space";
         const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
 
-        // ========== USER ID MANAGEMENT ==========
+        // ========== USER ID (κοινό με το hub) ==========
         let userId = localStorage.getItem('franklymadear_userId');
-        console.log('♟️ Chess initial userId from localStorage:', userId);
-
-        // Προσπάθεια λήψης userId από Telegram initData
         if (!userId && window.Telegram && window.Telegram.WebApp) {
             const initData = window.Telegram.WebApp.initDataUnsafe;
             if (initData && initData.user) {
                 userId = 'tg_' + initData.user.id;
                 localStorage.setItem('franklymadear_userId', userId);
-                console.log('♟️ Created userId from Telegram:', userId);
             }
         }
+        if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substr(2,9) + '_' + Date.now();
+            localStorage.setItem('franklymadear_userId', userId);
+        }
 
-        // Listener για postMessage (όταν το hub στέλνει userId)
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'setUserId') {
                 userId = event.data.userId;
                 localStorage.setItem('franklymadear_userId', userId);
-                console.log('♟️ Received userId via postMessage:', userId);
             }
         });
 
-        // ========== SEND SCORE DIRECTLY TO BACKEND ==========
+        // ========== API CALL HELPER ==========
+        async function apiCall(method, path, body = null) {
+            const headers = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY };
+            const res = await fetch(API_ENDPOINT + path, { method, headers, body: body ? JSON.stringify(body) : null });
+            if (!res.ok) throw new Error((await res.json()).detail || 'Request failed');
+            return res.json();
+        }
+
+        // ========== SEND SCORE & MISSION UPDATE TO BACKEND + HUB ==========
         async function sendScoreToBackend(score, gameResult) {
-            console.log('♟️ Sending score to backend:', { score, gameResult, userId });
-            
-            if (!userId) {
-                console.log('♟️ No userId available, cannot send score');
-                return;
-            }
-
+            if (!userId) return;
             try {
-                // 1. Πόντοι
-                const pointsRes = await fetch(API_ENDPOINT + '/add-points', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': API_KEY
-                    },
-                    body: JSON.stringify({
-                        userId: userId,
-                        game: 'Chess',
-                        points: score
-                    })
-                });
-                const pointsData = await pointsRes.json();
-                console.log('♟️ Points added:', pointsData);
-
-                // 2. Missions update
-                const missionRes = await fetch(API_ENDPOINT + '/missions/update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': API_KEY
-                    },
-                    body: JSON.stringify({
-                        userId: userId,
-                        game: 'Chess',
-                        score: score,
-                        playtime: 1,
-                        words: 0
-                    })
-                });
-                const missionData = await missionRes.json();
-                console.log('♟️ Missions updated:', missionData);
-
-                // 3. Ενημερώνουμε το hub (αν είναι ανοιχτό) μέσω postMessage
-                if (window.opener) {
-                    window.opener.postMessage({
+                // 1. Προσθήκη πόντων
+                await apiCall('POST', '/add-points', { userId, game: 'Chess', points: score });
+                // 2. Ενημέρωση αποστολών
+                await apiCall('POST', '/missions/update', { userId, game: 'chess', score, playtime: 1, words: 0 });
+                
+                // 3. Άμεση ενημέρωση του hub (αν είναι ανοιχτό)
+                if (window.parent !== window) {
+                    // Στέλνουμε updateMission για να μετρήσει η νίκη στο Daily Rewards
+                    if (gameResult === 'checkmate') {
+                        window.parent.postMessage({
+                            type: 'updateMission',
+                            game: 'chess',
+                            result: 'win'
+                        }, '*');
+                    }
+                    // Στέλνουμε και gameScore για άμεσο refresh των πόντων
+                    window.parent.postMessage({
                         type: 'gameScore',
-                        score: score,
-                        game: 'Chess'
+                        game: 'Chess',
+                        score: score
                     }, '*');
                 }
-
             } catch(e) {
-                console.log('♟️ Error sending score to backend:', e);
+                console.warn('⚠️ Could not send to API:', e);
             }
         }
 
-        // DOM Elements
+        // ========== DOM ELEMENTS ==========
         const boardEl = document.getElementById("board");
         const gameInfoEl = document.getElementById("gameInfo");
         const thinkingIndicator = document.getElementById("thinkingIndicator");
@@ -453,31 +425,31 @@
         const mainMenuBtn = document.getElementById("mainMenuBtn");
         
         let selectedGameMode = 'twoPlayers';
-        let selectedDifficulty = 4;
+        let selectedDifficulty = 4;    // 2=E, 3=M, 4=H, 5=Extreme
+        let selectedFirstPlayer = 'player'; // 'player' ή 'ai'
         
+        // ========== GAME STATE ==========
         let board = [];
         let whiteToMove = true;
         let selected = null;
         let legalMoves = [];
         let flipped = false;
         let vsAI = false;
-        let aiColor = 'b';
+        let aiColor = 'b';       // ποιο χρώμα παίζει το AI
         let gameActive = true;
         let aiDepth = 4;
         let kingInCheck = false;
         let promotionPending = null;
-        
         let audioCtx = null;
-        
+
+        // ========== AUDIO ==========
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
-        
         function playMoveSound() {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.type = 'sine';
             osc.frequency.setValueAtTime(600, audioCtx.currentTime);
@@ -486,11 +458,9 @@
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
             osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.15);
         }
-        
         function playCaptureSound() {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(800, audioCtx.currentTime);
@@ -499,12 +469,10 @@
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
             osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
         }
-        
         function playVictorySound() {
             if (!audioCtx) return;
             [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+                const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
                 osc.connect(gain); gain.connect(audioCtx.destination);
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.15);
@@ -514,7 +482,6 @@
                 osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
             });
         }
-        
         function createConfetti() {
             celebrationEl.innerHTML = '';
             const colors = ['#ff0','#f00','#0f0','#00f','#ff6b6b','#ffcb2e','#4CAF50','#9b59b6'];
@@ -529,13 +496,13 @@
             }
             setTimeout(() => { celebrationEl.innerHTML = ''; }, 3000);
         }
-        
         function showVictoryMessage(winner) {
             winnerTextEl.textContent = winner + ' wins!';
             victoryMessageEl.style.display = 'block';
             setTimeout(() => { victoryMessageEl.style.display = 'none'; }, 4000);
         }
-        
+
+        // ========== BOARD SETUP ==========
         const START = [
             ['r','n','b','q','k','b','n','r'],
             ['p','p','p','p','p','p','p','p'],
@@ -546,14 +513,35 @@
             ['P','P','P','P','P','P','P','P'],
             ['R','N','B','Q','K','B','N','R']
         ];
-        
-        const PIECE_VALUES = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
-        
+        const PIECE_VALUES = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000 };
+        const PAWN_TABLE = [
+            [ 0,  0,  0,  0,  0,  0,  0,  0],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [10, 10, 20, 30, 30, 20, 10, 10],
+            [ 5,  5, 10, 25, 25, 10,  5,  5],
+            [ 0,  0,  0, 20, 20,  0,  0,  0],
+            [ 5, -5,-10,  0,  0,-10, -5,  5],
+            [ 5, 10, 10,-20,-20, 10, 10,  5],
+            [ 0,  0,  0,  0,  0,  0,  0,  0]
+        ];
+        const KNIGHT_TABLE = [
+            [-50,-40,-30,-30,-30,-30,-40,-50],
+            [-40,-20,  0,  0,  0,  0,-20,-40],
+            [-30,  0, 10, 15, 15, 10,  0,-30],
+            [-30,  5, 15, 20, 20, 15,  5,-30],
+            [-30,  0, 15, 20, 20, 15,  0,-30],
+            [-30,  5, 10, 15, 15, 10,  5,-30],
+            [-40,-20,  0,  5,  5,  0,-20,-40],
+            [-50,-40,-30,-30,-30,-30,-40,-50]
+        ];
+
         function initGame() {
             initAudio();
             vsAI = (selectedGameMode === 'vsAI');
             aiDepth = selectedDifficulty;
-            if (vsAI) aiColor = Math.random() > 0.5 ? 'b' : 'w';
+            if (vsAI) {
+                aiColor = (selectedFirstPlayer === 'player') ? 'b' : 'w';
+            }
             
             board = [];
             for (let r=0;r<8;r++) {
@@ -568,11 +556,22 @@
                     }
                 }
             }
-            whiteToMove=true; selected=null; legalMoves=[]; gameActive=true;
-            kingInCheck=false; promotionPending=null;
-            updateGameInfo(); render();
+            whiteToMove = true;
+            selected = null;
+            legalMoves = [];
+            gameActive = true;
+            kingInCheck = false;
+            promotionPending = null;
+            updateGameInfo();
+            render();
+            
+            // Αν το AI παίζει πρώτο (White), ξεκινάει αμέσως
+            if (vsAI && aiColor === 'w') {
+                setTimeout(makeAIMove, 500);
+            }
         }
-        
+
+        // ========== RENDER ==========
         function render() {
             boardEl.innerHTML="";
             const rows=[...Array(8).keys()];
@@ -768,58 +767,151 @@
             else gameInfoEl.textContent=whiteToMove?"White's turn":"Black's turn";
             if(vsAI) gameInfoEl.textContent+=` (AI plays ${aiColor==='w'?'White':'Black'})`;
         }
-        
+
+        // ========== AI (MINIMAX + ALPHA-BETA) ==========
         function makeAIMove(){
             thinkingIndicator.style.display='block';
             setTimeout(()=>{
-                const bestMove=findBestMove();
-                if(bestMove){movePiece(bestMove.from.r,bestMove.from.c,bestMove.to.r,bestMove.to.c);render();}
-                thinkingIndicator.style.display='none';
-            },600);
-        }
-        
-        function findBestMove(){
-            const possibleMoves=[];
-            for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-                const piece=board[r][c];
-                if(piece&&piece.color===aiColor) generateLegalMoves(r,c).forEach(move=>possibleMoves.push({from:{r,c},to:move}));
-            }
-            if(possibleMoves.length===0) return null;
-            if(aiDepth===2) return possibleMoves[Math.floor(Math.random()*possibleMoves.length)];
-            if(aiDepth===3){
-                let bestScore=-Infinity,bestMoves=[];
-                for(const move of possibleMoves){
-                    const originalPiece=board[move.to.r][move.to.c],movingPiece=board[move.from.r][move.from.c];
-                    board[move.to.r][move.to.c]=movingPiece;board[move.from.r][move.from.c]=null;
-                    let score=evaluatePosition();if(originalPiece)score+=PIECE_VALUES[originalPiece.type]*5;
-                    board[move.from.r][move.from.c]=movingPiece;board[move.to.r][move.to.c]=originalPiece;
-                    if(score>bestScore){bestScore=score;bestMoves=[move];}else if(score===bestScore)bestMoves.push(move);
+                const bestMove = findBestMove(aiDepth);
+                if (bestMove) {
+                    movePiece(bestMove.from.r, bestMove.from.c, bestMove.to.r, bestMove.to.c);
                 }
-                return bestMoves[Math.floor(Math.random()*bestMoves.length)];
-            }
-            let bestScore=-Infinity,bestMoves=[];
-            for(const move of possibleMoves){
-                const originalPiece=board[move.to.r][move.to.c],movingPiece=board[move.from.r][move.from.c];
-                board[move.to.r][move.to.c]=movingPiece;board[move.from.r][move.from.c]=null;
-                let score=evaluatePosition();if(originalPiece)score+=PIECE_VALUES[originalPiece.type]*3;
-                const tempWhiteToMove=whiteToMove;whiteToMove=!whiteToMove;
-                if(isKingInCheck(whiteToMove?'w':'b')) score+=70;
-                whiteToMove=tempWhiteToMove;
-                board[move.from.r][move.from.c]=movingPiece;board[move.to.r][move.to.c]=originalPiece;
-                if(score>bestScore){bestScore=score;bestMoves=[move];}else if(score===bestScore)bestMoves.push(move);
-            }
-            return bestMoves[Math.floor(Math.random()*bestMoves.length)];
+                render();
+                thinkingIndicator.style.display='none';
+            }, 600);
         }
-        
-        function evaluatePosition(){
-            let score=0;
-            for(let r=0;r<8;r++) for(let c=0;c<8;c++){
-                const piece=board[r][c];
-                if(piece) score+=piece.color===aiColor?PIECE_VALUES[piece.type]:-PIECE_VALUES[piece.type];
+
+        function getAllLegalMoves(color) {
+            const moves = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && piece.color === color) {
+                        const legal = generateLegalMoves(r, c);
+                        legal.forEach(to => moves.push({ from: { r, c }, to }));
+                    }
+                }
             }
-            return score+Math.random()*8-4;
+            return moves;
         }
-        
+
+        function findBestMove(depth) {
+            const moves = getAllLegalMoves(aiColor);
+            if (moves.length === 0) return null;
+            
+            moves.sort((a, b) => {
+                const captA = board[a.to.r][a.to.c] ? PIECE_VALUES[board[a.to.r][a.to.c].type] : 0;
+                const captB = board[b.to.r][b.to.c] ? PIECE_VALUES[board[b.to.r][b.to.c].type] : 0;
+                return captB - captA;
+            });
+
+            let bestScore = -Infinity;
+            let bestMoves = [];
+
+            for (const move of moves) {
+                const originalPiece = board[move.to.r][move.to.c];
+                const movingPiece = board[move.from.r][move.from.c];
+                
+                board[move.to.r][move.to.c] = movingPiece;
+                board[move.from.r][move.from.c] = null;
+                
+                const score = minimax(depth - 1, -Infinity, Infinity, false);
+                
+                board[move.from.r][move.from.c] = movingPiece;
+                board[move.to.r][move.to.c] = originalPiece;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMoves = [move];
+                } else if (score === bestScore) {
+                    bestMoves.push(move);
+                }
+            }
+            return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+        }
+
+        function minimax(depth, alpha, beta, isMaximizing) {
+            const currentColor = isMaximizing ? aiColor : (aiColor === 'w' ? 'b' : 'w');
+            
+            if (depth === 0) {
+                return evaluateBoard();
+            }
+
+            const moves = getAllLegalMoves(currentColor);
+            if (moves.length === 0) {
+                if (isKingInCheck(currentColor)) {
+                    return isMaximizing ? -99999 : 99999;
+                }
+                return 0;
+            }
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (const move of moves) {
+                    const originalPiece = board[move.to.r][move.to.c];
+                    const movingPiece = board[move.from.r][move.from.c];
+                    
+                    board[move.to.r][move.to.c] = movingPiece;
+                    board[move.from.r][move.from.c] = null;
+                    
+                    const evalScore = minimax(depth - 1, alpha, beta, false);
+                    
+                    board[move.from.r][move.from.c] = movingPiece;
+                    board[move.to.r][move.to.c] = originalPiece;
+                    
+                    maxEval = Math.max(maxEval, evalScore);
+                    alpha = Math.max(alpha, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (const move of moves) {
+                    const originalPiece = board[move.to.r][move.to.c];
+                    const movingPiece = board[move.from.r][move.from.c];
+                    
+                    board[move.to.r][move.to.c] = movingPiece;
+                    board[move.from.r][move.from.c] = null;
+                    
+                    const evalScore = minimax(depth - 1, alpha, beta, true);
+                    
+                    board[move.from.r][move.from.c] = movingPiece;
+                    board[move.to.r][move.to.c] = originalPiece;
+                    
+                    minEval = Math.min(minEval, evalScore);
+                    beta = Math.min(beta, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function evaluateBoard() {
+            let score = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (!piece) continue;
+                    const val = PIECE_VALUES[piece.type];
+                    const posBonus = getPositionalBonus(piece, r, c);
+                    if (piece.color === aiColor) {
+                        score += val + posBonus;
+                    } else {
+                        score -= val + posBonus;
+                    }
+                }
+            }
+            return score + Math.random() * 10 - 5;
+        }
+
+        function getPositionalBonus(piece, r, c) {
+            const row = piece.color === 'w' ? r : 7 - r;
+            if (piece.type === 'p') return PAWN_TABLE[row][c] * 0.5;
+            if (piece.type === 'n') return KNIGHT_TABLE[row][c] * 0.5;
+            return 0;
+        }
+
+        // ========== POST-GAME ==========
         function showPostGameModal(winner, resultType) {
             if (resultType === "checkmate") {
                 postGameTitle.textContent = "🎉 Congratulations!";
@@ -830,66 +922,76 @@
             }
             postGameModal.style.display = 'flex';
             
-            // Αποστολή σκορ στο backend
             const score = resultType === "checkmate" ? 100 : 25;
             sendScoreToBackend(score, resultType);
         }
-        
-        // --- Monetag rewarded interstitial wrapper ---
+
+        // ========== MONETAG AD HELPER ==========
         function showAdThen(action) {
-            // Ελέγχουμε αν το SDK είναι διαθέσιμο
             if (typeof show_11108267 === 'function') {
                 show_11108267().then(() => {
-                    alert('You have seen an ad!');
                     action();
-                }).catch((err) => {
-                    console.log('Ad error or skipped:', err);
-                    // Ακόμα και αν αποτύχει η διαφήμιση, προχωράμε στη δράση
+                }).catch(() => {
                     action();
                 });
             } else {
-                // Fallback σε περίπτωση που το SDK δεν φορτώθηκε
-                console.warn('Monetag SDK not loaded');
                 action();
             }
         }
-        
-        document.getElementById("resetBtn").addEventListener("click",()=>{welcomeModal.style.display='flex';});
-        document.getElementById("flipBtn").addEventListener("click",()=>{flipped=!flipped;render();});
-        document.getElementById("aiBtn").addEventListener("click",()=>{welcomeModal.style.display='flex';});
+
+        // ========== EVENT LISTENERS ==========
+        document.getElementById("resetBtn").addEventListener("click", ()=>{ welcomeModal.style.display='flex'; });
+        document.getElementById("flipBtn").addEventListener("click", ()=>{ flipped=!flipped; render(); });
+        document.getElementById("aiBtn").addEventListener("click", ()=>{ welcomeModal.style.display='flex'; });
         
         document.querySelectorAll(".game-mode-btn").forEach(btn=>{
-            btn.addEventListener("click",()=>{
+            btn.addEventListener("click", ()=>{
                 document.querySelectorAll(".game-mode-btn").forEach(b=>b.classList.remove("active"));
-                btn.classList.add("active");selectedGameMode=btn.dataset.mode;
-                document.getElementById("difficultySelector").style.display=selectedGameMode==='vsAI'?'flex':'none';
+                btn.classList.add("active");
+                selectedGameMode = btn.dataset.mode;
+                document.getElementById("difficultySelector").style.display = selectedGameMode==='vsAI' ? 'flex' : 'none';
+                document.getElementById("firstPlayerSelector").style.display = selectedGameMode==='vsAI' ? 'block' : 'none';
             });
         });
+        
         document.querySelectorAll(".difficulty-btn").forEach(btn=>{
-            btn.addEventListener("click",()=>{
+            btn.addEventListener("click", ()=>{
                 document.querySelectorAll(".difficulty-btn").forEach(b=>b.classList.remove("active"));
-                btn.classList.add("active");selectedDifficulty=parseInt(btn.dataset.depth);
+                btn.classList.add("active");
+                selectedDifficulty = parseInt(btn.dataset.depth);
             });
         });
-        document.getElementById("startGameBtn").addEventListener("click",()=>{welcomeModal.style.display='none';initGame();});
+
+        document.querySelectorAll(".first-player-btn").forEach(btn=>{
+            btn.addEventListener("click", ()=>{
+                document.querySelectorAll(".first-player-btn").forEach(b=>b.classList.remove("active"));
+                btn.classList.add("active");
+                selectedFirstPlayer = btn.dataset.first;
+            });
+        });
         
-        // Κουμπί "New Game" με διαφήμιση
-        playAgainBtn.addEventListener("click",()=>{
+        document.getElementById("startGameBtn").addEventListener("click", ()=>{
+            welcomeModal.style.display='none';
+            initGame();
+        });
+        
+        playAgainBtn.addEventListener("click", ()=>{
             showAdThen(() => {
                 postGameModal.style.display='none';
                 welcomeModal.style.display='flex';
             });
         });
         
-        // Κουμπί "Menu" με διαφήμιση
-        mainMenuBtn.addEventListener("click",()=>{
+        mainMenuBtn.addEventListener("click", ()=>{
             showAdThen(() => {
                 postGameModal.style.display='none';
                 welcomeModal.style.display='flex';
             });
         });
         
-        window.addEventListener('DOMContentLoaded',()=>{welcomeModal.style.display='flex';console.log('♟️ Chess loaded - API:',API_ENDPOINT,'userId:',userId);});
+        window.addEventListener('DOMContentLoaded', ()=>{
+            welcomeModal.style.display='flex';
+        });
     </script>
 </body>
 </html>
