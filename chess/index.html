@@ -271,7 +271,7 @@
         const TIME_CONTROL = 300;
         const DAILY_WINS_NEEDED = 3;
         const DAILY_REWARD = 50;
-        const AI_TIME_LIMIT = 4500; // 4.5 δευτερόλεπτα (αφήνει περιθώριο 500ms)
+        const AI_TIME_LIMIT = 4500;
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -549,7 +549,7 @@
                 aiFooter.style.display = 'none';
                 if (e.data && gameActive && !postGamePending) {
                     movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c);
-                    render();
+                    // Το render καλείται μέσα στην movePiece πλέον
                 }
             };
         }
@@ -566,14 +566,15 @@
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = false; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
-            clearInterval(timerInterval); startTimer();
+            clearInterval(timerInterval); timerInterval = null;
+            startTimer();
             updateTimerDisplay(); updateEvalBar();
             document.querySelector('.board').classList.toggle('flipped', playerColor === 'b');
             render(); updateUndoButton();
             if (aiColor === 'w') setTimeout(makeAIMove, 500);
             setupMainButton('🏳️ Resign', () => {
                 if (!gameActive) return;
-                gameActive = false; clearInterval(timerInterval);
+                gameActive = false; clearInterval(timerInterval); timerInterval = null;
                 showPostGame(playerColor === 'w' ? 'Black' : 'White', 'resign');
             });
         }
@@ -587,20 +588,21 @@
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = true; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
-            clearInterval(timerInterval); startTimer();
+            clearInterval(timerInterval); timerInterval = null;
+            startTimer();
             updateTimerDisplay(); updateEvalBar();
             document.querySelector('.board').classList.remove('flipped');
             gameStatusEl.textContent = '📅 Daily: Mate in 1';
             render(); updateUndoButton();
             setupMainButton('Give Up', () => {
                 if (!gameActive) return;
-                gameActive = false; clearInterval(timerInterval);
+                gameActive = false; clearInterval(timerInterval); timerInterval = null;
                 showPostGame('AI', 'daily_fail');
             });
         }
 
         function startTimer() {
-            clearInterval(timerInterval);
+            if (timerInterval) clearInterval(timerInterval);
             lastTimerTick = Date.now();
             timerInterval = setInterval(() => {
                 if (!gameActive || postGamePending) { lastTimerTick = Date.now(); return; }
@@ -609,15 +611,25 @@
                 if (elapsed >= 1) {
                     if (whiteToMove) {
                         whiteTimeLeft = Math.max(0, whiteTimeLeft - elapsed);
-                        if (whiteTimeLeft <= 0) { gameActive = false; showPostGame('Black', 'timeout'); return; }
+                        if (whiteTimeLeft <= 0) {
+                            gameActive = false;
+                            clearInterval(timerInterval); timerInterval = null;
+                            showPostGame('Black', 'timeout');
+                            return;
+                        }
                     } else {
                         blackTimeLeft = Math.max(0, blackTimeLeft - elapsed);
-                        if (blackTimeLeft <= 0) { gameActive = false; showPostGame('White', 'timeout'); return; }
+                        if (blackTimeLeft <= 0) {
+                            gameActive = false;
+                            clearInterval(timerInterval); timerInterval = null;
+                            showPostGame('White', 'timeout');
+                            return;
+                        }
                     }
                     lastTimerTick = now;
-                    updateTimerDisplay();
-                    saveGame();
                 }
+                updateTimerDisplay();
+                saveGame();
             }, 250);
         }
 
@@ -627,6 +639,9 @@
             blackTimeEl.textContent = fmt(Math.max(0, blackTimeLeft));
             whiteTimeEl.classList.toggle('low', whiteTimeLeft < 30);
             blackTimeEl.classList.toggle('low', blackTimeLeft < 30);
+            
+            // FIX: Αν το παιχνίδι είναι ενεργό, ο timer ΠΡΕΠΕΙ να τρέχει
+            if (gameActive && !timerInterval) startTimer();
         }
 
         function saveGame() {
@@ -673,8 +688,6 @@
                     if (board[r][c]?.type==='k' && board[r][c].color===col) { kp={r,c}; break; }
                 }
             }
-            // Η σκακιέρα αποδίδεται πάντα με τον ίδιο προσανατολισμό (White κάτω).
-            // Η περιστροφή γίνεται μέσω CSS class `.board.flipped`.
             for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
                 const sq = document.createElement('div');
                 sq.className = 'square '+((r+c)%2?'sq-dark':'sq-light');
@@ -700,26 +713,50 @@
         }
 
         function handleClick(r, c) {
+            // Χρησιμοποιούμε πάντα το τρέχον board state (δεν υπάρχει cached copy)
             if (!gameActive || postGamePending || whiteToMove === (aiColor==='w')) return;
+            
             if (selected && legalMoves.some(m=>m.r===r&&m.c===c)) {
                 movePiece(selected.r, selected.c, r, c);
                 selected = null; legalMoves = [];
-                render();
+                // Το render καλείται μέσα στην movePiece
                 if (gameActive && !postGamePending && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 250);
                 return;
             }
+            
             const p = board[r][c];
-            if (p && p.color === (whiteToMove?'w':'b')) { selected = {r,c}; legalMoves = getLegalMoves(r,c); }
-            else { selected = null; legalMoves = []; }
+            if (p && p.color === (whiteToMove?'w':'b')) {
+                selected = {r,c};
+                legalMoves = getLegalMoves(r,c);
+            } else {
+                selected = null;
+                legalMoves = [];
+            }
             render();
         }
 
+        // ==================== FIX: MOVE PIECE (διορθωμένη σειρά) ====================
         function movePiece(sr, sc, tr, tc) {
+            // 1. Ενημέρωση του board array
             const captured = board[tr][tc];
-            board[tr][tc] = board[sr][sc]; board[sr][sc] = null;
+            board[tr][tc] = board[sr][sc];
+            board[sr][sc] = null;
+            
+            // 2. Εναλλαγή σειράς ΠΡΙΝ το render ώστε να φαίνεται σωστά η κατάσταση
             whiteToMove = !whiteToMove;
+            
+            // 3. ΑΜΕΣΗ ενημέρωση UI
+            render();
+            
+            // 4. Ήχοι
             captured ? (sfxCapture(), haptic('heavy')) : (sfxMove(), haptic('light'));
-            if (board[tr][tc].type === 'p' && (tr === 0 || tr === 7)) board[tr][tc].type = 'q';
+            
+            // 5. Promotion
+            if (board[tr][tc].type === 'p' && (tr === 0 || tr === 7)) {
+                board[tr][tc].type = 'q';
+            }
+            
+            // 6. Καταγραφή και έλεγχος κατάστασης
             addNotation({ from: {r:sr,c:sc}, to: {r:tr,c:tc} }, captured);
             checkGameState();
             if (kingInCheck) sfxCheck();
@@ -755,7 +792,7 @@
                         gameStatusEl.textContent = "Stalemate! It's a draw";
                     }
                     gameActive = false;
-                    clearInterval(timerInterval);
+                    clearInterval(timerInterval); timerInterval = null;
                     showPostGame(winner, resultType);
                     postGamePending = false;
                 }, 800);
@@ -834,7 +871,8 @@
 
         // ==================== POST-GAME ====================
         function showPostGame(winner, resultType) {
-            gameActive = false; clearInterval(timerInterval);
+            gameActive = false;
+            clearInterval(timerInterval); timerInterval = null;
             aiFooter.style.display = 'none';
             localStorage.removeItem('chess_saved'); hideMainButton();
             let baseScore = 0, title = '', message = '';
@@ -892,7 +930,7 @@
                 if (gameActive && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 400);
                 setupMainButton('🏳️ Resign', () => {
                     if (!gameActive) return;
-                    gameActive = false; clearInterval(timerInterval);
+                    gameActive = false; clearInterval(timerInterval); timerInterval = null;
                     showPostGame(playerColor==='w'?'Black':'White', 'resign');
                 });
             }
