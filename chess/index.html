@@ -95,7 +95,10 @@
             border: 4px solid #2a1f0e;
             box-shadow: inset 0 0 25px rgba(0,0,0,0.5), 0 6px 0 #1a1008, 0 10px 20px rgba(0,0,0,0.5);
             border-radius: 2px;
+            transition: transform 0.5s ease;
         }
+        .board.flipped { transform: rotate(180deg); }
+        .board.flipped .piece { transform: rotate(180deg); }
         .square {
             position: relative; width: var(--square-size); height: var(--square-size);
             display: flex; align-items: center; justify-content: center;
@@ -268,7 +271,7 @@
         const TIME_CONTROL = 300;
         const DAILY_WINS_NEEDED = 3;
         const DAILY_REWARD = 50;
-        const AI_TIME_LIMIT = 5000; // 5 δευτερόλεπτα
+        const AI_TIME_LIMIT = 4500; // 4.5 δευτερόλεπτα (αφήνει περιθώριο 500ms)
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -483,8 +486,9 @@
         ];
         let board = [], whiteToMove = true, selected = null, legalMoves = [];
         let gameActive = false, aiColor = 'b', playerColor = 'w', kingInCheck = false;
-        let whiteTimeLeft = TIME_CONTROL, blackTimeLeft = TIME_CONTROL, timerInterval = null;
-        let isDailyChallenge = false, postGamePending = false, flipped = false;
+        let whiteTimeLeft = TIME_CONTROL, blackTimeLeft = TIME_CONTROL;
+        let timerInterval = null, lastTimerTick = 0;
+        let isDailyChallenge = false, postGamePending = false;
 
         // ==================== WEB WORKER (AI) ====================
         let aiWorker = null;
@@ -507,7 +511,7 @@
                 function allMoves(b,col){const m=[];for(let r=0;r<8;r++)for(let c=0;c<8;c++){if(b[r][c]&&b[r][c].color==col)legalMoves(b,r,c).forEach(t=>m.push({from:{r,c},to:t}));}return m;}
                 function evalBoard(b,ai){let s=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(!p)continue;let v=V[p.type];const row=p.color=='w'?r:7-r;if(p.type=='p')v+=PT[row][c]*0.3;else if(p.type=='n')v+=NT[row][c]*0.3;s+=p.color==ai?v:-v;}return s+Math.random()*8-4;}
                 function minimax(b,depth,a,beta,isMax,ai,startTime,timeLimit){
-                    if(Date.now()-startTime > timeLimit) return evalBoard(b,ai);
+                    if (Date.now() - startTime > (timeLimit - 100)) return evalBoard(b, ai);
                     const col=isMax?ai:(ai=='w'?'b':'w');
                     if(depth==0)return evalBoard(b,ai);
                     const moves=allMoves(b,col);
@@ -523,11 +527,10 @@
                     if(!moves.length){ self.postMessage(null); return; }
                     moves.sort((x,y)=>{const ca=board[x.to.r][x.to.c]?V[board[x.to.r][x.to.c].type]:0;const cb=board[y.to.r][y.to.c]?V[board[y.to.r][y.to.c].type]:0;return cb-ca;});
                     let best=-Infinity, bestMoves=[];
-                    // Iterative deepening: ξεκινάμε από depth=1 και αυξάνουμε μέχρι να τελειώσει ο χρόνος
                     for(let depth=1; depth<=5; depth++){
                         let currentBest=-Infinity, currentBestMoves=[];
                         for(const m of moves){
-                            if(Date.now()-startTime > timeLimit) break;
+                            if(Date.now() - startTime > (timeLimit - 100)) break;
                             const o=board[m.to.r][m.to.c],p=board[m.from.r][m.from.c];
                             board[m.to.r][m.to.c]=p;board[m.from.r][m.from.c]=null;
                             const s=minimax(board,depth-1,-Infinity,Infinity,false,aiColor,startTime,timeLimit);
@@ -535,7 +538,7 @@
                             if(s>currentBest){ currentBest=s; currentBestMoves=[m]; }
                             else if(s==currentBest) currentBestMoves.push(m);
                         }
-                        if(Date.now()-startTime > timeLimit) break;
+                        if(Date.now() - startTime > (timeLimit - 100)) break;
                         best=currentBest; bestMoves=currentBestMoves;
                     }
                     self.postMessage(bestMoves[Math.floor(Math.random()*bestMoves.length)]);
@@ -557,14 +560,16 @@
             colorChoice = colorChoice === 'random' ? (Math.random()<0.5?'white':'black') : colorChoice;
             playerColor = colorChoice === 'white' ? 'w' : 'b';
             aiColor = playerColor === 'w' ? 'b' : 'w';
-            flipped = (playerColor === 'b');
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL;
+            kingInCheck = false;
+            whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = false; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
             clearInterval(timerInterval); startTimer();
-            updateTimerDisplay(); updateEvalBar(); render(); updateUndoButton();
+            updateTimerDisplay(); updateEvalBar();
+            document.querySelector('.board').classList.toggle('flipped', playerColor === 'b');
+            render(); updateUndoButton();
             if (aiColor === 'w') setTimeout(makeAIMove, 500);
             setupMainButton('🏳️ Resign', () => {
                 if (!gameActive) return;
@@ -575,14 +580,16 @@
 
         function loadDailyChallenge() {
             initAudio();
-            playerColor = 'w'; aiColor = 'b'; flipped = false;
+            playerColor = 'w'; aiColor = 'b';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL;
+            kingInCheck = false;
+            whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = true; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
             clearInterval(timerInterval); startTimer();
             updateTimerDisplay(); updateEvalBar();
+            document.querySelector('.board').classList.remove('flipped');
             gameStatusEl.textContent = '📅 Daily: Mate in 1';
             render(); updateUndoButton();
             setupMainButton('Give Up', () => {
@@ -594,12 +601,24 @@
 
         function startTimer() {
             clearInterval(timerInterval);
+            lastTimerTick = Date.now();
             timerInterval = setInterval(() => {
-                if (!gameActive || postGamePending) return;
-                if (whiteToMove) { whiteTimeLeft--; if (whiteTimeLeft <= 0) { gameActive = false; showPostGame('Black', 'timeout'); } }
-                else { blackTimeLeft--; if (blackTimeLeft <= 0) { gameActive = false; showPostGame('White', 'timeout'); } }
-                updateTimerDisplay(); saveGame();
-            }, 1000);
+                if (!gameActive || postGamePending) { lastTimerTick = Date.now(); return; }
+                const now = Date.now();
+                const elapsed = Math.floor((now - lastTimerTick) / 1000);
+                if (elapsed >= 1) {
+                    if (whiteToMove) {
+                        whiteTimeLeft = Math.max(0, whiteTimeLeft - elapsed);
+                        if (whiteTimeLeft <= 0) { gameActive = false; showPostGame('Black', 'timeout'); return; }
+                    } else {
+                        blackTimeLeft = Math.max(0, blackTimeLeft - elapsed);
+                        if (blackTimeLeft <= 0) { gameActive = false; showPostGame('White', 'timeout'); return; }
+                    }
+                    lastTimerTick = now;
+                    updateTimerDisplay();
+                    saveGame();
+                }
+            }, 250);
         }
 
         function updateTimerDisplay() {
@@ -614,7 +633,7 @@
             if (!gameActive) { localStorage.removeItem('chess_saved'); return; }
             localStorage.setItem('chess_saved', JSON.stringify({
                 board, whiteToMove, aiColor, playerColor, gameActive,
-                whiteTimeLeft, blackTimeLeft, isDailyChallenge, flipped,
+                whiteTimeLeft, blackTimeLeft, isDailyChallenge,
                 moveHistory, undoUsed
             }));
         }
@@ -626,10 +645,11 @@
                 board = d.board; whiteToMove = d.whiteToMove; aiColor = d.aiColor;
                 playerColor = d.playerColor; gameActive = d.gameActive;
                 whiteTimeLeft = d.whiteTimeLeft; blackTimeLeft = d.blackTimeLeft;
-                isDailyChallenge = d.isDailyChallenge; flipped = d.flipped;
+                isDailyChallenge = d.isDailyChallenge;
                 moveHistory = d.moveHistory || []; undoUsed = d.undoUsed || false;
                 notationList.innerHTML = '';
                 moveHistory.forEach(m => notationList.appendChild(Object.assign(document.createElement('div'), { textContent: m.text })));
+                lastTimerTick = Date.now();
                 return true;
             } catch(e) { return false; }
         }
@@ -638,8 +658,9 @@
             if (!gameActive || postGamePending || whiteToMove !== (aiColor === 'w')) return;
             aiFooter.style.display = 'block';
             const boardCopy = board.map(r => r.map(c => c ? { ...c } : null));
-            if (aiWorker) aiWorker.postMessage({ board: boardCopy, aiColor, timeLimit: AI_TIME_LIMIT });
-            else setTimeout(() => { aiFooter.style.display = 'none'; }, 100);
+            if (aiWorker) {
+                aiWorker.postMessage({ board: boardCopy, aiColor, timeLimit: AI_TIME_LIMIT });
+            }
         }
 
         // ==================== RENDER ====================
@@ -652,9 +673,9 @@
                     if (board[r][c]?.type==='k' && board[r][c].color===col) { kp={r,c}; break; }
                 }
             }
-            const rows = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
-            const cols = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
-            for (const r of rows) for (const c of cols) {
+            // Η σκακιέρα αποδίδεται πάντα με τον ίδιο προσανατολισμό (White κάτω).
+            // Η περιστροφή γίνεται μέσω CSS class `.board.flipped`.
+            for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
                 const sq = document.createElement('div');
                 sq.className = 'square '+((r+c)%2?'sq-dark':'sq-light');
                 sq.dataset.r = r; sq.dataset.c = c;
@@ -719,16 +740,22 @@
             const color = whiteToMove ? 'w' : 'b';
             kingInCheck = isKingInCheckSync(board, color);
             const hasMoves = getAllLegalMovesSync(board, color).length > 0;
+
             if (!hasMoves) {
                 postGamePending = true;
                 const winner = kingInCheck ? (color === 'w' ? 'Black' : 'White') : null;
                 const resultType = kingInCheck ? 'checkmate' : 'stalemate';
-                if (kingInCheck) { gameStatusEl.innerHTML = `<span class="status-mate">Checkmate! ${winner} wins!</span>`; sfxMate(); }
-                else gameStatusEl.textContent = "Stalemate! It's a draw";
                 render();
-                // Καθυστέρηση 800ms ώστε ο παίκτης να δει την τελική κατάσταση
+
                 setTimeout(() => {
-                    gameActive = false; clearInterval(timerInterval);
+                    if (kingInCheck) {
+                        gameStatusEl.innerHTML = `<span class="status-mate">Checkmate! ${winner} wins!</span>`;
+                        sfxMate();
+                    } else {
+                        gameStatusEl.textContent = "Stalemate! It's a draw";
+                    }
+                    gameActive = false;
+                    clearInterval(timerInterval);
                     showPostGame(winner, resultType);
                     postGamePending = false;
                 }, 800);
@@ -860,6 +887,7 @@
         document.getElementById('resumeGameBtn').addEventListener('click', () => {
             if (loadGame()) {
                 setupModal.style.display = 'none';
+                document.querySelector('.board').classList.toggle('flipped', playerColor === 'b');
                 startTimer(); updateTimerDisplay(); updateEvalBar(); render(); updateUndoButton();
                 if (gameActive && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 400);
                 setupMainButton('🏳️ Resign', () => {
