@@ -11,40 +11,41 @@
     <!-- Monetag SDK -->
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
-    <!-- Rewarded Popup -->
+    <!-- Rewarded interstitial (Νέο snippet που ζήτησες) -->
     <script>
-        show_11108267('pop').then(() => {
-            // user watch ad till the end or close it in interstitial format
-            // your code to reward user for rewarded format
-        }).catch(e => {
-            // user get error during playing ad
-            // do nothing or whatever you want
-        });
+        // Rewarded interstitial
+        show_11108267().then(() => {
+            // You need to add your user reward function here, which will be executed after the user watches the ad.
+            // For more details, please refer to the detailed instructions.
+            alert('You have seen an ad!');
+        })
     </script>
 
-    <!-- ΚΡΙΣΙΜΗ ΠΡΟΣΘΗΚΗ: Διόρθωση για να ανοίγουν τα links στο Telegram Mini App -->
+    <!-- ΚΡΙΣΙΜΗ ΠΡΟΣΘΗΚΗ: Μέθοδος με εικονικό κλικ για παράκαμψη του Telegram -->
     <script>
         (function fixTelegramLinks() {
             if (window.Telegram && window.Telegram.WebApp) {
-                // Αποθηκεύουμε την κανονική window.open
                 const originalOpen = window.open;
-                // Την αντικαθιστούμε με τη δική μας που χρησιμοποιεί το Telegram API
                 window.open = function(url, target, features) {
                     try {
-                        // Το Telegram απαιτεί να γίνει click από τον χρήστη. 
-                        // Το SDK καλεί το window.open μετά από click, άρα θα δουλέψει.
-                        Telegram.WebApp.openLink(url, { try_instant_view: false });
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
                     } catch (e) {
-                        console.warn("Telegram.WebApp.openLink απέτυχε, χρήση εναλλακτικής:", e);
-                        // Αν αποτύχει για κάποιο λόγο, χρησιμοποιούμε την κανονική window.open
-                        originalOpen(url, target, features);
+                        console.warn("Fallback to Telegram.WebApp.openLink:", e);
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            Telegram.WebApp.openLink(url);
+                        } else {
+                            originalOpen(url, target, features);
+                        }
                     }
-                    // Επιστρέφουμε null γιατί το Telegram.WebApp.openLink δεν επιστρέφει αντικείμενο παραθύρου
                     return null;
                 };
-                console.log("✅ Επιδιορθώθηκε το window.open για να λειτουργεί μέσα στο Telegram!");
-            } else {
-                console.warn("⚠️ Το παιχνίδι δεν τρέχει μέσα σε Telegram WebApp, η διαφήμιση θα ανοίγει κανονικά.");
+                console.log("✅ Επιδιορθώθηκε το window.open για το Board!");
             }
         })();
     </script>
@@ -582,7 +583,6 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
 
-        // Βοηθητική συνάρτηση δόνησης
         function vibrate(duration) {
             if (navigator.vibrate) {
                 navigator.vibrate(duration);
@@ -626,14 +626,14 @@
             });
         }
 
-        // ΕΔΩ ΑΛΛΑΞΑ ΤΗ ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΝΑ ΚΑΛΕΙ ΤΟ 'pop'
+        // ΕΔΩ ΑΛΛΑΞΑ ΤΗ ΣΥΝΑΡΤΗΣΗ: Αφαίρεσα το 'pop' γιατί το νέο snippet δεν το έχει
         function showMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_11108267 === 'function') {
-                    show_11108267('pop').then(() => resolve(true)).catch(() => reject('Ad failed'));
+                    show_11108267().then(() => resolve(true)).catch(() => reject('Ad failed'));
                 } else {
                     setTimeout(() => {
-                        if (typeof show_11108267 === 'function') show_11108267('pop').then(resolve).catch(reject);
+                        if (typeof show_11108267 === 'function') show_11108267().then(resolve).catch(reject);
                         else resolve(true);
                     }, 800);
                 }
@@ -661,7 +661,6 @@
         let pendingReward = null;
 
         const tileSize = 100, gap = 0;
-        // Μείωση απόστασης κατά 50%: spacing = (tileSize + gap) * 0.5
         const spacing = (tileSize + gap) * 0.5;
         let pathPoints = [];
 
@@ -747,7 +746,6 @@
                     </div>
                 `;
 
-                // Χρησιμοποιώ το spacing αντί για (tileSize + gap)
                 const rx = (pt.x - pp.x) * spacing;
                 const ry = (pt.y - pp.y) * spacing;
                 tile.style.left = (sp.x + rx - tileSize / 2) + 'px';
@@ -756,7 +754,6 @@
                 world.appendChild(tile);
             }
 
-            // Κεντράρισμα πιονιού στο ενεργό πλακίδιο
             const activeTile = world.querySelector('.path-tile.active');
             if (activeTile) {
                 const boardRect = boardArea.getBoundingClientRect();
@@ -873,7 +870,6 @@
             showRewardModal(reward);
         }
 
-        // ===== ΚΟΥΜΠΙ +5 Rolls =====
         async function watchAdForRolls() {
             initAudio();
             try {
@@ -934,7 +930,6 @@
             if (savedPoints !== null) gameState.points = parseInt(savedPoints);
         }
 
-        // ===== ΙΠΤΑΜΕΝΗ ΕΝΕΡΓΕΙΑ =====
         function spawnFloatingEnergy() {
             const energyEl = document.createElement('div');
             energyEl.className = 'floating-energy';
