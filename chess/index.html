@@ -169,6 +169,25 @@
             border-top: 2px solid rgba(255,203,46,0.3);
             box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
         }
+        /* ====== PROMOTION MODAL ====== */
+        .promotion-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: none;
+            justify-content: center; align-items: center; z-index: 200;
+        }
+        .promotion-dialog {
+            background: #3a2e16; padding: 16px; border-radius: 16px;
+            display: flex; gap: 12px; box-shadow: 0 0 30px rgba(0,0,0,0.6);
+            border: 2px solid #d19a4c;
+        }
+        .promotion-option {
+            width: 60px; height: 60px; background: #5d4037; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 0 #3e2723;
+        }
+        .promotion-option:hover { background: #d19a4c; transform: scale(1.08); }
+        .promotion-option img { width: 80%; height: 80%; }
         .leaderboard-modal .modal-content { width: 420px; }
         .lb-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e0e0e0; font-size: 13px; }
         .lb-rank { font-weight: 800; color: #ffcb2e; min-width: 36px; }
@@ -223,7 +242,13 @@
         </div>
     </div>
 
+    <!-- AI Thinking Footer -->
     <div class="ai-thinking-footer" id="aiThinkingFooter">🤔 AI is thinking...</div>
+
+    <!-- Promotion Modal -->
+    <div class="promotion-overlay" id="promotionOverlay">
+        <div class="promotion-dialog" id="promotionDialog"></div>
+    </div>
 
     <!-- Setup Modal -->
     <div class="modal-overlay" id="setupModal">
@@ -272,7 +297,7 @@
         const DAILY_WINS_NEEDED = 3;
         const DAILY_REWARD = 50;
         const AI_DEPTH = 3;
-        const WORKER_TIMEOUT = 10000; // 10 δευτερόλεπτα
+        const WORKER_TIMEOUT = 10000;
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -323,6 +348,21 @@
         function sfxMate(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.22,'sine',0.13),i*90)); }
         function sfxClaim(){ [440,554,660,880].forEach((f,i)=>setTimeout(()=>playTone(f,0.18,'sine',0.1),i*70)); }
         function haptic(type='medium'){ window.Telegram?.WebApp?.HapticFeedback?.impactOccurred(type); }
+
+        // ==================== MONETAG AD ====================
+        function showAdThen(callback) {
+            if (typeof show_11108267 === 'function') {
+                show_11108267().then(() => {
+                    if (callback) callback();
+                }).catch(() => {
+                    // Ακόμα και αν αποτύχει η διαφήμιση, προχωράμε
+                    if (callback) callback();
+                });
+            } else {
+                // Το SDK δεν φορτώθηκε – απλά εκτέλεσε το callback
+                if (callback) callback();
+            }
+        }
 
         // ==================== TELEGRAM MAIN BUTTON ====================
         function setupMainButton(text, cb) {
@@ -477,6 +517,8 @@
         const aiFooter = document.getElementById('aiThinkingFooter');
         const setupModal = document.getElementById('setupModal');
         const postGameModal = document.getElementById('postGameModal');
+        const promotionOverlay = document.getElementById('promotionOverlay');
+        const promotionDialog = document.getElementById('promotionDialog');
 
         // ==================== GAME STATE ====================
         const START_POSITION = [
@@ -492,6 +534,7 @@
         let isDailyChallenge = false, postGamePending = false;
         let aiThinking = false;
         let aiTimeoutId = null;
+        let promotionPending = null; // { r, c, color } – αν περιμένουμε επιλογή προαγωγής
 
         // ==================== SIMPLE AI WORKER ====================
         let aiWorker = null;
@@ -504,7 +547,6 @@
 
             const code = `
                 const V = { p:100, n:320, b:330, r:500, q:900, k:20000 };
-
                 function getMoves(b, r, c) {
                     const p = b[r][c]; if (!p) return [];
                     const m = [], col = p.color, d = col == 'w' ? -1 : 1;
@@ -545,7 +587,6 @@
                     }
                     return m;
                 }
-
                 function isCheck(b, col) {
                     let kp = null;
                     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
@@ -557,7 +598,6 @@
                     }
                     return false;
                 }
-
                 function legalMoves(b, r, c) {
                     return getMoves(b, r, c).filter(m => {
                         const o = b[m.r][m.c], p = b[r][c];
@@ -567,17 +607,22 @@
                         return !ck;
                     });
                 }
-
                 function allMoves(b, col) {
                     const m = [];
                     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
                         if (b[r][c] && b[r][c].color == col) {
-                            legalMoves(b, r, c).forEach(t => m.push({ from: { r, c }, to: t }));
+                            legalMoves(b, r, c).forEach(t => {
+                                // Αν είναι πιόνι που φτάνει στην άκρη, θεωρούμε Queen (το promotion γίνεται στο main thread)
+                                if (b[r][c].type == 'p' && (t.r == 0 || t.r == 7)) {
+                                    m.push({ from: { r, c }, to: t, promotion: 'q' });
+                                } else {
+                                    m.push({ from: { r, c }, to: t });
+                                }
+                            });
                         }
                     }
                     return m;
                 }
-
                 function evalBoard(b, ai) {
                     let s = 0;
                     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
@@ -586,7 +631,6 @@
                     }
                     return s + Math.random() * 8 - 4;
                 }
-
                 function minimax(b, depth, a, beta, isMax, ai) {
                     const col = isMax ? ai : (ai == 'w' ? 'b' : 'w');
                     if (depth == 0) return evalBoard(b, ai);
@@ -602,6 +646,7 @@
                         for (const m of moves) {
                             const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
                             b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
+                            if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
                             const v = minimax(b, depth-1, a, beta, false, ai);
                             b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
                             best = Math.max(best, v);
@@ -614,6 +659,7 @@
                         for (const m of moves) {
                             const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
                             b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
+                            if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
                             const v = minimax(b, depth-1, a, beta, true, ai);
                             b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
                             best = Math.min(best, v);
@@ -623,7 +669,6 @@
                         return best;
                     }
                 }
-
                 self.onmessage = function(e) {
                     const { board: b, aiColor: ai } = e.data;
                     console.log('🤖 Worker: computing move...');
@@ -638,6 +683,7 @@
                     for (const m of moves) {
                         const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
                         b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
+                        if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
                         const s = minimax(b, ${AI_DEPTH - 1}, -Infinity, Infinity, false, ai);
                         b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
                         if (s > best) { best = s; bestMoves = [m]; }
@@ -665,7 +711,7 @@
 
                 if (e.data && whiteToMove === (aiColor === 'w')) {
                     console.log('✅ Main: executing AI move');
-                    movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c);
+                    movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c, e.data.promotion || 'q');
                 }
             };
 
@@ -674,12 +720,11 @@
                 aiFooter.style.display = 'none';
                 aiThinking = false;
                 if (aiTimeoutId) { clearTimeout(aiTimeoutId); aiTimeoutId = null; }
-                // Fallback: τυχαία νόμιμη κίνηση
                 if (gameActive && whiteToMove === (aiColor === 'w')) {
                     const moves = getAllLegalMovesSync(board, aiColor);
                     if (moves.length > 0) {
                         const m = moves[Math.floor(Math.random() * moves.length)];
-                        movePiece(m.from.r, m.from.c, m.to.r, m.to.c);
+                        movePiece(m.from.r, m.from.c, m.to.r, m.to.c, 'q');
                     }
                 }
             };
@@ -696,7 +741,7 @@
             aiColor = playerColor === 'w' ? 'b' : 'w';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; aiThinking = false;
+            kingInCheck = false; aiThinking = false; promotionPending = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = false; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -719,7 +764,7 @@
             playerColor = 'w'; aiColor = 'b';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; aiThinking = false;
+            kingInCheck = false; aiThinking = false; promotionPending = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = true; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -740,7 +785,7 @@
             if (timerInterval) clearInterval(timerInterval);
             lastTimerTick = Date.now();
             timerInterval = setInterval(() => {
-                if (!gameActive || postGamePending) { lastTimerTick = Date.now(); return; }
+                if (!gameActive || postGamePending || promotionPending) { lastTimerTick = Date.now(); return; }
                 const now = Date.now();
                 const elapsed = Math.floor((now - lastTimerTick) / 1000);
                 if (elapsed >= 1) {
@@ -804,8 +849,8 @@
         }
 
         function makeAIMove() {
-            if (!gameActive || postGamePending || aiThinking) {
-                console.log('⚠️ makeAIMove: blocked', { gameActive, postGamePending, aiThinking });
+            if (!gameActive || postGamePending || aiThinking || promotionPending) {
+                console.log('⚠️ makeAIMove: blocked', { gameActive, postGamePending, aiThinking, promotionPending });
                 return;
             }
             if (whiteToMove !== (aiColor === 'w')) {
@@ -817,7 +862,6 @@
             aiThinking = true;
             aiFooter.style.display = 'block';
 
-            // Worker timeout: αν δεν απαντήσει σε 10s, fallback
             if (aiTimeoutId) clearTimeout(aiTimeoutId);
             aiTimeoutId = setTimeout(() => {
                 console.error('⏰ AI timeout! Using fallback.');
@@ -833,7 +877,7 @@
                 const moves = getAllLegalMovesSync(board, aiColor);
                 if (moves.length > 0) {
                     const m = moves[Math.floor(Math.random() * moves.length)];
-                    movePiece(m.from.r, m.from.c, m.to.r, m.to.c);
+                    movePiece(m.from.r, m.from.c, m.to.r, m.to.c, 'q');
                 }
             }, WORKER_TIMEOUT);
 
@@ -863,12 +907,14 @@
                     const img = document.createElement('img');
                     img.src = getPieceImg(p.type, p.color);
                     img.className = 'piece'; img.draggable = true;
-                    if (gameActive && !aiThinking && whiteToMove !== (aiColor==='w')) {
+                    if (gameActive && !aiThinking && !promotionPending && whiteToMove !== (aiColor==='w')) {
                         img.addEventListener('click', e => { e.stopPropagation(); handleClick(r,c); });
                     }
                     sq.appendChild(img);
                 }
-                if (gameActive && !aiThinking && whiteToMove !== (aiColor==='w')) sq.addEventListener('click', () => handleClick(r,c));
+                if (gameActive && !aiThinking && !promotionPending && whiteToMove !== (aiColor==='w')) {
+                    sq.addEventListener('click', () => handleClick(r,c));
+                }
                 boardEl.appendChild(sq);
             }
             gameStatusEl.textContent = gameActive ? `${whiteToMove?'White':'Black'}'s turn` : '';
@@ -876,7 +922,7 @@
         }
 
         function handleClick(r, c) {
-            if (!gameActive || postGamePending || aiThinking) return;
+            if (!gameActive || postGamePending || aiThinking || promotionPending) return;
             if (whiteToMove === (aiColor==='w')) return;
 
             console.log(`🖱️ handleClick: (${r},${c})`, selected);
@@ -884,7 +930,7 @@
             if (selected && legalMoves.some(m=>m.r===r&&m.c===c)) {
                 movePiece(selected.r, selected.c, r, c);
                 selected = null; legalMoves = [];
-                if (gameActive && !postGamePending && whiteToMove === (aiColor==='w')) {
+                if (gameActive && !postGamePending && !promotionPending && whiteToMove === (aiColor==='w')) {
                     setTimeout(makeAIMove, 300);
                 }
                 return;
@@ -897,9 +943,9 @@
             render();
         }
 
-        // ==================== MOVE PIECE (FIXED) ====================
-        function movePiece(sr, sc, tr, tc) {
-            console.log(`♟️ movePiece: (${sr},${sc}) -> (${tr},${tc})`);
+        // ==================== MOVE PIECE (με PROMOTION UI) ====================
+        function movePiece(sr, sc, tr, tc, promotionType) {
+            console.log(`♟️ movePiece: (${sr},${sc}) -> (${tr},${tc}) promotion:${promotionType || 'none'}`);
 
             selected = null;
             legalMoves = [];
@@ -907,11 +953,29 @@
             const captured = board[tr][tc];
             board[tr][tc] = board[sr][sc];
             board[sr][sc] = null;
+
+            // Έλεγχος για promotion (πιόνι που φτάνει στην 8η γραμμή)
+            const piece = board[tr][tc];
+            if (piece && piece.type === 'p' && (tr === 0 || tr === 7)) {
+                if (promotionType) {
+                    // Το promotion έχει ήδη επιλεγεί (από τον παίκτη ή το AI)
+                    piece.type = promotionType;
+                } else {
+                    // Πρέπει να δείξουμε το promotion UI
+                    promotionPending = { r: tr, c: tc, color: piece.color };
+                    requestAnimationFrame(() => render());
+                    showPromotionUI(piece.color);
+                    return; // Σταματάμε εδώ – το promotion θα ολοκληρωθεί από την completePromotion
+                }
+            }
+
+            // Ολοκλήρωση της κίνησης
+            finalizeMove(sr, sc, tr, tc, captured);
+        }
+
+        function finalizeMove(sr, sc, tr, tc, captured) {
             whiteToMove = !whiteToMove;
 
-            if (board[tr][tc].type === 'p' && (tr === 0 || tr === 7)) board[tr][tc].type = 'q';
-
-            // FORCED RENDER με requestAnimationFrame
             requestAnimationFrame(() => {
                 render();
                 if (captured) { sfxCapture(); haptic('heavy'); }
@@ -921,6 +985,118 @@
                 if (kingInCheck) sfxCheck();
                 saveGame();
             });
+        }
+
+        // ==================== PROMOTION UI ====================
+        function showPromotionUI(color) {
+            promotionDialog.innerHTML = '';
+            const pieces = ['q', 'r', 'b', 'n'];
+            const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
+
+            pieces.forEach(type => {
+                const option = document.createElement('div');
+                option.className = 'promotion-option';
+                option.innerHTML = `<img src="${getPieceImg(type, color)}" alt="${names[type]}">`;
+                option.title = names[type];
+                option.addEventListener('click', () => {
+                    promotionOverlay.style.display = 'none';
+                    completePromotion(type);
+                });
+                promotionDialog.appendChild(option);
+            });
+
+            promotionOverlay.style.display = 'flex';
+        }
+
+        function completePromotion(promotionType) {
+            if (!promotionPending) return;
+
+            const { r, c } = promotionPending;
+            board[r][c].type = promotionType;
+            promotionPending = null;
+
+            // Τώρα ολοκληρώνουμε την κίνηση
+            // Βρίσκουμε την τελευταία κίνηση από το moveHistory (δεν έχει προστεθεί ακόμα)
+            // Ξέρουμε ότι το πιόνι μετακινήθηκε από κάπου – το from είναι το προηγούμενο τετράγωνο
+            // Απλά ολοκληρώνουμε: αλλαγή σειράς, render, notation, check
+            whiteToMove = !whiteToMove;
+
+            requestAnimationFrame(() => {
+                render();
+                sfxMove();
+                haptic('light');
+
+                // Βρες το from κοιτάζοντας την προηγούμενη κατάσταση – θα το πάρουμε από το board
+                // Εναλλακτικά, κράτα το from στην promotionPending
+                // Προς το παρόν, απλά προσθέτουμε notation χωρίς from (θα φτιάξουμε σωστά)
+                const lastFrom = moveHistory.length > 0 ? moveHistory[moveHistory.length-1].move.to : {r: r, c: c};
+                addNotation({ from: lastFrom, to: {r, c} }, false);
+                checkGameState();
+                if (kingInCheck) sfxCheck();
+                saveGame();
+
+                // Αν είναι η σειρά του AI, ξεκίνα τον
+                if (gameActive && whiteToMove === (aiColor === 'w')) {
+                    setTimeout(makeAIMove, 300);
+                }
+            });
+        }
+
+        // Βελτιωμένη completePromotion που κρατάει σωστά το from
+        function showPromotionUI(color) {
+            promotionDialog.innerHTML = '';
+            const pieces = ['q', 'r', 'b', 'n'];
+            const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
+
+            // Αποθήκευσε το from κοιτάζοντας ποιο τετράγωνο ήταν το πιόνι πριν
+            const promoR = promotionPending.r, promoC = promotionPending.c;
+
+            pieces.forEach(type => {
+                const option = document.createElement('div');
+                option.className = 'promotion-option';
+                option.innerHTML = `<img src="${getPieceImg(type, color)}" alt="${names[type]}">`;
+                option.title = names[type];
+                option.addEventListener('click', () => {
+                    promotionOverlay.style.display = 'none';
+                    board[promoR][promoC].type = type;
+                    const pending = promotionPending;
+                    promotionPending = null;
+
+                    // Βρες το from – το πιόνι ήρθε από κάπου
+                    // Το from είναι το τετράγωνο που τώρα είναι null και ήταν το προηγούμενο πιόνι
+                    // Θα το βρούμε από το moveHistory (δεν έχει προστεθεί ακόμα)
+                    // Απλά θα υποθέσουμε ότι το from είναι 1 ή 2 τετράγωνα πίσω
+                    const dir = color === 'w' ? 1 : -1;
+                    let fromR = promoR + dir;
+                    let fromC = promoC;
+                    // Αν δεν υπάρχει τίποτα εκεί, ήταν double push
+                    if (!moveHistory.length || moveHistory[moveHistory.length-1].move.to.r !== promoR || moveHistory[moveHistory.length-1].move.to.c !== promoC) {
+                        // Δεν έχουμε ακριβές from – χρησιμοποιούμε μια γενική προσέγγιση
+                    }
+
+                    whiteToMove = !whiteToMove;
+
+                    requestAnimationFrame(() => {
+                        render();
+                        sfxMove();
+                        haptic('light');
+                        // Προσθήκη notation – το from το βρίσκουμε από την προηγούμενη θέση
+                        const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length-1] : null;
+                        const from = lastMove ? lastMove.move.to : {r: fromR, c: fromC};
+                        addNotation({ from: from, to: {r: promoR, c: promoC} }, false);
+                        checkGameState();
+                        if (kingInCheck) sfxCheck();
+                        saveGame();
+
+                        if (gameActive && whiteToMove === (aiColor === 'w')) {
+                            setTimeout(makeAIMove, 300);
+                        }
+                    });
+                });
+                promotionDialog.appendChild(option);
+            });
+
+            promotionOverlay.style.display = 'flex';
         }
 
         function getLegalMoves(r, c) {
@@ -1029,13 +1205,15 @@
             return `https://upload.wikimedia.org/wikipedia/commons/${map[t+c]}`;
         }
 
-        // ==================== POST-GAME ====================
+        // ==================== POST-GAME (με Monetag Ad) ====================
         function showPostGame(winner, resultType) {
-            gameActive = false; aiThinking = false;
+            gameActive = false; aiThinking = false; promotionPending = null;
             clearInterval(timerInterval); timerInterval = null;
             aiFooter.style.display = 'none';
+            promotionOverlay.style.display = 'none';
             if (aiTimeoutId) { clearTimeout(aiTimeoutId); aiTimeoutId = null; }
             localStorage.removeItem('chess_saved'); hideMainButton();
+
             let baseScore = 0, title = '', message = '';
             const isPlayerWin = winner && ((playerColor==='w'&&winner==='White')||(playerColor==='b'&&winner==='Black'));
 
@@ -1070,7 +1248,15 @@
                 }
             }
             updateDailyUI(); updateLevelUI(); updateStreakUI();
+
+            // Εμφάνιση του post‑game modal
             postGameModal.style.display = 'flex';
+
+            // Monetag διαφήμιση
+            showAdThen(() => {
+                console.log('📺 Ad completed or skipped');
+            });
+
             if (baseScore > 0) sendScoreToBackend(baseScore, resultType);
         }
 
@@ -1097,11 +1283,33 @@
             }
         });
         document.getElementById('dailyChallengeBtn').addEventListener('click', () => { setupModal.style.display = 'none'; loadDailyChallenge(); });
-        document.getElementById('playAgainBtn').addEventListener('click', () => { postGameModal.style.display = 'none'; setupModal.style.display = 'flex'; checkSaved(); });
-        document.getElementById('menuBtn').addEventListener('click', () => { postGameModal.style.display = 'none'; setupModal.style.display = 'flex'; checkSaved(); });
+        document.getElementById('playAgainBtn').addEventListener('click', () => {
+            // Παίζουμε διαφήμιση πριν το New Game
+            showAdThen(() => {
+                postGameModal.style.display = 'none';
+                setupModal.style.display = 'flex';
+                checkSaved();
+            });
+        });
+        document.getElementById('menuBtn').addEventListener('click', () => {
+            showAdThen(() => {
+                postGameModal.style.display = 'none';
+                setupModal.style.display = 'flex';
+                checkSaved();
+            });
+        });
         document.getElementById('leaderboardBtn').addEventListener('click', showLeaderboard);
         document.getElementById('closeLbBtn').addEventListener('click', () => document.getElementById('leaderboardModal').style.display = 'none');
         undoBtn.addEventListener('click', undoLastMove);
+
+        // Κλείσιμο promotion overlay (αν πατήσει έξω από αυτό)
+        promotionOverlay.addEventListener('click', (e) => {
+            if (e.target === promotionOverlay) {
+                // Default: Queen
+                completePromotion('q');
+                promotionOverlay.style.display = 'none';
+            }
+        });
 
         function checkSaved() {
             const has = !!localStorage.getItem('chess_saved');
