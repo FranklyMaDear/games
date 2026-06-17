@@ -169,11 +169,11 @@
             border-top: 2px solid rgba(255,203,46,0.3);
             box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
         }
-        /* ====== PROMOTION MODAL ====== */
+        /* Promotion */
         .promotion-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); display: none;
-            justify-content: center; align-items: center; z-index: 200;
+            background: rgba(0,0,0,0.7); display: none; justify-content: center;
+            align-items: center; z-index: 200;
         }
         .promotion-dialog {
             background: #3a2e16; padding: 16px; border-radius: 16px;
@@ -242,7 +242,6 @@
         </div>
     </div>
 
-    <!-- AI Thinking Footer -->
     <div class="ai-thinking-footer" id="aiThinkingFooter">🤔 AI is thinking...</div>
 
     <!-- Promotion Modal -->
@@ -349,21 +348,6 @@
         function sfxClaim(){ [440,554,660,880].forEach((f,i)=>setTimeout(()=>playTone(f,0.18,'sine',0.1),i*70)); }
         function haptic(type='medium'){ window.Telegram?.WebApp?.HapticFeedback?.impactOccurred(type); }
 
-        // ==================== MONETAG AD ====================
-        function showAdThen(callback) {
-            if (typeof show_11108267 === 'function') {
-                show_11108267().then(() => {
-                    if (callback) callback();
-                }).catch(() => {
-                    // Ακόμα και αν αποτύχει η διαφήμιση, προχωράμε
-                    if (callback) callback();
-                });
-            } else {
-                // Το SDK δεν φορτώθηκε – απλά εκτέλεσε το callback
-                if (callback) callback();
-            }
-        }
-
         // ==================== TELEGRAM MAIN BUTTON ====================
         function setupMainButton(text, cb) {
             if (window.Telegram?.WebApp?.MainButton) {
@@ -386,9 +370,7 @@
             for (let i = LEVELS.length-1; i >= 0; i--) if (wins >= LEVELS[i].min) return LEVELS[i];
             return LEVELS[0];
         }
-        function updateLevelUI() {
-            document.getElementById('levelBadge').textContent = `🏅 ${getLevel().name}`;
-        }
+        function updateLevelUI() { document.getElementById('levelBadge').textContent = `🏅 ${getLevel().name}`; }
 
         // ==================== DAILY MISSIONS ====================
         function getDailyKey() { return 'chess_daily_' + new Date().toDateString(); }
@@ -534,17 +516,12 @@
         let isDailyChallenge = false, postGamePending = false;
         let aiThinking = false;
         let aiTimeoutId = null;
-        let promotionPending = null; // { r, c, color } – αν περιμένουμε επιλογή προαγωγής
+        let promotionSquare = null; // { r, c, fromR, fromC, captured } – αν περιμένουμε επιλογή
 
-        // ==================== SIMPLE AI WORKER ====================
+        // ==================== AI WORKER ====================
         let aiWorker = null;
-
         function initWorker() {
-            if (aiWorker) {
-                try { aiWorker.terminate(); } catch(e) {}
-                aiWorker = null;
-            }
-
+            if (aiWorker) { try { aiWorker.terminate(); } catch(e) {} aiWorker = null; }
             const code = `
                 const V = { p:100, n:320, b:330, r:500, q:900, k:20000 };
                 function getMoves(b, r, c) {
@@ -611,120 +588,53 @@
                     const m = [];
                     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
                         if (b[r][c] && b[r][c].color == col) {
-                            legalMoves(b, r, c).forEach(t => {
-                                // Αν είναι πιόνι που φτάνει στην άκρη, θεωρούμε Queen (το promotion γίνεται στο main thread)
-                                if (b[r][c].type == 'p' && (t.r == 0 || t.r == 7)) {
-                                    m.push({ from: { r, c }, to: t, promotion: 'q' });
-                                } else {
-                                    m.push({ from: { r, c }, to: t });
-                                }
-                            });
+                            legalMoves(b, r, c).forEach(t => m.push({ from: { r, c }, to: t }));
                         }
                     }
                     return m;
                 }
-                function evalBoard(b, ai) {
-                    let s = 0;
-                    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-                        const p = b[r][c]; if (!p) continue;
-                        s += p.color == ai ? V[p.type] : -V[p.type];
-                    }
-                    return s + Math.random() * 8 - 4;
-                }
+                function evalBoard(b, ai) { let s = 0; for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) { const p = b[r][c]; if (!p) continue; s += p.color == ai ? V[p.type] : -V[p.type]; } return s + Math.random() * 8 - 4; }
                 function minimax(b, depth, a, beta, isMax, ai) {
                     const col = isMax ? ai : (ai == 'w' ? 'b' : 'w');
                     if (depth == 0) return evalBoard(b, ai);
                     const moves = allMoves(b, col);
                     if (moves.length == 0) return isCheck(b, col) ? (isMax ? -99999 : 99999) : 0;
-                    moves.sort((x, y) => {
-                        const ca = b[x.to.r][x.to.c] ? V[b[x.to.r][x.to.c].type] : 0;
-                        const cb = b[y.to.r][y.to.c] ? V[b[y.to.r][y.to.c].type] : 0;
-                        return cb - ca;
-                    });
-                    if (isMax) {
-                        let best = -Infinity;
-                        for (const m of moves) {
-                            const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
-                            b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
-                            if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
-                            const v = minimax(b, depth-1, a, beta, false, ai);
-                            b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
-                            best = Math.max(best, v);
-                            a = Math.max(a, v);
-                            if (beta <= a) break;
-                        }
-                        return best;
-                    } else {
-                        let best = Infinity;
-                        for (const m of moves) {
-                            const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
-                            b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
-                            if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
-                            const v = minimax(b, depth-1, a, beta, true, ai);
-                            b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
-                            best = Math.min(best, v);
-                            beta = Math.min(beta, v);
-                            if (beta <= a) break;
-                        }
-                        return best;
-                    }
+                    moves.sort((x, y) => { const ca = b[x.to.r][x.to.c] ? V[b[x.to.r][x.to.c].type] : 0; const cb = b[y.to.r][y.to.c] ? V[b[y.to.r][y.to.c].type] : 0; return cb - ca; });
+                    if (isMax) { let best = -Infinity; for (const m of moves) { const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c]; b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null; const v = minimax(b, depth-1, a, beta, false, ai); b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o; best = Math.max(best, v); a = Math.max(a, v); if (beta <= a) break; } return best; }
+                    else { let best = Infinity; for (const m of moves) { const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c]; b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null; const v = minimax(b, depth-1, a, beta, true, ai); b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o; best = Math.min(best, v); beta = Math.min(beta, v); if (beta <= a) break; } return best; }
                 }
                 self.onmessage = function(e) {
                     const { board: b, aiColor: ai } = e.data;
-                    console.log('🤖 Worker: computing move...');
                     const moves = allMoves(b, ai);
-                    if (!moves.length) { console.log('🤖 Worker: no moves'); self.postMessage(null); return; }
-                    moves.sort((x, y) => {
-                        const ca = b[x.to.r][x.to.c] ? V[b[x.to.r][x.to.c].type] : 0;
-                        const cb = b[y.to.r][y.to.c] ? V[b[y.to.r][y.to.c].type] : 0;
-                        return cb - ca;
-                    });
+                    if (!moves.length) { self.postMessage(null); return; }
                     let best = -Infinity, bestMoves = [];
                     for (const m of moves) {
                         const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
                         b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
-                        if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
-                        const s = minimax(b, ${AI_DEPTH - 1}, -Infinity, Infinity, false, ai);
+                        const s = minimax(b, 2, -Infinity, Infinity, false, ai);
                         b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
-                        if (s > best) { best = s; bestMoves = [m]; }
-                        else if (s == best) bestMoves.push(m);
+                        if (s > best) { best = s; bestMoves = [m]; } else if (s == best) bestMoves.push(m);
                     }
-                    const result = bestMoves[Math.floor(Math.random() * bestMoves.length)];
-                    console.log('🤖 Worker: move found', result);
-                    self.postMessage(result);
+                    self.postMessage(bestMoves[Math.floor(Math.random() * bestMoves.length)]);
                 };
             `;
-
-            const blob = new Blob([code], { type: 'application/javascript' });
-            aiWorker = new Worker(URL.createObjectURL(blob));
-
+            aiWorker = new Worker(URL.createObjectURL(new Blob([code], {type:'application/javascript'})));
             aiWorker.onmessage = function(e) {
-                console.log('📩 Main: worker returned', e.data);
-                if (aiTimeoutId) { clearTimeout(aiTimeoutId); aiTimeoutId = null; }
                 aiFooter.style.display = 'none';
                 aiThinking = false;
-
-                if (!gameActive) {
-                    console.log('⚠️ Main: game not active, ignoring worker move');
-                    return;
-                }
-
+                if (!gameActive || promotionSquare) return;
                 if (e.data && whiteToMove === (aiColor === 'w')) {
-                    console.log('✅ Main: executing AI move');
-                    movePiece(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c, e.data.promotion || 'q');
+                    executeMove(e.data.from.r, e.data.from.c, e.data.to.r, e.data.to.c);
                 }
             };
-
-            aiWorker.onerror = function(e) {
-                console.error('💥 Worker error:', e);
+            aiWorker.onerror = function() {
                 aiFooter.style.display = 'none';
                 aiThinking = false;
-                if (aiTimeoutId) { clearTimeout(aiTimeoutId); aiTimeoutId = null; }
-                if (gameActive && whiteToMove === (aiColor === 'w')) {
+                if (gameActive && !promotionSquare && whiteToMove === (aiColor === 'w')) {
                     const moves = getAllLegalMovesSync(board, aiColor);
-                    if (moves.length > 0) {
+                    if (moves.length) {
                         const m = moves[Math.floor(Math.random() * moves.length)];
-                        movePiece(m.from.r, m.from.c, m.to.r, m.to.c, 'q');
+                        executeMove(m.from.r, m.from.c, m.to.r, m.to.c);
                     }
                 }
             };
@@ -732,16 +642,14 @@
 
         // ==================== GAME LOGIC ====================
         function initGame(colorChoice) {
-            console.log('🎮 initGame:', colorChoice);
             initAudio();
             initWorker();
-
             colorChoice = colorChoice === 'random' ? (Math.random()<0.5?'white':'black') : colorChoice;
             playerColor = colorChoice === 'white' ? 'w' : 'b';
             aiColor = playerColor === 'w' ? 'b' : 'w';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; aiThinking = false; promotionPending = null;
+            kingInCheck = false; aiThinking = false; promotionSquare = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = false; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -759,12 +667,11 @@
         }
 
         function loadDailyChallenge() {
-            initAudio();
-            initWorker();
+            initAudio(); initWorker();
             playerColor = 'w'; aiColor = 'b';
             board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
-            kingInCheck = false; aiThinking = false; promotionPending = null;
+            kingInCheck = false; aiThinking = false; promotionSquare = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
             isDailyChallenge = true; postGamePending = false; undoUsed = false;
             moveHistory = []; notationList.innerHTML = '';
@@ -785,26 +692,16 @@
             if (timerInterval) clearInterval(timerInterval);
             lastTimerTick = Date.now();
             timerInterval = setInterval(() => {
-                if (!gameActive || postGamePending || promotionPending) { lastTimerTick = Date.now(); return; }
+                if (!gameActive || postGamePending || promotionSquare) { lastTimerTick = Date.now(); return; }
                 const now = Date.now();
                 const elapsed = Math.floor((now - lastTimerTick) / 1000);
                 if (elapsed >= 1) {
                     if (whiteToMove) {
                         whiteTimeLeft = Math.max(0, whiteTimeLeft - elapsed);
-                        if (whiteTimeLeft <= 0) {
-                            gameActive = false;
-                            clearInterval(timerInterval); timerInterval = null;
-                            showPostGame('Black', 'timeout');
-                            return;
-                        }
+                        if (whiteTimeLeft <= 0) { gameActive = false; showPostGame('Black', 'timeout'); return; }
                     } else {
                         blackTimeLeft = Math.max(0, blackTimeLeft - elapsed);
-                        if (blackTimeLeft <= 0) {
-                            gameActive = false;
-                            clearInterval(timerInterval); timerInterval = null;
-                            showPostGame('White', 'timeout');
-                            return;
-                        }
+                        if (blackTimeLeft <= 0) { gameActive = false; showPostGame('White', 'timeout'); return; }
                     }
                     lastTimerTick = now;
                 }
@@ -849,38 +746,24 @@
         }
 
         function makeAIMove() {
-            if (!gameActive || postGamePending || aiThinking || promotionPending) {
-                console.log('⚠️ makeAIMove: blocked', { gameActive, postGamePending, aiThinking, promotionPending });
-                return;
-            }
-            if (whiteToMove !== (aiColor === 'w')) {
-                console.log('⚠️ makeAIMove: not AI turn');
-                return;
-            }
-
-            console.log('🤖 makeAIMove: requesting AI move...');
+            if (!gameActive || postGamePending || aiThinking || promotionSquare) return;
+            if (whiteToMove !== (aiColor === 'w')) return;
             aiThinking = true;
             aiFooter.style.display = 'block';
-
             if (aiTimeoutId) clearTimeout(aiTimeoutId);
             aiTimeoutId = setTimeout(() => {
-                console.error('⏰ AI timeout! Using fallback.');
                 aiFooter.style.display = 'none';
                 aiThinking = false;
-
                 if (!gameActive) return;
-
                 try { aiWorker.terminate(); } catch(e) {}
                 aiWorker = null;
                 initWorker();
-
                 const moves = getAllLegalMovesSync(board, aiColor);
                 if (moves.length > 0) {
                     const m = moves[Math.floor(Math.random() * moves.length)];
-                    movePiece(m.from.r, m.from.c, m.to.r, m.to.c, 'q');
+                    executeMove(m.from.r, m.from.c, m.to.r, m.to.c);
                 }
             }, WORKER_TIMEOUT);
-
             const boardCopy = board.map(r => r.map(c => c ? { ...c } : null));
             aiWorker.postMessage({ board: boardCopy, aiColor });
         }
@@ -907,35 +790,26 @@
                     const img = document.createElement('img');
                     img.src = getPieceImg(p.type, p.color);
                     img.className = 'piece'; img.draggable = true;
-                    if (gameActive && !aiThinking && !promotionPending && whiteToMove !== (aiColor==='w')) {
+                    if (gameActive && !aiThinking && !promotionSquare && whiteToMove !== (aiColor==='w')) {
                         img.addEventListener('click', e => { e.stopPropagation(); handleClick(r,c); });
                     }
                     sq.appendChild(img);
                 }
-                if (gameActive && !aiThinking && !promotionPending && whiteToMove !== (aiColor==='w')) {
-                    sq.addEventListener('click', () => handleClick(r,c));
-                }
+                if (gameActive && !aiThinking && !promotionSquare && whiteToMove !== (aiColor==='w')) sq.addEventListener('click', () => handleClick(r,c));
                 boardEl.appendChild(sq);
             }
-            gameStatusEl.textContent = gameActive ? `${whiteToMove?'White':'Black'}'s turn` : '';
+            gameStatusEl.textContent = gameActive ? (promotionSquare ? 'Choose promotion piece' : `${whiteToMove?'White':'Black'}'s turn`) : '';
             updateTimerDisplay(); updateEvalBar();
         }
 
         function handleClick(r, c) {
-            if (!gameActive || postGamePending || aiThinking || promotionPending) return;
+            if (!gameActive || postGamePending || aiThinking || promotionSquare) return;
             if (whiteToMove === (aiColor==='w')) return;
-
-            console.log(`🖱️ handleClick: (${r},${c})`, selected);
-
             if (selected && legalMoves.some(m=>m.r===r&&m.c===c)) {
-                movePiece(selected.r, selected.c, r, c);
+                executeMove(selected.r, selected.c, r, c);
                 selected = null; legalMoves = [];
-                if (gameActive && !postGamePending && !promotionPending && whiteToMove === (aiColor==='w')) {
-                    setTimeout(makeAIMove, 300);
-                }
                 return;
             }
-
             const p = board[r][c];
             if (p && p.color === (whiteToMove?'w':'b')) {
                 selected = {r,c}; legalMoves = getLegalMoves(r,c);
@@ -943,161 +817,66 @@
             render();
         }
 
-        // ==================== MOVE PIECE (με PROMOTION UI) ====================
-        function movePiece(sr, sc, tr, tc, promotionType) {
-            console.log(`♟️ movePiece: (${sr},${sc}) -> (${tr},${tc}) promotion:${promotionType || 'none'}`);
-
-            selected = null;
-            legalMoves = [];
-
+        function executeMove(sr, sc, tr, tc, promoChoice = null) {
             const captured = board[tr][tc];
             board[tr][tc] = board[sr][sc];
             board[sr][sc] = null;
-
-            // Έλεγχος για promotion (πιόνι που φτάνει στην 8η γραμμή)
             const piece = board[tr][tc];
             if (piece && piece.type === 'p' && (tr === 0 || tr === 7)) {
-                if (promotionType) {
-                    // Το promotion έχει ήδη επιλεγεί (από τον παίκτη ή το AI)
-                    piece.type = promotionType;
+                if (promoChoice) {
+                    piece.type = promoChoice;
+                    finishMove(sr, sc, tr, tc, captured);
                 } else {
-                    // Πρέπει να δείξουμε το promotion UI
-                    promotionPending = { r: tr, c: tc, color: piece.color };
-                    requestAnimationFrame(() => render());
+                    promotionSquare = { r: tr, c: tc, fromR: sr, fromC: sc, captured };
                     showPromotionUI(piece.color);
-                    return; // Σταματάμε εδώ – το promotion θα ολοκληρωθεί από την completePromotion
+                    render();
                 }
+            } else {
+                finishMove(sr, sc, tr, tc, captured);
             }
-
-            // Ολοκλήρωση της κίνησης
-            finalizeMove(sr, sc, tr, tc, captured);
         }
 
-        function finalizeMove(sr, sc, tr, tc, captured) {
+        function finishMove(sr, sc, tr, tc, captured) {
             whiteToMove = !whiteToMove;
-
-            requestAnimationFrame(() => {
-                render();
-                if (captured) { sfxCapture(); haptic('heavy'); }
-                else { sfxMove(); haptic('light'); }
-                addNotation({ from: {r:sr,c:sc}, to: {r:tr,c:tc} }, captured);
-                checkGameState();
-                if (kingInCheck) sfxCheck();
-                saveGame();
-            });
+            if (captured) { sfxCapture(); haptic('heavy'); } else { sfxMove(); haptic('light'); }
+            addNotation({ from: {r:sr,c:sc}, to: {r:tr,c:tc} }, captured);
+            checkGameState();
+            if (kingInCheck) sfxCheck();
+            render();
+            saveGame();
+            if (gameActive && !promotionSquare && whiteToMove === (aiColor==='w')) {
+                setTimeout(makeAIMove, 300);
+            }
         }
 
-        // ==================== PROMOTION UI ====================
         function showPromotionUI(color) {
             promotionDialog.innerHTML = '';
             const pieces = ['q', 'r', 'b', 'n'];
-            const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
-
             pieces.forEach(type => {
-                const option = document.createElement('div');
-                option.className = 'promotion-option';
-                option.innerHTML = `<img src="${getPieceImg(type, color)}" alt="${names[type]}">`;
-                option.title = names[type];
-                option.addEventListener('click', () => {
+                const opt = document.createElement('div');
+                opt.className = 'promotion-option';
+                opt.innerHTML = `<img src="${getPieceImg(type, color)}">`;
+                opt.addEventListener('click', () => {
                     promotionOverlay.style.display = 'none';
-                    completePromotion(type);
+                    board[promotionSquare.r][promotionSquare.c].type = type;
+                    const { fromR, fromC, r, c, captured } = promotionSquare;
+                    promotionSquare = null;
+                    finishMove(fromR, fromC, r, c, captured);
                 });
-                promotionDialog.appendChild(option);
+                promotionDialog.appendChild(opt);
             });
-
             promotionOverlay.style.display = 'flex';
         }
 
-        function completePromotion(promotionType) {
-            if (!promotionPending) return;
-
-            const { r, c } = promotionPending;
-            board[r][c].type = promotionType;
-            promotionPending = null;
-
-            // Τώρα ολοκληρώνουμε την κίνηση
-            // Βρίσκουμε την τελευταία κίνηση από το moveHistory (δεν έχει προστεθεί ακόμα)
-            // Ξέρουμε ότι το πιόνι μετακινήθηκε από κάπου – το from είναι το προηγούμενο τετράγωνο
-            // Απλά ολοκληρώνουμε: αλλαγή σειράς, render, notation, check
-            whiteToMove = !whiteToMove;
-
-            requestAnimationFrame(() => {
-                render();
-                sfxMove();
-                haptic('light');
-
-                // Βρες το from κοιτάζοντας την προηγούμενη κατάσταση – θα το πάρουμε από το board
-                // Εναλλακτικά, κράτα το from στην promotionPending
-                // Προς το παρόν, απλά προσθέτουμε notation χωρίς from (θα φτιάξουμε σωστά)
-                const lastFrom = moveHistory.length > 0 ? moveHistory[moveHistory.length-1].move.to : {r: r, c: c};
-                addNotation({ from: lastFrom, to: {r, c} }, false);
-                checkGameState();
-                if (kingInCheck) sfxCheck();
-                saveGame();
-
-                // Αν είναι η σειρά του AI, ξεκίνα τον
-                if (gameActive && whiteToMove === (aiColor === 'w')) {
-                    setTimeout(makeAIMove, 300);
-                }
-            });
-        }
-
-        // Βελτιωμένη completePromotion που κρατάει σωστά το from
-        function showPromotionUI(color) {
-            promotionDialog.innerHTML = '';
-            const pieces = ['q', 'r', 'b', 'n'];
-            const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
-
-            // Αποθήκευσε το from κοιτάζοντας ποιο τετράγωνο ήταν το πιόνι πριν
-            const promoR = promotionPending.r, promoC = promotionPending.c;
-
-            pieces.forEach(type => {
-                const option = document.createElement('div');
-                option.className = 'promotion-option';
-                option.innerHTML = `<img src="${getPieceImg(type, color)}" alt="${names[type]}">`;
-                option.title = names[type];
-                option.addEventListener('click', () => {
-                    promotionOverlay.style.display = 'none';
-                    board[promoR][promoC].type = type;
-                    const pending = promotionPending;
-                    promotionPending = null;
-
-                    // Βρες το from – το πιόνι ήρθε από κάπου
-                    // Το from είναι το τετράγωνο που τώρα είναι null και ήταν το προηγούμενο πιόνι
-                    // Θα το βρούμε από το moveHistory (δεν έχει προστεθεί ακόμα)
-                    // Απλά θα υποθέσουμε ότι το from είναι 1 ή 2 τετράγωνα πίσω
-                    const dir = color === 'w' ? 1 : -1;
-                    let fromR = promoR + dir;
-                    let fromC = promoC;
-                    // Αν δεν υπάρχει τίποτα εκεί, ήταν double push
-                    if (!moveHistory.length || moveHistory[moveHistory.length-1].move.to.r !== promoR || moveHistory[moveHistory.length-1].move.to.c !== promoC) {
-                        // Δεν έχουμε ακριβές from – χρησιμοποιούμε μια γενική προσέγγιση
-                    }
-
-                    whiteToMove = !whiteToMove;
-
-                    requestAnimationFrame(() => {
-                        render();
-                        sfxMove();
-                        haptic('light');
-                        // Προσθήκη notation – το from το βρίσκουμε από την προηγούμενη θέση
-                        const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length-1] : null;
-                        const from = lastMove ? lastMove.move.to : {r: fromR, c: fromC};
-                        addNotation({ from: from, to: {r: promoR, c: promoC} }, false);
-                        checkGameState();
-                        if (kingInCheck) sfxCheck();
-                        saveGame();
-
-                        if (gameActive && whiteToMove === (aiColor === 'w')) {
-                            setTimeout(makeAIMove, 300);
-                        }
-                    });
-                });
-                promotionDialog.appendChild(option);
-            });
-
-            promotionOverlay.style.display = 'flex';
-        }
+        promotionOverlay.addEventListener('click', (e) => {
+            if (e.target === promotionOverlay && promotionSquare) {
+                board[promotionSquare.r][promotionSquare.c].type = 'q';
+                const { fromR, fromC, r, c, captured } = promotionSquare;
+                promotionSquare = null;
+                promotionOverlay.style.display = 'none';
+                finishMove(fromR, fromC, r, c, captured);
+            }
+        });
 
         function getLegalMoves(r, c) {
             return getMovesSync(board, r, c).filter(m => {
@@ -1113,13 +892,11 @@
             const color = whiteToMove ? 'w' : 'b';
             kingInCheck = isKingInCheckSync(board, color);
             const hasMoves = getAllLegalMovesSync(board, color).length > 0;
-
             if (!hasMoves) {
                 postGamePending = true;
                 const winner = kingInCheck ? (color === 'w' ? 'Black' : 'White') : null;
                 const resultType = kingInCheck ? 'checkmate' : 'stalemate';
-                requestAnimationFrame(() => render());
-
+                render();
                 setTimeout(() => {
                     if (kingInCheck) {
                         gameStatusEl.innerHTML = `<span class="status-mate">Checkmate! ${winner} wins!</span>`;
@@ -1205,18 +982,15 @@
             return `https://upload.wikimedia.org/wikipedia/commons/${map[t+c]}`;
         }
 
-        // ==================== POST-GAME (με Monetag Ad) ====================
+        // ==================== POST-GAME (με Monetag ad) ====================
         function showPostGame(winner, resultType) {
-            gameActive = false; aiThinking = false; promotionPending = null;
+            gameActive = false; aiThinking = false; promotionSquare = null;
             clearInterval(timerInterval); timerInterval = null;
-            aiFooter.style.display = 'none';
-            promotionOverlay.style.display = 'none';
+            aiFooter.style.display = 'none'; promotionOverlay.style.display = 'none';
             if (aiTimeoutId) { clearTimeout(aiTimeoutId); aiTimeoutId = null; }
             localStorage.removeItem('chess_saved'); hideMainButton();
-
             let baseScore = 0, title = '', message = '';
             const isPlayerWin = winner && ((playerColor==='w'&&winner==='White')||(playerColor==='b'&&winner==='Black'));
-
             if (resultType === 'checkmate') {
                 baseScore = isPlayerWin ? 100 : 0;
                 title = isPlayerWin ? '🎉 You Win!' : '😞 AI Wins';
@@ -1225,14 +999,12 @@
             else if (resultType === 'timeout') { baseScore = isPlayerWin ? 75 : 0; title = isPlayerWin ? '⏰ Win on Time' : '⏰ Time Out'; }
             else if (resultType === 'resign') { baseScore = 0; title = '🏳️ Resigned'; }
             else if (resultType === 'daily_fail') { baseScore = 0; title = '📅 Challenge Failed'; }
-
             if (isPlayerWin && resultType === 'checkmate') {
                 const streak = getWinStreak() + 1; setWinStreak(streak);
                 updateLeaderboard(streak); addTotalWin(); addDailyWin();
                 if (streak >= 5) { baseScore = Math.floor(baseScore * 2); message += ` 🔥 ${streak}x (2x)`; }
                 else if (streak >= 3) { baseScore = Math.floor(baseScore * 1.5); message += ` ⚡ ${streak}x (1.5x)`; }
             } else if (!isPlayerWin && resultType !== 'stalemate') { setWinStreak(0); }
-
             document.getElementById('postGameTitle').textContent = title;
             document.getElementById('postGameMessage').textContent = message;
             document.getElementById('streakInfo').innerHTML = getWinStreak() >= 2 ? `<span class="streak-badge">🔥 ${getWinStreak()}</span>` : '';
@@ -1248,16 +1020,9 @@
                 }
             }
             updateDailyUI(); updateLevelUI(); updateStreakUI();
-
-            // Εμφάνιση του post‑game modal
             postGameModal.style.display = 'flex';
-
-            // Monetag διαφήμιση
-            showAdThen(() => {
-                console.log('📺 Ad completed or skipped');
-            });
-
             if (baseScore > 0) sendScoreToBackend(baseScore, resultType);
+            if (typeof show_11108267 === 'function') { show_11108267().catch(()=>{}); }
         }
 
         // ==================== EVENT LISTENERS ====================
@@ -1284,39 +1049,35 @@
         });
         document.getElementById('dailyChallengeBtn').addEventListener('click', () => { setupModal.style.display = 'none'; loadDailyChallenge(); });
         document.getElementById('playAgainBtn').addEventListener('click', () => {
-            // Παίζουμε διαφήμιση πριν το New Game
-            showAdThen(() => {
+            if (typeof show_11108267 === 'function') {
+                show_11108267().then(() => {
+                    postGameModal.style.display = 'none';
+                    setupModal.style.display = 'flex';
+                    checkSaved();
+                }).catch(() => {
+                    postGameModal.style.display = 'none';
+                    setupModal.style.display = 'flex';
+                    checkSaved();
+                });
+            } else {
                 postGameModal.style.display = 'none';
                 setupModal.style.display = 'flex';
                 checkSaved();
-            });
+            }
         });
         document.getElementById('menuBtn').addEventListener('click', () => {
-            showAdThen(() => {
-                postGameModal.style.display = 'none';
-                setupModal.style.display = 'flex';
-                checkSaved();
-            });
+            postGameModal.style.display = 'none';
+            setupModal.style.display = 'flex';
+            checkSaved();
         });
         document.getElementById('leaderboardBtn').addEventListener('click', showLeaderboard);
         document.getElementById('closeLbBtn').addEventListener('click', () => document.getElementById('leaderboardModal').style.display = 'none');
         undoBtn.addEventListener('click', undoLastMove);
-
-        // Κλείσιμο promotion overlay (αν πατήσει έξω από αυτό)
-        promotionOverlay.addEventListener('click', (e) => {
-            if (e.target === promotionOverlay) {
-                // Default: Queen
-                completePromotion('q');
-                promotionOverlay.style.display = 'none';
-            }
-        });
-
         function checkSaved() {
             const has = !!localStorage.getItem('chess_saved');
             document.getElementById('savedGameInfo').style.display = has ? 'block' : 'none';
             document.getElementById('resumeGameBtn').style.display = has ? 'block' : 'none';
         }
-
         window.addEventListener('DOMContentLoaded', () => {
             initAudio(); initWorker();
             updateLevelUI(); updateStreakUI(); updateDailyUI();
