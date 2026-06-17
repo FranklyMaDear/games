@@ -11,7 +11,7 @@
     <!-- Monetag SDK -->
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
-    <!-- Rewarded interstitial (παράδειγμα όπως ζήτησες) -->
+    <!-- Rewarded interstitial (πρότυπο που ζήτησες) -->
     <script>
         // Rewarded interstitial
         show_11108267().then(() => {
@@ -361,7 +361,6 @@
             transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
         }
         .reward-btn.claim { background: linear-gradient(135deg, #84cc16, #a3e635); color: #000; box-shadow: 0 0 20px rgba(132,204,22,0.3); }
-        /* Το κουμπί Double τώρα είναι πορτοκαλί (ίδιο με το watch-ad-btn) */
         .reward-btn.double { background: linear-gradient(135deg, #ff9800, #e65100); color: #fff; box-shadow: 0 0 20px rgba(255,152,0,0.3); border: 2px solid #ffb74d; }
         .reward-btn:hover { transform: scale(1.02); }
         .reward-btn:active { transform: scale(0.95); }
@@ -486,73 +485,6 @@
             .watch-ad-btn { font-size: 10px; padding: 6px 8px; height: 36px; max-width: 100px; }
             .floating-energy { font-size: 16px; }
         }
-
-        /* ===== NEW POPUP FOR LINK BEFORE AD ===== */
-        .link-popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(6px);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-        .link-popup.show { opacity: 1; pointer-events: auto; }
-        .link-popup-box {
-            background: rgba(30, 30, 50, 0.95);
-            border: 2px solid #ffd700;
-            border-radius: 24px;
-            padding: 30px 24px;
-            text-align: center;
-            max-width: 340px;
-            width: 90%;
-            box-shadow: 0 0 60px rgba(255,215,0,0.3);
-            animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        .link-popup-title {
-            font-size: 1.4rem;
-            font-weight: 900;
-            color: #fff;
-            margin-bottom: 12px;
-        }
-        .link-popup-link {
-            display: block;
-            margin: 12px 0;
-            padding: 12px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 12px;
-            color: #ffd700;
-            font-weight: 700;
-            word-break: break-all;
-            text-decoration: underline;
-        }
-        .link-popup-btn {
-            display: block;
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 50px;
-            font-weight: 900;
-            font-size: 1rem;
-            cursor: pointer;
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-            color: #fff;
-            box-shadow: 0 4px 0 #312e81;
-            transition: all 0.1s;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .link-popup-btn:active {
-            transform: translateY(3px);
-            box-shadow: 0 1px 0 #312e81;
-        }
     </style>
 </head>
 <body>
@@ -596,7 +528,7 @@
                 </div>
                 <div class="actions-row">
                     <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 ROLL</button>
-                    <button class="watch-ad-btn" onclick="showLinkPopup('rolls')">📢 +5 Rolls</button>
+                    <button class="watch-ad-btn" onclick="watchAdForRolls()">📢 +5 Rolls</button>
                 </div>
             </div>
         </div>
@@ -610,15 +542,6 @@
             <div class="reward-value" id="rewardValue">+5 Points</div>
             <button class="reward-btn claim" id="rewardClaimBtn">Claim</button>
             <button class="reward-btn double" id="rewardDoubleBtn">Double! (Ad)</button>
-        </div>
-    </div>
-
-    <!-- Link Popup (πριν τη διαφήμιση) -->
-    <div class="link-popup" id="linkPopup">
-        <div class="link-popup-box">
-            <div class="link-popup-title">🔗 Επισκέπτης</div>
-            <a href="https://example.com" target="_blank" class="link-popup-link" id="linkPopupLink">https://example.com</a>
-            <button class="link-popup-btn" id="linkPopupBtn">Επόμενο →</button>
         </div>
     </div>
 
@@ -702,15 +625,11 @@
         const rewardValue = document.getElementById('rewardValue');
         const rewardClaimBtn = document.getElementById('rewardClaimBtn');
         const rewardDoubleBtn = document.getElementById('rewardDoubleBtn');
-        const linkPopup = document.getElementById('linkPopup');
-        const linkPopupBtn = document.getElementById('linkPopupBtn');
-        const linkPopupLink = document.getElementById('linkPopupLink');
 
         let gameState = { energy: 10, points: 0 };
         let isRolling = false;
         let currentIdx = 0;
         let pendingReward = null;
-        let pendingAdAction = null; // 'rolls' or 'double'
 
         const tileSize = 100, gap = 0;
         // Μείωση απόστασης κατά 50%: spacing = (tileSize + gap) * 0.5
@@ -827,7 +746,6 @@
                     if (remaining <= 0) { resolve(); return; }
                     currentIdx++; buildPath(); renderAllTiles();
                     playMoveSound();
-                    // Δόνηση σε κάθε βήμα
                     vibrate(30);
                     remaining--;
                     setTimeout(step, 400);
@@ -850,7 +768,6 @@
                 diceDisplay.textContent = icons[n] || '🎲';
                 dicePopup.classList.add('show');
                 playDiceSound();
-                // Δόνηση όταν εμφανίζεται το ζάρι
                 vibrate(100);
                 setTimeout(() => dicePopup.classList.remove('show'), 550);
             }, 300);
@@ -888,7 +805,6 @@
                 sendToParent({ type: 'addEnergy', value: value });
             }
             playRewardSound();
-            // Δόνηση για ανταμοιβή
             vibrate(150);
             updateEnergyUI();
             saveProgress();
@@ -913,8 +829,14 @@
 
         async function doubleReward() {
             if (!pendingReward) return;
-            // Πριν τη διαφήμιση, εμφάνισε το link popup
-            showLinkPopup('double');
+            try {
+                await showMonetagAd();
+                applyReward(pendingReward, 2);
+                pendingReward = null;
+                rewardModal.classList.remove('show');
+            } catch (e) {
+                showToast('Ad not completed. Reward not doubled.');
+            }
         }
 
         function handleReward(reward) {
@@ -922,54 +844,20 @@
             showRewardModal(reward);
         }
 
-        // ===== LINK POPUP (πριν τη διαφήμιση) =====
-        function showLinkPopup(action) {
-            pendingAdAction = action;
-            linkPopupLink.href = 'https://example.com'; // Μπορείς να αλλάξεις το link
-            linkPopupLink.textContent = 'https://example.com';
-            linkPopup.classList.add('show');
-        }
-
-        function hideLinkPopup() {
-            linkPopup.classList.remove('show');
-        }
-
-        // Όταν πατάει "Επόμενο" στο link popup, ανοίγει η διαφήμιση αμέσως
-        linkPopupBtn.addEventListener('click', async function() {
-            hideLinkPopup();
-            if (pendingAdAction === 'rolls') {
-                // +5 Rolls
-                try {
-                    await showMonetagAd();
-                    gameState.energy += 5;
-                    updateEnergyUI();
-                    // Δόνηση μετά τη διαφήμιση
-                    vibrate(100);
-                    showToast('+5 Rolls! 🎉');
-                    sendToParent({ type: 'watchAdForEnergy', value: 5 });
-                    saveProgress();
-                } catch (e) {
-                    showToast('Ad not completed');
-                }
-            } else if (pendingAdAction === 'double') {
-                // Double reward
-                if (!pendingReward) return;
-                try {
-                    await showMonetagAd();
-                    applyReward(pendingReward, 2);
-                    pendingReward = null;
-                    rewardModal.classList.remove('show');
-                } catch (e) {
-                    showToast('Ad not completed. Reward not doubled.');
-                }
-            }
-            pendingAdAction = null;
-        });
-
-        // ===== ΚΟΥΜΠΙ +5 Rolls (καλεί το link popup) =====
-        function watchAdForRolls() {
+        // ===== ΚΟΥΜΠΙ +5 Rolls (καλεί απευθείας τη διαφήμιση) =====
+        async function watchAdForRolls() {
             initAudio();
-            showLinkPopup('rolls');
+            try {
+                await showMonetagAd();
+                gameState.energy += 5;
+                updateEnergyUI();
+                vibrate(100);
+                showToast('+5 Rolls! 🎉');
+                sendToParent({ type: 'watchAdForEnergy', value: 5 });
+                saveProgress();
+            } catch (e) {
+                showToast('Ad not completed');
+            }
         }
 
         function rollDice() {
@@ -984,7 +872,6 @@
             updateEnergyUI();
             sendToParent({ type: 'useEnergy' });
 
-            // Δόνηση στο πάτημα του ROLL
             vibrate(50);
 
             const dice = Math.floor(Math.random() * 6) + 1;
@@ -1030,11 +917,10 @@
             const onClick = (e) => {
                 e.stopPropagation();
                 if (collected) return;
-                if (isRolling || rewardModal.classList.contains('show') || linkPopup.classList.contains('show')) return;
+                if (isRolling || rewardModal.classList.contains('show')) return;
                 collected = true;
                 gameState.energy += 1;
                 updateEnergyUI();
-                // Δόνηση όταν μαζεύεις την ιπτάμενη ενέργεια
                 vibrate(80);
                 showToast('+1 Energy! ⚡');
                 saveProgress();
