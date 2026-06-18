@@ -398,9 +398,8 @@
 
         function refreshAll() { refreshUI(); syncMissionProgress(); if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); }
 
-        // ==================== CONTEST (ΔΙΟΡΘΩΜΕΝΟ) ====================
+        // ==================== CONTEST ====================
         function showContestPopup(points) {
-            // Δημιουργία overlay με το iframe της Tally που έστειλες
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);';
             overlay.innerHTML = `
@@ -438,7 +437,6 @@
                 if (!contestMilestonesReached.includes(milestone)) {
                     contestMilestonesReached.push(milestone);
                     localStorage.setItem('frankly_contest_milestones', JSON.stringify(contestMilestonesReached));
-                    // Βγάλε το popup εδώ!
                     showContestPopup(milestone);
                 }
             }
@@ -566,14 +564,14 @@
             renderGrid('rewardsGrid', rewards); renderGrid('mysticGrid', mystic); renderGrid('greeceGrid', greece);
         }
 
-        // ==================== WHEEL (ΜΕ ΝΕΑ ΠΛΑΙΣΙΑ & ΑΦΑΙΡΕΣΗ SPIN) ====================
+        // ==================== WHEEL ====================
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#1a1a10' },
-            { type:'ad', value:0, label:'🎬 AD', mode:'ad', color:'#2a1a10' },          // Αντικατάσταση +1 SPIN με AD
-            { type:'points', value:15, label:'+15 PTS', mode:'double', color:'#1a2a10' }, // Αντικατάσταση +3 ROLLS με +15 PTS
+            { type:'ad', value:0, label:'🎬 AD', mode:'ad', color:'#2a1a10' },
+            { type:'points', value:15, label:'+15 PTS', mode:'double', color:'#1a2a10' },
             { type:'free_spin', value:2, label:'+2 SPINS', mode:'double', color:'#101a10' },
-            { type:'points', value:2, label:'+2 PTS', mode:'double', color:'#1a1015' }, // Αντικατάσταση ZONK με +2 PTS
+            { type:'points', value:2, label:'+2 PTS', mode:'double', color:'#1a1015' },
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a1015' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#10101a' },
             { type:'free_spin', value:1, label:'+1 SPIN', mode:'double', color:'#101a15' },
@@ -646,25 +644,53 @@
 
         async function spinWheel() { 
             if (isSpinning) return; 
+            initAudio(); // ΠΡΟΣΘΗΚΗ: Ήχος για το Wheel
             try { 
-                // Το backend θα αφαιρέσει το spin. Καλώ refreshUI() αμέσως για να φανεί η μείωση.
                 const result = await apiCall('POST','/wheel/spin',{userId}); 
                 let prizeIndex = result.prizeIndex; 
-                refreshUI(); // Ενημερώνει το UI (μειώνει το Free Spins)
+                refreshUI(); 
                 runHighlightAnimation(prizeIndex); 
             } catch(e) { showToast('Error spinning'); return; } 
         }
         
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; }
 
-        // ==================== BOARD ====================
+        // ==================== BOARD (ΜΕ ΑΠΟΣΤΑΣΗ & ΗΧΟΥΣ) ====================
         let boardState = { energy: 10, points: 0 };
         let boardIsRolling = false;
         let boardCurrentIdx = 0;
         let boardPendingReward = null;
         const boardTileSize = window.innerWidth < 480 ? 75 : 100;
-        const boardSpacing = boardTileSize * 0.5;
+        const boardGap = 2; // ΠΡΟΣΘΗΚΗ: Απόσταση 2 pixels
+        const boardSpacing = (boardTileSize + boardGap) * 0.5; // ΔΙΟΡΘΩΣΗ: Υπολογισμός με gap
         let boardPathPoints = [];
+
+        // ΗΧΟΙ ΓΙΑ ΤΟ BOARD
+        function playBoardMoveSound() { playSound(600, 0.05, 0.08, 'sine'); }
+        function playDiceRollSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            [800, 600, 1000, 400].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + i * 0.08);
+                gain.gain.setValueAtTime(0.15, now + i * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.1);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.15);
+            });
+        }
+        function playRewardSound() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + i * 0.12);
+                gain.gain.setValueAtTime(0.2, now + i * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.4);
+            });
+        }
 
         function boardGenerateLinearZigZagPath(count) {
             const path = [{x: 0, y: 0}];
@@ -746,6 +772,7 @@
                 function step() {
                     if (remaining <= 0) { resolve(); return; }
                     boardCurrentIdx++; boardBuildPath(); boardRenderAllTiles();
+                    playBoardMoveSound(); // ΠΡΟΣΘΗΚΗ: Ήχος βήματος
                     if (navigator.vibrate) navigator.vibrate(30);
                     remaining--;
                     setTimeout(step, 400);
@@ -801,6 +828,7 @@
 
         function boardHandleReward(reward) {
             if (reward.type === 'empty') return;
+            playRewardSound(); // ΠΡΟΣΘΗΚΗ: Ήχος νίκης
             boardPendingReward = reward;
             const overlay = document.createElement('div'); overlay.className = 'modal-overlay'; overlay.classList.add('show');
             overlay.innerHTML = `<div class="modal-box"><div class="modal-title">You Won!</div><span class="modal-emoji">${reward.icon}</span><div class="reward-value" style="color:var(--gold); font-size:2rem; font-weight:900;">${reward.label}</div><button class="modal-btn win" id="boardClaimBtn">Claim</button><button class="modal-btn double" id="boardDoubleBtn">Double! (Ad)</button></div>`;
@@ -838,6 +866,8 @@
             document.getElementById('rollBtn').disabled = true;
             boardState.energy--;
             boardUpdateEnergyUI();
+            initAudio(); // ΠΡΟΣΘΗΚΗ: Ενεργοποίηση ήχου
+            playDiceRollSound(); // ΠΡΟΣΘΗΚΗ: Ήχος ζαριού
             if (navigator.vibrate) navigator.vibrate(50);
 
             const dice = Math.floor(Math.random() * 6) + 1;
@@ -886,6 +916,21 @@
                 boardState.energy = 0;
             }
             boardRefreshUI();
+        }
+
+        // ==================== ΓΕΝΙΚΟΙ ΗΧΟΙ ====================
+        let audioCtx = null;
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
+        function playSound(freq, duration, volume = 0.15, type = 'sine') {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
         }
 
         // ==================== INIT ====================
