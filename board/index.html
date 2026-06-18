@@ -8,10 +8,8 @@
     <meta name="theme-color" content="#0a0e27">
     <title>Board</title>
 
-    <!-- Monetag SDK -->
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
-    <!-- ΚΡΙΣΙΜΗ ΠΡΟΣΘΗΚΗ: Μέθοδος με εικονικό κλικ για παράκαμψη του Telegram -->
     <script>
         (function fixTelegramLinks() {
             if (window.Telegram && window.Telegram.WebApp) {
@@ -384,7 +382,7 @@
         .reward-btn:hover { transform: scale(1.02); }
         .reward-btn:active { transform: scale(0.95); }
 
-        /* ===== FLOATING ENERGY (κάτω → πάνω) ===== */
+        /* ===== FLOATING ENERGY ===== */
         .floating-energy {
             position: fixed;
             z-index: 900;
@@ -547,13 +545,12 @@
                 </div>
                 <div class="actions-row">
                     <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 ROLL</button>
-                    <button class="watch-ad-btn" onclick="watchAdForRolls()">📢 +5 Rolls</button>
+                    <button class="watch-ad-btn" id="watchAdBtn" onclick="watchAdForRolls()">📢 +5 Rolls</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Reward Modal -->
     <div class="reward-modal" id="rewardModal">
         <div class="reward-box">
             <span class="reward-icon" id="rewardIcon">🪙</span>
@@ -616,19 +613,54 @@
             });
         }
 
-        // ΕΔΩ ΕΙΝΑΙ Η ΣΥΝΑΡΤΗΣΗ ΠΟΥ ΘΑ ΚΑΛΕΙ ΤΟ SDK ΜΟΝΟ ΟΤΑΝ ΠΑΤΗΣΕΙΣ ΤΟ ΚΟΥΜΠΙ
+        // --- ΝΕΟ ΣΥΣΤΗΜΑ ΔΙΑΦΗΜΙΣΕΩΝ ΜΕ PRELOAD & ΑΣΦΑΛΕΙΑ (ymid) ---
+        const tg = window.Telegram?.WebApp;
+        if (tg) tg.ready();
+        const telegramUserId = tg?.initDataUnsafe?.user?.id || 'guest_user';
+        
+        let isAdPreloaded = false;
+
+        // Συναρτηση για Προ-φορτωση διαφηprocess στο παρασκηνιο
+        function preloadMonetagAd() {
+            if (typeof show_11108267 === 'function') {
+                show_11108267({ type: 'preload', ymid: telegramUserId })
+                    .then(() => {
+                        isAdPreloaded = true;
+                        console.log("✅ Monetag Ad Preloaded & Cached.");
+                    })
+                    .catch((err) => {
+                        isAdPreloaded = false;
+                        console.warn("❌ Preload failed, retrying in 5 seconds...", err);
+                        setTimeout(preloadMonetagAd, 5000);
+                    });
+            } else {
+                // Αν δεν εχει φορτωσει ακομα το script, ξαναπροσπαθουμε σε 1 δευτερολεπτο
+                setTimeout(preloadMonetagAd, 1000);
+            }
+        }
+
+        // Η κεντρικη συναρτηση που εμφανιζει ακαριαια τη διαφημιση
         function showMonetagAd() {
             return new Promise((resolve, reject) => {
                 if (typeof show_11108267 === 'function') {
-                    show_11108267().then(() => resolve(true)).catch(() => reject('Ad failed'));
+                    // Εμφανιση της διαφημισης με περασμα του ymid
+                    show_11108267({ ymid: telegramUserId })
+                        .then(() => {
+                            isAdPreloaded = false;
+                            preloadMonetagAd(); // Φορτωνουμε αμεσως την επομενη για να ειναι ετοιμη
+                            resolve(true);
+                        })
+                        .catch((err) => {
+                            isAdPreloaded = false;
+                            preloadMonetagAd(); // Προετοιμασια ξανα σε περιπτωση αποτυχιας
+                            reject('Ad failed or skipped');
+                        });
                 } else {
-                    setTimeout(() => {
-                        if (typeof show_11108267 === 'function') show_11108267().then(resolve).catch(reject);
-                        else resolve(true);
-                    }, 800);
+                    reject('Monetag SDK not loaded yet');
                 }
             });
         }
+        // -----------------------------------------------------------
 
         const world = document.getElementById('world');
         const player = document.getElementById('player');
@@ -636,6 +668,7 @@
         const dicePopup = document.getElementById('dicePopup');
         const diceDisplay = document.getElementById('diceDisplay');
         const rollBtn = document.getElementById('rollBtn');
+        const watchAdBtn = document.getElementById('watchAdBtn');
         const energyBoxes = document.getElementById('energyBoxes');
         const energyCount = document.getElementById('energyCount');
         const rewardModal = document.getElementById('rewardModal');
@@ -675,7 +708,6 @@
             return path;
         }
 
-        // ΑΥΞΗΣΑΜΕ ΣΕ 10000 ΓΙΑ ΝΑ ΜΗ ΣΤΑΜΑΤΟΥΝ ΠΟΤΕ ΟΙ ΠΛΑΚΕΣ
         function buildPath() {
             if (pathPoints.length === 0) pathPoints = generateLinearZigZagPath(10000);
         }
@@ -844,8 +876,10 @@
             }
         }
 
+        // ΚΟΥΜΠΙ: Διπλασιασμός επιβράβευσης
         async function doubleReward() {
             if (!pendingReward) return;
+            rewardDoubleBtn.disabled = true; // Αποφυγή spam κλικ
             try {
                 await showMonetagAd();
                 applyReward(pendingReward, 2);
@@ -853,6 +887,8 @@
                 rewardModal.classList.remove('show');
             } catch (e) {
                 showToast('Ad not completed. Reward not doubled.');
+            } finally {
+                rewardDoubleBtn.disabled = false;
             }
         }
 
@@ -861,9 +897,10 @@
             showRewardModal(reward);
         }
 
-        // ===== ΚΟΥΜΠΙ +5 Rolls (Καλείται ΜΟΝΟ μετά από κλικ χρήστη) =====
+        // ΚΟΥΜΠΙ: +5 Δωρεάν Rolls
         async function watchAdForRolls() {
             initAudio();
+            watchAdBtn.disabled = true; // Αποφυγή διπλοπατήματος
             try {
                 await showMonetagAd();
                 gameState.energy += 5;
@@ -874,6 +911,8 @@
                 saveProgress();
             } catch (e) {
                 showToast('Ad not completed');
+            } finally {
+                watchAdBtn.disabled = false;
             }
         }
 
@@ -973,6 +1012,9 @@
             buildPath();
             renderAllTiles();
             startFloatingEnergyInterval();
+            
+            // Έναρξη προ-φόρτωσης της πρώτης διαφήμισης
+            preloadMonetagAd();
 
             rewardClaimBtn.addEventListener('click', claimReward);
             rewardDoubleBtn.addEventListener('click', doubleReward);
