@@ -94,8 +94,8 @@
         .dice-popup.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         .dice-display { font-size: 80px; font-weight: 900; }
         
-        /* ΚΑΤΩ ΜΠΑΡΑ BOARD (ΔΙΟΡΘΩΜΕΝΗ) */
-        .bottom-bar { width: 100%; padding: 8px 8px 12px; background: linear-gradient(180deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.95)); border-top: 2px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+        /* ΚΑΤΩ ΜΠΑΡΑ BOARD (ΔΙΟΡΘΩΣΗ Z-INDEX) */
+        .bottom-bar { width: 100%; padding: 8px 8px 12px; background: linear-gradient(180deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.95)); border-top: 2px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; position: relative; z-index: 30; }
         .energy-row { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
         .energy-bar { display: flex; align-items: center; gap: 4px; font-weight: 900; color: #ffd700; }
         .energy-bar .boxes { display: flex; gap: 2px; }
@@ -110,7 +110,7 @@
         .watch-ad-btn:active { transform: translateY(3px); }
         .watch-ad-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* ====== WHEEL (ΜΕ ΑΛΛΑΓΜΕΝΑ ZONK) ====== */
+        /* ====== WHEEL (ΜΕ ΝΕΑ ΠΛΑΙΣΙΑ) ====== */
         .blink-banner { text-align: center; font-weight: 700; font-size: 0.8rem; color: #ffd700; padding: 6px 12px; margin: 0 auto 8px; width: 100%; max-width: 90%; background: rgba(0,0,0,0.4); border-radius: 20px; border: 1px solid rgba(255,215,0,0.2); animation: blinkText 1.5s ease-in-out infinite; }
         @keyframes blinkText { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         #section-wheel { position: relative; overflow: hidden; min-height: 100vh; padding-bottom: 60px; }
@@ -398,13 +398,24 @@
 
         function refreshAll() { refreshUI(); syncMissionProgress(); if (document.getElementById('section-list').classList.contains('active')) loadRewardsLevels(); }
 
-        // ==================== CONTEST ====================
+        // ==================== CONTEST (ΔΙΟΡΘΩΜΕΝΟ) ====================
         function showContestPopup(points) {
+            // Δημιουργία overlay με το iframe της Tally που έστειλες
             const overlay = document.createElement('div');
-            overlay.style.cssText = `position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);z-index:9999;display:flex;justify-content:center;align-items:center;backdrop-filter:blur(4px);`;
-            overlay.innerHTML = `<div style="width:100%;height:100%;position:relative;background:transparent;"><button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:10px;right:15px;z-index:10000;background:white;border:none;border-radius:50%;width:40px;height:40px;font-size:24px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;">✕</button><iframe data-tally-src="https://tally.so/r/44jy95?transparentBackground=1" width="100%" height="100%" frameborder="0" marginheight="0" marginwidth="0" title="FranklyGames Contest" style="border:none;"></iframe></div>`;
+            overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);';
+            overlay.innerHTML = `
+                <div style="width:100%; height:100%; position:relative; background:transparent; display:flex; justify-content:center; align-items:center;">
+                    <button onclick="this.parentElement.parentElement.remove()" style="position:absolute; top:15px; right:15px; z-index:10000; background:#ffd700; border:none; border-radius:50%; width:40px; height:40px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; color:#000; font-weight:bold;">✕</button>
+                    <iframe data-tally-src="https://tally.so/r/44jy95?transparentBackground=1&formEventsForwarding=1" width="100%" height="100%" frameborder="0" marginheight="0" marginwidth="0" title="FranklyGames Contest" style="border:none; max-width: 600px; max-height: 90vh; background: transparent;"></iframe>
+                </div>
+            `;
             document.body.appendChild(overlay);
-            if (!document.querySelector('script[src*="tally.so"]')) { const script = document.createElement('script'); script.src = 'https://tally.so/widgets/embed.js'; document.body.appendChild(script); }
+            
+            if (!document.querySelector('script[src*="tally.so"]')) {
+                const script = document.createElement('script');
+                script.src = 'https://tally.so/widgets/embed.js';
+                document.body.appendChild(script);
+            }
         }
 
         let contestMilestonesReached = JSON.parse(localStorage.getItem('frankly_contest_milestones') || '[]');
@@ -427,6 +438,7 @@
                 if (!contestMilestonesReached.includes(milestone)) {
                     contestMilestonesReached.push(milestone);
                     localStorage.setItem('frankly_contest_milestones', JSON.stringify(contestMilestonesReached));
+                    // Βγάλε το popup εδώ!
                     showContestPopup(milestone);
                 }
             }
@@ -554,14 +566,14 @@
             renderGrid('rewardsGrid', rewards); renderGrid('mysticGrid', mystic); renderGrid('greeceGrid', greece);
         }
 
-        // ==================== WHEEL (ΔΙΟΡΘΩΜΕΝΟ) ====================
+        // ==================== WHEEL (ΜΕ ΝΕΑ ΠΛΑΙΣΙΑ & ΑΦΑΙΡΕΣΗ SPIN) ====================
         const segments = [
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a2a10' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#1a1a10' },
-            { type:'free_spin', value:1, label:'+1 SPIN', mode:'double', color:'#101a1a' },
-            { type:'free_spin', value:3, label:'+3 ROLLS', mode:'double', color:'#1a2a10' }, // ΑΝΤΙΚΑΤΑΣΤΑΣΗ ZONK
+            { type:'ad', value:0, label:'🎬 AD', mode:'ad', color:'#2a1a10' },          // Αντικατάσταση +1 SPIN με AD
+            { type:'points', value:15, label:'+15 PTS', mode:'double', color:'#1a2a10' }, // Αντικατάσταση +3 ROLLS με +15 PTS
             { type:'free_spin', value:2, label:'+2 SPINS', mode:'double', color:'#101a10' },
-            { type:'ad', value:0, label:'🎬 AD', mode:'ad', color:'#2a1a10' },                // ΑΝΤΙΚΑΤΑΣΤΑΣΗ ZONK
+            { type:'points', value:2, label:'+2 PTS', mode:'double', color:'#1a1015' }, // Αντικατάσταση ZONK με +2 PTS
             { type:'points', value:5, label:'+5 PTS', mode:'double', color:'#1a1015' },
             { type:'points', value:10, label:'+10 PTS', mode:'double', color:'#10101a' },
             { type:'free_spin', value:1, label:'+1 SPIN', mode:'double', color:'#101a15' },
@@ -635,26 +647,23 @@
         async function spinWheel() { 
             if (isSpinning) return; 
             try { 
-                const adStatus = await apiCall('GET', `/ad-status?userId=${userId}`); 
-                if (adStatus.free_spins < 1) { showToast('Not enough free spins!'); return; } 
-            } catch(e) { showToast('Error'); return; } 
-            let prizeIndex; 
-            try { 
+                // Το backend θα αφαιρέσει το spin. Καλώ refreshUI() αμέσως για να φανεί η μείωση.
                 const result = await apiCall('POST','/wheel/spin',{userId}); 
-                prizeIndex=result.prizeIndex; 
+                let prizeIndex = result.prizeIndex; 
+                refreshUI(); // Ενημερώνει το UI (μειώνει το Free Spins)
+                runHighlightAnimation(prizeIndex); 
             } catch(e) { showToast('Error spinning'); return; } 
-            runHighlightAnimation(prizeIndex); 
         }
         
         function initWheel() { drawStaticWheel(); document.getElementById('spinBtn').onclick = spinWheel; }
 
-        // ==================== BOARD (ΔΙΟΡΘΩΜΕΝΟ) ====================
+        // ==================== BOARD ====================
         let boardState = { energy: 10, points: 0 };
         let boardIsRolling = false;
         let boardCurrentIdx = 0;
         let boardPendingReward = null;
         const boardTileSize = window.innerWidth < 480 ? 75 : 100;
-        const boardSpacing = boardTileSize * 0.5; // ΔΙΟΡΘΩΣΗ ΣΥΝΔΕΣΗΣ
+        const boardSpacing = boardTileSize * 0.5;
         let boardPathPoints = [];
 
         function boardGenerateLinearZigZagPath(count) {
