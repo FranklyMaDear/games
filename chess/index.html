@@ -169,7 +169,6 @@
             border-top: 2px solid rgba(255,203,46,0.3);
             box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
         }
-        /* ====== PROMOTION MODAL ====== */
         .promotion-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.7); display: none;
@@ -193,6 +192,9 @@
         .lb-rank { font-weight: 800; color: #ffcb2e; min-width: 36px; }
         .lb-name { flex: 1; text-align: left; margin: 0 6px; overflow: hidden; text-overflow: ellipsis; }
         .lb-streak { font-weight: 700; color: #ff6b6b; min-width: 44px; text-align: right; }
+        .diff-btn {
+            padding: 10px; font-size: 13px; margin: 2px 0;
+        }
         @media (max-width: 700px) {
             .side-panel { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 4px; }
             .side-panel .panel-box { flex: 1; min-width: 100px; }
@@ -242,10 +244,8 @@
         </div>
     </div>
 
-    <!-- AI Thinking Footer -->
     <div class="ai-thinking-footer" id="aiThinkingFooter">🤔 AI is thinking...</div>
 
-    <!-- Promotion Modal -->
     <div class="promotion-overlay" id="promotionOverlay">
         <div class="promotion-dialog" id="promotionDialog"></div>
     </div>
@@ -254,7 +254,12 @@
     <div class="modal-overlay" id="setupModal">
         <div class="modal-content">
             <h2>♕ Chess vs AI ♛</h2>
-            <p style="color:#ccc;">Extreme Difficulty • 5 min each</p>
+            <p style="color:#ccc;" id="difficultyLabel">Difficulty: Hard</p>
+            <div class="modal-options">
+                <h3>Difficulty</h3>
+                <button class="modal-btn diff-btn active" data-diff="hard">🔥 Hard</button>
+                <button class="modal-btn diff-btn" data-diff="medium">⚡ Medium</button>
+            </div>
             <div class="modal-options">
                 <h3>Choose Your Color</h3>
                 <button class="modal-btn color-btn active" data-color="white">⚪ White</button>
@@ -296,8 +301,10 @@
         const TIME_CONTROL = 300;
         const DAILY_WINS_NEEDED = 3;
         const DAILY_REWARD = 50;
-        const AI_DEPTH = 3;
         const WORKER_TIMEOUT = 10000;
+
+        let currentDifficulty = 'hard'; // 'medium' | 'hard'
+        let aiDepth = 3; // medium: 2, hard: 3
 
         // ==================== USER ID ====================
         let userId = localStorage.getItem('franklymadear_userId');
@@ -318,7 +325,6 @@
             try {
                 await apiCall('POST', '/add-points', { userId, game: 'Chess', points: score });
                 await apiCall('POST', '/missions/update', { userId, game: 'chess', score, playtime: 1, words: 0 });
-                // Γράφουμε απευθείας στο κοινό LocalStorage (ίδιο domain)
                 if (gameResult === 'checkmate') {
                     const WINS_KEY = 'frankly_chess_wins';
                     const CLAIMED_KEY = 'frankly_chess_claimed';
@@ -329,7 +335,6 @@
                         }
                     }
                 }
-                // Επίσης postMessage αν τυχόν τρέχει σε iframe
                 if (window.parent !== window) {
                     if (gameResult === 'checkmate') {
                         window.parent.postMessage({ type: 'updateMission', game: 'chess', result: 'win' }, '*');
@@ -367,11 +372,9 @@
                 show_11108267().then(() => {
                     if (callback) callback();
                 }).catch(() => {
-                    // Ακόμα και αν αποτύχει η διαφήμιση, προχωράμε
                     if (callback) callback();
                 });
             } else {
-                // Το SDK δεν φορτώθηκε – απλά εκτέλεσε το callback
                 if (callback) callback();
             }
         }
@@ -546,9 +549,9 @@
         let isDailyChallenge = false, postGamePending = false;
         let aiThinking = false;
         let aiTimeoutId = null;
-        let promotionPending = null; // { r, c, color } – αν περιμένουμε επιλογή προαγωγής
+        let promotionPending = null;
 
-        // ==================== SIMPLE AI WORKER ====================
+        // ==================== AI WORKER ====================
         let aiWorker = null;
 
         function initWorker() {
@@ -623,7 +626,6 @@
                     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
                         if (b[r][c] && b[r][c].color == col) {
                             legalMoves(b, r, c).forEach(t => {
-                                // Αν είναι πιόνι που φτάνει στην άκρη, θεωρούμε Queen (το promotion γίνεται στο main thread)
                                 if (b[r][c].type == 'p' && (t.r == 0 || t.r == 7)) {
                                     m.push({ from: { r, c }, to: t, promotion: 'q' });
                                 } else {
@@ -681,8 +683,8 @@
                     }
                 }
                 self.onmessage = function(e) {
-                    const { board: b, aiColor: ai } = e.data;
-                    console.log('🤖 Worker: computing move...');
+                    const { board: b, aiColor: ai, depth } = e.data;
+                    console.log('🤖 Worker: computing move at depth', depth);
                     const moves = allMoves(b, ai);
                     if (!moves.length) { console.log('🤖 Worker: no moves'); self.postMessage(null); return; }
                     moves.sort((x, y) => {
@@ -691,11 +693,12 @@
                         return cb - ca;
                     });
                     let best = -Infinity, bestMoves = [];
+                    const searchDepth = depth - 1;
                     for (const m of moves) {
                         const o = b[m.to.r][m.to.c], p = b[m.from.r][m.from.c];
                         b[m.to.r][m.to.c] = p; b[m.from.r][m.from.c] = null;
                         if (m.promotion) b[m.to.r][m.to.c].type = m.promotion;
-                        const s = minimax(b, ${AI_DEPTH - 1}, -Infinity, Infinity, false, ai);
+                        const s = minimax(b, searchDepth, -Infinity, Infinity, false, ai);
                         b[m.from.r][m.from.c] = p; b[m.to.r][m.to.c] = o;
                         if (s > best) { best = s; bestMoves = [m]; }
                         else if (s == best) bestMoves.push(m);
@@ -742,6 +745,16 @@
         }
 
         // ==================== GAME LOGIC ====================
+        function getInitialBoardForColor(colorChoice) {
+            // Δημιουργία board από το START_POSITION, με αντιστροφή αν ο παίκτης είναι μαύρα
+            let pos = START_POSITION;
+            if (colorChoice === 'b') {
+                // Αντιστροφή γραμμών και στηλών ώστε με το rotate να είναι σωστή η θέση
+                pos = START_POSITION.map(row => [...row].reverse()).reverse();
+            }
+            return pos.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
+        }
+
         function initGame(colorChoice) {
             console.log('🎮 initGame:', colorChoice);
             initAudio();
@@ -750,7 +763,7 @@
             colorChoice = colorChoice === 'random' ? (Math.random()<0.5?'white':'black') : colorChoice;
             playerColor = colorChoice === 'white' ? 'w' : 'b';
             aiColor = playerColor === 'w' ? 'b' : 'w';
-            board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
+            board = getInitialBoardForColor(playerColor);
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
             kingInCheck = false; aiThinking = false; promotionPending = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
@@ -773,7 +786,7 @@
             initAudio();
             initWorker();
             playerColor = 'w'; aiColor = 'b';
-            board = START_POSITION.map(r => r.map(ch => ch ? { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' } : null));
+            board = getInitialBoardForColor('w'); // daily είναι πάντα λευκά
             whiteToMove = true; selected = null; legalMoves = []; gameActive = true;
             kingInCheck = false; aiThinking = false; promotionPending = null;
             whiteTimeLeft = TIME_CONTROL; blackTimeLeft = TIME_CONTROL; lastTimerTick = Date.now();
@@ -838,7 +851,7 @@
             localStorage.setItem('chess_saved', JSON.stringify({
                 board, whiteToMove, aiColor, playerColor, gameActive,
                 whiteTimeLeft, blackTimeLeft, isDailyChallenge,
-                moveHistory, undoUsed
+                moveHistory, undoUsed, currentDifficulty
             }));
         }
 
@@ -852,6 +865,10 @@
                 whiteTimeLeft = d.whiteTimeLeft; blackTimeLeft = d.blackTimeLeft;
                 isDailyChallenge = d.isDailyChallenge;
                 moveHistory = d.moveHistory || []; undoUsed = d.undoUsed || false;
+                if (d.currentDifficulty) {
+                    currentDifficulty = d.currentDifficulty;
+                    aiDepth = currentDifficulty === 'medium' ? 2 : 3;
+                }
                 notationList.innerHTML = '';
                 moveHistory.forEach(m => notationList.appendChild(Object.assign(document.createElement('div'), { textContent: m.text })));
                 lastTimerTick = Date.now();
@@ -893,7 +910,7 @@
             }, WORKER_TIMEOUT);
 
             const boardCopy = board.map(r => r.map(c => c ? { ...c } : null));
-            aiWorker.postMessage({ board: boardCopy, aiColor });
+            aiWorker.postMessage({ board: boardCopy, aiColor, depth: aiDepth });
         }
 
         // ==================== RENDER ====================
@@ -965,22 +982,18 @@
             board[tr][tc] = board[sr][sc];
             board[sr][sc] = null;
 
-            // Έλεγχος για promotion (πιόνι που φτάνει στην 8η γραμμή)
             const piece = board[tr][tc];
             if (piece && piece.type === 'p' && (tr === 0 || tr === 7)) {
                 if (promotionType) {
-                    // Το promotion έχει ήδη επιλεγεί (από τον παίκτη ή το AI)
                     piece.type = promotionType;
                 } else {
-                    // Πρέπει να δείξουμε το promotion UI
                     promotionPending = { r: tr, c: tc, color: piece.color };
                     requestAnimationFrame(() => render());
                     showPromotionUI(piece.color);
-                    return; // Σταματάμε εδώ – το promotion θα ολοκληρωθεί από την completePromotion
+                    return;
                 }
             }
 
-            // Ολοκλήρωση της κίνησης
             finalizeMove(sr, sc, tr, tc, captured);
         }
 
@@ -998,13 +1011,11 @@
             });
         }
 
-        // ==================== PROMOTION UI ====================
         function showPromotionUI(color) {
             promotionDialog.innerHTML = '';
             const pieces = ['q', 'r', 'b', 'n'];
             const names = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
 
-            // Αποθήκευση του from κοιτάζοντας ποιο τετράγωνο ήταν το πιόνι πριν
             const promoR = promotionPending.r, promoC = promotionPending.c;
 
             pieces.forEach(type => {
@@ -1015,20 +1026,7 @@
                 option.addEventListener('click', () => {
                     promotionOverlay.style.display = 'none';
                     board[promoR][promoC].type = type;
-                    const pending = promotionPending;
                     promotionPending = null;
-
-                    // Βρες το from – το πιόνι ήρθε από κάπου
-                    // Το from είναι το τετράγωνο που τώρα είναι null και ήταν το προηγούμενο πιόνι
-                    // Θα το βρούμε από το moveHistory (δεν έχει προστεθεί ακόμα)
-                    // Απλά θα υποθέσουμε ότι το from είναι 1 ή 2 τετράγωνα πίσω
-                    const dir = color === 'w' ? 1 : -1;
-                    let fromR = promoR + dir;
-                    let fromC = promoC;
-                    // Αν δεν υπάρχει τίποτα εκεί, ήταν double push
-                    if (!moveHistory.length || moveHistory[moveHistory.length-1].move.to.r !== promoR || moveHistory[moveHistory.length-1].move.to.c !== promoC) {
-                        // Δεν έχουμε ακριβές from – χρησιμοποιούμε μια γενική προσέγγιση
-                    }
 
                     whiteToMove = !whiteToMove;
 
@@ -1036,8 +1034,11 @@
                         render();
                         sfxMove();
                         haptic('light');
-                        // Προσθήκη notation – το from το βρίσκουμε από την προηγούμενη θέση
+                        // Βρίσκουμε το from από την τελευταία κίνηση ή χρησιμοποιούμε default
                         const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length-1] : null;
+                        const dir = color === 'w' ? 1 : -1;
+                        let fromR = promoR + dir;
+                        let fromC = promoC;
                         const from = lastMove ? lastMove.move.to : {r: fromR, c: fromC};
                         addNotation({ from: from, to: {r: promoR, c: promoC} }, false);
                         checkGameState();
@@ -1207,10 +1208,8 @@
             }
             updateDailyUI(); updateLevelUI(); updateStreakUI();
 
-            // Εμφάνιση του post‑game modal
             postGameModal.style.display = 'flex';
 
-            // Monetag διαφήμιση
             showAdThen(() => {
                 console.log('📺 Ad completed or skipped');
             });
@@ -1219,10 +1218,21 @@
         }
 
         // ==================== EVENT LISTENERS ====================
+        // Difficulty buttons
+        document.querySelectorAll('.diff-btn').forEach(b => b.addEventListener('click', () => {
+            document.querySelectorAll('.diff-btn').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            currentDifficulty = b.dataset.diff;
+            aiDepth = currentDifficulty === 'medium' ? 2 : 3;
+            document.getElementById('difficultyLabel').textContent = `Difficulty: ${currentDifficulty === 'medium' ? 'Medium' : 'Hard'}`;
+        }));
+
+        // Color buttons
         document.querySelectorAll('.color-btn').forEach(b => b.addEventListener('click', () => {
             document.querySelectorAll('.color-btn').forEach(x => x.classList.remove('active'));
             b.classList.add('active');
         }));
+
         document.getElementById('startGameBtn').addEventListener('click', () => {
             setupModal.style.display = 'none';
             initGame(document.querySelector('.color-btn.active').dataset.color);
@@ -1231,6 +1241,7 @@
             if (loadGame()) {
                 setupModal.style.display = 'none';
                 document.querySelector('.board').classList.toggle('flipped', playerColor === 'b');
+                document.getElementById('difficultyLabel').textContent = `Difficulty: ${currentDifficulty === 'medium' ? 'Medium' : 'Hard'}`;
                 startTimer(); updateTimerDisplay(); updateEvalBar(); render(); updateUndoButton();
                 if (gameActive && whiteToMove === (aiColor==='w')) setTimeout(makeAIMove, 400);
                 setupMainButton('🏳️ Resign', () => {
@@ -1242,7 +1253,6 @@
         });
         document.getElementById('dailyChallengeBtn').addEventListener('click', () => { setupModal.style.display = 'none'; loadDailyChallenge(); });
         document.getElementById('playAgainBtn').addEventListener('click', () => {
-            // Παίζουμε διαφήμιση πριν το New Game
             showAdThen(() => {
                 postGameModal.style.display = 'none';
                 setupModal.style.display = 'flex';
@@ -1260,12 +1270,29 @@
         document.getElementById('closeLbBtn').addEventListener('click', () => document.getElementById('leaderboardModal').style.display = 'none');
         undoBtn.addEventListener('click', undoLastMove);
 
-        // Κλείσιμο promotion overlay (αν πατήσει έξω από αυτό)
         promotionOverlay.addEventListener('click', (e) => {
             if (e.target === promotionOverlay) {
                 // Default: Queen
-                completePromotion('q');
+                const promoR = promotionPending.r, promoC = promotionPending.c;
+                board[promoR][promoC].type = 'q';
+                promotionPending = null;
                 promotionOverlay.style.display = 'none';
+                whiteToMove = !whiteToMove;
+                requestAnimationFrame(() => {
+                    render();
+                    sfxMove();
+                    const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length-1] : null;
+                    const dir = board[promoR][promoC].color === 'w' ? 1 : -1;
+                    let fromR = promoR + dir;
+                    let fromC = promoC;
+                    const from = lastMove ? lastMove.move.to : {r: fromR, c: fromC};
+                    addNotation({ from: from, to: {r: promoR, c: promoC} }, false);
+                    checkGameState();
+                    saveGame();
+                    if (gameActive && whiteToMove === (aiColor === 'w')) {
+                        setTimeout(makeAIMove, 300);
+                    }
+                });
             }
         });
 
@@ -1279,6 +1306,7 @@
             initAudio(); initWorker();
             updateLevelUI(); updateStreakUI(); updateDailyUI();
             setupModal.style.display = 'flex'; checkSaved();
+            document.getElementById('difficultyLabel').textContent = `Difficulty: ${currentDifficulty === 'medium' ? 'Medium' : 'Hard'}`;
             if (window.Telegram?.WebApp) {
                 window.Telegram.WebApp.ready();
                 window.Telegram.WebApp.setHeaderColor('#1e3c72');
