@@ -810,23 +810,25 @@
                 setTimeout(() => this.showAdPopup(), 1200);
             }
 
-            // Στέλνει postMessage στο hub για άμεση ενημέρωση (χωρίς διπλό add-points)
+            // Ενημερώνει το LocalStorage για άμεση εμφάνιση νίκης στο hub
             notifyHub(result, points) {
+                if (result === 'win') {
+                    // Γράφουμε απευθείας στο κοινό LocalStorage (ίδιο domain)
+                    const WINS_KEY = 'frankly_connect4_wins';
+                    const CLAIMED_KEY = 'frankly_connect4_claimed';
+                    // Μόνο αν δεν έχει ήδη διεκδικηθεί η αποστολή
+                    if (localStorage.getItem(CLAIMED_KEY) !== 'true') {
+                        const current = parseInt(localStorage.getItem(WINS_KEY) || '0');
+                        if (current < 3) {
+                            localStorage.setItem(WINS_KEY, (current + 1).toString());
+                        }
+                    }
+                }
+                // Επίσης στέλνουμε postMessage αν τυχόν τρέχει σε iframe (για μελλοντική χρήση)
                 if (window.parent !== window) {
-                    // Στέλνουμε μόνο το αποτέλεσμα της αποστολής (mission update) – το hub θα κάνει refreshUI μόνο του
-                    window.parent.postMessage({
-                        type: 'updateMission',
-                        game: 'connect4',
-                        result: result
-                    }, '*');
-
-                    // Προαιρετικά, για άμεση εμφάνιση πόντων χωρίς refresh:
+                    window.parent.postMessage({ type: 'updateMission', game: 'connect4', result: result }, '*');
                     if (result === 'win') {
-                        window.parent.postMessage({
-                            type: 'gameScore',
-                            game: 'Connect 4',
-                            score: points
-                        }, '*');
+                        window.parent.postMessage({ type: 'gameScore', game: 'Connect 4', score: points }, '*');
                     }
                 }
             }
