@@ -72,7 +72,11 @@
 
         /* ====== BOARD (ΔΙΟΡΘΩΜΕΝΟ) ====== */
         #section-board { padding: 0; }
-        .board-game-container { width: 100%; height: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-default); background: #0a0e27; position: relative; display: flex; flex-direction: column; justify-content: flex-end; }
+        .board-game-container { width: 100%; height: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-default); background: linear-gradient(180deg, #000005 0%, #03010f 30%, #060118 60%, #0a0228 100%); position: relative; display: flex; flex-direction: column; justify-content: flex-end; }
+        #spaceCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        .space-planet { position: absolute; width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #a78bfa, #4c1d95 60%, #1e0a3c); box-shadow: 0 0 30px rgba(139,92,246,0.4), inset -8px -8px 20px rgba(0,0,0,0.5); z-index: 1; pointer-events: none; top: 12%; right: 8%; }
+        .space-planet::after { content: ''; position: absolute; width: 130%; height: 28%; top: 50%; left: -15%; transform: translateY(-50%) rotateX(70deg); border-radius: 50%; border: 6px solid rgba(167,139,250,0.25); pointer-events: none; }
+        .space-moon { position: absolute; width: 28px; height: 28px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #d1d5db, #6b7280 70%, #374151); box-shadow: 0 0 12px rgba(209,213,219,0.2); z-index: 1; pointer-events: none; top: 8%; right: 20%; }
         .game-wrapper { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; }
         .game-container { width: 100%; height: 100%; position: relative; overflow: hidden; display: flex; flex-direction: column; z-index: 1; }
         .board-area { flex: 1; width: 100%; position: relative; overflow: visible; z-index: 20; }
@@ -187,6 +191,12 @@
         .btn-lets-play { padding: 16px 50px; background: linear-gradient(135deg, #84cc16, #a3e635); color: #000; font-weight: 800; font-size: 1.2rem; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 0 30px var(--neon-glow); transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px; }
         .btn-lets-play:hover { transform: scale(1.05) translateY(-3px); }
 
+        /* Floating +1 Energy Button */
+        @keyframes floatUp { 0% { bottom: -60px; opacity: 0; } 5% { opacity: 1; } 90% { opacity: 1; } 100% { bottom: 110%; opacity: 0; } }
+        @keyframes floatFadeOut { 0% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) scale(1.4); } }
+        .floating-energy-btn { position: absolute; left: 50%; transform: translateX(-50%); bottom: -60px; z-index: 100; background: linear-gradient(135deg, #ffd700, #ff9800); border: none; border-radius: 50px; padding: 12px 22px; font-size: 1.3rem; font-weight: 900; color: #000; cursor: pointer; box-shadow: 0 0 25px rgba(255,180,0,0.6), 0 4px 15px rgba(0,0,0,0.4); display: none; white-space: nowrap; animation: floatUp 8s ease-in-out forwards; }
+        .floating-energy-btn.active { display: block; }
+        .floating-energy-btn.claimed { animation: floatFadeOut 0.4s ease forwards !important; }
         @media (max-width: 480px) { :root { --tile-size: 75px; } .pawn-emoji { font-size: 45px; } }
         @media (max-width: 380px) { :root { --tile-size: 60px; } }
     </style>
@@ -217,6 +227,10 @@
         <!-- BOARD SECTION -->
         <div class="section active" id="section-board">
             <div class="board-game-container">
+                <canvas id="spaceCanvas"></canvas>
+                <div class="space-planet"></div>
+                <div class="space-moon"></div>
+                <button class="floating-energy-btn" id="floatingEnergyBtn" onclick="claimFloatingEnergy()">+1 ⚡</button>
                 <div class="game-wrapper">
                     <div class="game-container">
                         <div class="board-area" id="boardArea">
@@ -661,7 +675,7 @@
         let boardCurrentIdx = 0;
         let boardPendingReward = null;
         const boardTileSize = window.innerWidth < 480 ? 75 : 100;
-        const boardGap = 2; // ΑΠΟΣΤΑΣΗ 2px
+        const boardGap = 20; // ΑΠΟΣΤΑΣΗ 20px - ορατό κενό μεταξύ tiles
         const boardSpacing = (boardTileSize + boardGap) * 0.5; // ΥΠΟΛΟΓΙΣΜΟΣ ΜΕ ΑΠΟΣΤΑΣΗ
         let boardPathPoints = [];
 
@@ -917,6 +931,98 @@
             }
             boardRefreshUI();
         }
+
+        // ==================== SPACE BACKGROUND ====================
+        (function initSpaceCanvas() {
+            const canvas = document.getElementById('spaceCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let stars = [], w, h;
+
+            function resize() {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                w = canvas.width = rect.width || window.innerWidth;
+                h = canvas.height = rect.height || window.innerHeight;
+            }
+
+            function createStars(count) {
+                stars = [];
+                for (let i = 0; i < count; i++) {
+                    stars.push({
+                        x: Math.random() * w,
+                        y: Math.random() * h,
+                        r: Math.random() * 1.5 + 0.3,
+                        speed: Math.random() * 0.15 + 0.05,
+                        alpha: Math.random(),
+                        twinkleSpeed: Math.random() * 0.02 + 0.005,
+                        twinkleDir: Math.random() > 0.5 ? 1 : -1
+                    });
+                }
+            }
+
+            function drawFrame() {
+                ctx.clearRect(0, 0, w, h);
+                for (const s of stars) {
+                    // twinkling
+                    s.alpha += s.twinkleSpeed * s.twinkleDir;
+                    if (s.alpha >= 1) { s.alpha = 1; s.twinkleDir = -1; }
+                    if (s.alpha <= 0.1) { s.alpha = 0.1; s.twinkleDir = 1; }
+                    // slow upward drift
+                    s.y -= s.speed;
+                    if (s.y < -2) s.y = h + 2;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+                    ctx.fill();
+                }
+                requestAnimationFrame(drawFrame);
+            }
+
+            resize();
+            createStars(160);
+            drawFrame();
+            window.addEventListener('resize', () => { resize(); createStars(160); });
+        })();
+
+        // ==================== FLOATING +1 ENERGY BUTTON ====================
+        let floatingEnergyActive = false;
+
+        function showFloatingEnergy() {
+            const btn = document.getElementById('floatingEnergyBtn');
+            if (!btn || floatingEnergyActive) return;
+            floatingEnergyActive = true;
+            btn.classList.remove('claimed');
+            btn.style.animation = 'none';
+            btn.offsetHeight; // reflow
+            btn.style.animation = '';
+            btn.classList.add('active');
+            // Auto-hide after animation ends (8s)
+            setTimeout(() => {
+                if (floatingEnergyActive) {
+                    btn.classList.remove('active');
+                    floatingEnergyActive = false;
+                }
+            }, 8200);
+        }
+
+        function claimFloatingEnergy() {
+            const btn = document.getElementById('floatingEnergyBtn');
+            if (!btn || !floatingEnergyActive) return;
+            floatingEnergyActive = false;
+            btn.classList.add('claimed');
+            setTimeout(() => { btn.classList.remove('active', 'claimed'); }, 450);
+            boardState.energy += 1;
+            boardUpdateEnergyUI();
+            boardSaveProgress();
+            showToast('+1 Roll! ⚡');
+            if (navigator.vibrate) navigator.vibrate([40, 20, 40]);
+        }
+
+        // Ξεκινά το πρώτο floating μετά από 45s, μετά κάθε 45s
+        setTimeout(() => {
+            showFloatingEnergy();
+            setInterval(showFloatingEnergy, 45000);
+        }, 45000);
 
         // ==================== ΓΕΝΙΚΟΙ ΗΧΟΙ ====================
         let audioCtx = null;
