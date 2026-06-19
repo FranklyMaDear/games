@@ -449,6 +449,7 @@
             <button class="game-btn" id="restartBtn">Restart</button>
             <button class="game-btn new-game" id="newGameBtn">New Game</button>
             <button class="game-btn small-btn" id="toggleFirstBtn">🤖 AI First</button>
+            <button class="game-btn small-btn" id="toggleDifficultyBtn">🧠 Hard</button>
         </div>
     </div>
 
@@ -594,11 +595,13 @@
                 this.scores = { 1: 0, 2: 0 };
                 this.audio = new GameAudio();
                 this.aiFirst = false; // αν το AI παίζει πρώτο
+                this.difficulty = 'hard'; // προεπιλογή: hard
 
                 this.domBoard = document.getElementById('board');
                 this.domStatus = document.getElementById('status');
                 this.domScore = document.getElementById('scoreDisplay');
                 this.toggleFirstBtn = document.getElementById('toggleFirstBtn');
+                this.toggleDifficultyBtn = document.getElementById('toggleDifficultyBtn');
 
                 this.adPopup = document.getElementById('adPopup');
                 this.popupAdBtn = document.getElementById('popupAdBtn');
@@ -607,6 +610,7 @@
 
                 this.initDOMEvents();
                 this.audio.init();
+                this.updateDifficultyButton();
                 this.newGame();
             }
 
@@ -614,6 +618,7 @@
                 document.getElementById('restartBtn').addEventListener('click', () => this.restartGame());
                 document.getElementById('newGameBtn').addEventListener('click', () => this.newGame());
                 this.toggleFirstBtn.addEventListener('click', () => this.toggleFirstPlayer());
+                this.toggleDifficultyBtn.addEventListener('click', () => this.toggleDifficulty());
 
                 this.popupCloseBtn.addEventListener('click', () => this.closePopupWithAd());
                 this.adPopup.addEventListener('click', (e) => {
@@ -627,6 +632,21 @@
                 this.aiFirst = !this.aiFirst;
                 this.toggleFirstBtn.textContent = this.aiFirst ? '👤 You First' : '🤖 AI First';
                 this.newGame();
+            }
+
+            toggleDifficulty() {
+                this.difficulty = this.difficulty === 'hard' ? 'medium' : 'hard';
+                this.updateDifficultyButton();
+                // Αν το παιχνίδι είναι σε εξέλιξη, το restart το εφαρμόζει
+                this.newGame();
+            }
+
+            updateDifficultyButton() {
+                if (this.difficulty === 'hard') {
+                    this.toggleDifficultyBtn.textContent = '🧠 Hard';
+                } else {
+                    this.toggleDifficultyBtn.textContent = '🧠 Medium';
+                }
             }
 
             initializeBoard() {
@@ -664,7 +684,7 @@
 
             handleSlotClick(col) {
                 if (!this.gameInProgress || this.isAiTurn) return;
-                if (this.aiFirst && this.currentPlayer === 2) return; // ο παίκτης δεν παίζει όταν είναι σειρά του AI
+                if (this.aiFirst && this.currentPlayer === 2) return;
                 this.makeMove(col);
             }
 
@@ -773,11 +793,9 @@
                 if (this.currentPlayer === 1) {
                     this.domStatus.textContent = 'You Win! +30 Points 🎉';
 
-                    // 1. Αποθήκευση νίκης τοπικά (για τοπική αναφορά)
                     const totalWins = incrementLocalWins();
                     console.log('🏆 Local wins this week:', totalWins);
 
-                    // 2. Αποστολή στο backend (πόντοι & missions)
                     try {
                         await apiCall('POST', '/add-points', { userId, game: 'Connect 4', points: 30 });
                         await apiCall('POST', '/missions/update', { userId, game: 'connect4', score: 30, playtime: 1, words: 0 });
@@ -786,7 +804,6 @@
                         console.warn('⚠️ Could not send to API:', e);
                     }
 
-                    // 3. Ενημέρωση hub (αν είναι ανοιχτό σε άλλο tab/iframe)
                     this.notifyHub('win', 30);
                 } else {
                     this.domStatus.textContent = 'AI Wins! 😞';
@@ -810,13 +827,10 @@
                 setTimeout(() => this.showAdPopup(), 1200);
             }
 
-            // Ενημερώνει το LocalStorage για άμεση εμφάνιση νίκης στο hub
             notifyHub(result, points) {
                 if (result === 'win') {
-                    // Γράφουμε απευθείας στο κοινό LocalStorage (ίδιο domain)
                     const WINS_KEY = 'frankly_connect4_wins';
                     const CLAIMED_KEY = 'frankly_connect4_claimed';
-                    // Μόνο αν δεν έχει ήδη διεκδικηθεί η αποστολή
                     if (localStorage.getItem(CLAIMED_KEY) !== 'true') {
                         const current = parseInt(localStorage.getItem(WINS_KEY) || '0');
                         if (current < 3) {
@@ -824,7 +838,6 @@
                         }
                     }
                 }
-                // Επίσης στέλνουμε postMessage αν τυχόν τρέχει σε iframe (για μελλοντική χρήση)
                 if (window.parent !== window) {
                     window.parent.postMessage({ type: 'updateMission', game: 'connect4', result: result }, '*');
                     if (result === 'win') {
@@ -859,12 +872,14 @@
                     if (this.getAvailableRow(c) !== -1) validMoves.push(c);
                 }
 
+                // Immediate win
                 for (let c of validMoves) {
                     let r = this.getAvailableRow(c);
                     this.board[r][c] = 2;
                     if (this.checkWinSimulation(r, c, 2)) { this.board[r][c] = 0; return c; }
                     this.board[r][c] = 0;
                 }
+                // Block opponent win
                 for (let c of validMoves) {
                     let r = this.getAvailableRow(c);
                     this.board[r][c] = 1;
@@ -874,7 +889,8 @@
 
                 let bestScore = -Infinity;
                 let bestCols = [validMoves[0]];
-                const depth = 5;
+                // Διαφοροποίηση βάθους ανάλογα με τη δυσκολία
+                const depth = this.difficulty === 'hard' ? 5 : 3;
 
                 for (let c of validMoves) {
                     let r = this.getAvailableRow(c);
