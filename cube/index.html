@@ -3,364 +3,544 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Straight Shooter Merge</title>
+    <title>Drop & Merge 3D</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        body {
-            background-color: #111;
-            color: white;
-            font-family: sans-serif;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+        body { background: #0a0817; color: #fff; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; touch-action: none; }
+        
         #game-container {
-            position: relative;
-            width: 100%;
-            max-width: 400px;
-            height: 100%;
-            max-height: 800px;
-            background: #222;
-            border-left: 2px solid #333;
-            border-right: 2px solid #333;
+            position: relative; width: 100%; max-width: 420px; height: 100%; max-height: 820px;
+            background: radial-gradient(circle at center, #1d1738 0%, #06050a 100%);
+            overflow: hidden; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,0.8);
         }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
+        
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+        /* UI Overlays */
+        .ui-box {
+            position: absolute; background: rgba(10, 8, 23, 0.7); backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 8px 12px; z-index: 2;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .ui-top {
-            position: absolute;
-            top: 10px; left: 0; width: 100%;
-            display: flex; justify-content: space-between;
-            padding: 0 15px; z-index: 10;
+        .ui-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #9b8cc4; }
+        
+        #score-box { top: 15px; left: 50%; transform: translateX(-50%); min-width: 100px; }
+        #score-value { font-size: 22px; font-weight: 800; color: #fff; }
+        
+        #next-box { top: 15px; right: 20px; width: 60px; height: 60px; }
+        #next-preview { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; margin-top: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+        
+        #hold-box { top: 15px; left: 20px; width: 60px; height: 60px; cursor: pointer; transition: 0.2s; }
+        #hold-box:active { background: rgba(255,255,255,0.1); }
+        #hold-preview { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; margin-top: 4px; }
+
+        #combo-container { position: absolute; top: 90px; left: 15px; right: 15px; height: 14px; background: rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; z-index: 2; border: 1px solid rgba(255,255,255,0.05); }
+        #combo-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #a29bfe, #fd79a8); transition: width 0.15s linear; }
+        #combo-text { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 0 6px rgba(0,0,0,0.8); }
+
+        /* Bottom Powerups */
+        #powerups-box {
+            position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 15px; z-index: 2;
         }
-        .score-box {
-            background: rgba(0,0,0,0.5);
-            padding: 5px 15px; border-radius: 8px;
-            font-size: 20px; font-weight: bold;
+        .pwr-btn {
+            width: 50px; height: 50px; border-radius: 50%; background: rgba(20, 16, 40, 0.8); border: 2px solid rgba(255,255,255,0.1);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); position: relative; cursor: pointer; transition: 0.2s;
         }
-        #game-over {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: none;
-            flex-direction: column; justify-content: center; align-items: center;
-            z-index: 20;
+        .pwr-btn:active { transform: scale(0.9); border-color: #a29bfe; }
+        .pwr-label { position: absolute; bottom: -8px; font-size: 8px; font-weight: 700; background: #2d2b55; padding: 2px 6px; border-radius: 8px; color: #a29bfe; }
+
+        /* Game Over Screen */
+        .screen-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 4, 12, 0.92);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; text-align: center; padding: 20px;
         }
-        #game-over h1 { color: #ff4757; margin-bottom: 10px; }
-        button {
-            padding: 12px 24px; font-size: 16px; font-weight: bold;
-            background: #00cec9; border: none; border-radius: 8px;
-            color: white; cursor: pointer; margin-top: 20px;
-        }
+        .screen-overlay h1 { font-size: 32px; color: #ff4757; margin-bottom: 8px; }
+        .screen-overlay p { font-size: 18px; color: #a29bfe; margin-bottom: 25px; }
+        .btn-ui { padding: 14px 28px; font-size: 16px; font-weight: 700; border: none; border-radius: 30px; color: #fff; cursor: pointer; margin: 8px; width: 80%; max-width: 220px; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+        #restart-btn { background: linear-gradient(135deg, #6c5ce7, #00cec9); }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div class="ui-top">
-        <div class="score-box">Score: <span id="score">0</span></div>
-    </div>
     <canvas id="gameCanvas"></canvas>
-    
-    <div id="game-over">
-        <h1>GAME OVER</h1>
-        <p>Έφτασες στην κόκκινη γραμμή!</p>
-        <button onclick="resetGame()">Ξανά Μανά</button>
+
+    <div id="score-box" class="ui-box">
+        <span class="ui-label">Score</span>
+        <div id="score-value">0</div>
+    </div>
+
+    <div id="next-box" class="ui-box">
+        <span class="ui-label">Next</span>
+        <div id="next-preview" class="cube-render">2</div>
+    </div>
+
+    <div id="hold-box" class="ui-box">
+        <span class="ui-label">Hold</span>
+        <div id="hold-preview" class="cube-render">-</div>
+    </div>
+
+    <div id="combo-container">
+        <div id="combo-bar"></div>
+        <div id="combo-text">1X</div>
+    </div>
+
+    <div id="powerups-box">
+        <div class="pwr-btn" id="btn-hammer">🔨<div class="pwr-label">AD</div></div>
+        <div class="pwr-btn" id="btn-bomb">💣<div class="pwr-label">AD</div></div>
+        <div class="pwr-btn" id="btn-rainbow">🌈<div class="pwr-label">AD</div></div>
+    </div>
+
+    <div id="game-over-screen" class="screen-overlay">
+        <h1>Game Over</h1>
+        <p id="final-score">Σκορ: 0</p>
+        <button id="restart-btn" class="btn-ui">🔄 Ξανά</button>
     </div>
 </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('score');
-    const gameOverScreen = document.getElementById('game-over');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score-value');
+const nextEl = document.getElementById('next-preview');
+const holdEl = document.getElementById('hold-preview');
+const comboBar = document.getElementById('combo-bar');
+const comboText = document.getElementById('combo-text');
+const gameOverScreen = document.getElementById('game-over-screen');
+const finalScore = document.getElementById('final-score');
+const restartBtn = document.getElementById('restart-btn');
 
-    // Canvas Setup
-    let width, height;
-    function resize() {
-        const rect = canvas.parentElement.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        width = canvas.width;
-        height = canvas.height;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // Game Variables
-    const CUBE_SIZE = width / 5.5; // Χωράνε περίπου 5 κύβοι στη σειρά
-    const LAUNCH_Y = height - 80;
-    const DANGER_Y = height - 120;
-    
-    let score = 0;
-    let cubes = [];
-    let ceilingY = 50; 
-    let ceilingDropRate = 0.05; // Πόσο γρήγορα κατεβαίνει το ταβάνι (pixels ανά frame)
-    let isGameOver = false;
-
-    // Player/Launcher State
-    let player = {
-        x: width / 2,
-        y: LAUNCH_Y,
-        value: 2,
-        isShooting: false
-    };
-
-    const colors = {
-        2: '#2ecc71', 4: '#3498db', 8: '#9b59b6', 16: '#f1c40f',
-        32: '#e67e22', 64: '#e74c3c', 128: '#1abc9c', 256: '#fd79a8',
-        512: '#6c5ce7', 1024: '#00cec9', 2048: '#d63031'
-    };
-
-    function getNextValue() {
-        const vals = [2, 4, 8, 16];
-        return vals[Math.floor(Math.random() * vals.length)];
-    }
-
-    // Input Handling (Σύρσιμο αριστερά-δεξιά & Άφημα για βολή)
-    let isDragging = false;
-    
-    function setPlayerX(clientX) {
-        const rect = canvas.getBoundingClientRect();
-        let x = clientX - rect.left;
-        // Περιορισμός στα όρια της οθόνης
-        if (x < CUBE_SIZE/2) x = CUBE_SIZE/2;
-        if (x > width - CUBE_SIZE/2) x = width - CUBE_SIZE/2;
-        player.x = x;
-    }
-
-    canvas.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        setPlayerX(e.touches[0].clientX);
-    }, {passive: true});
-    
-    canvas.addEventListener('touchmove', (e) => {
-        if(isDragging) setPlayerX(e.touches[0].clientX);
-    }, {passive: true});
-    
-    canvas.addEventListener('touchend', () => {
-        isDragging = false;
-        shoot();
-    });
-
-    // Mouse support για PC testing
-    canvas.addEventListener('mousedown', (e) => { isDragging = true; setPlayerX(e.clientX); });
-    canvas.addEventListener('mousemove', (e) => { if(isDragging) setPlayerX(e.clientX); });
-    canvas.addEventListener('mouseup', () => { isDragging = false; shoot(); });
-
-    function shoot() {
-        if (isGameOver) return;
-        
-        // Ρίχνει τον κύβο ΠΡΟΣ ΤΑ ΠΑΝΩ (vy αρνητικό, vx μηδέν)
-        cubes.push({
-            id: Math.random(),
-            x: player.x,
-            y: player.y,
-            vx: 0,
-            vy: -15, // Ταχύτητα βολής
-            value: player.value,
-            isActive: true // Μόλις χτυπήσει κάπου, γίνεται false
-        });
-        
-        player.value = getNextValue();
-        
-        // Κάθε βολή κατεβάζει το ταβάνι λιγάκι σαν ποινή
-        ceilingY += 5; 
-    }
-
-    // AABB Collision Physics (Απλοποιημένη μηχανή για τετράγωνα)
-    function checkCollisions() {
-        // 1. Σύγκρουση με ταβάνι και τοίχους
-        cubes.forEach(c => {
-            // Τοίχοι
-            if (c.x - CUBE_SIZE/2 < 0) c.x = CUBE_SIZE/2;
-            if (c.x + CUBE_SIZE/2 > width) c.x = width - CUBE_SIZE/2;
-            
-            // Ταβάνι
-            if (c.y - CUBE_SIZE/2 < ceilingY) {
-                c.y = ceilingY + CUBE_SIZE/2;
-                c.vy = 0;
-                c.isActive = false;
-            }
-        });
-
-        // Πολλαπλά περάσματα (iterations) για σταθερότητα όταν στοιβάζονται
-        for(let iter=0; iter<3; iter++) {
-            for (let i = 0; i < cubes.length; i++) {
-                for (let j = i + 1; j < cubes.length; j++) {
-                    let a = cubes[i];
-                    let b = cubes[j];
-
-                    let dx = b.x - a.x;
-                    let dy = b.y - a.y;
-                    let absDx = Math.abs(dx);
-                    let absDy = Math.abs(dy);
-
-                    if (absDx < CUBE_SIZE && absDy < CUBE_SIZE) {
-                        // Merge αν έχουν ίδια αξία
-                        if (a.value === b.value && !a.markedForDeath && !b.markedForDeath) {
-                            a.markedForDeath = true;
-                            b.value *= 2;
-                            score += b.value;
-                            scoreEl.innerText = score;
-                            
-                            // Ώθηση κατά το merge (εφέ αλυσιδωτής αντίδρασης)
-                            b.vy -= 2;
-                            continue;
-                        }
-
-                        // Αν δεν κάνουν merge, τα σπρώχνουμε για να μην μπαίνουν το ένα μέσα στο άλλο (Resolution)
-                        let overlapX = CUBE_SIZE - absDx;
-                        let overlapY = CUBE_SIZE - absDy;
-
-                        if (overlapX < overlapY) { // Οριζόντια σύγκρουση
-                            let pushX = overlapX / 2 * (dx > 0 ? 1 : -1);
-                            a.x -= pushX; b.x += pushX;
-                            a.vx = 0; b.vx = 0;
-                        } else { // Κάθετη σύγκρουση
-                            let pushY = overlapY / 2 * (dy > 0 ? 1 : -1);
-                            a.y -= pushY; b.y += pushY;
-                            
-                            // Αν χτυπήσει κάθετα, σταματάει η βολή
-                            if (a.vy < 0) { a.vy = 0; a.isActive = false; }
-                            if (b.vy < 0) { b.vy = 0; b.isActive = false; }
-                        }
-                    }
-                }
-            }
+// --- Audio Engine ---
+let audioCtx = null;
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playSound(type) {
+    if (!audioCtx) return;
+    try {
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        if (type === 'drop') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'merge') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(500, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.15);
         }
+    } catch(e){}
+}
+
+// --- Game Setup ---
+const COLS = 7;
+const ROWS = 12;
+const CELL_SIZE = 44; // grid logic size
+const DANGER_ROW = 8; // red line at row 8
+
+let grid = [];
+let score = 0;
+let combo = 1;
+let comboFill = 0;
+let gameOver = false;
+let nextVal = 2;
+let holdVal = null;
+let dropped = false; // if a cube is falling
+let dropX = 0; // current drop column index (0 to 6)
+let dropCube = null; // { val, y, vy }
+let particles = [];
+let floatingTexts = [];
+let dangerTimer = 0;
+
+// Cube Colors
+const COLORS = {
+    2:    { bg: '#2ecc71', side: '#27ae60', text: '#fff' },
+    4:    { bg: '#3498db', side: '#2980b9', text: '#fff' },
+    8:    { bg: '#e67e22', side: '#d35400', text: '#fff' },
+    16:   { bg: '#9b59b6', side: '#8e44ad', text: '#fff' },
+    32:   { bg: '#e74c3c', side: '#c0392b', text: '#fff' },
+    64:   { bg: '#1abc9c', side: '#16a085', text: '#fff' },
+    128:  { bg: '#f1c40f', side: '#f39c12', text: '#111' },
+    256:  { bg: '#fd79a8', side: '#e84393', text: '#fff' },
+    512:  { bg: '#6c5ce7', side: '#4a3db8', text: '#fff' },
+    1024: { bg: '#00cec9', side: '#00b894', text: '#fff' },
+    2048: { bg: '#e84393', side: '#d63031', text: '#fff' }
+};
+
+function init() {
+    grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    score = 0; combo = 1; comboFill = 0; gameOver = false; dropCube = null; dangerTimer = 0;
+    scoreEl.innerText = '0'; comboText.innerText = '1X'; comboBar.style.width = '0%'; gameOverScreen.style.display = 'none';
+    // Seed 2-3 random cubes
+    for(let i=0; i<5; i++) {
+        let c = Math.floor(Math.random() * COLS);
+        let r = Math.floor(Math.random() * 5);
+        if(grid[r][c] === 0) grid[r][c] = Math.random() > 0.5 ? 2 : 4;
     }
+    rollNext();
+    updatePreviews();
+}
 
-    function update() {
-        if (isGameOver) return;
+function rollNext() {
+    let pool = [2, 4, 8];
+    if (score > 500) pool.push(16);
+    if (score > 1500) pool.push(32);
+    nextVal = pool[Math.floor(Math.random() * pool.length)];
+}
 
-        // Το ταβάνι κατεβαίνει συνεχώς
-        ceilingY += ceilingDropRate;
-
-        // Ενημέρωση θέσης κύβων
-        cubes.forEach(c => {
-            // Αν δεν είναι στην πτήση, του ασκείται βαρύτητα προς τα ΚΑΤΩ 
-            // ώστε να ακουμπάει στο ταβάνι ή στους από κάτω του
-            if (!c.isActive) {
-                c.vy += 0.5; // Βαρύτητα
-            }
-            
-            c.x += c.vx;
-            c.y += c.vy;
-
-            // Τριβή
-            c.vx *= 0.8;
-            c.vy *= 0.9;
-        });
-
-        checkCollisions();
-
-        // Εκκαθάριση νεκρών κύβων από merges
-        cubes = cubes.filter(c => !c.markedForDeath);
-
-        // Έλεγχος Game Over: Αν έστω και ΕΝΑΣ αδρανής κύβος ακουμπήσει την κόκκινη γραμμή κάτω
-        let lowestPoint = 0;
-        cubes.forEach(c => {
-            let bottomEdge = c.y + CUBE_SIZE/2;
-            if (bottomEdge > lowestPoint) lowestPoint = bottomEdge;
-        });
-
-        if (lowestPoint > DANGER_Y) {
-            isGameOver = true;
-            gameOverScreen.style.display = 'flex';
+function updatePreviews() {
+    const renderCube = (el, val) => {
+        if (val && val !== '-') {
+            let c = COLORS[val];
+            el.innerText = val;
+            el.style.backgroundColor = c.bg;
+            el.style.color = c.text;
+        } else {
+            el.innerText = '-';
+            el.style.backgroundColor = 'rgba(255,255,255,0.1)';
+            el.style.color = '#888';
         }
-    }
+    };
+    renderCube(nextEl, nextVal);
+    renderCube(holdEl, holdVal);
+}
 
-    function drawRect(x, y, size, value) {
-        let color = colors[value] || '#95a5a6';
-        
-        ctx.save();
-        ctx.translate(x, y);
-        
-        // Σκιά / Βάθος (3D Fake effect)
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-size/2 + 2, -size/2 + 4, size, size);
-        
-        // Κυρίως Σώμα
-        ctx.fillStyle = color;
-        ctx.fillRect(-size/2, -size/2, size, size);
-        
-        // Border
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-size/2, -size/2, size, size);
+// --- 3D Projection (2D to 3D perspective) ---
+const WORLD_W = 300;
+const WORLD_H = 500;
 
-        // Κείμενο
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${size * 0.4}px sans-serif`;
+function project(worldX, worldY, size=1.0) {
+    const rect = canvas.getBoundingClientRect();
+    let t = worldY / WORLD_H;
+    let horizonY = rect.height * 0.15;
+    let floorY = rect.height * 0.82;
+    let screenY = horizonY + t * (floorY - horizonY);
+    let topW = rect.width * 0.3;
+    let botW = rect.width * 0.85;
+    let w = topW + t * (botW - topW);
+    let screenX = (rect.width / 2) + ((worldX / WORLD_W) - 0.5) * w;
+    let scale = w / WORLD_W * size;
+    return { x: screenX, y: screenY, s: scale };
+}
+
+// --- Draw Logic ---
+function drawCube3D(x, y, val, scaleMod=1, alpha=1.0) {
+    let p = project(x, y, scaleMod);
+    if (p.y < -50 || p.y > canvas.getBoundingClientRect().height + 50) return;
+    let c = COLORS[val] || { bg: '#fff', side: '#ccc', text: '#000' };
+    let s = 45 * p.s;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+
+    // Shadows
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 10 * p.s;
+
+    // Front face
+    ctx.fillStyle = c.side;
+    ctx.beginPath(); ctx.rect(-s/2, 0, s, s * 0.4); ctx.fill();
+    // Top face (3D isometric look)
+    ctx.fillStyle = c.bg;
+    ctx.beginPath();
+    ctx.moveTo(-s/2, 0);
+    ctx.lineTo(-s/2 * 0.85, -s * 0.45);
+    ctx.lineTo(s/2 * 0.85, -s * 0.45);
+    ctx.lineTo(s/2, 0);
+    ctx.closePath(); ctx.fill();
+
+    ctx.shadowBlur = 0;
+    if (alpha > 0.5) {
+        ctx.fillStyle = c.text;
+        ctx.font = `bold ${Math.max(12, s * 0.45)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(value, 0, 0);
-        
-        ctx.restore();
+        ctx.fillText(val, 0, -s * 0.15);
     }
+    ctx.restore();
+}
 
-    function draw() {
-        ctx.clearRect(0, 0, width, height);
-
-        // Ζωγραφίζουμε το Ταβάνι (Pusher)
-        ctx.fillStyle = '#2c3e50';
-        ctx.fillRect(0, 0, width, ceilingY);
-        ctx.fillStyle = '#e74c3c'; // Προειδοποιητική γραμμή ταβανιού
-        ctx.fillRect(0, ceilingY - 4, width, 4);
-
-        // Ζωγραφίζουμε τη Γραμμή Κινδύνου (Κάτω)
-        ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([10, 10]);
-        ctx.beginPath();
-        ctx.moveTo(0, DANGER_Y);
-        ctx.lineTo(width, DANGER_Y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        ctx.fillStyle = 'rgba(231, 76, 60, 0.1)';
-        ctx.fillRect(0, DANGER_Y, width, height - DANGER_Y);
-
-        // Ζωγραφίζουμε τους κύβους
-        cubes.forEach(c => drawRect(c.x, c.y, CUBE_SIZE - 2, c.value));
-
-        // Ζωγραφίζουμε τον Παίκτη (Εκτοξευτή)
-        if (!isGameOver) {
-            ctx.globalAlpha = isDragging ? 1.0 : 0.6; // Πιο φωτεινό όταν το πιάνεις
-            drawRect(player.x, player.y, CUBE_SIZE - 2, player.value);
-            ctx.globalAlpha = 1.0;
-            
-            // Γραμμή στόχευσης
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(player.x, player.y - CUBE_SIZE/2);
-            ctx.lineTo(player.x, ceilingY);
-            ctx.stroke();
+function drawGridAndDanger() {
+    const rect = canvas.getBoundingClientRect();
+    // Draw Board
+    for(let r=0; r<ROWS; r++) {
+        for(let c=0; c<COLS; c++) {
+            let x = (c / (COLS-1)) * WORLD_W;
+            let y = (r / (ROWS-1)) * WORLD_H;
+            if (grid[r][c] > 0) drawCube3D(x, y, grid[r][c]);
         }
     }
+    // Danger line
+    let dy = (DANGER_ROW / (ROWS-1)) * WORLD_H;
+    let pL = project(0, dy);
+    let pR = project(WORLD_W, dy);
+    ctx.strokeStyle = dangerTimer > 0 ? '#ff4757' : 'rgba(255, 50, 50, 0.3)';
+    ctx.lineWidth = 3 + dangerTimer;
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath(); ctx.moveTo(pL.x, pL.y); ctx.lineTo(pR.x, pR.y); ctx.stroke();
+    ctx.setLineDash([]);
 
-    function loop() {
-        update();
-        draw();
-        requestAnimationFrame(loop);
+    // Dropping Cube
+    if (dropCube) {
+        let x = (dropX / (COLS-1)) * WORLD_W;
+        drawCube3D(x, dropCube.y, dropCube.val, 1.2);
     }
+}
 
-    function resetGame() {
-        cubes = [];
-        score = 0;
+function drawLaser() {
+    if (gameOver || dropCube) return;
+    const rect = canvas.getBoundingClientRect();
+    let x = (dropX / (COLS-1)) * WORLD_W;
+    let pBot = project(x, WORLD_H);
+    let pTop = project(x, 0);
+    
+    // Laser line
+    let grad = ctx.createLinearGradient(pBot.x, pBot.y, pBot.x, pTop.y);
+    grad.addColorStop(0, 'rgba(200, 200, 255, 0.6)');
+    grad.addColorStop(1, 'rgba(200, 200, 255, 0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(pBot.x, pBot.y); ctx.lineTo(pTop.x, pTop.y); ctx.stroke();
+    
+    // Draw launching cube at bottom
+    drawCube3D(x, WORLD_H, nextVal, 1.0);
+}
+
+// --- Physics Logic (Drop & Merge) ---
+function getNextEmptyRow(col) {
+    for(let r=ROWS-1; r>=0; r--) {
+        if(grid[r][col] === 0) return r;
+    }
+    return -1; // full
+}
+
+function attemptMerge(col, row, val) {
+    // check above cells for same value (combine up)
+    if (row > 0 && grid[row-1][col] === val) {
+        grid[row-1][col] = val * 2;
+        grid[row][col] = 0;
+        playSound('merge');
+        score += (val * 2) * combo;
         scoreEl.innerText = score;
-        ceilingY = 50;
-        isGameOver = false;
-        gameOverScreen.style.display = 'none';
-        player.value = getNextValue();
+        comboFill = Math.min(100, comboFill + 20);
+        if(comboFill >= 100 && combo < 5) { combo++; comboFill = 0; }
+        comboBar.style.width = comboFill + '%';
+        comboText.innerText = combo + 'X';
+        createParticles(row-1, col, val*2);
+        return true; // merged
+    }
+    return false;
+}
+
+function dropCubePhysics() {
+    if (!dropCube) return;
+    let x = (dropX / (COLS-1)) * WORLD_W;
+    
+    // gravity
+    dropCube.vy += 0.6;
+    dropCube.y += dropCube.vy;
+    
+    // find nearest row in grid
+    let targetRow = -1;
+    for(let r=ROWS-1; r>=0; r--) {
+        if (grid[r][dropX] > 0) { targetRow = r; break; }
+    }
+    
+    let baseY = (targetRow === -1 ? ROWS-1 : targetRow) / (ROWS-1) * WORLD_H;
+    let floorY = 0;
+    if (targetRow === -1) {
+        floorY = (ROWS-1)/(ROWS-1)*WORLD_H - 10; // bottom floor
+    } else {
+        // check collision with cube above it
+        // grid row y is lower, so cube above it must be a bit higher
+        floorY = baseY - 30; // adjust based on cube size in world coords
     }
 
-    resetGame();
-    loop();
+    if (dropCube.y >= floorY) {
+        dropCube.y = floorY;
+        // Find actual row index to place it
+        let placeRow = 0;
+        for(let r=0; r<ROWS; r++) {
+            if(grid[r][dropX] === 0) { placeRow = r; break; }
+        }
+        if(placeRow === ROWS-1 || (placeRow < ROWS-1 && grid[placeRow+1][dropX] > 0)) {
+            // Place into grid
+            grid[placeRow][dropX] = dropCube.val;
+            playSound('drop');
+            
+            // Try to merge UPWARDS
+            attemptMerge(dropX, placeRow, dropCube.val);
+            
+            dropCube = null;
+            dropped = false;
+            rollNext();
+            updatePreviews();
+        } else {
+            // keep dropping
+        }
+    }
+}
+
+function updateDangerZone() {
+    let inDanger = false;
+    for(let c=0; c<COLS; c++) {
+        for(let r=DANGER_ROW; r<ROWS; r++) {
+            if(grid[r][c] > 0) inDanger = true;
+        }
+    }
+    if(inDanger) {
+        dangerTimer += 1/60;
+        if(dangerTimer > 3) triggerGameOver();
+    } else {
+        dangerTimer = Math.max(0, dangerTimer - 0.02);
+    }
+}
+
+function triggerGameOver() {
+    gameOver = true; 
+    finalScore.innerText = 'Σκορ: ' + score;
+    gameOverScreen.style.display = 'flex';
+}
+
+function createParticles(row, col, val) {
+    let x = (col / (COLS-1)) * WORLD_W;
+    let y = (row / (ROWS-1)) * WORLD_H;
+    let c = COLORS[val] || {bg:'#fff'};
+    for(let i=0; i<12; i++) {
+        particles.push({
+            x: x, y: y, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4-2,
+            alpha: 1, color: c.bg, size: 3 + Math.random()*4
+        });
+    }
+}
+
+function updateParticles() {
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.alpha -= 0.03; p.vx *= 0.98; });
+    particles = particles.filter(p => p.alpha > 0);
+}
+
+// --- Game Loop ---
+function update() {
+    if (gameOver) return;
+    dropCubePhysics();
+    updateDangerZone();
+    updateParticles();
+}
+
+function draw() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    // Background Grid (pseudo 3D floor)
+    ctx.fillStyle = '#0e0a1a'; ctx.fillRect(0,0,rect.width,rect.height);
+    
+    // Draw Board with laser
+    drawGridAndDanger();
+    drawLaser();
+
+    // Particles
+    particles.forEach(p => {
+        let pt = project(p.x, p.y);
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(pt.x - 3, pt.y - 3, 6*p.s, 6*p.s);
+        ctx.globalAlpha = 1;
+    });
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// --- Input Controls ---
+function getColFromX(screenX) {
+    const rect = canvas.getBoundingClientRect();
+    let relX = screenX - rect.left;
+    let percent = relX / rect.width;
+    // map to cols (0 to COLS-1)
+    let col = Math.floor(percent * COLS);
+    return Math.max(0, Math.min(COLS-1, col));
+}
+
+function handlePointerStart(e) {
+    e.preventDefault();
+    initAudio();
+    if (gameOver || dropCube) return;
+    // Start aiming
+}
+
+function handlePointerMove(e) {
+    e.preventDefault();
+    if (gameOver || dropCube) return;
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    dropX = getColFromX(clientX);
+}
+
+function handlePointerEnd(e) {
+    e.preventDefault();
+    if (gameOver || dropCube) return;
+    // Launch cube
+    let row = getNextEmptyRow(dropX);
+    if (row === -1) return; // full column
+
+    dropCube = { val: nextVal, y: 0, vy: 2 };
+    dropped = true;
+    holdEl.innerText = '-'; holdEl.style.backgroundColor = 'rgba(255,255,255,0.1)';
+    rollNext();
+    updatePreviews();
+}
+
+// Events
+canvas.addEventListener('mousedown', handlePointerStart);
+window.addEventListener('mousemove', handlePointerMove);
+window.addEventListener('mouseup', handlePointerEnd);
+canvas.addEventListener('touchstart', handlePointerStart, { passive: false });
+window.addEventListener('touchmove', handlePointerMove, { passive: false });
+window.addEventListener('touchend', handlePointerEnd, { passive: false });
+
+// Power-ups & Hold
+document.getElementById('hold-box').addEventListener('click', () => {
+    if (gameOver || dropCube) return;
+    if (holdVal === null) {
+        holdVal = nextVal;
+        rollNext();
+    } else {
+        let temp = nextVal;
+        nextVal = holdVal;
+        holdVal = temp;
+    }
+    updatePreviews();
+});
+
+document.getElementById('btn-hammer').addEventListener('click', () => {
+    // Remove lowest cube in a random column
+    if(gameOver) return;
+    for(let c=0; c<COLS; c++) {
+        for(let r=ROWS-1; r>=0; r--) {
+            if(grid[r][c] > 0) { 
+                grid[r][c] = 0; 
+                playSound('drop');
+                return; 
+            }
+        }
+    }
+});
+document.getElementById('btn-bomb').addEventListener('click', () => {
+    // Clear bottom row
+    if(gameOver) return;
+    let cleared = false;
+    for(let c=0; c<COLS; c++) {
+        if(grid[ROWS-1][c] > 0) { grid[ROWS-1][c] = 0; cleared = true; }
+    }
+    if(cleared) playSound('merge');
+});
+
+restartBtn.addEventListener('click', init);
+
+// --- START ---
+init();
+loop();
 </script>
 </body>
 </html>
