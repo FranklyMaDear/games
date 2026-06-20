@@ -165,15 +165,6 @@ body {
     <div id="hammer-label">SMASH</div>
   </div>
 
-  <!-- Milestone overlay -->
-  <div id="milestone-flash">
-    <div id="milestone-inner">
-      <canvas id="milestone-cnv" width="80" height="80" style="display:block;margin:0 auto 8px"></canvas>
-      <div id="milestone-text" style="color:#FFD700;font-size:22px;font-weight:900;letter-spacing:1px"></div>
-      <div style="color:rgba(255,215,0,0.5);font-size:11px;margin-top:3px">⭐ NEW MILESTONE ⭐</div>
-    </div>
-  </div>
-
   <!-- Start / Game Over overlay -->
   <div id="overlay">
     <h1>🧊 MERGE CUBES</h1>
@@ -402,11 +393,11 @@ function drawMiniCube(mCtx, x, y, w, h, value) {
 // World: x=0..1 normalized across near-width, y=0(far)..1(near/bottom)
 // NEAR end = row ROWS-1 projection, FAR end = row 0 projection
 
-const PHYS_R    = 0.075; // cube half-size in world units
+const PHYS_R    = 0.105; // cube half-size in world units — bigger cubes
 const CONV_SPD  = 0.00006; // conveyor: cubes drift toward player each frame
 const GRAV      = 0.0;    // no vertical gravity in corridor (cubes slide on "floor")
 const FRIC      = 0.974;
-const BOUN      = 0.30;
+const BOUN      = 0.32;
 const SHOT_SPD  = 0.016;   // initial shot velocity (toward far)
 
 let cubes      = [];   // free-physics cubes on board
@@ -444,18 +435,15 @@ function pid() { return uid++; }
 
 function getCol(v) { return PAL[v] || {f:'#cc44ff',t:'#ee88ff',s:'#660099',tx:'#fff'}; }
 
-// Spawn initial cubes clustered at far end
+// Spawn initial cubes clustered at far end — 5 cubes full width
 function spawnInitial() {
   cubes = [];
-  const vals = [2,2,4,4,8,8,2,4];
-  let idx = 0;
-  for (let row = 0; row <= 1; row++) {
-    const count = row===0 ? 5 : 3;
-    for (let ci = 0; ci < count && idx < vals.length; ci++, idx++) {
-      const x = 0.1 + (ci / (count-1||1)) * 0.80;
-      const y = 0.04 + row * PHYS_R * 2.5;
-      cubes.push(newCube(x, y, 0, 0, vals[idx]));
-    }
+  const row0vals = [2,4,2,8,4];
+  const row1vals = [4,2,4,2,8];
+  for (let ci = 0; ci < 5; ci++) {
+    const x = 0.08 + (ci / 4) * 0.84;
+    cubes.push(newCube(x, 0.03, 0, 0, row0vals[ci]));
+    cubes.push(newCube(x, 0.03 + PHYS_R * 2.3, 0, 0, row1vals[ci]));
   }
 }
 
@@ -550,18 +538,18 @@ function spawnParticles(x,y,color,count=12,speed=0.007) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  MILESTONE OVERLAY
+//  MILESTONE — floating text only, no blocking overlay
 // ═══════════════════════════════════════════════════════════════════
 function showMilestone(v) {
-  const fl = document.getElementById('milestone-flash');
-  const mc = document.getElementById('milestone-cnv');
-  const mt = document.getElementById('milestone-text');
-  const mCtx = mc.getContext('2d');
-  mCtx.clearRect(0,0,80,80);
-  drawMiniCube(mCtx, 6, 14, 60, 60, v);
-  mt.textContent = v+' REACHED!';
-  fl.classList.add('show');
-  setTimeout(()=>fl.classList.remove('show'), 2000);
+  // Push a large floating label into the floats array — no overlay
+  floats.push({
+    x: 0.5, y: 0.45,
+    label: `✦ ${v} REACHED! ✦`,
+    life: 90,   // ~1.5s at 60fps
+    maxLife: 90,
+    milestone: true,
+    big: true,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -591,15 +579,14 @@ function tick() {
   }
   if (boss) boss.y += convSpeed * 1.5;
 
-  // ── Spawn new back row ──
+  // ── Spawn new back row — always 5 cubes full width ──
   spawnTimer++;
   if (spawnTimer >= SPAWN_INTERVAL) {
     spawnTimer=0;
-    const cnt = 3+Math.floor(Math.random()*3);
-    const ys  = [2,2,4,4,8][Math.floor(Math.random()*5)];
-    for (let i=0;i<cnt;i++) {
-      const x=0.1+(i/(cnt-1||1))*0.80;
-      cubes.push(newCube(x, 0.01, 0, 0, rndStart()));
+    const vals2=[2,4,2,4,8,2,4,8,16];
+    for (let ci=0;ci<5;ci++) {
+      const x=0.08+(ci/4)*0.84;
+      cubes.push(newCube(x, 0.01, 0, 0, vals2[Math.floor(Math.random()*vals2.length)]));
     }
   }
 
@@ -684,24 +671,33 @@ function tick() {
       for (const c of cubes) {
         const dx=shotCube.x-c.x, dy=shotCube.y-c.y;
         const d2=Math.sqrt(dx*dx+dy*dy);
-        if (d2<PHYS_R*2) {
+        if (d2<PHYS_R*1.92) {
           if (shotCube.value===c.value||shotCube.value==='wildcard'||c.value==='wildcard') {
             doMerge(shotCube, c);
             shotCube=null; merged=true; break;
           } else {
-            // push
+            // Physical bounce — feels like a real collision
             if (d2>0) {
-              const nx2=dx/d2,ny2=dy/d2;
+              const nx2=dx/d2, ny2=dy/d2;
+              const overlap=PHYS_R*1.92-d2;
+              // Separate
+              shotCube.x+=nx2*overlap*0.6; shotCube.y+=ny2*overlap*0.6;
+              c.x-=nx2*overlap*0.4; c.y-=ny2*overlap*0.4;
+              // Exchange momentum
               const sp=Math.sqrt(shotCube.vx**2+shotCube.vy**2);
-              c.vx-=nx2*sp*0.55; c.vy-=ny2*sp*0.45;
-              shotCube.vx=nx2*sp*0.28; shotCube.vy=ny2*sp*0.28;
-              shakeAmt=Math.max(shakeAmt,3);
+              const relV=(shotCube.vx-c.vx)*nx2+(shotCube.vy-c.vy)*ny2;
+              if (relV<0) {
+                shotCube.vx-=relV*nx2*0.65; shotCube.vy-=relV*ny2*0.65;
+                c.vx+=relV*nx2*0.65; c.vy+=relV*ny2*0.65;
+              }
+              shakeAmt=Math.max(shakeAmt,4);
+              spawnParticles(c.x,c.y,getCol(c.value).f,5,0.004);
             }
           }
           break;
         }
       }
-      // Shot settled
+      // Shot settled — land as new static cube
       if (!merged && shotCube && Math.abs(shotCube.vy)<0.0007 && shotCube.y>0.07) {
         const land=shotCube; shotCube=null;
         land.vx=0; land.vy=0; cubes.push(land);
@@ -869,14 +865,14 @@ function drawFrame() {
   const sorted=[...cubes].sort((a,b)=>a.y-b.y);
   for (const c of sorted) {
     const {px,py,sc}=worldToCanvas(c.x,c.y);
-    const cw=PHYS_R*2*sc*NEAR_W*0.78, ch=cw;
+    const cw=PHYS_R*2*sc*NEAR_W*0.95, ch=cw;
     drawCube(px-cw/2, py-ch/2, cw, ch, c.value, 1, c.flash, c.special);
   }
 
   // ── Boss ──
   if (boss) {
     const {px,py,sc}=worldToCanvas(boss.x,boss.y);
-    const cw=PHYS_R*2*sc*NEAR_W*1.38, ch=cw;
+    const cw=PHYS_R*2*sc*NEAR_W*1.65, ch=cw;
     ctx.save(); ctx.shadowColor='#FF2200'; ctx.shadowBlur=24;
     drawCube(px-cw/2,py-ch/2,cw,ch,boss.value,1,boss.flash,null,boss.hp,boss.maxHp);
     ctx.restore();
@@ -892,7 +888,7 @@ function drawFrame() {
   // ── Shot cube (with trail) ──
   if (shotCube) {
     const {px,py,sc}=worldToCanvas(shotCube.x,shotCube.y);
-    const cw=PHYS_R*2*sc*NEAR_W*0.78, ch=cw;
+    const cw=PHYS_R*2*sc*NEAR_W*0.95, ch=cw;
     // Trail
     for (let t=1;t<=4;t++) {
       const tx=shotCube.x-shotCube.vx*t*2.5, ty=shotCube.y-shotCube.vy*t*2.5;
@@ -910,7 +906,7 @@ function drawFrame() {
   // ── Shooter (at bottom, with aim line) ──
   if (gameOn && !paused && !shotCube) {
     const {px:sx,py:sy,sc:ssc}=worldToCanvas(aimX,0.96);
-    const cw=PHYS_R*2*ssc*NEAR_W*0.78, ch=cw;
+    const cw=PHYS_R*2*ssc*NEAR_W*0.95, ch=cw;
     // Aim line
     const {px:tx2,py:ty2}=worldToCanvas(aimX,0.08);
     const lineG=ctx.createLinearGradient(sx,sy,tx2,ty2);
@@ -948,13 +944,28 @@ function drawFrame() {
   // ── Floating labels ──
   for (const f of floats) {
     const {px,py}=worldToCanvas(f.x,f.y);
-    const age=1-f.life/10;
-    ctx.save(); ctx.globalAlpha=1-age;
-    ctx.fillStyle=f.label.startsWith('-')?'#FF5555':f.big?'#FFD700':'#fff';
-    ctx.font=`800 ${f.big?16:13}px system-ui`;
-    ctx.textAlign='center'; ctx.shadowColor='#000'; ctx.shadowBlur=5;
-    ctx.fillText(f.label,px,py-age*42);
-    ctx.textAlign='left'; ctx.shadowBlur=0; ctx.restore();
+    const maxL = f.maxLife || 10;
+    const age = 1 - f.life / maxL;
+    // fade in for first 10%, stay, fade out last 30%
+    let alpha = 1;
+    if (age < 0.1) alpha = age / 0.1;
+    else if (age > 0.7) alpha = 1 - (age - 0.7) / 0.3;
+    ctx.save(); ctx.globalAlpha = alpha;
+    if (f.milestone) {
+      ctx.fillStyle = '#FFD700';
+      ctx.font = `900 ${Math.round(TW * 0.062)}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#FF8800'; ctx.shadowBlur = 18;
+      ctx.fillText(f.label, px, py - age * 30);
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = f.label.startsWith('-') ? '#FF5555' : f.big ? '#FFD700' : '#fff';
+      ctx.font = `800 ${f.big ? 16 : 13}px system-ui`;
+      ctx.textAlign = 'center'; ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
+      ctx.fillText(f.label, px, py - age * 42);
+      ctx.shadowBlur = 0;
+    }
+    ctx.textAlign = 'left'; ctx.restore();
   }
 
   // ── Diamond active flash ──
