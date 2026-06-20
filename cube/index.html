@@ -284,6 +284,9 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
 camera.position.set(0, 16, 2); 
 camera.lookAt(0, 0, 2);
 
+// Store base camera Y position for shake restoration
+let cameraBaseY = 16;
+
 const ambient = new THREE.AmbientLight(0x4a3aaa, 0.5);
 scene.add(ambient);
 
@@ -519,7 +522,7 @@ function spawnCube(x, y, z, value, opts = {}){
 
 function removeCube(cube){
   scene.remove(cube.mesh);
-  cube.mesh.geometry = null; 
+  // No need to null geometry (it's shared)
   world.removeBody(cube.body);
   const i = cubes.indexOf(cube);
   if (i >= 0) cubes.splice(i, 1);
@@ -548,15 +551,20 @@ function spawnInitial(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUDIO 
+// AUDIO (FIXED: ensure audio context resume)
 // ═══════════════════════════════════════════════════════════════════
 const audio = (() => {
   let ctx = null; let muted = false; let masterGain = null; let musicGain = null; let musicNodes = [];
   function ensureCtx(){
-    if (ctx) return;
+    if (ctx) {
+      if (ctx.state === 'suspended') ctx.resume();
+      return;
+    }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = ctx.createGain(); masterGain.gain.value = 0.4; masterGain.connect(ctx.destination);
     musicGain = ctx.createGain(); musicGain.gain.value = 0.15; musicGain.connect(masterGain);
+    // Resume if suspended (needed for modern browsers)
+    if (ctx.state === 'suspended') ctx.resume();
   }
   function envelope(node, peak, attack, decay, sustain, release, dur){
     const t = ctx.currentTime;
@@ -837,11 +845,10 @@ function killBoss(boss){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SHOOT (Updated for Multi-Shots)
+// SHOOT (FIXED: prevents multiple shots too fast while allowing rapid-fire)
 // ═══════════════════════════════════════════════════════════════════
 function shoot(){
   const now = performance.now();
-  // 250ms cooldown prevents breaking physics, but allows rapid-fire!
   if (!gameOn || paused || (now - lastShootTime < 250)) return;
   lastShootTime = now;
 
@@ -859,7 +866,7 @@ function shoot(){
   activeShots.push(newShot);
   audio.shoot();
 
-  // Load next cube instantly so user can keep firing
+  // Load next cube instantly
   curVal = nxtVal;
   nxtVal = rndStart();
   drawNextHUD();
@@ -878,7 +885,7 @@ function findAimTarget(x){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// UPDATE LOOP
+// UPDATE LOOP (FIXED: camera shake uses cameraBaseY)
 // ═══════════════════════════════════════════════════════════════════
 let lastT = performance.now();
 let shakeAmt = 0;
@@ -948,13 +955,10 @@ function update(){
     }
 
     if (shakeAmt > 0){
-      // Get base camera position depending on aspect ratio
-      const w = wrap.clientWidth; const h = wrap.clientHeight;
-      const baseY = w < h ? 18 + (h/w)*3 : 16;
       camera.position.x = (Math.random()-0.5) * shakeAmt;
-      camera.position.y = baseY + (Math.random()-0.5) * shakeAmt * 0.5;
+      camera.position.y = cameraBaseY + (Math.random()-0.5) * shakeAmt * 0.5;
       shakeAmt *= 0.85;
-      if (shakeAmt < 0.005){ shakeAmt = 0; camera.position.x = 0; camera.position.y = baseY; }
+      if (shakeAmt < 0.005){ shakeAmt = 0; camera.position.x = 0; camera.position.y = cameraBaseY; }
     }
 
     for (let i = activeShots.length - 1; i >= 0; i--){
@@ -1023,9 +1027,10 @@ function updateShooterIndicator(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// BOSS
+// BOSS (FIXED: guard against duplicate boss)
 // ═══════════════════════════════════════════════════════════════════
 function spawnBoss(){
+  if (bossCube) return; // already a boss on track
   const bv = score < 3000 ? 32 : 64;
   const x = 0; const z = -TRACK_L/2 + 1.5;
   const mats = getCubeMaterials(bv);
@@ -1089,11 +1094,31 @@ function showTiltBanner(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// GAME OVER / START
+// GAME OVER / START (FIXED: reattach event listeners after innerHTML)
 // ═══════════════════════════════════════════════════════════════════
+function bindOverlayButtons(){
+  // Remove old listeners by cloning elements? Instead, just attach fresh.
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) {
+    startBtn.replaceWith(startBtn.cloneNode(true)); // remove old listeners
+    document.getElementById('startBtn').addEventListener('click', startGame);
+  }
+  const hubBtn = document.getElementById('hubBtn');
+  if (hubBtn) {
+    hubBtn.replaceWith(hubBtn.cloneNode(true));
+    document.getElementById('hubBtn').addEventListener('click', () => {
+        alert('Score submitted to Hub!');
+    });
+  }
+}
+
 function triggerGameOver(){
   gameOn = false;
-  activeShots.forEach(shot => removeCube(shot)); activeShots = [];
+  // Safely remove all active shots
+  while (activeShots.length) {
+    removeCube(activeShots[0]);
+    activeShots.shift();
+  }
   audio.gameOver(); audio.stopMusic();
   overlayEl.innerHTML = `
     <h1>GAME OVER</h1>
@@ -1103,15 +1128,13 @@ function triggerGameOver(){
     <button class="hub-btn" id="hubBtn">Back to FranklyGames</button>
   `;
   overlayEl.classList.remove('hidden');
-  document.getElementById('startBtn').addEventListener('click', startGame);
-  document.getElementById('hubBtn').addEventListener('click', () => {
-      // Εδώ μπορείς να καλέσεις το Telegram Bot API σου για να στείλεις το σκορ.
-      alert('Score submitted to Hub!');
-  });
+  bindOverlayButtons(); // Reattach listeners
 }
 
 function startGame(){
+  // Cleanup previous game
   while (cubes.length) removeCube(cubes[0]);
+  while (activeShots.length) { removeCube(activeShots[0]); activeShots.shift(); }
   for (let i = particles.length-1; i >= 0; i--){ scene.remove(particles[i].mesh); particles[i].mat.dispose(); }
   particles.length = 0;
 
@@ -1123,7 +1146,7 @@ function startGame(){
   wildcardNext = false; curVal = rndStart(); nxtVal = rndStart(); aimX = 0; shakeAmt = 0;
   activeShots = [];
 
-  resize(); // Reset camera perfectly
+  resize(); // Reset camera
 
   spawnInitial(); drawNextHUD(); gameOn = true;
   audio.ensureCtx(); audio.startMusic();
@@ -1157,7 +1180,7 @@ document.getElementById('hammer-icon').addEventListener('click', () => {
   }
 });
 
-// Boosters (Εδώ αργότερα μπορείς να κολλήσεις Monetag/Adsgram)
+// Boosters (placeholder ad integration)
 document.getElementById('boost-rainbow').addEventListener('click', () => { if (!gameOn || paused) return; wildcardNext = true; drawNextHUD(); });
 document.getElementById('boost-swap').addEventListener('click', () => { if (!gameOn || paused) return; [curVal, nxtVal] = [nxtVal, curVal]; drawNextHUD(); });
 document.getElementById('boost-bomb').addEventListener('click', () => {
@@ -1175,10 +1198,12 @@ document.getElementById('btn-pause').addEventListener('click', () => { if (!game
 document.getElementById('btn-sound').addEventListener('click', () => { const muted = audio.toggleMute(); document.getElementById('btn-sound').textContent = muted ? '🔇' : '🔊'; });
 
 window.addEventListener('deviceorientation', e => { if (!gyroOn) return; gyroX = Math.max(-1, Math.min(1, (e.gamma || 0) / 30)); });
-document.getElementById('startBtn').addEventListener('click', startGame);
+
+// Initial overlay binding
+bindOverlayButtons();
 
 // ═══════════════════════════════════════════════════════════════════
-// RESIZE (Updated for Mobile Screens)
+// RESIZE (UPDATED: stores cameraBaseY)
 // ═══════════════════════════════════════════════════════════════════
 function resize(){
   const w = wrap.clientWidth; const h = wrap.clientHeight;
@@ -1186,11 +1211,11 @@ function resize(){
   camera.aspect = w / h;
   
   if (w < h) {
-      // Vertical Mobile Screen: Pull camera Up & Back dynamically
       camera.position.set(0, 18 + (h/w)*3, 4 + (h/w)*2);
+      cameraBaseY = 18 + (h/w)*3;
   } else {
-      // Horizontal Desktop/Tablet Screen
       camera.position.set(0, 16, 2);
+      cameraBaseY = 16;
   }
   camera.lookAt(0, 0, 2);
   camera.updateProjectionMatrix();
