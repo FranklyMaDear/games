@@ -2,751 +2,365 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Cosmic Cube Merger - Pro Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Straight Shooter Merge</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         body {
-            background-color: #030206;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #111;
+            color: white;
+            font-family: sans-serif;
             overflow: hidden;
-            width: 100vw;
-            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
         }
         #game-container {
             position: relative;
             width: 100%;
-            max-width: 450px;
+            max-width: 400px;
             height: 100%;
-            max-height: 850px;
-            background: radial-gradient(circle at center, #100b26 0%, #030206 100%);
-            overflow: hidden;
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
+            max-height: 800px;
+            background: #222;
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
         }
         canvas {
             display: block;
             width: 100%;
             height: 100%;
         }
-        /* UI Overlays */
-        .ui-element {
+        .ui-top {
             position: absolute;
-            background: rgba(14, 10, 32, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 6px 12px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2;
+            top: 10px; left: 0; width: 100%;
+            display: flex; justify-content: space-between;
+            padding: 0 15px; z-index: 10;
         }
-        #score-box {
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            min-width: 110px;
+        .score-box {
+            background: rgba(0,0,0,0.5);
+            padding: 5px 15px; border-radius: 8px;
+            font-size: 20px; font-weight: bold;
         }
-        .ui-label {
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #837da1;
-            margin-bottom: 2px;
-            font-weight: 700;
+        #game-over {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20;
         }
-        .ui-value {
-            font-size: 20px;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
+        #game-over h1 { color: #ff4757; margin-bottom: 10px; }
+        button {
+            padding: 12px 24px; font-size: 16px; font-weight: bold;
+            background: #00cec9; border: none; border-radius: 8px;
+            color: white; cursor: pointer; margin-top: 20px;
         }
-        #next-box {
-            top: 20px;
-            left: 15px;
-            min-width: 65px;
-            height: 65px;
-        }
-        #hold-box {
-            top: 20px;
-            left: 88px;
-            min-width: 65px;
-            height: 65px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        #hold-box:active {
-            background: rgba(255,255,255,0.1);
-        }
-        .preview-slot {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 14px;
-            margin-top: 2px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-        }
-        #combo-container {
-            position: absolute;
-            top: 95px;
-            left: 15px;
-            right: 15px;
-            height: 16px;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.06);
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            z-index: 2;
-        }
-        #combo-bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #00cec9, #6c5ce7);
-            transition: width 0.1s linear;
-        }
-        #combo-text {
-            position: absolute;
-            right: 15px;
-            font-size: 10px;
-            font-weight: 800;
-            color: #ffffff;
-        }
-        #powerups-box {
-            top: 20px;
-            right: 15px;
-            display: flex;
-            gap: 6px;
-            flex-direction: row;
-            padding: 5px;
-        }
-        .powerup-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .powerup-btn.active {
-            border-color: #f1c40f;
-            background: rgba(241, 196, 15, 0.25);
-            box-shadow: 0 0 12px rgba(241, 196, 15, 0.4);
-        }
-
-        /* Screens overlays */
-        .screen-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(4, 3, 8, 0.95);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            padding: 20px;
-            text-align: center;
-        }
-        .screen-overlay h1 {
-            font-size: 30px;
-            color: #ff4757;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
-        }
-        .screen-overlay p {
-            font-size: 16px;
-            margin-bottom: 25px;
-            color: #a29bfe;
-        }
-        .btn-ui {
-            padding: 12px 28px;
-            font-size: 15px;
-            font-weight: 700;
-            border: none;
-            border-radius: 25px;
-            color: white;
-            cursor: pointer;
-            margin: 8px;
-            width: 80%;
-            max-width: 260px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-        #revive-btn { background: linear-gradient(135deg, #ff9f43, #ff5252); }
-        #restart-btn { background: linear-gradient(135deg, #00cec9, #6c5ce7); }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="next-box" class="ui-element">
-        <span class="ui-label">Next</span>
-        <div id="next-preview" class="preview-slot">2</div>
+    <div class="ui-top">
+        <div class="score-box">Score: <span id="score">0</span></div>
     </div>
-
-    <div id="hold-box" class="ui-element">
-        <span class="ui-label">Hold</span>
-        <div id="hold-preview" class="preview-slot" style="background: rgba(255,255,255,0.05)">-</div>
-    </div>
-
-    <div id="score-box" class="ui-element">
-        <span class="ui-label">Score</span>
-        <div id="score-value" class="ui-value">0</div>
-    </div>
-
-    <div id="powerups-box" class="ui-element">
-        <div class="powerup-btn" id="btn-hammer">🔨</div>
-        <div class="powerup-btn" id="btn-bomb">💣</div>
-    </div>
-
-    <div id="combo-container">
-        <div id="combo-bar"></div>
-        <div id="combo-text">1X</div>
-    </div>
-
     <canvas id="gameCanvas"></canvas>
-
-    <div id="game-over-screen" class="screen-overlay">
-        <h1 id="screen-title">Game Over</h1>
-        <p id="screen-desc">Πλησιάσατε τη ζώνη κινδύνου!</p>
-        <button id="revive-btn" class="btn-ui">📺 Revive (Δες Ad)</button>
-        <button id="restart-btn" class="btn-ui">Νέο Παιχνίδι</button>
+    
+    <div id="game-over">
+        <h1>GAME OVER</h1>
+        <p>Έφτασες στην κόκκινη γραμμή!</p>
+        <button onclick="resetGame()">Ξανά Μανά</button>
     </div>
 </div>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const scoreValEl = document.getElementById('score-value');
-    const nextPreviewEl = document.getElementById('next-preview');
-    const holdPreviewEl = document.getElementById('hold-preview');
-    const comboBarEl = document.getElementById('combo-bar');
-    const comboTextEl = document.getElementById('combo-text');
-    const gameOverScreen = document.getElementById('game-over-screen');
-    const restartBtn = document.getElementById('restart-btn');
-    const reviveBtn = document.getElementById('revive-btn');
-    const btnHammer = document.getElementById('btn-hammer');
-    const btnBomb = document.getElementById('btn-bomb');
+    const scoreEl = document.getElementById('score');
+    const gameOverScreen = document.getElementById('game-over');
 
-    // Web Audio Synthesizer Engine
-    let audioCtx = null;
-    function initAudio() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
+    // Canvas Setup
+    let width, height;
+    function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        width = canvas.width;
+        height = canvas.height;
     }
-    function playSound(type, freqMod = 1) {
-        if (!audioCtx) return;
-        try {
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            if (type === 'shoot') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-            } else if (type === 'merge') {
-                osc.type = 'sine';
-                let baseFreq = 300 + (Math.log2(freqMod) * 50);
-                osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
-                osc.frequency.setValueAtTime(baseFreq * 1.5, audioCtx.currentTime + 0.08);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
-            } else if (type === 'explosion') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-            } else if (type === 'fever') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
-                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.25);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.25);
-            }
-        } catch(e) {}
-    }
+    window.addEventListener('resize', resize);
+    resize();
 
     // Game Variables
-    let score = 0, nextValue = 2, heldValue = null, hasSwappedThisTurn = false;
-    let comboMultiplier = 1, comboProgress = 0, cubes = [], particles = [], floatingTexts = [];
-    let isGameOver = false, activePowerup = null, dangerTimer = 0, hasRevived = false;
-    let shakeIntensity = 0;
+    const CUBE_SIZE = width / 5.5; // Χωράνε περίπου 5 κύβοι στη σειρά
+    const LAUNCH_Y = height - 80;
+    const DANGER_Y = height - 120;
+    
+    let score = 0;
+    let cubes = [];
+    let ceilingY = 50; 
+    let ceilingDropRate = 0.05; // Πόσο γρήγορα κατεβαίνει το ταβάνι (pixels ανά frame)
+    let isGameOver = false;
 
-    let launcher = { x: 150, y: 640, value: 2, radius: 16, isAiming: false, aimX: 150, aimY: 300 };
-
-    const cubeColors = {
-        2:    { bg: '#2ecc71', side: '#27ae60', text: '#ffffff' },
-        4:    { bg: '#3498db', side: '#2980b9', text: '#ffffff' },
-        8:    { bg: '#e67e22', side: '#d35400', text: '#ffffff' },
-        16:   { bg: '#9b59b6', side: '#8e44ad', text: '#ffffff' },
-        32:   { bg: '#e74c3c', side: '#c0392b', text: '#ffffff' },
-        64:   { bg: '#1abc9c', side: '#16a085', text: '#ffffff' },
-        128:  { bg: '#f1c40f', side: '#f39c12', text: '#000000' },
-        256:  { bg: '#fd79a8', side: '#e84393', text: '#ffffff' },
-        512:  { bg: '#6c5ce7', side: '#a29bfe', text: '#ffffff' },
-        1024: { bg: '#00cec9', side: '#00b894', text: '#000000' },
-        2048: { bg: '#e84393', side: '#d63031', text: '#ffffff' }
+    // Player/Launcher State
+    let player = {
+        x: width / 2,
+        y: LAUNCH_Y,
+        value: 2,
+        isShooting: false
     };
 
-    const WORLD_WIDTH = 300, WORLD_HEIGHT = 700, DANGER_ZONE_Y = 520;
+    const colors = {
+        2: '#2ecc71', 4: '#3498db', 8: '#9b59b6', 16: '#f1c40f',
+        32: '#e67e22', 64: '#e74c3c', 128: '#1abc9c', 256: '#fd79a8',
+        512: '#6c5ce7', 1024: '#00cec9', 2048: '#d63031'
+    };
 
-    function resizeCanvas() {
+    function getNextValue() {
+        const vals = [2, 4, 8, 16];
+        return vals[Math.floor(Math.random() * vals.length)];
+    }
+
+    // Input Handling (Σύρσιμο αριστερά-δεξιά & Άφημα για βολή)
+    let isDragging = false;
+    
+    function setPlayerX(clientX) {
         const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    }
-    window.addEventListener('resize', resizeCanvas);
-
-    function project(worldX, worldY) {
-        const viewRect = canvas.getBoundingClientRect();
-        let t = worldY / WORLD_HEIGHT;
-        let horizonY = viewRect.height * 0.22;
-        let baseFloorY = viewRect.height * 0.88;
-        let screenY = horizonY + t * (baseFloorY - horizonY);
-        let topWidth = viewRect.width * 0.45;
-        let bottomWidth = viewRect.width * 0.88;
-        let currentBoardWidth = topWidth + t * (bottomWidth - topWidth);
-        let screenX = (viewRect.width / 2) + ((worldX / WORLD_WIDTH) - 0.5) * currentBoardWidth;
-        return { x: screenX, y: screenY, scale: currentBoardWidth / WORLD_WIDTH };
+        let x = clientX - rect.left;
+        // Περιορισμός στα όρια της οθόνης
+        if (x < CUBE_SIZE/2) x = CUBE_SIZE/2;
+        if (x > width - CUBE_SIZE/2) x = width - CUBE_SIZE/2;
+        player.x = x;
     }
 
-    // Powerup & Hold Triggers
-    document.getElementById('hold-box').addEventListener('click', (e) => {
-        e.stopPropagation();
-        initAudio();
-        if (hasSwappedThisTurn || isGameOver) return;
-        if (heldValue === null) {
-            heldValue = launcher.value;
-            rollNextValue();
-        } else {
-            let temp = launcher.value;
-            launcher.value = heldValue;
-            heldValue = temp;
-        }
-        hasSwappedThisTurn = true;
-        updatePreviews();
+    canvas.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        setPlayerX(e.touches[0].clientX);
+    }, {passive: true});
+    
+    canvas.addEventListener('touchmove', (e) => {
+        if(isDragging) setPlayerX(e.touches[0].clientX);
+    }, {passive: true});
+    
+    canvas.addEventListener('touchend', () => {
+        isDragging = false;
+        shoot();
     });
 
-    btnHammer.addEventListener('click', (e) => { e.stopPropagation(); togglePowerup('hammer'); });
-    btnBomb.addEventListener('click', (e) => { e.stopPropagation(); togglePowerup('bomb'); });
+    // Mouse support για PC testing
+    canvas.addEventListener('mousedown', (e) => { isDragging = true; setPlayerX(e.clientX); });
+    canvas.addEventListener('mousemove', (e) => { if(isDragging) setPlayerX(e.clientX); });
+    canvas.addEventListener('mouseup', () => { isDragging = false; shoot(); });
 
-    function togglePowerup(type) {
-        initAudio();
-        if (activePowerup === type) {
-            activePowerup = null;
-            btnHammer.classList.remove('active');
-            btnBomb.classList.remove('active');
-        } else {
-            activePowerup = type;
-            btnHammer.classList.toggle('active', type === 'hammer');
-            btnBomb.classList.toggle('active', type === 'bomb');
-        }
-    }
-
-    function init() {
-        score = 0; cubes = []; particles = []; floatingTexts = [];
-        comboMultiplier = 1; comboProgress = 0; isGameOver = false; dangerTimer = 0;
-        activePowerup = null; heldValue = null; hasSwappedThisTurn = false;
-        btnHammer.classList.remove('active'); btnBomb.classList.remove('active');
-        scoreValEl.innerText = '0'; gameOverScreen.style.display = 'none';
-        reviveBtn.style.display = 'block';
-
-        for (let i = 0; i < 5; i++) {
-            cubes.push({
-                id: Math.random(), x: 60 + (i%3)*90, y: 120 + Math.floor(i/3)*80,
-                vx: 0, vy: 0, value: [2, 4, 8][Math.floor(Math.random() * 3)],
-                radius: 16, pulse: 1, trail: []
-            });
-        }
-        rollNextValue();
-        updatePreviews();
-    }
-
-    function rollNextValue() {
-        launcher.value = nextValue;
-        const choices = [2, 4, 8, 16, 32];
-        let maxIdx = score > 1500 ? 5 : score > 500 ? 4 : 3;
-        nextValue = choices[Math.floor(Math.random() * maxIdx)];
-    }
-
-    function updatePreviews() {
-        nextPreviewEl.innerText = nextValue;
-        let cNext = cubeColors[nextValue] || {bg: '#fff', text: '#000'};
-        nextPreviewEl.style.backgroundColor = cNext.bg;
-        nextPreviewEl.style.color = cNext.text;
-
-        if (heldValue) {
-            holdPreviewEl.innerText = heldValue;
-            let cHold = cubeColors[heldValue] || {bg: '#fff', text: '#000'};
-            holdPreviewEl.style.backgroundColor = cHold.bg;
-            holdPreviewEl.style.color = cHold.text;
-        } else {
-            holdPreviewEl.innerText = '-';
-            holdPreviewEl.style.backgroundColor = 'rgba(255,255,255,0.05)';
-            holdPreviewEl.style.color = '#fff';
-        }
-    }
-
-    function getCanvasCoords(e) {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
-    }
-
-    function handlePointerDown(e) {
+    function shoot() {
         if (isGameOver) return;
-        initAudio();
-        const coords = getCanvasCoords(e);
-        if (activePowerup) { handlePowerupUsage(coords); return; }
-
-        if (coords.y > canvas.getBoundingClientRect().height * 0.5) {
-            launcher.isAiming = true; updateAim(coords);
-        }
-    }
-
-    function handlePointerMove(e) { if (launcher.isAiming) updateAim(getCanvasCoords(e)); }
-
-    function handlePointerUp() {
-        if (!launcher.isAiming) return;
-        launcher.isAiming = false;
-
-        let projOrigin = project(launcher.x, launcher.y);
-        let angle = Math.atan2(launcher.aimY - projOrigin.y, launcher.aimX - projOrigin.x);
-        if (angle > -0.2) angle = -0.2; if (angle < -2.94) angle = -2.94;
-
-        playSound('shoot');
-
+        
+        // Ρίχνει τον κύβο ΠΡΟΣ ΤΑ ΠΑΝΩ (vy αρνητικό, vx μηδέν)
         cubes.push({
-            id: Math.random(), x: launcher.x, y: launcher.y,
-            vx: Math.cos(angle) * 15, vy: Math.sin(angle) * 15,
-            value: launcher.value, radius: 16, pulse: 1, trail: []
+            id: Math.random(),
+            x: player.x,
+            y: player.y,
+            vx: 0,
+            vy: -15, // Ταχύτητα βολής
+            value: player.value,
+            isActive: true // Μόλις χτυπήσει κάπου, γίνεται false
         });
-
-        hasSwappedThisTurn = false;
-        rollNextValue(); updatePreviews();
+        
+        player.value = getNextValue();
+        
+        // Κάθε βολή κατεβάζει το ταβάνι λιγάκι σαν ποινή
+        ceilingY += 5; 
     }
 
-    function updateAim(coords) { launcher.aimX = coords.x; launcher.aimY = coords.y; }
-
-    function handlePowerupUsage(coords) {
-        let closest = null, minDist = 40;
+    // AABB Collision Physics (Απλοποιημένη μηχανή για τετράγωνα)
+    function checkCollisions() {
+        // 1. Σύγκρουση με ταβάνι και τοίχους
         cubes.forEach(c => {
-            let pt = project(c.x, c.y);
-            let d = Math.hypot(coords.x - pt.x, coords.y - pt.y);
-            if (d < minDist) { minDist = d; closest = c; }
+            // Τοίχοι
+            if (c.x - CUBE_SIZE/2 < 0) c.x = CUBE_SIZE/2;
+            if (c.x + CUBE_SIZE/2 > width) c.x = width - CUBE_SIZE/2;
+            
+            // Ταβάνι
+            if (c.y - CUBE_SIZE/2 < ceilingY) {
+                c.y = ceilingY + CUBE_SIZE/2;
+                c.vy = 0;
+                c.isActive = false;
+            }
         });
 
-        if (closest) {
-            playSound('explosion');
-            shakeIntensity = 12;
-            if (activePowerup === 'hammer') {
-                createExplosionParticles(closest.x, closest.y, closest.value, 15);
-                cubes = cubes.filter(c => c.id !== closest.id);
-            } else if (activePowerup === 'bomb') {
-                createExplosionParticles(closest.x, closest.y, closest.value, 30);
-                cubes = cubes.filter(c => Math.hypot(c.x - closest.x, c.y - closest.y) > 80);
-            }
-            togglePowerup(activePowerup);
-        }
-    }
+        // Πολλαπλά περάσματα (iterations) για σταθερότητα όταν στοιβάζονται
+        for(let iter=0; iter<3; iter++) {
+            for (let i = 0; i < cubes.length; i++) {
+                for (let j = i + 1; j < cubes.length; j++) {
+                    let a = cubes[i];
+                    let b = cubes[j];
 
-    function createExplosionParticles(x, y, value, count = 12) {
-        let colors = cubeColors[value] || {bg: '#fff'};
-        for (let i = 0; i < count; i++) {
-            let angle = Math.random() * Math.PI * 2;
-            let speed = 1 + Math.random() * 6;
-            particles.push({
-                x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                size: 3 + Math.random() * 5, color: colors.bg, alpha: 1, decay: 0.02 + Math.random() * 0.02
-            });
-        }
-    }
+                    let dx = b.x - a.x;
+                    let dy = b.y - a.y;
+                    let absDx = Math.abs(dx);
+                    let absDy = Math.abs(dy);
 
-    function spawnFloatingText(x, y, txt, color) {
-        floatingTexts.push({ x: x, y: y, text: txt, color: color, alpha: 1, vy: -1 });
-    }
-
-    function updatePhysics() {
-        cubes.forEach(c => {
-            // Neon Trail Logger
-            if (Math.hypot(c.vx, c.vy) > 2) {
-                c.trail.push({x: c.x, y: c.y});
-                if (c.trail.length > 4) c.trail.shift();
-            } else {
-                if (c.trail.length > 0) c.trail.shift();
-            }
-
-            c.x += c.vx; c.y += c.vy;
-            c.vx *= 0.985; c.vy *= 0.985;
-
-            if (c.x - c.radius < 0) { c.x = c.radius; c.vx *= -0.6; }
-            else if (c.x + c.radius > WORLD_WIDTH) { c.x = WORLD_WIDTH - c.radius; c.vx *= -0.6; }
-            if (c.y - c.radius < 0) { c.y = c.radius; c.vy *= -0.6; }
-            if (c.y + c.radius > WORLD_HEIGHT) { c.y = WORLD_HEIGHT - c.radius; c.vy *= -0.5; }
-        });
-
-        // Collisions and Merges
-        for (let i = 0; i < cubes.length; i++) {
-            for (let j = i + 1; j < cubes.length; j++) {
-                let c1 = cubes[i], c2 = cubes[j];
-                let dx = c2.x - c1.x, dy = c2.y - c1.y;
-                let dist = Math.hypot(dx, dy);
-                let minDist = c1.radius + c2.radius;
-
-                if (dist < minDist && dist > 0) {
-                    if (c1.value === c2.value && !c1.markedForDeath && !c2.markedForDeath) {
-                        c1.markedForDeath = true;
-                        c2.value *= 2; c2.pulse = 1.4;
-
-                        let isFever = comboMultiplier >= 5;
-                        let points = c2.value * comboMultiplier * (isFever ? 2 : 1);
-                        score += points; scoreValEl.innerText = score;
-
-                        shakeIntensity = Math.min(15, shakeIntensity + (c2.value > 64 ? 8 : 4));
-                        playSound('merge', c2.value);
-
-                        comboProgress = Math.min(100, comboProgress + 25);
-                        if (comboProgress >= 100 && comboMultiplier < 5) {
-                            comboMultiplier++; comboProgress = 0;
-                            if (comboMultiplier === 5) playSound('fever');
+                    if (absDx < CUBE_SIZE && absDy < CUBE_SIZE) {
+                        // Merge αν έχουν ίδια αξία
+                        if (a.value === b.value && !a.markedForDeath && !b.markedForDeath) {
+                            a.markedForDeath = true;
+                            b.value *= 2;
+                            score += b.value;
+                            scoreEl.innerText = score;
+                            
+                            // Ώθηση κατά το merge (εφέ αλυσιδωτής αντίδρασης)
+                            b.vy -= 2;
+                            continue;
                         }
 
-                        createExplosionParticles(c2.x, c2.y, c2.value, 15);
-                        spawnFloatingText(c2.x, c2.y, `+${points}${isFever ? ' FEVER!' : ''}`, cubeColors[c2.value]?.bg || '#fff');
+                        // Αν δεν κάνουν merge, τα σπρώχνουμε για να μην μπαίνουν το ένα μέσα στο άλλο (Resolution)
+                        let overlapX = CUBE_SIZE - absDx;
+                        let overlapY = CUBE_SIZE - absDy;
 
-                        c2.vx += (Math.random() - 0.5) * 4; c2.vy -= Math.random() * 3;
-                    } else {
-                        let nx = dx / dist, ny = dy / dist;
-                        let overlap = minDist - dist;
-                        c1.x -= nx * overlap * 0.5; c1.y -= ny * overlap * 0.5;
-                        c2.x += nx * overlap * 0.5; c2.y += ny * overlap * 0.5;
-
-                        let rvx = c2.vx - c1.vx, rvy = c2.vy - c1.vy;
-                        let speedNormal = rvx * nx + rvy * ny;
-                        if (speedNormal < 0) {
-                            let impulse = -1.4 * speedNormal / 2;
-                            c1.vx -= nx * impulse; c1.vy -= ny * impulse;
-                            c2.vx += nx * impulse; c2.vy += ny * impulse;
+                        if (overlapX < overlapY) { // Οριζόντια σύγκρουση
+                            let pushX = overlapX / 2 * (dx > 0 ? 1 : -1);
+                            a.x -= pushX; b.x += pushX;
+                            a.vx = 0; b.vx = 0;
+                        } else { // Κάθετη σύγκρουση
+                            let pushY = overlapY / 2 * (dy > 0 ? 1 : -1);
+                            a.y -= pushY; b.y += pushY;
+                            
+                            // Αν χτυπήσει κάθετα, σταματάει η βολή
+                            if (a.vy < 0) { a.vy = 0; a.isActive = false; }
+                            if (b.vy < 0) { b.vy = 0; b.isActive = false; }
                         }
                     }
                 }
             }
         }
+    }
 
+    function update() {
+        if (isGameOver) return;
+
+        // Το ταβάνι κατεβαίνει συνεχώς
+        ceilingY += ceilingDropRate;
+
+        // Ενημέρωση θέσης κύβων
+        cubes.forEach(c => {
+            // Αν δεν είναι στην πτήση, του ασκείται βαρύτητα προς τα ΚΑΤΩ 
+            // ώστε να ακουμπάει στο ταβάνι ή στους από κάτω του
+            if (!c.isActive) {
+                c.vy += 0.5; // Βαρύτητα
+            }
+            
+            c.x += c.vx;
+            c.y += c.vy;
+
+            // Τριβή
+            c.vx *= 0.8;
+            c.vy *= 0.9;
+        });
+
+        checkCollisions();
+
+        // Εκκαθάριση νεκρών κύβων από merges
         cubes = cubes.filter(c => !c.markedForDeath);
-        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.alpha -= p.decay; });
-        particles = particles.filter(p => p.alpha > 0);
-        floatingTexts.forEach(f => { f.y += f.vy; f.alpha -= 0.015; });
-        floatingTexts = floatingTexts.filter(f => f.alpha > 0);
 
-        // Combo Degradation
-        if (comboProgress > 0) comboProgress -= 0.2;
-        else if (comboMultiplier > 1) { comboMultiplier--; comboProgress = 80; }
-        comboBarEl.style.width = `${comboProgress}%`;
-        comboTextEl.innerText = `${comboMultiplier}X${comboMultiplier===5?'🔥':''}`;
+        // Έλεγχος Game Over: Αν έστω και ΕΝΑΣ αδρανής κύβος ακουμπήσει την κόκκινη γραμμή κάτω
+        let lowestPoint = 0;
+        cubes.forEach(c => {
+            let bottomEdge = c.y + CUBE_SIZE/2;
+            if (bottomEdge > lowestPoint) lowestPoint = bottomEdge;
+        });
 
-        // Screen Shake decay
-        if (shakeIntensity > 0) shakeIntensity *= 0.9;
-
-        // Danger Zone Tracking
-        let insideDanger = cubes.some(c => c.y > DANGER_ZONE_Y && Math.hypot(c.vx, c.vy) < 0.2);
-        if (insideDanger) {
-            dangerTimer += 1 / 60;
-            if (dangerTimer >= 3.0) endGame();
-        } else {
-            dangerTimer = Math.max(0, dangerTimer - 1 / 60);
+        if (lowestPoint > DANGER_Y) {
+            isGameOver = true;
+            gameOverScreen.style.display = 'flex';
         }
     }
 
-    function endGame() {
-        isGameOver = true;
-        document.getElementById('screen-title').innerText = "Game Over";
-        document.getElementById('screen-desc').innerText = `Σκορ: ${score}`;
-        reviveBtn.style.display = hasRevived ? 'none' : 'block'; // Μία ευκαιρία ανά run
-        gameOverScreen.style.display = 'flex';
-    }
-
-    // Adsgram Simulator Trigger
-    reviveBtn.addEventListener('click', () => {
-        reviveBtn.disabled = true;
-        document.getElementById('screen-title').innerText = "Φόρτωση Ad...";
+    function drawRect(x, y, size, value) {
+        let color = colors[value] || '#95a5a6';
         
-        // Προσομοίωση 2 δευτερολέπτων βίντεο διαφήμισης
-        setTimeout(() => {
-            hasRevived = true;
-            isGameOver = false;
-            dangerTimer = 0;
-            
-            // Καθαρίζουμε τους κύβους που βρίσκονται στη ζώνη κινδύνου για να δώσουμε ανάσα στον παίκτη
-            cubes = cubes.filter(c => c.y < DANGER_ZONE_Y - 50);
-            
-            gameOverScreen.style.display = 'none';
-            reviveBtn.disabled = false;
-            playSound('fever');
-        }, 2000);
-    });
-
-    function drawCube(worldX, worldY, value, scaleModifier = 1, alphaOverride = 1) {
-        const pt = project(worldX, worldY);
-        const colors = cubeColors[value] || { bg: '#95a5a6', side: '#7f8c8d', text: '#fff' };
-        let baseSize = 46 * pt.scale * scaleModifier;
-        let h = baseSize;
-
         ctx.save();
-        ctx.globalAlpha = alphaOverride;
-        ctx.translate(pt.x, pt.y);
+        ctx.translate(x, y);
+        
+        // Σκιά / Βάθος (3D Fake effect)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-size/2 + 2, -size/2 + 4, size, size);
+        
+        // Κυρίως Σώμα
+        ctx.fillStyle = color;
+        ctx.fillRect(-size/2, -size/2, size, size);
+        
+        // Border
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-size/2, -size/2, size, size);
 
-        // FRONT
-        ctx.fillStyle = colors.side;
-        ctx.beginPath(); ctx.rect(-baseSize/2, 0, baseSize, h * 0.4); ctx.fill();
-
-        // TOP
-        ctx.fillStyle = colors.bg;
-        ctx.beginPath();
-        ctx.moveTo(-baseSize/2, 0);
-        ctx.lineTo(-baseSize/2 * 0.85, -h * 0.45);
-        ctx.lineTo(baseSize/2 * 0.85, -h * 0.45);
-        ctx.lineTo(baseSize/2, 0);
-        ctx.closePath(); ctx.fill();
-
-        // TEXT
-        if (alphaOverride > 0.5) {
-            ctx.fillStyle = colors.text;
-            ctx.font = `bold ${Math.max(10, baseSize * 0.38)}px sans-serif`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(value, 0, -h * 0.18);
-        }
-
+        // Κείμενο
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${size * 0.4}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(value, 0, 0);
+        
         ctx.restore();
     }
 
     function draw() {
-        const viewRect = canvas.getBoundingClientRect();
-        ctx.clearRect(0, 0, viewRect.width, viewRect.height);
+        ctx.clearRect(0, 0, width, height);
 
-        ctx.save();
-        // Screen Shake implementation
-        if (shakeIntensity > 0.2) {
-            let dx = (Math.random() - 0.5) * shakeIntensity;
-            let dy = (Math.random() - 0.5) * shakeIntensity;
-            ctx.translate(dx, dy);
-        }
+        // Ζωγραφίζουμε το Ταβάνι (Pusher)
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(0, 0, width, ceilingY);
+        ctx.fillStyle = '#e74c3c'; // Προειδοποιητική γραμμή ταβανιού
+        ctx.fillRect(0, ceilingY - 4, width, 4);
 
-        // Environment Grid
-        let isFever = comboMultiplier >= 5;
-        ctx.strokeStyle = isFever ? 'rgba(231, 76, 60, 0.35)' : 'rgba(78, 54, 186, 0.2)';
-        ctx.lineWidth = 1;
-        
-        for (let i = 0; i <= 8; i++) {
-            let pTop = project((WORLD_WIDTH / 8) * i, 0);
-            let pBottom = project((WORLD_WIDTH / 8) * i, WORLD_HEIGHT);
-            ctx.beginPath(); ctx.moveTo(pTop.x, pTop.y); ctx.lineTo(pBottom.x, pBottom.y); ctx.stroke();
-        }
-        for (let i = 0; i <= 10; i++) {
-            let pLeft = project(0, (WORLD_HEIGHT / 10) * i);
-            let pRight = project(WORLD_WIDTH, (WORLD_HEIGHT / 10) * i);
-            ctx.beginPath(); ctx.moveTo(pLeft.x, pLeft.y); ctx.lineTo(pRight.x, pRight.y); ctx.stroke();
-        }
-
-        // Danger Threshold Line
-        let dL = project(0, DANGER_ZONE_Y), dR = project(WORLD_WIDTH, DANGER_ZONE_Y);
-        ctx.strokeStyle = dangerTimer > 0 && Math.floor(Date.now() / 200) % 2 === 0 ? '#ff4757' : 'rgba(231, 76, 60, 0.4)';
-        ctx.lineWidth = 3; ctx.setLineDash([6, 5]);
-        ctx.beginPath(); ctx.moveTo(dL.x, dL.y); ctx.lineTo(dR.x, dR.y); ctx.stroke();
+        // Ζωγραφίζουμε τη Γραμμή Κινδύνου (Κάτω)
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(0, DANGER_Y);
+        ctx.lineTo(width, DANGER_Y);
+        ctx.stroke();
         ctx.setLineDash([]);
+        
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.1)';
+        ctx.fillRect(0, DANGER_Y, width, height - DANGER_Y);
 
-        // Render Cubes (with Sorting & Trails)
-        cubes.sort((a, b) => a.y - b.y);
-        cubes.forEach(c => {
-            // Draw Trails first
-            c.trail.forEach((pos, idx) => {
-                let alpha = (idx + 1) / (c.trail.length + 1) * 0.25;
-                drawCube(pos.x, pos.y, c.value, c.pulse, alpha);
-            });
-            if (c.pulse > 1) c.pulse -= 0.04;
-            drawCube(c.x, c.y, c.value, c.pulse, 1.0);
-        });
+        // Ζωγραφίζουμε τους κύβους
+        cubes.forEach(c => drawRect(c.x, c.y, CUBE_SIZE - 2, c.value));
 
-        // Particles
-        particles.forEach(p => {
-            let pt = project(p.x, p.y); ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha;
-            let sz = p.size * pt.scale; ctx.fillRect(pt.x - sz/2, pt.y - sz/2, sz, sz);
-        });
-        ctx.globalAlpha = 1.0;
-
-        // Floating texts
-        floatingTexts.forEach(f => {
-            let pt = project(f.x, f.y); ctx.fillStyle = f.color; ctx.globalAlpha = f.alpha;
-            ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(f.text, pt.x, pt.y);
-        });
-        ctx.globalAlpha = 1.0;
-
-        // Aim Line
-        if (launcher.isAiming) {
-            let sPt = project(launcher.x, launcher.y);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-            ctx.lineWidth = 4; ctx.setLineDash([4, 6]);
-            ctx.beginPath(); ctx.moveTo(sPt.x, sPt.y); ctx.lineTo(launcher.aimX, launcher.aimY); ctx.stroke();
-            ctx.setLineDash([]);
+        // Ζωγραφίζουμε τον Παίκτη (Εκτοξευτή)
+        if (!isGameOver) {
+            ctx.globalAlpha = isDragging ? 1.0 : 0.6; // Πιο φωτεινό όταν το πιάνεις
+            drawRect(player.x, player.y, CUBE_SIZE - 2, player.value);
+            ctx.globalAlpha = 1.0;
+            
+            // Γραμμή στόχευσης
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y - CUBE_SIZE/2);
+            ctx.lineTo(player.x, ceilingY);
+            ctx.stroke();
         }
-
-        // Active Launching Cube
-        if (!isGameOver) drawCube(launcher.x, launcher.y, launcher.value, 1.0);
-
-        ctx.restore();
     }
 
     function loop() {
-        updatePhysics();
+        update();
         draw();
         requestAnimationFrame(loop);
     }
 
-    canvas.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('mousemove', handlePointerMove);
-    window.addEventListener('mouseup', handlePointerUp);
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, {passive: false});
-    window.addEventListener('touchmove', handlePointerMove, {passive: true});
-    window.addEventListener('touchend', handlePointerUp);
+    function resetGame() {
+        cubes = [];
+        score = 0;
+        scoreEl.innerText = score;
+        ceilingY = 50;
+        isGameOver = false;
+        gameOverScreen.style.display = 'none';
+        player.value = getNextValue();
+    }
 
-    restartBtn.addEventListener('click', () => { hasRevived = false; init(); });
-    resizeCanvas();
-    init();
+    resetGame();
     loop();
 </script>
-
 </body>
 </html>
