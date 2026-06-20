@@ -1,1295 +1,813 @@
 <!DOCTYPE html>
 <html lang="el">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>MERGE CUBES – Vanilla JS</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      background: #04000e;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      touch-action: none; /* prevent pull-to-refresh on mobile */
-    }
-    #game-container {
-      position: relative;
-      width: 400px; max-width: 95vw;
-      height: auto;
-      aspect-ratio: 400 / 640;
-    }
-    canvas {
-      display: block;
-      width: 100%; height: 100%;
-      border-radius: 16px;
-      box-shadow: 0 0 50px rgba(100,40,200,0.35);
-    }
-    /* UI overlay */
-    .ui-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
-    }
-    .ui-overlay > * {
-      pointer-events: auto;
-    }
-    /* HUD panels */
-    .hud {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-    }
-    .panel {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 6px 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-    }
-    .panel-label {
-      color: #777;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-    }
-    .next-cube {
-      width: 40px; height: 40px;
-      border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 18px;
-      transition: background 0.2s;
-    }
-    .combo-bar {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .bar-bg {
-      width: 54px; height: 6px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .bar-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.3s;
-    }
-    .multiplier {
-      font-weight: 900;
-      font-size: 13px;
-      min-width: 24px;
-      text-align: center;
-    }
-    .score-panel {
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .score-number {
-      color: #fff;
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: -1px;
-      text-shadow: 0 0 16px rgba(140,80,255,0.5);
-    }
-    .boss-bar {
-      margin-top: 3px;
-    }
-    .boss-label {
-      color: #FF4444;
-      font-size: 9px;
-      font-weight: 700;
-    }
-    .boss-hp-bg {
-      width: 100px; height: 7px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 4px;
-      overflow: hidden;
-      margin: 2px auto 0;
-    }
-    .boss-hp-fill {
-      height: 100%;
-      background: linear-gradient(90deg,#FF4444,#FF9900);
-      transition: width 0.3s;
-    }
-    .hammer-panel {
-      cursor: pointer;
-    }
-    .hammer-icon { font-size: 20px; }
-    .hammer-gauge {
-      width: 14px; height: 46px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 4px;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.12);
-      position: relative;
-    }
-    .hammer-gauge-fill {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      background: linear-gradient(0deg,#5EE7DF,#6A3DE8);
-      transition: height 0.4s;
-    }
-    .use-text {
-      color: #FFD700;
-      font-size: 8px;
-      font-weight: 900;
-      animation: blink 0.5s ease infinite alternate;
-    }
-    @keyframes blink { from{opacity:.5} to{opacity:1} }
-    /* Power-up buttons */
-    .powers {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 12px;
-    }
-    .power-btn {
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 8px 18px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      cursor: pointer;
-      transition: all 0.2s;
-      opacity: 0.35;
-    }
-    .power-btn.active {
-      opacity: 1;
-      filter: drop-shadow(0 0 6px currentColor);
-    }
-    .power-icon { font-size: 22px; }
-    .power-label {
-      font-size: 8px;
-      font-weight: 800;
-      letter-spacing: 1px;
-    }
-    .power-count {
-      background: #222;
-      color: #fff;
-      font-size: 9px;
-      font-weight: 900;
-      border-radius: 6px;
-      padding: 1px 7px;
-      margin-top: 2px;
-    }
-    /* Splash screen */
-    .splash {
-      position: absolute;
-      inset: 0;
-      background: rgba(4,0,14,0.93);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      border-radius: 16px;
-      pointer-events: auto;
-    }
-    .splash-title {
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: 3px;
-      background: linear-gradient(90deg,#5EE7DF,#C9B1FF,#FF6B9D);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .splash-info {
-      color: #999;
-      font-size: 12px;
-      text-align: center;
-      line-height: 1.85;
-      max-width: 240px;
-    }
-    .play-btn {
-      background: linear-gradient(135deg,#5EE7DF,#6A3DE8);
-      border: none;
-      border-radius: 14px;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 900;
-      padding: 12px 42px;
-      cursor: pointer;
-      letter-spacing: 2px;
-      box-shadow: 0 4px 26px rgba(94,231,223,0.5);
-    }
-    .gameover-overlay {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 2;
-    }
-    .play-again-btn {
-      background: linear-gradient(135deg,#6A3DE8,#C9B1FF);
-      border: none;
-      border-radius: 14px;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 900;
-      padding: 12px 38px;
-      cursor: pointer;
-      letter-spacing: 1.5px;
-      box-shadow: 0 4px 26px rgba(106,61,232,0.6);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cosmic Cube Merger</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #050409;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            height: 100%;
+            max-height: 850px;
+            background: radial-gradient(circle at center, #150f2e 0%, #050409 100%);
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* UI Overlays */
+        .ui-element {
+            position: absolute;
+            background: rgba(16, 12, 36, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 8px 14px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #score-box {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 100px;
+        }
+        .ui-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8a85a5;
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+        .ui-value {
+            font-size: 22px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        #next-box {
+            top: 20px;
+            left: 20px;
+            min-width: 80px;
+            height: 75px;
+        }
+        #next-preview {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 16px;
+            margin-top: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #combo-container {
+            position: absolute;
+            top: 105px;
+            left: 20px;
+            right: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+        #combo-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            transition: width 0.1s linear;
+        }
+        #combo-text {
+            position: absolute;
+            right: 15px;
+            font-size: 11px;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+        /* Powerups Panel */
+        #powerups-box {
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            flex-direction: row;
+            padding: 6px;
+        }
+        .powerup-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .powerup-btn:active {
+            background: rgba(255,255,255,0.2);
+        }
+        .powerup-btn.active {
+            border-color: #f1c40f;
+            background: rgba(241, 196, 15, 0.2);
+            box-shadow: 0 0 10px rgba(241, 196, 15, 0.4);
+        }
+        /* Game Over Screen */
+        #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 4, 9, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        #game-over-screen h1 {
+            font-size: 32px;
+            color: #e74c3c;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        #game-over-screen p {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #8a85a5;
+        }
+        #restart-btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3498db, #2ecc71);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+        }
+    </style>
 </head>
 <body>
-  <div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-    <!-- HUD -->
-    <div class="ui-overlay" id="uiOverlay">
-      <div class="hud">
-        <div class="panel" id="nextPanel">
-          <div class="panel-label">NEXT</div>
-          <div class="next-cube" id="nextCube">2</div>
-          <div class="combo-bar">
-            <div class="bar-bg"><div class="bar-fill" id="comboFill"></div></div>
-            <span class="multiplier" id="multiplier">1×</span>
-          </div>
-        </div>
-        <div class="score-panel panel">
-          <div class="panel-label">SCORE</div>
-          <div class="score-number" id="scoreNumber">0</div>
-          <div class="boss-bar" id="bossBar" style="display:none;">
-            <div class="boss-label">👹 BOSS HP</div>
-            <div class="boss-hp-bg"><div class="boss-hp-fill" id="bossHpFill"></div></div>
-          </div>
-        </div>
-        <div class="panel hammer-panel" id="hammerPanel">
-          <div class="hammer-icon">🔨</div>
-          <div class="hammer-gauge"><div class="hammer-gauge-fill" id="hammerGaugeFill"></div></div>
-          <div class="use-text" id="hammerUseText" style="display:none;">USE!</div>
-        </div>
-      </div>
-      <!-- Power-ups -->
-      <div class="powers" id="powersBar">
-        <div class="power-btn" id="rainbowBtn">
-          <span class="power-icon">🌈</span>
-          <span class="power-label" style="color:#FF6B9D">RAINBOW</span>
-          <span class="power-count">1</span>
-        </div>
-        <div class="power-btn" id="bombBtn">
-          <span class="power-icon">💣</span>
-          <span class="power-label" style="color:#FF5252">BOMB</span>
-          <span class="power-count">1</span>
-        </div>
-      </div>
-      <!-- Start / Game Over overlays (dynamically shown) -->
-      <div class="splash" id="splashScreen">
-        <div class="splash-title">MERGE CUBES</div>
-        <div class="splash-info">
-          🎯 Move to <b style="color:#5EE7DF">aim</b> · Click/Tap to <b style="color:#C9B1FF">shoot</b><br>
-          Match same numbers → <b style="color:#FFD700">MERGE!</b><br>
-          <span style="color:#FF9966">⚡ 10 = Magnet · 🔥 20 = Fire · 💎 30 = Diamond</span><br>
-          <span style="color:#FF5252">Don't let cubes cross the red line!</span>
-        </div>
-        <button class="play-btn" id="playBtn">PLAY</button>
-      </div>
-      <div class="gameover-overlay" id="gameoverOverlay" style="display:none;">
-        <button class="play-again-btn" id="playAgainBtn">PLAY AGAIN</button>
-      </div>
+
+<div id="game-container">
+    <div id="next-box" class="ui-element">
+        <span class="ui-label">Next</span>
+        <div id="next-preview">2</div>
     </div>
-  </div>
 
-  <script>
-    // ─── POLYFILL for roundRect (older browsers) ──────────────────────────
-    if (!CanvasRenderingContext2D.prototype.roundRect) {
-      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-        if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
-        this.beginPath();
-        this.moveTo(x + r.tl, y);
-        this.lineTo(x + w - r.tr, y);
-        this.quadraticCurveTo(x + w, y, x + w, y + r.tr);
-        this.lineTo(x + w, y + h - r.br);
-        this.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
-        this.lineTo(x + r.bl, y + h);
-        this.quadraticCurveTo(x, y + h, x, y + h - r.bl);
-        this.lineTo(x, y + r.tl);
-        this.quadraticCurveTo(x, y, x + r.tl, y);
-        this.closePath();
-      };
-    }
+    <div id="score-box" class="ui-element">
+        <span class="ui-label">Score</span>
+        <div id="score-value" class="ui-value">0</div>
+    </div>
 
-    // ─── CONSTANTS & GAME STATE ──────────────────────────────────────────
-    const TARGET_NUMBERS = [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,
-                            42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80];
-    function nextValue(v) {
-      const idx = TARGET_NUMBERS.indexOf(v);
-      return (idx === -1 || idx >= TARGET_NUMBERS.length - 1) ? v + 2 : TARGET_NUMBERS[idx + 1];
-    }
+    <div id="powerups-box" class="ui-element">
+        <div class="powerup-btn" id="btn-hammer" title="Hammer">🔨</div>
+        <div class="powerup-btn" id="btn-bomb" title="Bomb">💣</div>
+    </div>
 
-    function getColor(v) {
-      const idx = TARGET_NUMBERS.indexOf(v);
-      const isMult10 = v % 10 === 0;
-      if (isMult10) {
-        if (v === 10) return { face:"#4FC3F7", top:"#B3E5FC", side:"#0288D1", tx:"#01233a" };
-        if (v === 20) return { face:"#FF7043", top:"#FFCCBC", side:"#BF360C", tx:"#fff" };
-        if (v === 30) return { face:"#E040FB", top:"#F3B8FF", side:"#7B00CC", tx:"#fff" };
-        if (v === 40) return { face:"#FFD700", top:"#FFFAAA", side:"#AA8800", tx:"#3a2800" };
-        if (v === 50) return { face:"#FF1744", top:"#FF8888", side:"#880000", tx:"#fff" };
-        const h = (v * 7) % 360;
-        return { face:`hsl(${h},80%,58%)`, top:`hsl(${h},70%,78%)`, side:`hsl(${h},80%,30%)`, tx:"#fff" };
-      }
-      const hue = ((idx >= 0 ? idx : v/2) * 23 + 180) % 360;
-      const sat = 55 + (idx % 3) * 8;
-      const lit = 55 + (idx % 2) * 7;
-      return { face:`hsl(${hue},${sat}%,${lit}%)`, top:`hsl(${hue},${sat-10}%,${lit+18}%)`,
-               side:`hsl(${hue},${sat}%,${lit-22}%)`, tx: lit > 60 ? "#222" : "#fff" };
-    }
+    <div id="combo-container">
+        <div id="combo-bar"></div>
+        <div id="combo-text">1X</div>
+    </div>
 
-    const W = 400, H = 640;
-    const NEAR_Y = H - 55, FAR_Y = 75;
-    const NEAR_W = 340, FAR_W = 110;
-    const VX = W / 2;
-    const DANGER_Y = H - 140;
-    function dangerWorldY() { return (DANGER_Y - FAR_Y) / (NEAR_Y - FAR_Y); }
-    function proj(wx, wy) {
-      const t = wy;
-      const tw = FAR_W + (NEAR_W - FAR_W) * t;
-      const ty = FAR_Y + (NEAR_Y - FAR_Y) * t;
-      const left = VX - tw / 2;
-      return { px: left + wx * tw, py: ty, sc: tw / NEAR_W };
-    }
+    <canvas id="gameCanvas"></canvas>
 
-    const BASE_GRAVITY = 0.000055;
-    const SHOOT_VY = -0.014;
-    const CUBE_R = 0.065;
-    const BOUNCE = 0.32;
-    const FRICTION = 0.978;
-    const SPAWN_INTERVAL = 900;   // frames (~15 sec)
-    const PUSH_BACK = -0.0035;
+    <div id="game-over-screen">
+        <h1>Game Over</h1>
+        <p>Τελικό Σκορ: <span id="final-score">0</span></p>
+        <button id="restart-btn">Παίξε Ξανά</button>
+    </div>
+</div>
 
-    let cubeIdCounter = 0;
-    function createCube(x, y, vx, vy, value, special = null) {
-      return {
-        id: cubeIdCounter++,
-        x, y, vx, vy, value,
-        flash: 0, special,
-        bossHp: (value === 50 || value === 100) ? value : 0,
-        fireTimer: 0,
-        magnetTimer: 0
-      };
-    }
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreValEl = document.getElementById('score-value');
+    const finalScoreEl = document.getElementById('final-score');
+    const nextPreviewEl = document.getElementById('next-preview');
+    const comboBarEl = document.getElementById('combo-bar');
+    const comboTextEl = document.getElementById('combo-text');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const restartBtn = document.getElementById('restart-btn');
 
-    function spawnRow(y = 0.04) {
-      const cubes = [];
-      const count = 4 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        const x = 0.1 + (i / (count - 1)) * 0.8;
-        const v = TARGET_NUMBERS[Math.floor(Math.random() * 5)];
-        cubes.push(createCube(x, y, (Math.random() - 0.5) * 0.001, 0, v));
-      }
-      return cubes;
-    }
+    // Powerup buttons
+    const btnHammer = document.getElementById('btn-hammer');
+    const btnBomb = document.getElementById('btn-bomb');
 
-    // ─── GAME STATE ──────────────────────────────────────────────────────
-    const state = {
-      cubes: [],
-      shot: null,
-      current: TARGET_NUMBERS[0],
-      next: TARGET_NUMBERS[Math.floor(Math.random() * 3)],
-      score: 0,
-      multiplier: 1,
-      comboBar: 0,
-      comboDecay: 0,
-      hammerCharge: 0,
-      phase: 'idle', // 'idle', 'playing', 'gameover'
-      aimX: 0.5,
-      milestone: null,
-      milestoneTimer: 0,
-      particles: [],
-      floats: [],
-      seenMilestones: new Set(),
-      rainbow: 1,
-      bombs: 1,
-      hammerAnim: 0,
-      spawnTimer: SPAWN_INTERVAL,
-      shakeX: 0, shakeY: 0, shakeMag: 0,
-      gyroX: 0,
-      gyroEnabled: false,
-      gyroUnlocked: false,
-      gyroMsg: 0,
-      boss: null,
-      nextBossAt: 1000,
-      doubleScoreTimer: 0,
-      bossWarning: 0,
+    // Game Variables
+    let score = 0;
+    let nextValue = 2;
+    let comboMultiplier = 1;
+    let comboProgress = 0; // 0 to 100
+    let cubes = [];
+    let particles = [];
+    let floatingTexts = [];
+    let isGameOver = false;
+    let activePowerup = null; // 'hammer' or 'bomb'
+
+    // Launcher Cube State
+    let launcher = {
+        x: 150,
+        y: 640,
+        value: 2,
+        radius: 16,
+        isAiming: false,
+        aimX: 150,
+        aimY: 300
     };
 
-    // ─── CANVAS & RENDERING ──────────────────────────────────────────────
-    const canvas = document.getElementById('gameCanvas');
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext('2d');
+    // Color definitions per cube tier
+    const cubeColors = {
+        2:    { bg: '#2ecc71', side: '#27ae60', text: '#ffffff' },
+        4:    { bg: '#3498db', side: '#2980b9', text: '#ffffff' },
+        8:    { bg: '#e67e22', side: '#d35400', text: '#ffffff' },
+        16:   { bg: '#9b59b6', side: '#8e44ad', text: '#ffffff' },
+        32:   { bg: '#e74c3c', side: '#c0392b', text: '#ffffff' },
+        64:   { bg: '#1abc9c', side: '#16a085', text: '#ffffff' },
+        128:  { bg: '#f1c40f', side: '#f39c12', text: '#000000' },
+        256:  { bg: '#fd79a8', side: '#e84393', text: '#ffffff' },
+        512:  { bg: '#6c5ce7', side: '#a29bfe', text: '#ffffff' },
+        1024: { bg: '#00cec9', side: '#00b894', text: '#000000' },
+        2048: { bg: '#e84393', side: '#d63031', text: '#ffffff' }
+    };
 
-    function lighten(hex, amt) {
-      try {
-        const n = parseInt(hex.replace(/^#/,''),16);
-        return `rgb(${Math.min(255,(n>>16)+amt)},${Math.min(255,((n>>8)&255)+amt)},${Math.min(255,(n&255)+amt)})`;
-      } catch { return hex; }
+    // 2D Simulation Bounds (Logical Space)
+    // The physics simulation runs on a flat rectangle: width 300, length 700.
+    const WORLD_WIDTH = 300;
+    const WORLD_HEIGHT = 700;
+    const DANGER_ZONE_Y = 520; // Y line threshold for failure
+
+    // Danger countdown tracking
+    let dangerTimer = 0;
+
+    // Resize handling to match parent container dynamically
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // Pseudo-3D Perspective Projection Function
+    // Maps flat logical space coordinates (worldX, worldY) to the screen trapezoid
+    function project(worldX, worldY) {
+        const viewRect = canvas.getBoundingClientRect();
+        const canvasW = viewRect.width;
+        const canvasH = viewRect.height;
+
+        // Normalizing coordinates
+        let t = worldY / WORLD_HEIGHT; // 0 at top (horizon), 1 at bottom (near player)
+
+        // Map perspective scaling factors
+        let horizonY = canvasH * 0.22;
+        let baseFloorY = canvasH * 0.88;
+        let screenY = horizonY + t * (baseFloorY - horizonY);
+
+        // Compute width of board at depth 't'
+        let topWidth = canvasW * 0.45;
+        let bottomWidth = canvasW * 0.88;
+        let currentBoardWidth = topWidth + t * (bottomWidth - topWidth);
+
+        let screenX = (canvasW / 2) + ((worldX / WORLD_WIDTH) - 0.5) * currentBoardWidth;
+        let scaleFactor = currentBoardWidth / WORLD_WIDTH;
+
+        return { x: screenX, y: screenY, scale: scaleFactor };
     }
 
-    function drawCube(cube, isShot = false) {
-      const {px, py, sc} = proj(cube.x, cube.y);
-      const isBoss = cube.bossHp > 0;
-      const sz = CUBE_R * 2 * sc * NEAR_W * (isShot ? 0.74 : 0.72) * (isBoss ? 1.35 : 1);
-      const c = getColor(cube.value);
-      const d = sz * 0.27;
-
-      if (cube.flash > 0) {
-        ctx.save();
-        ctx.globalAlpha = cube.flash / 10;
-        const g = ctx.createRadialGradient(px, py, 0, px, py, sz * 1.6);
-        g.addColorStop(0, "#FFD700");
-        g.addColorStop(1, "rgba(255,200,0,0)");
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(px, py, sz * 1.6, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-
-      const x0 = px - sz / 2, y0 = py - sz / 2;
-
-      // Shadow
-      ctx.save(); ctx.globalAlpha = 0.22 * sc;
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.ellipse(px, py + sz * 0.52, sz * 0.44, sz * 0.13, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-
-      // Boss armor
-      if (isBoss) {
-        ctx.save(); ctx.strokeStyle = '#FFD700'; ctx.lineWidth = sz * 0.06;
-        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 12;
-        ctx.beginPath(); ctx.roundRect(x0 - 2, y0 + d - 2, sz + 4, sz + 4, sz * 0.14); ctx.stroke();
-        ctx.shadowBlur = 0; ctx.restore();
-      }
-
-      // Top face
-      ctx.fillStyle = isBoss ? '#8B6914' : c.top;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0 + d); ctx.lineTo(x0 + d, y0);
-      ctx.lineTo(x0 + sz + d, y0); ctx.lineTo(x0 + sz, y0 + d);
-      ctx.closePath(); ctx.fill();
-
-      // Right face
-      ctx.fillStyle = isBoss ? '#5c4008' : c.side;
-      ctx.beginPath();
-      ctx.moveTo(x0 + sz, y0 + d); ctx.lineTo(x0 + sz + d, y0);
-      ctx.lineTo(x0 + sz + d, y0 + sz); ctx.lineTo(x0 + sz, y0 + sz + d);
-      ctx.closePath(); ctx.fill();
-
-      // Front face
-      const ff = ctx.createLinearGradient(x0, y0 + d, x0, y0 + sz + d);
-      ff.addColorStop(0, isBoss ? '#C89A20' : lighten(c.face, 22));
-      ff.addColorStop(1, isBoss ? '#8B6210' : c.face);
-      ctx.fillStyle = ff;
-      ctx.beginPath(); ctx.roundRect(x0, y0 + d, sz, sz, Math.max(2, sz * 0.11)); ctx.fill();
-
-      // Shine
-      ctx.save(); ctx.globalAlpha = 0.2;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.roundRect(x0 + sz * 0.1, y0 + d + sz * 0.07, sz * 0.38, sz * 0.2, sz * 0.06); ctx.fill();
-      ctx.restore();
-
-      // Fire effect for 20-cube
-      if (cube.value === 20 && !isBoss) {
-        ctx.save(); ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.2;
-        ctx.font = `${sz * 0.55}px serif`; ctx.textAlign = 'center';
-        ctx.fillText('🔥', px, py - sz * 0.1); ctx.restore();
-      }
-
-      // Magnet for 10-cube
-      if (cube.value === 10 && cube.magnetTimer > 0) {
-        ctx.save(); ctx.globalAlpha = cube.magnetTimer / 40;
-        ctx.font = `${sz * 0.45}px serif`; ctx.textAlign = 'center';
-        ctx.fillText('🧲', px, py - sz * 0.15); ctx.restore();
-      }
-
-      // Diamond outline for 30-cube
-      if (cube.value === 30) {
-        ctx.save(); ctx.strokeStyle = 'rgba(224,64,251,0.7)'; ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 4]); ctx.beginPath();
-        ctx.roundRect(x0 - 3, y0 + d - 3, sz + 6, sz + 6, sz * 0.15); ctx.stroke();
-        ctx.setLineDash([]); ctx.restore();
-      }
-
-      // Value text
-      const fsize = sz * (cube.value >= 100 ? 0.22 : cube.value >= 10 ? 0.3 : 0.38);
-      ctx.fillStyle = isShot ? 'rgba(255,255,255,0.95)' : c.tx;
-      ctx.font = `bold ${Math.max(6, fsize)}px 'Segoe UI'`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(cube.value, x0 + sz / 2, y0 + d + sz / 2);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-
-      // Boss HP bar
-      if (isBoss) {
-        const bw = sz, bh = sz * 0.1;
-        const bx = x0, by = y0 + d + sz + 4;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 3); ctx.fill();
-        const pct = cube.bossHp / cube.bossMaxHp;
-        const hg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-        hg.addColorStop(0, '#FF4444'); hg.addColorStop(1, '#FF9900');
-        ctx.fillStyle = hg;
-        ctx.beginPath(); ctx.roundRect(bx, by, bw * pct, bh, 3); ctx.fill();
-      }
-
-      // Shot highlight
-      if (isShot) {
-        ctx.save(); ctx.strokeStyle = 'rgba(94,231,223,0.55)'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.roundRect(x0, y0 + d, sz, sz, Math.max(2, sz * 0.11)); ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    function render() {
-      ctx.clearRect(0, 0, W, H);
-      ctx.save();
-      ctx.translate(state.shakeX, state.shakeY);
-
-      // Background
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, '#060012'); bg.addColorStop(1, '#180048');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-      // Corridor
-      ctx.beginPath();
-      ctx.moveTo(VX - FAR_W / 2, FAR_Y); ctx.lineTo(VX + FAR_W / 2, FAR_Y);
-      ctx.lineTo(VX + NEAR_W / 2, NEAR_Y); ctx.lineTo(VX - NEAR_W / 2, NEAR_Y);
-      ctx.closePath();
-      const floor = ctx.createLinearGradient(0, FAR_Y, 0, NEAR_Y);
-      floor.addColorStop(0, 'rgba(50,15,110,0.12)'); floor.addColorStop(1, 'rgba(90,40,200,0.32)');
-      ctx.fillStyle = floor; ctx.fill();
-
-      // Side rails
-      [[VX - FAR_W / 2, FAR_Y, VX - NEAR_W / 2, NEAR_Y],
-       [VX + FAR_W / 2, FAR_Y, VX + NEAR_W / 2, NEAR_Y]].forEach(([x1, y1, x2, y2]) => {
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-        ctx.strokeStyle = 'rgba(130,70,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-      });
-
-      // Perspective grid
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(VX - FAR_W / 2, FAR_Y); ctx.lineTo(VX + FAR_W / 2, FAR_Y);
-      ctx.lineTo(VX + NEAR_W / 2, NEAR_Y); ctx.lineTo(VX - NEAR_W / 2, NEAR_Y);
-      ctx.closePath(); ctx.clip();
-      ctx.strokeStyle = 'rgba(100,50,200,0.1)'; ctx.lineWidth = 1;
-      for (let i = 0; i <= 7; i++) {
-        const { px: ax, py: ay } = proj(i / 7, 0.01);
-        const { px: bx, py: by } = proj(i / 7, 1);
-        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-      }
-      for (let j = 0; j <= 10; j++) {
-        const y = j / 10;
-        const { px: ax, py: ay } = proj(0, y);
-        const { px: bx } = proj(1, y);
-        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, ay); ctx.stroke();
-      }
-      ctx.restore();
-
-      // Vanishing point glow
-      const vg = ctx.createRadialGradient(VX, FAR_Y, 0, VX, FAR_Y, 100);
-      vg.addColorStop(0, 'rgba(140,80,255,0.22)'); vg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-
-      // Danger line
-      const dwy = dangerWorldY();
-      const trackWatDanger = FAR_W + (NEAR_W - FAR_W) * dwy;
-      ctx.save();
-      ctx.shadowColor = '#FF2222'; ctx.shadowBlur = 14;
-      ctx.strokeStyle = 'rgba(255,50,50,0.9)'; ctx.lineWidth = 2.5;
-      ctx.setLineDash([9, 6]);
-      ctx.beginPath();
-      ctx.moveTo(VX - trackWatDanger / 2, DANGER_Y);
-      ctx.lineTo(VX + trackWatDanger / 2, DANGER_Y);
-      ctx.stroke();
-      ctx.setLineDash([]); ctx.shadowBlur = 0;
-      ctx.restore();
-      ctx.fillStyle = 'rgba(255,70,70,0.65)';
-      ctx.font = 'bold 8px Segoe UI'; ctx.textAlign = 'left';
-      ctx.fillText('▼ DANGER ZONE', VX + trackWatDanger / 2 - 90, DANGER_Y - 4);
-
-      // Cubes (sorted far to near for painter's algorithm)
-      const sorted = [...state.cubes].sort((a, b) => b.y - a.y);
-      sorted.forEach(c => drawCube(c, false));
-      if (state.shot) drawCube(state.shot, true);
-
-      // Particles
-      state.particles.forEach(p => {
-        const { px, py, sc } = proj(p.x, p.y);
-        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
-        ctx.fillStyle = p.color;
-        const r = Math.max(1, p.r * sc * NEAR_W);
-        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
-      });
-      ctx.globalAlpha = 1;
-
-      // Floats
-      state.floats.forEach(f => {
-        const { px, py } = proj(f.x, f.y);
-        const age = (f.maxLife - f.life) / f.maxLife;
-        ctx.globalAlpha = 1 - age * 0.8;
-        ctx.font = `bold ${12 + f.big}px 'Segoe UI'`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = f.color || '#FFD700';
-        ctx.shadowColor = f.color || '#FF8800';
-        ctx.shadowBlur = 8;
-        ctx.fillText(f.label, px, py - age * 50);
-        ctx.shadowBlur = 0;
-      });
-      ctx.globalAlpha = 1; ctx.textAlign = 'left';
-
-      // Shooter (aim line & next cube)
-      if (state.phase === 'playing' && !state.shot) {
-        const { px: sx, py: sy, sc } = proj(state.aimX, 0.97);
-        ctx.save();
-        ctx.setLineDash([5, 9]); ctx.strokeStyle = 'rgba(94,231,223,0.3)'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(sx, sy);
-        const { px: tx, py: ty } = proj(state.aimX, 0.12);
-        ctx.lineTo(tx, ty); ctx.stroke();
-        ctx.setLineDash([]); ctx.restore();
-
-        const fc = { x: state.aimX, y: 0.97, value: state.current, flash: 0, special: null, bossHp: 0, fireTimer: 0, magnetTimer: 0 };
-        drawCube(fc, true);
-
-        const gr = ctx.createRadialGradient(sx, sy + 10, 2, sx, sy + 10, 28 * sc);
-        gr.addColorStop(0, 'rgba(94,231,223,0.28)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gr;
-        ctx.beginPath(); ctx.ellipse(sx, sy + 12, 30 * sc, 9 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      }
-
-      // Boss warning
-      if (state.bossWarning > 0) {
-        ctx.save();
-        ctx.globalAlpha = Math.sin(state.bossWarning * 0.25) * 0.5 + 0.3;
-        ctx.fillStyle = 'rgba(255,30,30,0.18)'; ctx.fillRect(0, 0, W, H);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = '#FF2222'; ctx.font = 'bold 22px Segoe UI'; ctx.textAlign = 'center';
-        ctx.shadowColor = '#FF0000'; ctx.shadowBlur = 20;
-        ctx.fillText('⚠️ BOSS INCOMING ⚠️', W / 2, H / 2);
-        ctx.shadowBlur = 0; ctx.restore();
-      }
-
-      // Hammer animation
-      if (state.hammerAnim > 0) {
-        const t = 1 - state.hammerAnim / 30;
-        ctx.save();
-        ctx.globalAlpha = state.hammerAnim > 15 ? 1 : state.hammerAnim / 15;
-        ctx.font = `${Math.round(64 + Math.sin(t * Math.PI) * 18)}px serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText('🔨', VX, H * 0.25 + t * H * 0.4);
-        ctx.restore();
-      }
-
-      // Gyro unlock message
-      if (state.gyroMsg > 0) {
-        const a = Math.min(1, state.gyroMsg / 20);
-        ctx.save(); ctx.globalAlpha = a;
-        ctx.fillStyle = 'rgba(10,0,30,0.75)';
-        ctx.beginPath(); ctx.roundRect(W / 2 - 130, H / 2 - 36, 260, 72, 14); ctx.fill();
-        ctx.fillStyle = '#5EE7DF'; ctx.font = 'bold 15px Segoe UI'; ctx.textAlign = 'center';
-        ctx.fillText('📱 TILT CONTROL UNLOCKED!', W / 2, H / 2 - 8);
-        ctx.fillStyle = '#aaa'; ctx.font = '11px Segoe UI';
-        ctx.fillText('Tilt your device to move cubes!', W / 2, H / 2 + 16);
-        ctx.restore();
-      }
-
-      // Milestone
-      if (state.milestone && state.milestoneTimer > 0) {
-        const fade = Math.min(1, state.milestoneTimer / 12);
-        ctx.save(); ctx.globalAlpha = fade * 0.65; ctx.fillStyle = '#06000f'; ctx.fillRect(0, 0, W, H);
-        ctx.globalAlpha = fade;
-        const mc = getColor(state.milestone), ms = 82, md = ms * 0.28;
-        const mx = W / 2 - ms / 2, my = H / 2 - ms - 30;
-        ctx.fillStyle = mc.top;
-        ctx.beginPath(); ctx.moveTo(mx, my + md); ctx.lineTo(mx + md, my);
-        ctx.lineTo(mx + ms + md, my); ctx.lineTo(mx + ms, my + md);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = mc.side;
-        ctx.beginPath(); ctx.moveTo(mx + ms, my + md); ctx.lineTo(mx + ms + md, my);
-        ctx.lineTo(mx + ms + md, my + ms); ctx.lineTo(mx + ms, my + ms + md);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = mc.face;
-        ctx.beginPath(); ctx.roundRect(mx, my + md, ms, ms, 8); ctx.fill();
-        ctx.fillStyle = mc.tx; ctx.font = `bold ${ms * 0.32}px 'Segoe UI'`; ctx.textAlign = 'center';
-        ctx.fillText(state.milestone, mx + ms / 2, my + md + ms * 0.63);
-        ctx.fillStyle = '#FFD700'; ctx.font = 'bold 26px Segoe UI';
-        ctx.shadowColor = '#FF8800'; ctx.shadowBlur = 18;
-        ctx.fillText(`${state.milestone} REACHED!`, W / 2, my + ms + md + 44);
-        ctx.shadowBlur = 0; ctx.restore();
-      }
-
-      // Double score banner
-      if (state.doubleScoreTimer > 0) {
-        ctx.save(); ctx.globalAlpha = 0.85;
-        ctx.fillStyle = '#E040FB'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center';
-        ctx.shadowColor = '#E040FB'; ctx.shadowBlur = 10;
-        ctx.fillText(`💎 DOUBLE SCORE ACTIVE (${Math.ceil(state.doubleScoreTimer / 60)}s)`, W / 2, DANGER_Y - 18);
-        ctx.shadowBlur = 0; ctx.restore();
-      }
-
-      // Game over overlay (drawn on canvas)
-      if (state.phase === 'gameover') {
-        ctx.save(); ctx.fillStyle = 'rgba(6,0,18,0.88)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#FF4444'; ctx.font = 'bold 40px Segoe UI'; ctx.textAlign = 'center';
-        ctx.shadowColor = '#FF0000'; ctx.shadowBlur = 28; ctx.fillText('GAME OVER', W / 2, H / 2 - 28);
-        ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.font = '18px Segoe UI';
-        ctx.fillText(`Score: ${state.score.toLocaleString()}`, W / 2, H / 2 + 14); ctx.restore();
-      }
-
-      ctx.restore();
-    }
-
-    // ─── PHYSICS & GAME LOGIC ────────────────────────────────────────────
-    function spawnParticles(x, y, color, n = 12) {
-      for (let i = 0; i < n; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 0.004 + Math.random() * 0.007;
-        state.particles.push({
-          x, y,
-          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-          color, r: 0.013 + Math.random() * 0.009,
-          life: 22, maxLife: 22
-        });
-      }
-    }
-
-    function megaExplosion(x, y) {
-      spawnParticles(x, y, '#FF4444', 20);
-      spawnParticles(x, y, '#FFD700', 14);
-      spawnParticles(x, y, '#FFF', 8);
-      addShake(14);
-      state.cubes = state.cubes.filter(c => {
-        const d = Math.sqrt((c.x - x) ** 2 + (c.y - y) ** 2);
-        return d > CUBE_R * 4.5;
-      });
-      state.cubes.forEach(c => {
-        const dx = c.x - x, dy = c.y - y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 1;
-        const f = 0.016 / (d + 0.02);
-        c.vx += (dx / d) * f;
-        c.vy += (dy / d) * f;
-      });
-    }
-
-    function addShake(mag) {
-      state.shakeMag = Math.max(state.shakeMag, mag);
-    }
-
-    function chainCheck(nc) {
-      for (let i = 0; i < state.cubes.length; i++) {
-        const c = state.cubes[i];
-        if (c.id === nc.id) continue;
-        const dx = nc.x - c.x, dy = nc.y - c.y;
-        if (Math.sqrt(dx * dx + dy * dy) < CUBE_R * 2.15 && c.value === nc.value) {
-          const nv2 = nextValue(nc.value);
-          const nx = (nc.x + c.x) / 2, ny = (nc.y + c.y) / 2;
-          state.cubes = state.cubes.filter(x => x.id !== nc.id && x.id !== c.id);
-          const nc2 = createCube(nx, ny, 0, PUSH_BACK, nv2);
-          nc2.flash = 14;
-          state.cubes.push(nc2);
-          spawnParticles(nx, ny, getColor(nv2).face, 12);
-          state.score += nv2 * state.multiplier;
-          state.floats.push({ x: nx, y: ny, label: `CHAIN! +${nv2 * state.multiplier}`, color: '#FF6B9D', life: 40, maxLife: 40, big: 4 });
-          addShake(6);
-          return;
-        }
-      }
-    }
-
-    function update() {
-      if (state.phase !== 'playing') return;
-
-      // Spawn timer
-      state.spawnTimer--;
-      if (state.spawnTimer <= 0) {
-        state.spawnTimer = SPAWN_INTERVAL;
-        const newCubes = spawnRow(0.04);
-        state.cubes.push(...newCubes);
-      }
-
-      // Conveyor push
-      const conveyorSpeed = 0.000028 + state.score * 0.000000008;
-      state.cubes.forEach(c => {
-        c.y += conveyorSpeed * (c.bossHp > 0 ? 2.2 : 1);
-      });
-
-      // Gyro tilt
-      if (state.gyroEnabled && state.gyroX !== 0) {
-        state.cubes.forEach(c => { c.vx += state.gyroX * 0.00015; });
-      }
-
-      // Boss warning & spawn
-      if (state.bossWarning > 0) state.bossWarning--;
-      if (state.score >= state.nextBossAt && !state.boss) {
-        state.bossWarning = 90;
-        const bossVal = state.nextBossAt >= 3000 ? 100 : 50;
-        setTimeout(() => {
-          const bc = createCube(0.5, 0.06, 0, 0, bossVal);
-          bc.bossHp = bossVal;
-          bc.bossMaxHp = bossVal;
-          state.cubes.push(bc);
-          state.boss = bc;
-        }, 1500);
-        state.nextBossAt += 1000;
-      }
-
-      // Shot physics
-      if (state.shot) {
-        let shot = state.shot;
-        shot.x += shot.vx; shot.y += shot.vy;
-        shot.vx *= FRICTION; shot.vy *= FRICTION;
-        if (shot.x < CUBE_R) { shot.x = CUBE_R; shot.vx = Math.abs(shot.vx) * BOUNCE; }
-        if (shot.x > 1 - CUBE_R) { shot.x = 1 - CUBE_R; shot.vx = -Math.abs(shot.vx) * BOUNCE; }
-        if (shot.y < CUBE_R) { shot.y = CUBE_R; shot.vy = Math.abs(shot.vy) * BOUNCE * 0.5; }
-
-        let hit = false;
-        for (let i = 0; i < state.cubes.length; i++) {
-          const c = state.cubes[i];
-          const dx = shot.x - c.x, dy = shot.y - c.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CUBE_R * 2.05) {
-            hit = true;
-
-            // Boss damage
-            if (c.bossHp > 0) {
-              c.bossHp -= shot.value;
-              spawnParticles(c.x, c.y, '#FFD700', 8);
-              if (c.bossHp <= 0) {
-                megaExplosion(c.x, c.y);
-                state.cubes.splice(i, 1);
-                if (state.boss && state.boss.id === c.id) state.boss = null;
-                state.score += 200;
-                state.floats.push({ x: c.x, y: c.y, label: 'BOSS DEFEATED! +200', color: '#FFD700', life: 60, maxLife: 60, big: 6 });
-              } else {
-                addShake(5);
-              }
-              state.shot = null;
-              break;
-            }
-
-            // Fire cube burns smaller
-            if (c.value === 20 && shot.value < 20) {
-              spawnParticles(c.x, c.y, '#FF4500', 10);
-              state.cubes.splice(i, 1);
-              state.shot = null;
-              state.floats.push({ x: c.x, y: c.y, label: 'BURNED!', color: '#FF7043', life: 30, maxLife: 30, big: 3 });
-              break;
-            }
-
-            // Merge
-            if (shot.value === c.value) {
-              const nv = nextValue(c.value);
-              const nx = (shot.x + c.x) / 2, ny = (shot.y + c.y) / 2;
-              state.cubes.splice(i, 1);
-              state.shot = null;
-              const nc = createCube(nx, ny, (Math.random() - 0.5) * 0.003, PUSH_BACK * 1.5, nv);
-              nc.flash = 12;
-
-              if (nv === 10) { nc.magnetTimer = 40; nc.special = 'magnet'; }
-              if (nv === 20) { nc.special = 'fire'; }
-              if (nv === 30) { state.doubleScoreTimer = 600; nc.special = 'diamond'; }
-
-              state.cubes.push(nc);
-
-              // Blast nearby
-              const blastR = CUBE_R * 5;
-              state.cubes.forEach(nb => {
-                if (nb.id === nc.id) return;
-                const ex = nb.x - nx, ey = nb.y - ny;
-                const ed = Math.sqrt(ex * ex + ey * ey);
-                if (ed < blastR && ed > 0) {
-                  const f = 0.009 / (ed + 0.005);
-                  nb.vx += (ex / ed) * f;
-                  nb.vy += (ey / ed) * f;
-                }
-              });
-
-              spawnParticles(nx, ny, getColor(nv).face, 16);
-              const pts = nv * (state.doubleScoreTimer > 0 ? state.multiplier * 2 : state.multiplier);
-              state.score += pts;
-              state.comboBar = Math.min(100, state.comboBar + 38);
-              state.multiplier = state.comboBar >= 90 ? 4 : state.comboBar >= 60 ? 3 : state.comboBar >= 30 ? 2 : 1;
-              state.comboDecay = 180;
-              state.hammerCharge = Math.min(100, state.hammerCharge + 14);
-              state.floats.push({
-                x: nx, y: ny,
-                label: `+${state.multiplier > 1 ? state.multiplier + '×' : ''}${pts}`,
-                color: nv % 10 === 0 ? '#FFD700' : '#FFE066',
-                life: 45, maxLife: 45, big: nv % 10 === 0 ? 5 : 2
-              });
-
-              addShake(Math.min(12, Math.log2(nv) * 2));
-
-              if (nv % 10 === 0 && !state.seenMilestones.has(nv)) {
-                state.seenMilestones.add(nv);
-                state.milestone = nv;
-                state.milestoneTimer = 90;
-              }
-
-              // Magnet pull
-              if (nc.special === 'magnet') {
-                let best = null, bestD = 99;
-                state.cubes.forEach(nb => {
-                  if (nb.id === nc.id) return;
-                  const d = Math.sqrt((nb.x - nc.x) ** 2 + (nb.y - nc.y) ** 2);
-                  if (d < bestD) { bestD = d; best = nb; }
-                });
-                if (best) {
-                  const mx = nc.x - best.x, my = nc.y - best.y;
-                  const md = Math.sqrt(mx * mx + my * my) || 1;
-                  best.vx += mx / md * 0.012;
-                  best.vy += my / md * 0.012;
-                }
-              }
-
-              chainCheck(nc);
-
-              // Gyro unlock at 500
-              if (state.score >= 500 && !state.gyroUnlocked) {
-                state.gyroUnlocked = true;
-                state.gyroMsg = 120;
-                enableGyro();
-              }
-              break;
-            } else {
-              // Push
-              if (dist > 0) {
-                const nx = dx / dist, ny = dy / dist;
-                const ov = CUBE_R * 2 - dist;
-                shot.x += nx * ov * 0.55;
-                shot.y += ny * ov * 0.55;
-                const spd = Math.sqrt(shot.vx ** 2 + shot.vy ** 2);
-                c.vx -= nx * spd * 0.45;
-                c.vy -= ny * spd * 0.45;
-                shot.vx = nx * spd * 0.35;
-                shot.vy = ny * spd * 0.3;
-                c.vy += PUSH_BACK * 0.5;
-              }
-              break;
-            }
-          }
-        }
-
-        // Shot out of play
-        if (!hit || (state.shot && Math.abs(state.shot.vy) < 0.0009 && state.shot.y < 0.12)) {
-          state.cubes.push(state.shot);
-          state.shot = null;
-          state.comboBar = Math.max(0, state.comboBar - 22);
-          state.multiplier = state.comboBar >= 90 ? 4 : state.comboBar >= 60 ? 3 : state.comboBar >= 30 ? 2 : 1;
-        } else if (state.shot && state.shot.y > 0.92) {
-          state.shot = null;
-        }
-
-        if (!state.shot) {
-          state.current = state.next;
-          state.next = TARGET_NUMBERS[Math.floor(Math.random() * 5)];
-        }
-      }
-
-      // Static cube physics
-      state.cubes.forEach(c => {
-        c.x += c.vx; c.y += c.vy;
-        c.vx *= FRICTION; c.vy *= FRICTION;
-        if (c.x < CUBE_R) { c.x = CUBE_R; c.vx = Math.abs(c.vx) * BOUNCE; }
-        if (c.x > 1 - CUBE_R) { c.x = 1 - CUBE_R; c.vx = -Math.abs(c.vx) * BOUNCE; }
-        if (c.y < CUBE_R) { c.y = CUBE_R; c.vy = Math.abs(c.vy) * BOUNCE * 0.4; }
-        if (c.flash > 0) c.flash--;
-        if (c.magnetTimer > 0) c.magnetTimer--;
-      });
-
-      // Diamond explosion on collision
-      state.cubes.forEach(c => {
-        if (c.value === 30 && c.special === 'diamond') {
-          state.cubes.forEach(o => {
-            if (o.id === c.id) return;
-            const dx = c.x - o.x, dy = c.y - o.y;
-            if (Math.sqrt(dx * dx + dy * dy) < CUBE_R * 2.1 && (o.vx * o.vx + o.vy * o.vy) > 0.000004) {
-              megaExplosion(c.x, c.y);
-              state.cubes = state.cubes.filter(x => x.id !== c.id);
-              state.score += 50 * state.multiplier;
-              state.floats.push({ x: c.x, y: c.y, label: '💎 DIAMOND BLAST!', color: '#E040FB', life: 50, maxLife: 50, big: 5 });
-              return;
-            }
-          });
-        }
-      });
-
-      // Cube-cube collisions
-      for (let i = 0; i < state.cubes.length; i++) {
-        for (let j = i + 1; j < state.cubes.length; j++) {
-          const a = state.cubes[i], b = state.cubes[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CUBE_R * 2 && dist > 0) {
-            const nx = dx / dist, ny = dy / dist;
-            const ov = CUBE_R * 2 - dist;
-            a.x += nx * ov * 0.5; a.y += ny * ov * 0.5;
-            b.x -= nx * ov * 0.5; b.y -= ny * ov * 0.5;
-            const rv = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
-            if (rv < 0) {
-              a.vx -= rv * nx * 0.42; a.vy -= rv * ny * 0.42;
-              b.vx += rv * nx * 0.42; b.vy += rv * ny * 0.42;
-            }
-          }
-        }
-      }
-
-      // Combo decay
-      if (state.comboDecay > 0) state.comboDecay--;
-      else {
-        state.comboBar = Math.max(0, state.comboBar - 0.35);
-        state.multiplier = state.comboBar >= 90 ? 4 : state.comboBar >= 60 ? 3 : state.comboBar >= 30 ? 2 : 1;
-      }
-
-      if (state.doubleScoreTimer > 0) state.doubleScoreTimer--;
-
-      // Update particles & floats
-      state.particles = state.particles.filter(p => p.life > 0);
-      state.particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy;
-        p.vy += BASE_GRAVITY * 0.3;
-        p.life--;
-      });
-      state.floats = state.floats.filter(f => f.life > 0);
-      state.floats.forEach(f => f.life--);
-
-      if (state.milestoneTimer > 0) state.milestoneTimer--;
-      if (state.hammerAnim > 0) state.hammerAnim--;
-      if (state.gyroMsg > 0) state.gyroMsg--;
-
-      // Shake decay
-      state.shakeMag *= 0.75;
-      state.shakeX = (Math.random() - 0.5) * state.shakeMag;
-      state.shakeY = (Math.random() - 0.5) * state.shakeMag * 0.5;
-
-      // Game over check
-      state.cubes.forEach(c => {
-        if (c.y > dangerWorldY() + 0.01) {
-          state.phase = 'gameover';
-          document.getElementById('gameoverOverlay').style.display = 'block';
-          return;
-        }
-      });
-
-      // Update UI
-      updateUI();
-    }
-
-    // ─── UI UPDATE ───────────────────────────────────────────────────────
-    function updateUI() {
-      const nextCube = document.getElementById('nextCube');
-      const scoreNumber = document.getElementById('scoreNumber');
-      const comboFill = document.getElementById('comboFill');
-      const multiplier = document.getElementById('multiplier');
-      const hammerGaugeFill = document.getElementById('hammerGaugeFill');
-      const hammerUseText = document.getElementById('hammerUseText');
-      const bossBar = document.getElementById('bossBar');
-      const bossHpFill = document.getElementById('bossHpFill');
-      const rainbowBtn = document.getElementById('rainbowBtn');
-      const bombBtn = document.getElementById('bombBtn');
-      const powersBar = document.getElementById('powersBar');
-
-      const mc = getColor(state.next);
-      nextCube.style.background = `linear-gradient(135deg, ${mc.top}, ${mc.face})`;
-      nextCube.style.color = mc.tx;
-      nextCube.style.boxShadow = `0 0 12px ${mc.face}55`;
-      nextCube.textContent = state.next;
-
-      scoreNumber.textContent = state.score.toLocaleString();
-
-      comboFill.style.width = `${state.comboBar}%`;
-      const multColor = state.multiplier >= 4 ? '#FFD700' : state.multiplier >= 3 ? '#FF6B9D' : state.multiplier >= 2 ? '#C9B1FF' : '#5EE7DF';
-      multiplier.textContent = state.multiplier + '×';
-      multiplier.style.color = multColor;
-      multiplier.style.textShadow = state.multiplier > 1 ? `0 0 8px ${multColor}` : 'none';
-
-      hammerGaugeFill.style.height = `${state.hammerCharge}%`;
-      hammerGaugeFill.style.background = state.hammerCharge >= 100 ? 'linear-gradient(0deg,#FF6B00,#FFD700)' : 'linear-gradient(0deg,#5EE7DF,#6A3DE8)';
-      hammerUseText.style.display = state.hammerCharge >= 100 ? 'block' : 'none';
-
-      // Boss bar
-      const boss = state.cubes.find(c => c.bossHp > 0);
-      if (boss) {
-        bossBar.style.display = 'block';
-        bossHpFill.style.width = `${(boss.bossHp / boss.bossMaxHp) * 100}%`;
-      } else {
-        bossBar.style.display = 'none';
-      }
-
-      // Power-ups visibility
-      powersBar.style.display = state.phase === 'playing' ? 'flex' : 'none';
-      // Rainbow button
-      const rainbowCount = state.rainbow;
-      rainbowBtn.querySelector('.power-count').textContent = rainbowCount;
-      rainbowBtn.className = rainbowCount > 0 ? 'power-btn active' : 'power-btn';
-      // Bomb button
-      const bombCount = state.bombs;
-      bombBtn.querySelector('.power-count').textContent = bombCount;
-      bombBtn.className = bombCount > 0 ? 'power-btn active' : 'power-btn';
-    }
-
-    // ─── GYRO ────────────────────────────────────────────────────────────
-    function enableGyro() {
-      if (typeof DeviceOrientationEvent !== 'undefined') {
-        const handler = (e) => {
-          state.gyroX = (e.gamma || 0) / 45;
-          state.gyroEnabled = true;
-        };
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission()
-            .then(permission => {
-              if (permission === 'granted') window.addEventListener('deviceorientation', handler);
-            })
-            .catch(() => {});
+    // Powerup selection event listeners
+    btnHammer.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePowerup('hammer');
+    });
+    btnBomb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePowerup('bomb');
+    });
+
+    function togglePowerup(type) {
+        if (activePowerup === type) {
+            activePowerup = null;
+            btnHammer.classList.remove('active');
+            btnBomb.classList.remove('active');
         } else {
-          window.addEventListener('deviceorientation', handler);
+            activePowerup = type;
+            btnHammer.classList.toggle('active', type === 'hammer');
+            btnBomb.classList.toggle('active', type === 'bomb');
         }
-      }
     }
 
-    // ─── CONTROLS ────────────────────────────────────────────────────────
-    function shoot() {
-      if (state.phase !== 'playing' || state.shot) return;
-      state.shot = createCube(state.aimX, 0.94, (state.aimX - 0.5) * 0.003, SHOOT_VY, state.current);
+    // Initialize Game State
+    function init() {
+        score = 0;
+        cubes = [];
+        particles = [];
+        floatingTexts = [];
+        comboMultiplier = 1;
+        comboProgress = 0;
+        isGameOver = false;
+        dangerTimer = 0;
+        activePowerup = null;
+        btnHammer.classList.remove('active');
+        btnBomb.classList.remove('active');
+        scoreValEl.innerText = '0';
+        gameOverScreen.style.display = 'none';
+
+        // Spawn a few initial random blocks at the top
+        for (let i = 0; i < 6; i++) {
+            let row = Math.floor(i / 3);
+            let col = i % 3;
+            cubes.push({
+                id: Math.random(),
+                x: 60 + col * 90,
+                y: 100 + row * 80,
+                vx: 0,
+                vy: 0,
+                value: [2, 4, 8][Math.floor(Math.random() * 3)],
+                radius: 16,
+                pulse: 1
+            });
+        }
+        rollNextValue();
+        updateNextPreview();
     }
 
-    function handleMouseMove(e) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = W / rect.width;
-      const mx = (e.clientX - rect.left) * scaleX;
-      const left = VX - NEAR_W / 2;
-      state.aimX = Math.max(CUBE_R, Math.min(1 - CUBE_R, (mx - left) / NEAR_W));
+    function rollNextValue() {
+        launcher.value = nextValue;
+        const choices = [2, 4, 8, 16, 32];
+        // Dynamic tier selection based on performance
+        let maxIdx = score > 1000 ? 5 : score > 400 ? 4 : 3;
+        nextValue = choices[Math.floor(Math.random() * maxIdx)];
     }
 
-    function handleTouchMove(e) {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = W / rect.width;
-      const mx = (e.touches[0].clientX - rect.left) * scaleX;
-      const left = VX - NEAR_W / 2;
-      state.aimX = Math.max(CUBE_R, Math.min(1 - CUBE_R, (mx - left) / NEAR_W));
+    function updateNextPreview() {
+        nextPreviewEl.innerText = nextValue;
+        const colors = cubeColors[nextValue] || {bg: '#fff', text: '#000'};
+        nextPreviewEl.style.backgroundColor = colors.bg;
+        nextPreviewEl.style.color = colors.text;
     }
 
-    function startGame() {
-      // Reset state
-      Object.assign(state, {
-        cubes: [],
-        shot: null,
-        current: TARGET_NUMBERS[0],
-        next: TARGET_NUMBERS[Math.floor(Math.random() * 3)],
-        score: 0,
-        multiplier: 1,
-        comboBar: 0,
-        comboDecay: 0,
-        hammerCharge: 0,
-        phase: 'playing',
-        aimX: 0.5,
-        milestone: null,
-        milestoneTimer: 0,
-        particles: [],
-        floats: [],
-        seenMilestones: new Set(),
-        rainbow: 1,
-        bombs: 1,
-        hammerAnim: 0,
-        spawnTimer: SPAWN_INTERVAL,
-        shakeX: 0, shakeY: 0, shakeMag: 0,
-        gyroX: 0, gyroEnabled: false,
-        gyroUnlocked: false, gyroMsg: 0,
-        boss: null, nextBossAt: 1000,
-        doubleScoreTimer: 0,
-        bossWarning: 0,
-      });
-      document.getElementById('splashScreen').style.display = 'none';
-      document.getElementById('gameoverOverlay').style.display = 'none';
-      updateUI();
+    // Input Events (Handles both Touch & Mouse smoothly)
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
     }
 
-    // Power-up handlers
-    function triggerHammer() {
-      if (state.hammerCharge < 100) return;
-      state.hammerAnim = 30;
-      state.hammerCharge = 0;
-      state.cubes.sort((a, b) => b.y - a.y);
-      state.cubes.splice(0, Math.min(7, state.cubes.length));
+    function handlePointerDown(e) {
+        if (isGameOver) return;
+        const coords = getCanvasCoords(e);
+
+        if (activePowerup) {
+            handlePowerupUsage(coords);
+            return;
+        }
+
+        // Only allow launch interaction if drag starts reasonably low down the board
+        const viewRect = canvas.getBoundingClientRect();
+        if (coords.y > viewRect.height * 0.5) {
+            launcher.isAiming = true;
+            updateAim(coords);
+        }
     }
 
-    function triggerRainbow() {
-      if (state.rainbow <= 0) return;
-      const counts = {};
-      state.cubes.forEach(c => { if (!c.bossHp) counts[c.value] = (counts[c.value] || 0) + 1; });
-      const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-      if (best) state.current = parseInt(best[0]);
-      state.rainbow--;
+    function handlePointerMove(e) {
+        if (!launcher.isAiming) return;
+        const coords = getCanvasCoords(e);
+        updateAim(coords);
     }
 
-    function triggerBomb() {
-      if (state.bombs <= 0) return;
-      let maxVal = 0, maxIdx = -1;
-      state.cubes.forEach((c, i) => {
-        if (c.value > maxVal && !c.bossHp) { maxVal = c.value; maxIdx = i; }
-      });
-      if (maxIdx >= 0) {
-        megaExplosion(state.cubes[maxIdx].x, state.cubes[maxIdx].y);
-      }
-      state.bombs--;
+    function handlePointerUp() {
+        if (!launcher.isAiming) return;
+        launcher.isAiming = false;
+
+        // Vector translation from screen space to logical trajectory physics
+        const viewRect = canvas.getBoundingClientRect();
+        let projOrigin = project(launcher.x, launcher.y);
+        
+        let dx = launcher.aimX - projOrigin.x;
+        let dy = launcher.aimY - projOrigin.y;
+        let angle = Math.atan2(dy, dx);
+
+        // Constrain extreme side shooting angles
+        if (angle > -0.2) angle = -0.2;
+        if (angle < -2.94) angle = -2.94;
+
+        let speed = 14; 
+        let vx = Math.cos(angle) * speed;
+        let vy = Math.sin(angle) * speed;
+
+        // Fire new active cube onto the board
+        cubes.push({
+            id: Math.random(),
+            x: launcher.x,
+            y: launcher.y,
+            vx: vx,
+            vy: vy,
+            value: launcher.value,
+            radius: launcher.radius,
+            pulse: 1
+        });
+
+        rollNextValue();
+        updateNextPreview();
     }
 
-    // ─── EVENT LISTENERS ─────────────────────────────────────────────────
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('mousedown', (e) => {
-      if (state.phase === 'playing') shoot();
-    });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchstart', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      if (state.phase === 'playing') shoot();
-    });
-
-    document.getElementById('playBtn').addEventListener('click', startGame);
-    document.getElementById('playAgainBtn').addEventListener('click', startGame);
-    document.getElementById('hammerPanel').addEventListener('click', triggerHammer);
-    document.getElementById('rainbowBtn').addEventListener('click', triggerRainbow);
-    document.getElementById('bombBtn').addEventListener('click', triggerBomb);
-
-    // ─── GAME LOOP ──────────────────────────────────────────────────────
-    function gameLoop() {
-      update();
-      render();
-      requestAnimationFrame(gameLoop);
+    function updateAim(coords) {
+        launcher.aimX = coords.x;
+        launcher.aimY = coords.y;
     }
 
-    // Initial state
-    document.getElementById('splashScreen').style.display = 'flex';
-    document.getElementById('gameoverOverlay').style.display = 'none';
-    updateUI();
-    gameLoop();
-  </script>
+    // Process Hammer & Bomb mechanics
+    function handlePowerupUsage(coords) {
+        // Find closest clicked cube based on screen projection mapping
+        let closestCube = null;
+        let minDist = 40; // Click radius target zone
+
+        cubes.forEach(c => {
+            let pt = project(c.x, c.y);
+            let d = Math.hypot(coords.x - pt.x, coords.y - pt.y);
+            if (d < minDist) {
+                minDist = d;
+                closestCube = c;
+            }
+        });
+
+        if (closestCube) {
+            if (activePowerup === 'hammer') {
+                createExplosionParticles(closestCube.x, closestCube.y, closestCube.value, 15);
+                cubes = cubes.filter(c => c.id !== closestCube.id);
+            } else if (activePowerup === 'bomb') {
+                // Radius explosion blast
+                createExplosionParticles(closestCube.x, closestCube.y, closestCube.value, 30);
+                cubes = cubes.filter(c => Math.hypot(c.x - closestCube.x, c.y - closestCube.y) > 75);
+            }
+            togglePowerup(activePowerup); // auto-deselect after single usage
+        }
+    }
+
+    // Attach interaction handlers
+    canvas.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, {passive: false});
+    window.addEventListener('touchmove', handlePointerMove, {passive: true});
+    window.addEventListener('touchend', handlePointerUp);
+
+    // Spawn merge/destruction visual fx
+    function createExplosionParticles(x, y, value, count = 12) {
+        let colors = cubeColors[value] || {bg: '#fff'};
+        for (let i = 0; i < count; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let speed = 1 + Math.random() * 5;
+            particles.push({
+                x: x, y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 4 + Math.random() * 5,
+                color: colors.bg,
+                alpha: 1,
+                decay: 0.02 + Math.random() * 0.02
+            });
+        }
+    }
+
+    function spawnFloatingText(x, y, txt, color) {
+        floatingTexts.push({
+            x: x, y: y, text: txt, color: color, alpha: 1, vy: -0.8
+        });
+    }
+
+    // Core Physics & Collision Pipeline
+    function updatePhysics() {
+        // 1. Move Cubes & Border checks
+        cubes.forEach(c => {
+            c.x += c.vx;
+            c.y += c.vy;
+
+            // Apply slight environmental simulation drag friction
+            c.vx *= 0.985;
+            c.vy *= 0.985;
+
+            // Lateral Wall boundaries bounce mapping
+            if (c.x - c.radius < 0) {
+                c.x = c.radius;
+                c.vx *= -0.6;
+            } else if (c.x + c.radius > WORLD_WIDTH) {
+                c.x = WORLD_WIDTH - c.radius;
+                c.vx *= -0.6;
+            }
+
+            // Top boundary limit bounce mapping
+            if (c.y - c.radius < 0) {
+                c.y = c.radius;
+                c.vy *= -0.6;
+            }
+            
+            // Absolute bottom layout floor clamp preventing out of bounds falling
+            if (c.y + c.radius > WORLD_HEIGHT) {
+                c.y = WORLD_HEIGHT - c.radius;
+                c.vy *= -0.5;
+            }
+        });
+
+        // 2. Continuous Circular Physics Collision Resolve Sweep
+        for (let i = 0; i < cubes.length; i++) {
+            for (let j = i + 1; j < cubes.length; j++) {
+                let c1 = cubes[i];
+                let c2 = cubes[j];
+
+                let dx = c2.x - c1.x;
+                let dy = c2.y - c1.y;
+                let dist = Math.hypot(dx, dy);
+                let minDist = c1.radius + c2.radius;
+
+                if (dist < minDist && dist > 0) {
+                    if (c1.value === c2.value && !c1.markedForDeath && !c2.markedForDeath) {
+                        // SUCCESSFUL TIER MERGE COLLISION
+                        c1.markedForDeath = true;
+                        c2.value *= 2;
+                        c2.pulse = 1.5; // Trigger bounce pop visual sizing modifier
+
+                        // Score multiplier updates
+                        let pointsEarned = c2.value * comboMultiplier;
+                        score += pointsEarned;
+                        scoreValEl.innerText = score;
+
+                        // Increment structural Combo layout metrics
+                        comboProgress = Math.min(100, comboProgress + 25);
+                        if (comboProgress >= 100 && comboMultiplier < 5) {
+                            comboMultiplier++;
+                            comboProgress = 0;
+                        }
+
+                        createExplosionParticles(c2.x, c2.y, c2.value, 14);
+                        spawnFloatingText(c2.x, c2.y, `+${pointsEarned}`, cubeColors[c2.value]?.bg || '#fff');
+
+                        // Subtle positional explosion thrust vector kick away
+                        c2.vx += (Math.random() - 0.5) * 3;
+                        c2.vy -= Math.random() * 2;
+                    } else {
+                        // Standard rigid body 2D elastic kinetic physics resolve bounce
+                        let nx = dx / dist;
+                        let ny = dy / dist;
+
+                        // Separate overlapping nodes safely
+                        let overlap = minDist - dist;
+                        c1.x -= nx * overlap * 0.5;
+                        c1.y -= ny * overlap * 0.5;
+                        c2.x += nx * overlap * 0.5;
+                        c2.y += ny * overlap * 0.5;
+
+                        let rvx = c2.vx - c1.vx;
+                        let rvy = c2.vy - c1.vy;
+                        let speedNormal = rvx * nx + rvy * ny;
+
+                        if (speedNormal < 0) {
+                            let impulse = -(1.4) * speedNormal / 2; // Restitution bounce constant factor
+                            c1.vx -= nx * impulse;
+                            c1.vy -= ny * impulse;
+                            c2.vx += nx * impulse;
+                            c2.vy += ny * impulse;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean dead entities
+        cubes = cubes.filter(c => !c.markedForDeath);
+
+        // Update active structural FX particle collections
+        particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= p.decay;
+        });
+        particles = particles.filter(p => p.alpha > 0);
+
+        // Update floating texts UI tags
+        floatingTexts.forEach(f => {
+            f.y += f.vy;
+            f.alpha -= 0.015;
+        });
+        floatingTexts = floatingTexts.filter(f => f.alpha > 0);
+
+        // Degrade structural continuous combo limits over time frames
+        if (comboProgress > 0) {
+            comboProgress -= 0.15;
+        } else if (comboMultiplier > 1) {
+            comboMultiplier--;
+            comboProgress = 80;
+        }
+        comboBarEl.style.width = `${comboProgress}%`;
+        comboTextEl.innerText = `${comboMultiplier}X`;
+
+        // Check Danger Zone failure conditions
+        let insideDanger = cubes.some(c => c.y > DANGER_ZONE_Y && Math.hypot(c.vx, c.vy) < 0.2);
+        if (insideDanger) {
+            dangerTimer += 1 / 60;
+            if (dangerTimer >= 3.0) { // Failed to clear cubes within 3 seconds threshold rule
+                endGame();
+            }
+        } else {
+            dangerTimer = Math.max(0, dangerTimer - 1 / 60);
+        }
+    }
+
+    function endGame() {
+        isGameOver = true;
+        finalScoreEl.innerText = score;
+        gameOverScreen.style.display = 'flex';
+    }
+
+    // 3D Isometric Projection Cube Rendering Method
+    function drawCube(worldX, worldY, value, scaleModifier = 1) {
+        const pt = project(worldX, worldY);
+        const colors = cubeColors[value] || { bg: '#95a5a6', side: '#7f8c8d', text: '#fff' };
+
+        // Scale geometric sizing variables base matching camera perspective lines depth Matrix
+        let baseSize = 46 * pt.scale * scaleModifier;
+        let h = baseSize; // Height block profile sizing
+
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+
+        // Setup drop pseudo lighting projection paths
+        // FRONT FACE
+        ctx.fillStyle = colors.side;
+        ctx.beginPath();
+        ctx.rect(-baseSize/2, 0, baseSize, h * 0.4);
+        ctx.fill();
+
+        // TOP TOP FACE Isometric perspective shift
+        ctx.fillStyle = colors.bg;
+        ctx.beginPath();
+        ctx.moveTo(-baseSize/2, 0);
+        ctx.lineTo(-baseSize/2 * 0.85, -h * 0.45);
+        ctx.lineTo(baseSize/2 * 0.85, -h * 0.45);
+        ctx.lineTo(baseSize/2, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw inner structural label string elements inside core profile paths
+        ctx.fillStyle = colors.text;
+        ctx.font = `bold ${Math.max(11, baseSize * 0.38)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Place text cleanly bounded slightly raised offset inside isometric plane mapping
+        ctx.fillText(value, 0, -h * 0.18);
+
+        ctx.restore();
+    }
+
+    // Canvas Frame Loop Rendering Architecture
+    function draw() {
+        const viewRect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, viewRect.width, viewRect.height);
+
+        // 1. Draw Linear Perspective Environment Grid Matrix Floor
+        ctx.strokeStyle = 'rgba(78, 54, 186, 0.22)';
+        ctx.lineWidth = 1;
+        const totalGridLines = 8;
+        for (let i = 0; i <= totalGridLines; i++) {
+            let wx = (WORLD_WIDTH / totalGridLines) * i;
+            let pTop = project(wx, 0);
+            let pBottom = project(wx, WORLD_HEIGHT);
+            ctx.beginPath();
+            ctx.moveTo(pTop.x, pTop.y);
+            ctx.lineTo(pBottom.x, pBottom.y);
+            ctx.stroke();
+        }
+        
+        // Depth horizontal segments
+        const totalHorizLines = 10;
+        for (let i = 0; i <= totalHorizLines; i++) {
+            let wy = (WORLD_HEIGHT / totalHorizLines) * i;
+            let pLeft = project(0, wy);
+            let pRight = project(WORLD_WIDTH, wy);
+            ctx.beginPath();
+            ctx.moveTo(pLeft.x, pLeft.y);
+            ctx.lineTo(pRight.x, pRight.y);
+            ctx.stroke();
+        }
+
+        // 2. Draw Danger Zone Alarm threshold lines
+        let dangerPtL = project(0, DANGER_ZONE_Y);
+        let dangerPtR = project(WORLD_WIDTH, DANGER_ZONE_Y);
+        ctx.strokeStyle = dangerTimer > 0 && Math.floor(Date.now() / 250) % 2 === 0 ? '#ff4757' : 'rgba(231, 76, 60, 0.45)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.moveTo(dangerPtL.x, dangerPtL.y);
+        ctx.lineTo(dangerPtR.x, dangerPtR.y);
+        ctx.stroke();
+        ctx.setLineDash([]); // clear dash state tracking
+
+        // 3. Render Simulated Static/Dynamic Entity Cubes inside layer ordering depth sort
+        // Sorting items guarantees proper visual stacking front-to-back perspective representation
+        cubes.sort((a, b) => a.y - b.y);
+        cubes.forEach(c => {
+            // Smoothly ease scale adjustments animation factors
+            if (c.pulse > 1) c.pulse -= 0.04;
+            drawCube(c.x, c.y, c.value, c.pulse);
+        });
+
+        // 4. Draw active particles system
+        particles.forEach(p => {
+            let pt = project(p.x, p.y);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.alpha;
+            let sz = p.size * pt.scale;
+            ctx.fillRect(pt.x - sz/2, pt.y - sz/2, sz, sz);
+        });
+        ctx.globalAlpha = 1.0; // reset transparency constraints
+
+        // 5. Draw active floating textual score overlays
+        floatingTexts.forEach(f => {
+            let pt = project(f.x, f.y);
+            ctx.fillStyle = f.color;
+            ctx.globalAlpha = f.alpha;
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(f.text, pt.x, pt.y);
+        });
+        ctx.globalAlpha = 1.0;
+
+        // 6. Draw User Guide Pointer Aim Path Indicators
+        if (launcher.isAiming) {
+            let startPt = project(launcher.x, launcher.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([5, 8]);
+            ctx.beginPath();
+            ctx.moveTo(startPt.x, startPt.y);
+            ctx.lineTo(launcher.aimX, launcher.aimY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // 7. Draw Ready Launcher Base Cube visual indicators
+        if (!isGameOver) {
+            drawCube(launcher.x, launcher.y, launcher.value, 1.0);
+        }
+    }
+
+    // Continuous System Ticker Controller Loop
+    function loop() {
+        if (!isGameOver) {
+            updatePhysics();
+        }
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // System Startup Initializers execution triggers
+    restartBtn.addEventListener('click', init);
+    resizeCanvas();
+    init();
+    loop();
+</script>
+
 </body>
 </html>
