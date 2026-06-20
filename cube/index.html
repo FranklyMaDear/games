@@ -19,44 +19,37 @@
       border-radius: 16px;
       box-shadow: 0 0 50px rgba(100,40,200,0.35);
     }
-    .ui-container {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 400px;
-      max-width: 95vw;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 8px;
-      pointer-events: none;
-    }
-    .ui-container * {
-      pointer-events: auto;
-    }
-    .power-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      margin-top: 12px;
-    }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
-  <!-- React + Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Main Game Code -->
   <script type="text/babel">
+    // ─── POLYFILL for roundRect (older browsers) ──────────────────────────
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+        if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+        this.beginPath();
+        this.moveTo(x + r.tl, y);
+        this.lineTo(x + w - r.tr, y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+        this.lineTo(x + w, y + h - r.br);
+        this.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+        this.lineTo(x + r.bl, y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+        this.lineTo(x, y + r.tl);
+        this.quadraticCurveTo(x, y, x + r.tl, y);
+        this.closePath();
+      };
+    }
 
     const { useState, useRef, useEffect, useCallback } = React;
 
-    // ─── SEQUENTIAL EVEN NUMBER SYSTEM ─────────────────────────────────────────
+    // ─── SEQUENTIAL EVEN NUMBER SYSTEM ────────────────────────────────────
     const TARGET_NUMBERS = [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,
                             42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80];
 
@@ -85,7 +78,7 @@
                side:`hsl(${hue},${sat}%,${lit-22}%)`, tx: lit > 60 ? "#222" : "#fff" };
     }
 
-    // ─── CANVAS DIMENSIONS ───────────────────────────────────────────────────
+    // ─── CANVAS DIMENSIONS ────────────────────────────────────────────────
     const W = 400, H = 640;
     const NEAR_Y = H - 55, FAR_Y = 75;
     const NEAR_W = 340, FAR_W = 110;
@@ -101,14 +94,14 @@
       return { px: left + wx * tw, py: ty, sc: tw / NEAR_W };
     }
 
-    // ─── PHYSICS ─────────────────────────────────────────────────────────────
+    // ─── PHYSICS ──────────────────────────────────────────────────────────
     const BASE_GRAVITY  = 0.000055;
     const SHOOT_VY      = -0.014;
     const CUBE_R        = 0.065;
     const BOUNCE        = 0.32;
     const FRICTION      = 0.978;
-    const SPAWN_INTERVAL = 900;      // ~15 seconds between row spawns
-    const PUSH_BACK     = -0.0035;   // Strong pushback to gain space
+    const SPAWN_INTERVAL = 900;      // ~15s
+    const PUSH_BACK     = -0.0035;   // δυνατό pushback
 
     let _id = 0;
     function mkCube(x, y, vx, vy, value, special = null) {
@@ -135,7 +128,7 @@
       } catch { return hex; }
     }
 
-    // ─── MAIN GAME COMPONENT ─────────────────────────────────────────────────
+    // ─── MAIN GAME COMPONENT ──────────────────────────────────────────────
     function MergeCubes() {
       const canvasRef = useRef(null);
       const G = useRef({
@@ -161,7 +154,7 @@
         bossHp:0, bossMaxHp:0,
       });
 
-      // ── DRAW ────────────────────────────────────────────────────────────────
+      // ── DRAW ────────────────────────────────────────────────────────────
       const draw = useCallback(() => {
         const cv = canvasRef.current; if (!cv) return;
         const ctx = cv.getContext("2d");
@@ -439,7 +432,7 @@
         }
       }
 
-      // ── PHYSICS TICK ──────────────────────────────────────────────────────
+      // ── PHYSICS TICK ───────────────────────────────────────────────────
       const tick = useCallback(() => {
         const s = G.current;
 
@@ -787,7 +780,7 @@
       const startGame=()=>{
         const s=G.current;
         Object.assign(s,{
-          cubes: [],        // ← ΑΔΕΙΑ ΠΙΣΤΑ
+          cubes: [],
           shot: null,
           current:TARGET_NUMBERS[0], next:TARGET_NUMBERS[Math.floor(Math.random()*3)],
           score:0, multiplier:1, comboBar:0, comboDecay:0, hammerCharge:0,
@@ -936,7 +929,7 @@
       );
     }
 
-    // ── Render the app ──────────────────────────────────────────────────────
+    // ── Render app ──────────────────────────────────────────────────────
     ReactDOM.createRoot(document.getElementById('root')).render(<MergeCubes />);
   </script>
 </body>
