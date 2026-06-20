@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Merge Cubes 3D Pro</title>
+<title>Merge Cubes 3D Pro - Top Down Edition</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent;}
 body{background:#000;font-family:'Inter','Segoe UI',system-ui,sans-serif;
@@ -242,13 +242,13 @@ function nextVal(v){
   return i>=0 && i+1<CUBE_SEQ.length ? CUBE_SEQ[i+1] : v*2;
 }
 
-// Track dimensions (world units)
-const TRACK_W = 8;     // x: -4..4
-const TRACK_L = 14;    // z: -7 (far/back) .. 7 (near/front)
-const COLS    = 5;
+// Track dimensions (world units) - WIDER TRACK
+const TRACK_W = 12;     // x: -6..6
+const TRACK_L = 16;     // z: -8 (far/back) .. 8 (near/front)
+const COLS    = 7;      // 7 columns instead of 5
 const COL_W   = TRACK_W / COLS;
-const CUBE_SZ = 1.15;  // size of one cube — bigger for visibility
-const DANGER_Z = 5.5;  // z value past which = game over
+const CUBE_SZ = 1.15;   // base size of one cube
+const DANGER_Z = 6.5;   // z value past which = game over
 
 // ═══════════════════════════════════════════════════════════════════
 // THREE.JS SETUP
@@ -266,36 +266,37 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0815);
-scene.fog = new THREE.Fog(0x0a0815, 12, 22);
+scene.fog = new THREE.Fog(0x0a0815, 12, 35); // Adjusted fog for top-down
 
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
-camera.position.set(0, 5.5, 9.5);
-camera.lookAt(0, 1, -1);
+// TOP-DOWN CAMERA SETUP
+camera.position.set(0, 16, 2); 
+camera.lookAt(0, 0, 2);
 
 // ── Lights ──
 const ambient = new THREE.AmbientLight(0x4a3aaa, 0.5);
 scene.add(ambient);
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-keyLight.position.set(4, 10, 6);
+keyLight.position.set(4, 15, 6); // Raised light for top-down
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.width = 1024;
 keyLight.shadow.mapSize.height = 1024;
-keyLight.shadow.camera.left = -8;
-keyLight.shadow.camera.right = 8;
-keyLight.shadow.camera.top = 10;
-keyLight.shadow.camera.bottom = -10;
+keyLight.shadow.camera.left = -12;
+keyLight.shadow.camera.right = 12;
+keyLight.shadow.camera.top = 12;
+keyLight.shadow.camera.bottom = -12;
 keyLight.shadow.camera.near = 0.5;
-keyLight.shadow.camera.far = 25;
+keyLight.shadow.camera.far = 30;
 keyLight.shadow.bias = -0.0005;
 scene.add(keyLight);
 
 const fillLight = new THREE.DirectionalLight(0x8866ff, 0.4);
-fillLight.position.set(-4, 5, 3);
+fillLight.position.set(-4, 10, 3);
 scene.add(fillLight);
 
-const rimLight = new THREE.PointLight(0x8844cc, 1.5, 18);
-rimLight.position.set(0, 4, -6);
+const rimLight = new THREE.PointLight(0x8844cc, 1.5, 25);
+rimLight.position.set(0, 4, -8);
 scene.add(rimLight);
 
 // ── Post-processing (bloom) ──
@@ -330,8 +331,8 @@ function buildTrack(){
     const g = new THREE.BufferGeometry().setFromPoints(pts);
     group.add(new THREE.Line(g, gridMat));
   }
-  for (let i = 0; i <= 14; i++){
-    const z = -TRACK_L/2 + (i/14)*TRACK_L;
+  for (let i = 0; i <= 16; i++){ // adjusted for TRACK_L=16
+    const z = -TRACK_L/2 + (i/16)*TRACK_L;
     const pts = [new THREE.Vector3(-TRACK_W/2, 0.01, z), new THREE.Vector3(TRACK_W/2, 0.01, z)];
     const g = new THREE.BufferGeometry().setFromPoints(pts);
     group.add(new THREE.Line(g, gridMat));
@@ -382,8 +383,8 @@ function buildTrack(){
   // Ambient particles in background
   const ambGeo = new THREE.BufferGeometry();
   const ambPos = [];
-  for (let i = 0; i < 80; i++){
-    ambPos.push((Math.random()-0.5)*16, Math.random()*6+1, -Math.random()*10-2);
+  for (let i = 0; i < 100; i++){
+    ambPos.push((Math.random()-0.5)*TRACK_W*1.5, Math.random()*6+1, -Math.random()*12-2);
   }
   ambGeo.setAttribute('position', new THREE.Float32BufferAttribute(ambPos, 3));
   const ambMat = new THREE.PointsMaterial({
@@ -440,30 +441,25 @@ addWall(0, 1, -TRACK_L/2 - 0.1, TRACK_W/2 + 0.5, 2, 0.1); // back
 // ═══════════════════════════════════════════════════════════════════
 // CUBE CREATION
 // ═══════════════════════════════════════════════════════════════════
-// Procedurally make a canvas texture for cube face with number
 function makeNumberTexture(value, palette){
   const sz = 256;
   const cv = document.createElement('canvas');
   cv.width = sz; cv.height = sz;
   const c = cv.getContext('2d');
 
-  // background
   c.fillStyle = '#' + palette.hex.toString(16).padStart(6, '0');
   c.fillRect(0, 0, sz, sz);
 
-  // soft inner shadow
   const grad = c.createRadialGradient(sz/2, sz/2, sz*0.2, sz/2, sz/2, sz*0.7);
   grad.addColorStop(0, 'rgba(255,255,255,0.18)');
   grad.addColorStop(1, 'rgba(0,0,0,0.25)');
   c.fillStyle = grad;
   c.fillRect(0, 0, sz, sz);
 
-  // border accent
   c.strokeStyle = 'rgba(0,0,0,0.3)';
   c.lineWidth = 8;
   c.strokeRect(4, 4, sz-8, sz-8);
 
-  // number
   c.fillStyle = '#fff';
   c.font = `900 ${value>=1000?100:value>=100?130:value>=10?160:180}px 'Inter',system-ui`;
   c.textAlign = 'center';
@@ -478,14 +474,12 @@ function makeNumberTexture(value, palette){
   return tex;
 }
 
-// Cache materials per value
 const matCache = new Map();
 function getCubeMaterials(value){
   if (matCache.has(value)) return matCache.get(value);
   const pal = getPal(value);
   const tex = makeNumberTexture(value, pal);
 
-  // 6 face materials, only top/front/sides show the number
   const baseProps = {
     color: 0xffffff, roughness: 0.35, metalness: 0.15,
     emissive: pal.glow, emissiveIntensity: 0.15,
@@ -495,31 +489,37 @@ function getCubeMaterials(value){
     color: pal.hex, roughness: 0.35, metalness: 0.15,
     emissive: pal.glow, emissiveIntensity: 0.15,
   });
-  // BoxGeometry face order: +x, -x, +y, -y, +z, -z
   const mats = [mNum, mNum, mNum, mPlain, mNum, mNum];
   matCache.set(value, mats);
   return mats;
 }
 
-// Geometry cache (one box shared by all cubes)
 const cubeGeo = new THREE.BoxGeometry(CUBE_SZ, CUBE_SZ, CUBE_SZ);
 cubeGeo.computeVertexNormals();
 
 let uid = 1;
 function pid(){ return uid++; }
 
-const cubes = []; // { id, mesh, body, value, special, isShot, isBoss, hp, maxHp, flash }
+const cubes = []; 
 
 function spawnCube(x, y, z, value, opts = {}){
+  // BIGGER SIZE FOR SHOT CUBE
+  const sizeMult = opts.isShot ? 1.5 : 1; 
+
   const mats = getCubeMaterials(value);
   const mesh = new THREE.Mesh(cubeGeo, mats);
   mesh.castShadow = true; mesh.receiveShadow = true;
+  
+  // Scale the mesh
+  mesh.scale.set(sizeMult, sizeMult, sizeMult);
   mesh.position.set(x, y, z);
   scene.add(mesh);
 
   const body = new CANNON.Body({
-    mass: opts.isShot ? 1.5 : 1,
-    shape: new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2, CUBE_SZ/2, CUBE_SZ/2)),
+    // BOWLING BALL PHYSICS: Huge mass if it's the shot cube
+    mass: opts.isShot ? 25 : 1, 
+    // Scale the physics hitbox
+    shape: new CANNON.Box(new CANNON.Vec3((CUBE_SZ*sizeMult)/2, (CUBE_SZ*sizeMult)/2, (CUBE_SZ*sizeMult)/2)),
     material: cubeMaterial,
     position: new CANNON.Vec3(x, y, z),
     linearDamping: 0.18,
@@ -547,23 +547,22 @@ function spawnCube(x, y, z, value, opts = {}){
 
 function removeCube(cube){
   scene.remove(cube.mesh);
-  cube.mesh.geometry = null; // shared, don't dispose
-  // materials are cached, don't dispose
+  cube.mesh.geometry = null; 
   world.removeBody(cube.body);
   const i = cubes.indexOf(cube);
   if (i >= 0) cubes.splice(i, 1);
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SPAWN ROWS
+// SPAWN ROWS (Updated for 7 columns)
 // ═══════════════════════════════════════════════════════════════════
 function spawnRow(z){
   const vals = [
-    [2,4,2,8,4],
-    [4,2,8,2,4],
-    [2,8,4,4,2],
-    [4,2,4,8,2],
-    [2,4,8,2,4],
+    [2,4,2,8,4,2,4],
+    [4,2,8,2,4,2,2],
+    [2,8,4,4,2,4,8],
+    [4,2,4,8,2,4,2],
+    [2,4,8,2,4,2,4],
   ][Math.floor(Math.random()*5)];
   for (let i = 0; i < COLS; i++){
     const x = -TRACK_W/2 + COL_W/2 + i*COL_W;
@@ -625,10 +624,10 @@ const audio = (() => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(380, ctx.currentTime + 0.15);
+    osc.frequency.setValueAtTime(150, ctx.currentTime); // Lower pitch for heavy bowling ball
+    osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.15);
     osc.connect(gain).connect(masterGain);
-    envelope(gain, 0.18, 0.005, 0.04, 0.4, 0.1, 0.18);
+    envelope(gain, 0.22, 0.005, 0.04, 0.4, 0.1, 0.18);
     osc.start();
     osc.stop(ctx.currentTime + 0.22);
   }
@@ -636,9 +635,7 @@ const audio = (() => {
   function merge(value){
     if (muted) return;
     ensureCtx();
-    // base note rises with value
     const baseFreq = 220 * Math.pow(1.06, Math.log2(value));
-    // chord-like merge sound
     [1, 1.5, 2].forEach((mul, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -649,7 +646,6 @@ const audio = (() => {
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
     });
-    // click/impact
     const noise = ctx.createBufferSource();
     const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -673,9 +669,9 @@ const audio = (() => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.value = 120;
+    osc.frequency.value = 90; // Heavier bounce sound
     osc.connect(gain).connect(masterGain);
-    envelope(gain, 0.12, 0.003, 0.03, 0.1, 0.05, 0.08);
+    envelope(gain, 0.15, 0.003, 0.03, 0.1, 0.05, 0.08);
     osc.start();
     osc.stop(ctx.currentTime + 0.1);
   }
@@ -716,10 +712,8 @@ const audio = (() => {
     if (muted) return;
     ensureCtx();
     stopMusic();
-    // simple background pad
     const bpm = 110;
-    const beat = 60/bpm;
-    const notes = [220, 261, 329, 392]; // A minor pad
+    const notes = [220, 261, 329, 392]; 
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
@@ -788,7 +782,7 @@ function updateParticles(dt){
     p.mesh.position.x += p.vx * dt;
     p.mesh.position.y += p.vy * dt;
     p.mesh.position.z += p.vz * dt;
-    p.vy -= 9 * dt; // gravity
+    p.vy -= 9 * dt; 
     p.life -= p.decay;
     if (p.life <= 0){
       scene.remove(p.mesh);
@@ -802,7 +796,7 @@ function updateParticles(dt){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// FLOATING TEXTS (HTML layer for crisp text)
+// FLOATING TEXTS
 // ═══════════════════════════════════════════════════════════════════
 const fxLayer = document.getElementById('fx-layer');
 
@@ -839,10 +833,10 @@ let curVal   = 2;
 let nxtVal   = 2;
 let shotCube = null;
 let aimX     = 0;
-let aimZ     = 7; // shooter z position
-let conveyorSpeed = 0.3; // world units per second
+let aimZ     = 8; // adjusted for longer track
+let conveyorSpeed = 0.3; 
 let rowTimer = 0;
-let ROW_INTERVAL = 9; // seconds
+let ROW_INTERVAL = 9; 
 let seenMS   = new Set();
 let wildcardNext = false;
 let bossCube = null;
@@ -872,12 +866,11 @@ function tryMerge(a, b){
   removeCube(a);
   removeCube(b);
 
-  const nc = spawnCube(px, py, pz, nv);
+  const nc = spawnCube(px, py, pz, nv); // newly spawned cubes are regular size
   nc.flash = 12;
-  nc.body.velocity.set(0, 4, 0); // pop up
+  nc.body.velocity.set(0, 4, 0); 
   nc.body.angularVelocity.set((Math.random()-0.5)*5, (Math.random()-0.5)*5, (Math.random()-0.5)*5);
 
-  // Blast impulse on neighbors
   for (const c of cubes){
     if (c.id === nc.id) continue;
     const dx = c.body.position.x - px;
@@ -893,12 +886,10 @@ function tryMerge(a, b){
     }
   }
 
-  // Particles
   const pal = getPal(nv);
   spawnParticles(px, py, pz, pal.hex, 18, 4);
   if (nv >= 16) spawnParticles(px, py, pz, 0xFFD700, 10, 5);
 
-  // Score
   const pts = nv * mult;
   score += pts;
   comboBar = Math.min(100, comboBar + 40);
@@ -909,30 +900,25 @@ function tryMerge(a, b){
   const labelType = nv >= 64 ? 'points-mega' : nv >= 16 ? 'points-big' : 'points';
   floatText(px, py + 0.5, pz, `+${mult>1?mult+'×':''}${pts}`, labelType);
 
-  // Camera shake
   shakeAmt = Math.min(0.4, 0.08 + Math.log2(nv) * 0.025);
 
-  // Milestone
   if (CUBE_SEQ.includes(nv) && !seenMS.has(nv)){
     seenMS.add(nv);
     floatText(0, 3, 0, `✦ ${nv} REACHED! ✦`, 'milestone');
     audio.milestone();
   }
 
-  // Boss check
   if (score >= nextBossAt && !bossCube && bossWarnTimer <= 0){
     bossWarnTimer = 2.0;
     nextBossAt += 1000;
   }
 
-  // Sound
   if (nv >= 64) audio.bigMerge(nv);
   else audio.merge(nv);
 
   return nc;
 }
 
-// Sweep for chain merges
 function sweepChainMerges(){
   let iter = 0;
   while (iter < 6){
@@ -946,7 +932,8 @@ function sweepChainMerges(){
         const dy = a.body.position.y - b.body.position.y;
         const dz = a.body.position.z - b.body.position.z;
         const dist2 = dx*dx + dy*dy + dz*dz;
-        if (dist2 < (CUBE_SZ * 1.15) * (CUBE_SZ * 1.15)){
+        // Adjusted collision threshold for sweeping
+        if (dist2 < (CUBE_SZ * 1.3) * (CUBE_SZ * 1.3)){
           if (tryMerge(a, b)){ merged = true; break outer; }
         }
       }
@@ -955,9 +942,7 @@ function sweepChainMerges(){
   }
 }
 
-// Collision listener — used to trigger merges
 world.addEventListener('beginContact', e => {
-  // Find cubes by body
   const ca = cubes.find(c => c.body === e.bodyA);
   const cb = cubes.find(c => c.body === e.bodyB);
   if (!ca || !cb) return;
@@ -968,9 +953,7 @@ world.addEventListener('beginContact', e => {
   }
 });
 
-// We do merge detection in update loop (Cannon's beginContact can be flaky for our needs)
 function checkMerges(){
-  // Only worry about shot cube + neighbors
   if (shotCube){
     for (const c of cubes){
       if (c === shotCube || c.isBoss) continue;
@@ -978,24 +961,22 @@ function checkMerges(){
       const dy = shotCube.body.position.y - c.body.position.y;
       const dz = shotCube.body.position.z - c.body.position.z;
       const dist2 = dx*dx + dy*dy + dz*dz;
-      if (dist2 < (CUBE_SZ * 1.1) * (CUBE_SZ * 1.1)){
+      // Increased merge detection radius because the shot cube is bigger
+      if (dist2 < (CUBE_SZ * 1.5) * (CUBE_SZ * 1.5)){
         const old = shotCube;
         if (tryMerge(shotCube, c)){
           shotCube = null;
-          // Sweep for chains
           sweepChainMerges();
           curVal = nxtVal;
           nxtVal = rndStart();
           drawNextHUD();
         } else {
-          // Hard collision → bounce sound
           if (performance.now() - old.born > 60) audio.bounce();
         }
         break;
       }
     }
   }
-  // Periodic chain check for landed cubes
   if (Math.random() < 0.05) sweepChainMerges();
 }
 
@@ -1023,7 +1004,6 @@ function killBoss(boss){
   spawnParticles(bx, by, bz, 0xff4400, 30, 7);
   shakeAmt = 0.6;
   score += boss.maxHp * 12;
-  // Blast nearby cubes
   for (let i = cubes.length-1; i >= 0; i--){
     const c = cubes[i];
     if (c === boss) continue;
@@ -1031,7 +1011,6 @@ function killBoss(boss){
     const dz = c.body.position.z - bz;
     if (dx*dx + dz*dz < 4){
       c.body.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*8, 6, (Math.random()-0.5)*8), new CANNON.Vec3(0,0,0));
-      // Some get destroyed
       if (Math.random() < 0.6) removeCube(c);
     }
   }
@@ -1050,21 +1029,19 @@ function shoot(){
   wildcardNext = false;
   const sx = aimX;
   const sz = aimZ;
-  // Direction: from shooter (near, +z) toward back (-z), aimed at front of cluster
   const target = findAimTarget(sx);
   const dirX = (target.x - sx);
   const dirZ = (target.z - sz);
   const len = Math.sqrt(dirX*dirX + dirZ*dirZ);
-  const speed = 18;
-  const vx = (dirX/len) * speed * 0.15; // less horizontal
+  const speed = 25; // Faster shot for more bowling ball power
+  const vx = (dirX/len) * speed * 0.15; 
   const vz = (dirZ/len) * speed;
-  shotCube = spawnCube(sx, CUBE_SZ/2 + 0.4, sz, v, { isShot: true, special: v === 'wildcard' ? 'wildcard' : null });
+  shotCube = spawnCube(sx, (CUBE_SZ*1.5)/2 + 0.4, sz, v, { isShot: true, special: v === 'wildcard' ? 'wildcard' : null });
   shotCube.body.velocity.set(vx, 3, vz);
   audio.shoot();
 }
 
 function findAimTarget(x){
-  // Find lowest-z (farthest) cube on similar x lane, else default
   let best = null;
   for (const c of cubes){
     if (c.isShot) continue;
@@ -1088,32 +1065,26 @@ function update(){
   lastT = now;
 
   if (gameOn && !paused){
-    // Conveyor — apply gentle forward velocity to non-shot cubes
     for (const c of cubes){
       if (c.isShot) continue;
-      // Push toward player (positive z)
       const cur = c.body.position.z;
       if (cur < DANGER_Z + 1){
-        // Apply small impulse if velocity z is below threshold
         if (c.body.velocity.z < conveyorSpeed){
           c.body.velocity.z += conveyorSpeed * dt * 4;
         }
       }
       if (c.flash > 0) c.flash--;
     }
-    // Boss conveyor
     if (bossCube && bossCube.body.velocity.z < conveyorSpeed * 1.4){
       bossCube.body.velocity.z += conveyorSpeed * 1.4 * dt * 4;
     }
 
-    // Row spawn
     rowTimer += dt;
     if (rowTimer >= ROW_INTERVAL){
       rowTimer = 0;
       spawnRow(-TRACK_L/2 + 0.8);
     }
 
-    // Gyro tilt
     if (gyroOn){
       for (const c of cubes){
         if (c.isShot) continue;
@@ -1121,7 +1092,6 @@ function update(){
       }
     }
 
-    // Boss warn
     if (bossWarnTimer > 0){
       bossWarnTimer -= dt;
       document.getElementById('boss-warn').style.display = 'block';
@@ -1131,16 +1101,13 @@ function update(){
       }
     }
 
-    // Gyro unlock
     if (score >= 500 && !gyroOn){
       gyroOn = true;
       showTiltBanner();
     }
 
-    // Step physics
     world.step(1/60, dt, 3);
 
-    // Sync mesh to body + handle flash
     for (const c of cubes){
       c.mesh.position.copy(c.body.position);
       c.mesh.quaternion.copy(c.body.quaternion);
@@ -1155,25 +1122,22 @@ function update(){
       }
     }
 
-    // Collision-based merge detection
     checkMerges();
 
-    // Combo decay
     if (comboTimer > 0) comboTimer -= dt;
     else {
       comboBar = Math.max(0, comboBar - dt * 14);
       mult = comboBar >= 90 ? 4 : comboBar >= 60 ? 3 : comboBar >= 30 ? 2 : 1;
     }
 
-    // Camera shake
     if (shakeAmt > 0){
+      // Adjust camera shake origin for top-down
       camera.position.x = (Math.random()-0.5) * shakeAmt;
-      camera.position.y = 5.5 + (Math.random()-0.5) * shakeAmt * 0.5;
+      camera.position.y = 16 + (Math.random()-0.5) * shakeAmt * 0.5;
       shakeAmt *= 0.85;
-      if (shakeAmt < 0.005){ shakeAmt = 0; camera.position.set(0, 5.5, 9.5); }
+      if (shakeAmt < 0.005){ shakeAmt = 0; camera.position.set(0, 16, 2); }
     }
 
-    // Shot cube cleanup if falls off
     if (shotCube && (shotCube.body.position.y < -3 || shotCube.body.position.z > DANGER_Z + 4)){
       removeCube(shotCube);
       shotCube = null;
@@ -1182,7 +1146,6 @@ function update(){
       drawNextHUD();
     }
 
-    // Game over check
     for (const c of cubes){
       if (c.isShot) continue;
       if (c.body.position.z > DANGER_Z + 0.2){
@@ -1192,34 +1155,30 @@ function update(){
     }
   }
 
-  // Particles
   updateParticles(dt);
-
-  // Shooter cube visual position (just a hint at the bottom)
   updateShooterIndicator();
-
-  // HUD update
   updateHUD();
 
-  // Render
   composer.render();
   requestAnimationFrame(update);
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SHOOTER INDICATOR — render a "ghost" cube at the shooter position
+// SHOOTER INDICATOR
 // ═══════════════════════════════════════════════════════════════════
 let shooterMesh = null;
 let shooterAimLine = null;
 
 function makeShooterMesh(){
-  // Reuse cube geometry
   const mats = getCubeMaterials(curVal);
   shooterMesh = new THREE.Mesh(cubeGeo, mats);
-  shooterMesh.position.set(0, CUBE_SZ/2 + 0.4, aimZ);
+  
+  // Scale ghost mesh to match large shot cube
+  shooterMesh.scale.set(1.5, 1.5, 1.5);
+  
+  shooterMesh.position.set(0, (CUBE_SZ*1.5)/2 + 0.4, aimZ);
   scene.add(shooterMesh);
 
-  // Aim line
   const lineGeo = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(0, 0.5, aimZ),
     new THREE.Vector3(0, 0.5, -TRACK_L/2 + 1),
@@ -1243,17 +1202,14 @@ function updateShooterIndicator(){
   shooterAimLine.visible = true;
   shooterMesh.position.x = aimX;
   shooterMesh.position.z = aimZ;
-  // Slight bob
-  shooterMesh.position.y = CUBE_SZ/2 + 0.4 + Math.sin(performance.now() * 0.004) * 0.06;
+  shooterMesh.position.y = (CUBE_SZ*1.5)/2 + 0.4 + Math.sin(performance.now() * 0.004) * 0.06;
   shooterMesh.rotation.y += 0.01;
 
-  // Update material to match current value
   const targetMats = getCubeMaterials(wildcardNext ? 'wildcard' : curVal);
   if (shooterMesh.material !== targetMats){
     shooterMesh.material = targetMats;
   }
 
-  // Update aim line
   shooterAimLine.geometry.setFromPoints([
     new THREE.Vector3(aimX, 0.5, aimZ),
     new THREE.Vector3(aimX, 0.5, -TRACK_L/2 + 1),
@@ -1269,7 +1225,6 @@ function spawnBoss(){
   const x = 0;
   const z = -TRACK_L/2 + 1.5;
   const mats = getCubeMaterials(bv);
-  // Bigger
   const geo = new THREE.BoxGeometry(CUBE_SZ*1.8, CUBE_SZ*1.8, CUBE_SZ*1.8);
   const mesh = new THREE.Mesh(geo, mats);
   mesh.castShadow = true;
@@ -1309,7 +1264,6 @@ const nextCtx = nextCnv.getContext('2d');
 function drawMiniCube(mc, cx, cy, sz, value){
   const pal = getPal(value);
   const d = sz * 0.22;
-  // Top
   mc.fillStyle = '#' + (pal.glow).toString(16).padStart(6, '0');
   mc.beginPath();
   mc.moveTo(cx - sz/2, cy);
@@ -1317,7 +1271,6 @@ function drawMiniCube(mc, cx, cy, sz, value){
   mc.lineTo(cx + sz/2 + d, cy - d);
   mc.lineTo(cx + sz/2, cy);
   mc.closePath(); mc.fill();
-  // Side
   mc.fillStyle = 'rgba(0,0,0,0.4)';
   mc.beginPath();
   mc.moveTo(cx + sz/2, cy);
@@ -1325,12 +1278,10 @@ function drawMiniCube(mc, cx, cy, sz, value){
   mc.lineTo(cx + sz/2 + d, cy + sz - d);
   mc.lineTo(cx + sz/2, cy + sz);
   mc.closePath(); mc.fill();
-  // Front
   mc.fillStyle = '#' + pal.hex.toString(16).padStart(6, '0');
   mc.beginPath();
   mc.roundRect(cx - sz/2, cy, sz, sz, sz*0.12);
   mc.fill();
-  // Number
   mc.fillStyle = '#fff';
   mc.font = `800 ${Math.max(8, sz*(value>=100?0.32:0.46))}px system-ui`;
   mc.textAlign = 'center';
@@ -1346,7 +1297,7 @@ function drawNextHUD(){
 let hudFrame = 0;
 function updateHUD(){
   hudFrame++;
-  if (hudFrame % 3 !== 0) return; // throttle DOM writes
+  if (hudFrame % 3 !== 0) return;
   scoreEl.textContent = score.toLocaleString();
   multEl.textContent  = mult + '×';
   multFillEl.style.width = comboBar + '%';
@@ -1382,7 +1333,6 @@ function triggerGameOver(){
 }
 
 function startGame(){
-  // Clean up
   while (cubes.length){
     removeCube(cubes[0]);
   }
@@ -1411,7 +1361,7 @@ function startGame(){
   nxtVal = rndStart();
   aimX = 0;
   shakeAmt = 0;
-  camera.position.set(0, 5.5, 9.5);
+  camera.position.set(0, 16, 2);
 
   spawnInitial();
   drawNextHUD();
@@ -1435,7 +1385,11 @@ function updateAimFromClient(clientX, clientY){
   raycaster.setFromCamera(mouse, camera);
   const target = new THREE.Vector3();
   raycaster.ray.intersectPlane(groundPlane, target);
-  if (target) aimX = Math.max(-TRACK_W/2 + CUBE_SZ/2, Math.min(TRACK_W/2 - CUBE_SZ/2, target.x));
+  
+  // Adjust boundary checks for the wider track & bigger shooter cube
+  if (target) {
+    aimX = Math.max(-TRACK_W/2 + (CUBE_SZ*1.5)/2, Math.min(TRACK_W/2 - (CUBE_SZ*1.5)/2, target.x));
+  }
 }
 
 canvas.addEventListener('mousemove', e => {
@@ -1459,13 +1413,11 @@ document.getElementById('hammer-icon').addEventListener('click', () => {
   hammerChg = 0;
   shakeAmt = 0.5;
   audio.boom();
-  // Find cubes closest to danger line, apply massive upward impulse to throw them off
   const sortedByZ = cubes.filter(c => !c.isShot && !c.isBoss).sort((a,b) => b.body.position.z - a.body.position.z);
   const toBlast = sortedByZ.slice(0, 8);
   for (const c of toBlast){
     spawnParticles(c.body.position.x, c.body.position.y, c.body.position.z, 0xff8800, 12, 5);
     c.body.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*4, 12, -2), new CANNON.Vec3(0,0,0));
-    // After a bit, remove
     setTimeout(() => { if (cubes.includes(c)) removeCube(c); }, 400);
   }
 });
@@ -1505,7 +1457,6 @@ document.getElementById('btn-sound').addEventListener('click', () => {
   document.getElementById('btn-sound').textContent = muted ? '🔇' : '🔊';
 });
 
-// Gyroscope (mobile)
 window.addEventListener('deviceorientation', e => {
   if (!gyroOn) return;
   gyroX = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
