@@ -8,9 +8,14 @@
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
 body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;
   align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
+
+/* HUD: κρύβεται από προεπιλογή και εμφανίζεται μετά το Play */
 #hud{width:100%;display:flex;align-items:center;justify-content:space-between;
   padding:10px 14px 8px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));
-  backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:10px;z-index:10}
+  backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:10px;z-index:10;
+  display:none !important;}
+#hud.active{display:flex !important;}
+
 #next-area{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);
   border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 12px}
 #next-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
@@ -63,6 +68,8 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .ad-badge{position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;
   font-size:7px;padding:2px 5px;border-radius:5px;font-weight:800}
 .boost-name{color:#888;font-size:9px;font-weight:700}
+
+/* Overlay: Καλύπτει τα πάντα. Το φόντο έχει σωματίδια χωρίς κύβους. */
 #overlay{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(40,20,80,.5),rgba(8,8,20,.95));
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:200;backdrop-filter:blur(8px)}
 #overlay.hidden{display:none}
@@ -147,10 +154,10 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x0a0815);
 scene.fog=new THREE.Fog(0x0a0815,16,30);
 
-// Camera: corridor perspective — behind and above, looking down the track
-const camera=new THREE.PerspectiveCamera(52,1,0.1,100);
-camera.position.set(0,7,12);
-camera.lookAt(0,1,-1);
+// Camera: Καθαρή top-down προοπτική διαδρόμου (Gamee style) 
+const camera=new THREE.PerspectiveCamera(42,1,0.1,100);
+camera.position.set(0, 9, 6);
+camera.lookAt(0, 1.5, 0);
 
 const ambient=new THREE.AmbientLight(0x4a3aaa,0.5);scene.add(ambient);
 const keyLight=new THREE.DirectionalLight(0xffffff,1.2);
@@ -191,15 +198,15 @@ function buildTrack(){
   const bw=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+.7,1.8,.35),wm);
   bw.position.set(0,.9,-TRACK_L/2-.18);bw.castShadow=true;g.add(bw);
 
-  // Danger line
+  // Danger line (Πιο έντονη και παχιά)
   const dm=new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.9});
-  const dl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.18),dm);
-  dl.rotation.x=-Math.PI/2;dl.position.set(0,.04,DANGER_Z);g.add(dl);
+  const dl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.25),dm);
+  dl.rotation.x=-Math.PI/2;dl.position.set(0,.05,DANGER_Z);g.add(dl);
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.7),
-    new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.2}));
-  dg.rotation.x=-Math.PI/2;dg.position.set(0,.05,DANGER_Z);g.add(dg);
+    new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.25}));
+  dg.rotation.x=-Math.PI/2;dg.position.set(0,.06,DANGER_Z);g.add(dg);
 
-  // Ambient particles
+  // Ambient particles (Φόντο, ορατά στο Overlay)
   const ap=[];for(let i=0;i<80;i++)ap.push((Math.random()-.5)*20,Math.random()*7+1,-Math.random()*14-2);
   const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.Float32BufferAttribute(ap,3));
   g.add(new THREE.Points(ag,new THREE.PointsMaterial({color:0xaa66ff,size:0.08,transparent:true,opacity:0.6})));
@@ -309,7 +316,7 @@ function floatText(x,y,z,label,type='points'){
   setTimeout(()=>el.remove(),type==='milestone'?1800:1200);
 }
 
-// ═══ AUDIO ═══
+// ═══ AUDIO ═══ (Αφαιρέθηκαν οι ενοχλητικοί ήχοι κίνησης)
 const audio=(()=>{
   let ctx=null,masterGain=null,muted=false;
   function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();
@@ -328,7 +335,6 @@ const audio=(()=>{
     const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*.05,ctx.sampleRate),data=buf.getChannelData(0);
     for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,3);
     n.buffer=buf;const ng=ctx.createGain();ng.gain.value=.3;n.connect(ng).connect(masterGain);n.start()}
-  function bounce(){blip(120,.08,'sine',.12)}
   function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.18,'square',.25),i*80))}
   function boom(){if(muted)return;init();const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*.5,ctx.sampleRate),
     data=buf.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2)*.8;
@@ -336,7 +342,7 @@ const audio=(()=>{
     const g=ctx.createGain();g.gain.value=.5;n.connect(fi).connect(g).connect(masterGain);n.start()}
   function gameOver(){[330,277,220,175].forEach((f,i)=>setTimeout(()=>blip(f,.3,'triangle',.3),i*120))}
   function toggleMute(){muted=!muted;if(masterGain)masterGain.gain.value=muted?0:.4;return muted}
-  return{shoot,merge,bounce,milestone,boom,gameOver,toggleMute,init}
+  return{shoot,merge,milestone,boom,gameOver,toggleMute,init}
 })();
 
 // ═══ GAME STATE ═══
@@ -346,13 +352,13 @@ let conveyorSpeed=.3,rowTimer=0,ROW_INTERVAL=9;
 let seenMS=new Set(),shakeAmt=0;
 function rndStart(){return[2,2,2,4,4,8][Math.floor(Math.random()*6)]}
 
-// ═══ SHOOTER MESH (visible at bottom, NOT physics) ═══
+// ═══ SHOOTER MESH ═══
 let shooterMesh=null,aimLine=null;
 function makeShooter(){
   shooterMesh=new THREE.Mesh(cubeGeo,getMats(curVal));
   shooterMesh.scale.setScalar(SHOOTER_SCALE);shooterMesh.castShadow=true;
   shooterMesh.position.set(0,CUBE_SZ*SHOOTER_SCALE/2+.1,SHOOTER_Z);scene.add(shooterMesh);
-  // Glow ring under shooter
+  // Glow ring
   const glowGeo=new THREE.RingGeometry(.4,1.2,32);
   const glowMat=new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.35,side:THREE.DoubleSide});
   const glow=new THREE.Mesh(glowGeo,glowMat);glow.rotation.x=-Math.PI/2;
@@ -365,7 +371,7 @@ function makeShooter(){
 }
 function updateShooter(){
   if(!shooterMesh)return;
-  if(!gameOn||shotCube){shooterMesh.visible=false;aimLine.visible=false;shooterMesh._glow.visible=false;return}
+  if(!gameOn){shooterMesh.visible=false;aimLine.visible=false;shooterMesh._glow.visible=false;return}
   shooterMesh.visible=true;aimLine.visible=true;shooterMesh._glow.visible=true;
   shooterMesh.position.x=aimX;
   shooterMesh.position.y=CUBE_SZ*SHOOTER_SCALE/2+.1+Math.sin(performance.now()*.004)*.06;
@@ -403,22 +409,34 @@ function tryMerge(a,b){
   conveyorSpeed=Math.min(.6,.3+score*.000005);
   audio.merge(nv);return nc;
 }
+
+// Έλεγχος συγχώνευσης για κάθε κύβο του διαδρόμου (Αυτόματο Merge on Collision)
 function sweepChainMerges(){let iter=0;while(iter<6){iter++;let merged=false;
   outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
-    const a=cubes[i],b=cubes[j];const dx=a.body.position.x-b.body.position.x,
+    const a=cubes[i],b=cubes[j];
+    const dx=a.body.position.x-b.body.position.x,
       dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
-    if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.15)*(CUBE_SZ*1.15)){if(tryMerge(a,b)){merged=true;break outer}}}}
-  if(!merged)break}}
+    if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.15)*(CUBE_SZ*1.15)){
+      if(tryMerge(a,b)){
+        // Αν κάποιος από τους συγχωνευόμενους κύβους είναι ο shotCube, τον ακυρώνουμε
+        if(a===shotCube || b===shotCube) shotCube=null;
+        merged=true;break outer;
+      }
+    }
+  }}if(!merged)break}}
 
-// ═══ SHOOT ═══
+// ═══ SHOOT (Συνεχής βολή χωρίς αναμονή) ═══
 function shoot(){
-  if(!gameOn||paused||shotCube)return;audio.init();audio.shoot();
+  if(!gameOn||paused)return; // Καταργήθηκε το shotCube από εδώ
+  audio.init();audio.shoot();
   const target=findAimTarget(aimX);
   const sx=aimX,sz=SHOOTER_Z;
   const dirX=target.x-sx,dirZ=target.z-sz;const len=Math.sqrt(dirX*dirX+dirZ*dirZ);
   const speed=22;const vx=(dirX/len)*speed*.15,vz=(dirZ/len)*speed;
+  // Δημιουργία του κύβου βολής (η μεταβλητή shotCube κρατάει τον τελευταίο που ρίχτηκε)
   shotCube=spawnCube(sx,CUBE_SZ/2+.4,sz,curVal,{isShot:true});
   shotCube.body.velocity.set(vx,3,vz);
+  curVal=nxtVal;nxtVal=rndStart();drawNextHUD();
 }
 function findAimTarget(x){let best=null;
   for(const c2 of cubes){if(c2.isShot)continue;
@@ -434,7 +452,6 @@ function update(){
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.velocity.z<conveyorSpeed)c2.body.velocity.z+=conveyorSpeed*dt*4;if(c2.flash>0)c2.flash--}
     // Row spawn
     rowTimer+=dt;if(rowTimer>=ROW_INTERVAL){rowTimer=0;spawnRow(-TRACK_L/2+1.5)}
-    // Auto-spawn when low
     if(cubes.filter(c3=>!c3.isShot).length<=4)spawnRow(-TRACK_L/2+1.5);
     // Physics step
     world.step(1/60,dt,3);
@@ -442,24 +459,22 @@ function update(){
     for(const c2 of cubes){c2.mesh.position.copy(c2.body.position);c2.mesh.quaternion.copy(c2.body.quaternion);
       const ei=c2.flash>0?.15+(c2.flash/12)*1.5:.15;
       c2.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei})}
-    // Merge detection
-    if(shotCube){for(const c2 of cubes){if(c2===shotCube)continue;
-      const dx=shotCube.body.position.x-c2.body.position.x,dy=shotCube.body.position.y-c2.body.position.y,
-        dz=shotCube.body.position.z-c2.body.position.z;
-      if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.1)*(CUBE_SZ*1.1)){
-        if(shotCube.value===c2.value){const old=shotCube;shotCube=null;tryMerge(old,c2);sweepChainMerges();
-          checkAutoSpawn();curVal=nxtVal;nxtVal=rndStart();drawNextHUD();break}
-        else{if(performance.now()-shotCube.born>60)audio.bounce();break}}}}
-    // Shot cleanup
-    if(shotCube&&(shotCube.body.position.y<-3||shotCube.body.position.z>DANGER_Z+5)){
-      removeCube(shotCube);shotCube=null;comboBar=Math.max(0,comboBar-22);
-      mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1;curVal=nxtVal;nxtVal=rndStart();drawNextHUD()}
+    
+    // Αυτόματη συγχώνευση κατά την επαφή (Merge on Collision)
+    sweepChainMerges(); 
+
+    // Shot cube cleanup
+    if(shotCube && (!cubes.includes(shotCube) || shotCube.body.position.y<-3 || shotCube.body.position.z>DANGER_Z+5)){
+      if(cubes.includes(shotCube)) removeCube(shotCube);
+      shotCube=null;comboBar=Math.max(0,comboBar-22);
+      mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1;
+    }
     // Combo decay
     if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*14);
       mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1}
     // Camera shake
-    if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=7+(Math.random()-.5)*shakeAmt;
-      shakeAmt*=.85;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,7,12)}}
+    if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=9+(Math.random()-.5)*shakeAmt;
+      shakeAmt*=.85;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,9,6)}}
     // Game over
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.position.z>DANGER_Z+.2){triggerGameOver();return}}
   }
@@ -496,17 +511,25 @@ function triggerGameOver(){gameOn=false;if(shotCube){removeCube(shotCube);shotCu
   const ov=document.getElementById('overlay');
   ov.innerHTML=`<h1>GAME OVER</h1><div style="color:#888;font-size:13px">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div><button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
-  ov.classList.remove('hidden');document.getElementById('startBtn').addEventListener('click',startGame)}
-function startGame(){while(cubes.length)removeCube(cubes[0]);
+  ov.classList.remove('hidden');
+  document.getElementById('startBtn').addEventListener('click',startGame);
+  // Απόκρυψη του HUD όταν βγαίνει το Game Over
+  document.getElementById('hud').classList.remove('active');
+}
+function startGame(){
+  while(cubes.length)removeCube(cubes[0]);
   for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
   if(!shooterMesh)makeShooter();
   document.getElementById('overlay').classList.add('hidden');
+  // Εμφάνιση του HUD μόνο αφού πατηθεί το Play
+  document.getElementById('hud').classList.add('active');
   score=0;mult=1;comboBar=0;comboTimer=0;hammerChg=0;paused=false;shotCube=null;
   conveyorSpeed=.3;rowTimer=0;seenMS=new Set();shakeAmt=0;
-  camera.position.set(0,7,12);camera.lookAt(0,1,-1);
-  curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();gameOn=true;audio.init()}
+  camera.position.set(0,9,6);camera.lookAt(0,1.5,0);
+  curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();gameOn=true;audio.init()
+}
 
-// ═══ INPUT — drag to aim, release to launch ═══
+// ═══ INPUT ═══
 const raycaster=new THREE.Raycaster();const mouse=new THREE.Vector2();
 const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 let dragging=false;
