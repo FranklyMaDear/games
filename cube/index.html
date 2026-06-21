@@ -215,32 +215,96 @@ function addNebula(x,y,z,color,size,op){const m=new THREE.MeshBasicMaterial({col
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),m);mesh.position.set(x,y,z);mesh.lookAt(camera.position);scene.add(mesh)}
 addNebula(-26,8,-38,0x5522aa,50,0.16);addNebula(30,14,-44,0xaa2266,56,0.13);addNebula(0,24,-54,0x3344bb,70,0.11);
 
-// ═══ TRACK (trapezoid frame like the photo) ═══
+// ═══ TRACK DESIGN (ΒΕΛΤΙΩΜΕΝΟ ΠΛΑΙΣΙΟ) ═══
 function buildTrack(){
   const g=new THREE.Group();
-  const fm=new THREE.MeshStandardMaterial({color:0x2e1c4f,roughness:0.55,metalness:0.15,emissive:0x180e30,emissiveIntensity:0.4});
-  const fl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,TRACK_L),fm);fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;g.add(fl);
-  const gm=new THREE.LineBasicMaterial({color:0x8855dd,transparent:true,opacity:0.22});
-  for(let i=0;i<=COLS;i++){const x=-TRACK_W/2+i*COL_W;
-    const bg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,.02,-TRACK_L/2),new THREE.Vector3(x,.02,TRACK_L/2)]);g.add(new THREE.Line(bg,gm))}
-  // glossy purple frame
-  const wm=new THREE.MeshStandardMaterial({color:0x7a55dd,roughness:0.3,metalness:0.65,emissive:0x6644cc,emissiveIntensity:0.9});
-  const wallH=1.5,wallT=0.55;
-  const lw=new THREE.Mesh(new THREE.BoxGeometry(wallT,wallH,TRACK_L+wallT),wm);lw.position.set(-TRACK_W/2-wallT/2,wallH/2,0);lw.castShadow=true;g.add(lw);
-  const rw=new THREE.Mesh(new THREE.BoxGeometry(wallT,wallH,TRACK_L+wallT),wm);rw.position.set(TRACK_W/2+wallT/2,wallH/2,0);rw.castShadow=true;g.add(rw);
-  const bw=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+wallT*2,wallH,wallT),wm);bw.position.set(0,wallH/2,-TRACK_L/2-wallT/2);bw.castShadow=true;g.add(bw);
-  const frontW=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+wallT*2,wallH,wallT),wm);frontW.position.set(0,wallH/2,TRACK_L/2+wallT/2);frontW.castShadow=true;g.add(frontW);
-  [[-TRACK_W/2-wallT/2,-TRACK_L/2-wallT/2],[TRACK_W/2+wallT/2,-TRACK_L/2-wallT/2],
-   [-TRACK_W/2-wallT/2,TRACK_L/2+wallT/2],[TRACK_W/2+wallT/2,TRACK_L/2+wallT/2]].forEach(([cx,cz])=>{
-    const cyl=new THREE.Mesh(new THREE.CylinderGeometry(wallT/2,wallT/2,wallH,16),wm);cyl.position.set(cx,wallH/2,cz);cyl.castShadow=true;g.add(cyl)});
-  // top red line
-  const tl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.32),new THREE.MeshBasicMaterial({color:0xff2828,transparent:true,opacity:0.95}));
-  tl.rotation.x=-Math.PI/2;tl.position.set(0,.05,-TRACK_L/2+1.6);g.add(tl);
-  // bottom danger line
-  const dl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.38),new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.95}));
-  dl.rotation.x=-Math.PI/2;dl.position.set(0,.05,DANGER_Z);g.add(dl);
-  const dg=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.0),new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.18}));
-  dg.rotation.x=-Math.PI/2;dg.position.set(0,.06,DANGER_Z);g.add(dg);
+  const W = TRACK_W;
+  const L = TRACK_L;
+  const wallT = 0.5;
+  const wallH = 1.8;
+
+  // Floor (deep purple board)
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x221c55, roughness: 0.5, metalness: 0.2 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, L), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.01;
+  floor.receiveShadow = true;
+  g.add(floor);
+
+  // Grid lines (subtle lines)
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x6655aa, transparent: true, opacity: 0.35 });
+  for(let i=0; i<=COLS; i++){
+    const x = -W/2 + i*(W/COLS);
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, 0.02, -L/2),
+      new THREE.Vector3(x, 0.02, L/2)
+    ]);
+    g.add(new THREE.Line(geo, lineMat));
+  }
+
+  // Glossy purple frame material (LED look)
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x7d4bdd,
+    roughness: 0.25,
+    metalness: 0.65,
+    emissive: 0x4a25a8,
+    emissiveIntensity: 1.2
+  });
+
+  // Walls (Left and Right)
+  const addWall = (x, z, w, h, d) => {
+     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
+     wall.position.set(x, h/2, z);
+     wall.castShadow = true;
+     g.add(wall);
+  }
+  addWall(-W/2 - wallT/2, 0, wallT, wallH, L + wallT);
+  addWall( W/2 + wallT/2, 0, wallT, wallH, L + wallT);
+  addWall(0, -L/2 - wallT/2, W + wallT*2, wallH, wallT);
+  addWall(0,  L/2 + wallT/2, W + wallT*2, wallH, wallT);
+
+  // Round corners (Cylinders to match photo)
+  const cornerMat = new THREE.MeshStandardMaterial({
+    color: 0x8d5bee,
+    roughness: 0.2,
+    metalness: 0.8,
+    emissive: 0x6a41d4,
+    emissiveIntensity: 1.5
+  });
+  const cornerRadius = 0.55;
+  const positions = [
+    [-W/2 - wallT/2, -L/2 - wallT/2],
+    [ W/2 + wallT/2, -L/2 - wallT/2],
+    [-W/2 - wallT/2,  L/2 + wallT/2],
+    [ W/2 + wallT/2,  L/2 + wallT/2]
+  ];
+  positions.forEach(([cx, cz]) => {
+     const cyl = new THREE.Mesh(new THREE.CylinderGeometry(cornerRadius, cornerRadius, wallH, 16), cornerMat);
+     cyl.position.set(cx, wallH/2, cz);
+     cyl.castShadow = true;
+     g.add(cyl);
+  });
+
+  // Top Start line (Red)
+  const startLineMat = new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.8 });
+  const startLine = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.5), startLineMat);
+  startLine.rotation.x = -Math.PI / 2;
+  startLine.position.set(0, 0.05, -L/2 + 1.5);
+  g.add(startLine);
+
+  // Danger Line (Red)
+  const dangerLineMat = new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, opacity: 0.9 });
+  const dangerLine = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.6), dangerLineMat);
+  dangerLine.rotation.x = -Math.PI / 2;
+  dangerLine.position.set(0, 0.05, DANGER_Z);
+  g.add(dangerLine);
+  // Danger glow
+  const dangerGlowMat = new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.25 });
+  const dangerGlow = new THREE.Mesh(new THREE.PlaneGeometry(W, 1.8), dangerGlowMat);
+  dangerGlow.rotation.x = -Math.PI / 2;
+  dangerGlow.position.set(0, 0.06, DANGER_Z);
+  g.add(dangerGlow);
+
   return g;
 }
 scene.add(buildTrack());
@@ -350,7 +414,6 @@ const audio=(()=>{
   function noise(dur,vol,freq,type='lowpass'){const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);
     for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
     n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=type;fi.frequency.value=freq;const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n}
-  // LAUNCH sound: bright ascending "pew/zap"
   function shoot(){if(muted)return;init();
     const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';
     o.frequency.setValueAtTime(420,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(880,ctx.currentTime+.1);
@@ -359,7 +422,6 @@ const audio=(()=>{
     o2.frequency.setValueAtTime(660,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(1320,ctx.currentTime+.1);
     o2.connect(g2).connect(mg);env(g2,.08,.003,.03,.2,.13);o2.start();o2.stop(ctx.currentTime+.15);
   }
-  // BOMB / explosion — used for collisions now
   function boom(){if(muted)return;init();
     noise(.5,.55,320,'lowpass');
     const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';
@@ -382,7 +444,6 @@ let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed
 
 // shooter value scales with game progress (maxReached)
 function shooterPool(){
-  // base small values, expand as the board climbs
   let pool=[2,2,2,4,4,8];
   if(maxReached>=32)pool=[2,4,4,8,8,16];
   if(maxReached>=64)pool=[4,8,8,16,16,32];
@@ -415,7 +476,7 @@ function updateShooter(){
   aimLine.computeLineDistances();
 }
 
-// ═══ MERGE (instant on contact, any side) ═══
+// ═══ MERGE ═══
 function tryMerge(a,b){
   if(a.value!==b.value)return false;
   const nv=nextVal(a.value);
@@ -425,7 +486,6 @@ function tryMerge(a,b){
   const pz=(a.body.position.z+b.body.position.z)/2;
   removeCube(a);removeCube(b);
   const nc=spawnCube(px,py,pz,nv);nc.flash=12;
-  // BOUNCE up + spin, fly to a side a bit
   nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*8,(Math.random()-.5)*8,(Math.random()-.5)*8);
   for(const c2 of cubes){if(c2.id===nc.id)continue;
@@ -444,7 +504,7 @@ function tryMerge(a,b){
   floatText(px,py+.6,pz,`+${mult>1?mult+'×':''}${pts}`,lt);
   if(SEQ.includes(nv)&&!seenMS.has(nv)){seenMS.add(nv);floatText(0,3,0,`✦ ${nv} REACHED! ✦`,'milestone');audio.milestone()}
   conveyor=Math.min(0.55,0.32+score*0.000004);
-  audio.boom();  // collision = bomb sound
+  audio.boom();
   return nc;
 }
 function sweepMerges(){
@@ -453,7 +513,6 @@ function sweepMerges(){
     outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
       const a=cubes[i],b=cubes[j];if(a.value!==b.value)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
-      // generous threshold = immediate merge from any side
       if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.25)*(CUBE_SZ*1.25)){
         if(tryMerge(a,b)){if(a===shotCube||b===shotCube)shotCube=null;merged=true;break outer;}
       }
