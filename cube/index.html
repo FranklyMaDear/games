@@ -147,7 +147,6 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x0a0815);
 scene.fog=new THREE.Fog(0x0a0815,16,30);
 
-// Updated camera angle for higher top-down perspective (y:15, z:12)
 const camera=new THREE.PerspectiveCamera(52,1,0.1,100);
 camera.position.set(0,15,12);
 camera.lookAt(0,1,-1);
@@ -170,12 +169,10 @@ composer.addPass(new UnrealBloomPass(new THREE.Vector2(1,1),0.6,0.7,0.85));
 // ═══ TRACK ═══
 function buildTrack(){
   const g=new THREE.Group();
-  // Floor
   const fm=new THREE.MeshStandardMaterial({color:0x2a1a55,roughness:0.4,metalness:0.3,emissive:0x1a0a44,emissiveIntensity:0.3});
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,TRACK_L),fm);
   fl.rotation.x=-Math.PI/2;fl.receiveShadow=true;g.add(fl);
 
-  // Grid
   const gm=new THREE.LineBasicMaterial({color:0x6644aa,transparent:true,opacity:0.3});
   for(let i=0;i<=COLS;i++){
     const x=-TRACK_W/2+i*COL_W;
@@ -183,7 +180,6 @@ function buildTrack(){
     g.add(new THREE.Line(bg2,gm));
   }
 
-  // Walls
   const wm=new THREE.MeshStandardMaterial({color:0x6644aa,roughness:0.35,metalness:0.5,emissive:0x3322aa,emissiveIntensity:0.4});
   const wg=new THREE.BoxGeometry(0.35,1.8,TRACK_L);
   const lw=new THREE.Mesh(wg,wm);lw.position.set(-TRACK_W/2-.18,.9,0);lw.castShadow=true;g.add(lw);
@@ -191,7 +187,6 @@ function buildTrack(){
   const bw=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+.7,1.8,.35),wm);
   bw.position.set(0,.9,-TRACK_L/2-.18);bw.castShadow=true;g.add(bw);
 
-  // Danger line
   const dm=new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.9});
   const dl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.18),dm);
   dl.rotation.x=-Math.PI/2;dl.position.set(0,.04,DANGER_Z);g.add(dl);
@@ -199,7 +194,6 @@ function buildTrack(){
     new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.2}));
   dg.rotation.x=-Math.PI/2;dg.position.set(0,.05,DANGER_Z);g.add(dg);
 
-  // Ambient particles
   const ap=[];for(let i=0;i<80;i++)ap.push((Math.random()-.5)*20,Math.random()*7+1,-Math.random()*14-2);
   const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.Float32BufferAttribute(ap,3));
   g.add(new THREE.Points(ag,new THREE.PointsMaterial({color:0xaa66ff,size:0.08,transparent:true,opacity:0.6})));
@@ -312,17 +306,19 @@ function floatText(x,y,z,label,type='points'){
 // ═══ AUDIO ═══
 const audio=(()=>{
   let ctx=null,masterGain=null,muted=false;
-  function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();
-    masterGain=ctx.createGain();masterGain.gain.value=.4;masterGain.connect(ctx.destination)}
+  function init(){if(ctx)return;try {
+    ctx=new(window.AudioContext||window.webkitAudioContext)();
+    masterGain=ctx.createGain();masterGain.gain.value=.4;masterGain.connect(ctx.destination);
+  } catch(e){ console.warn("WebAudio Init Blocked:", e); }}
   function env(g,pk,a,d,s,dur){const t=ctx.currentTime;g.gain.setValueAtTime(.0001,t);
     g.gain.exponentialRampToValueAtTime(pk,t+a);g.gain.exponentialRampToValueAtTime(Math.max(.0001,pk*s),t+a+d);
     g.gain.exponentialRampToValueAtTime(.0001,t+dur)}
-  function blip(f,dur=.12,type='sine',vol=.4){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();
+  function blip(f,dur=.12,type='sine',vol=.4){if(muted||!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain();
     o.type=type;o.frequency.value=f;o.connect(g).connect(masterGain);env(g,vol,.005,.04,.3,dur);o.start();o.stop(ctx.currentTime+dur+.05)}
-  function shoot(){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';
+  function shoot(){if(muted||!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';
     o.frequency.setValueAtTime(220,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(380,ctx.currentTime+.15);
     o.connect(g).connect(masterGain);env(g,.18,.005,.04,.4,.18);o.start();o.stop(ctx.currentTime+.22)}
-  function merge(v){if(muted)return;init();const bf=220*Math.pow(1.06,Math.log2(v));
+  function merge(v){if(muted||!ctx)return;const bf=220*Math.pow(1.06,Math.log2(v));
     [1,1.5,2].forEach((mul,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=i===0?'square':'sine';
       o.frequency.value=bf*mul;o.connect(g).connect(masterGain);env(g,.16/(i+1),.005,.05,.4,.25);o.start();o.stop(ctx.currentTime+.3)});
     const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*.05,ctx.sampleRate),data=buf.getChannelData(0);
@@ -330,7 +326,7 @@ const audio=(()=>{
     n.buffer=buf;const ng=ctx.createGain();ng.gain.value=.3;n.connect(ng).connect(masterGain);n.start()}
   function bounce(){blip(120,.08,'sine',.12)}
   function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.18,'square',.25),i*80))}
-  function boom(){if(muted)return;init();const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*.5,ctx.sampleRate),
+  function boom(){if(muted||!ctx)return;const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*.5,ctx.sampleRate),
     data=buf.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2)*.8;
     n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type='lowpass';fi.frequency.value=400;
     const g=ctx.createGain();g.gain.value=.5;n.connect(fi).connect(g).connect(masterGain);n.start()}
@@ -342,7 +338,6 @@ const audio=(()=>{
 // ═══ GAME STATE ═══
 let gameOn=false,paused=false,score=0,mult=1,comboBar=0,comboTimer=0;
 let hammerChg=0,curVal=2,nxtVal=2;
-let aimX=0; // Tracks live aim coordinates
 let conveyorSpeed=.3,rowTimer=0,ROW_INTERVAL=9;
 let seenMS=new Set(),shakeAmt=0;
 let aimX = 0;
@@ -420,7 +415,6 @@ function shoot(){
   const newShot=spawnCube(sx,CUBE_SZ/2+.4,sz,curVal,{isShot:true});
   newShot.body.velocity.set(vx,3,vz);
 
-  // Instantly restock a fresh shooter cube to make rapid attempts fluid
   curVal=nxtVal;nxtVal=rndStart();drawNextHUD();
 }
 function findAimTarget(x){let best=null;
@@ -433,20 +427,14 @@ let lastT=performance.now();
 function update(){
   const now=performance.now(),dt=Math.min(.05,(now-lastT)/1000);lastT=now;
   if(gameOn&&!paused){
-    // Conveyor
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.velocity.z<conveyorSpeed)c2.body.velocity.z+=conveyorSpeed*dt*4;if(c2.flash>0)c2.flash--}
-    // Row spawn
     rowTimer+=dt;if(rowTimer>=ROW_INTERVAL){rowTimer=0;spawnRow(-TRACK_L/2+1.5)}
-    // Auto-spawn when low
     if(cubes.filter(c3=>!c3.isShot).length<=4)spawnRow(-TRACK_L/2+1.5);
-    // Physics step
     world.step(1/60,dt,3);
-    // Sync mesh↔body + flash
     for(const c2 of cubes){c2.mesh.position.copy(c2.body.position);c2.mesh.quaternion.copy(c2.body.quaternion);
       const ei=c2.flash>0?.15+(c2.flash/12)*1.5:.15;
       c2.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei})}
     
-    // Merge detection engine for continuous multi-shots
     const activeShots = cubes.filter(c => c.isShot);
     for(const shot of activeShots){
       for(const c2 of cubes){
@@ -466,20 +454,16 @@ function update(){
       }
     }
 
-    // Combo decay
     if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*14);
       mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1}
-    // Expanded camera shake constants to accommodate top-down perspective
     if(shakeAmt>0){
       camera.position.x=(Math.random()-.5)*shakeAmt*2;
       camera.position.y=15+(Math.random()-.5)*shakeAmt;
       camera.position.z=12+(Math.random()-.5)*shakeAmt;
       shakeAmt*=.85;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,15,12)}
     }
-    // Game over
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.position.z>DANGER_Z+.2){triggerGameOver();return}}
   }
-  // Particles
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;
     p.mesh.position.z+=p.vz*dt;p.vy-=9*dt;p.life-=p.decay;
     if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();particles.splice(i,1)}
@@ -513,15 +497,23 @@ function triggerGameOver(){gameOn=false;audio.gameOver();
   ov.innerHTML=`<h1>GAME OVER</h1><div style="color:#888;font-size:13px">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div><button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
   ov.classList.remove('hidden');document.getElementById('startBtn').addEventListener('click',startGame)}
-function startGame(){while(cubes.length)removeCube(cubes[0]);
+
+function startGame(){
+  while(cubes.length) removeCube(cubes[0]);
   for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
-  if(!shooterMesh)makeShooter();
+  if(!shooterMesh) makeShooter();
+  
   document.getElementById('overlay').classList.add('hidden');
   score=0;mult=1;comboBar=0;comboTimer=0;hammerChg=0;paused=false;
   conveyorSpeed=.3;rowTimer=0;seenMS=new Set();shakeAmt=0;
-  // Initialize camera for high top-down setup (y:15, z:12)
+  
   camera.position.set(0,15,12);camera.lookAt(0,1,-1);
-  curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();gameOn=true;audio.init()}
+  curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();
+  
+  gameOn=true;
+  // Initialize audio securely after user interaction
+  audio.init();
+}
 
 // ═══ INPUT — rapid fire drag and shoot ═══
 const raycaster=new THREE.Raycaster();const mouse=new THREE.Vector2();
@@ -539,53 +531,46 @@ canvas.addEventListener('touchstart',e=>{dragging=true;updateAim(e.touches[0].cl
 canvas.addEventListener('touchmove',e=>{e.preventDefault();if(gameOn&&!paused)updateAim(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
 canvas.addEventListener('touchend',e=>{e.preventDefault();shoot();dragging=false},{passive:false});
 
-// Monetag Interstitial Implementation directly wired to boosters
+// Ads wiring
+function triggerAdReward(callback) {
+  if (typeof show_11108267 === 'function') {
+    show_11108267().then(callback).catch(err => {
+      console.error("Ad playback fallback executed", err);
+      callback(); // Proceed seamlessly on local/dev issues
+    });
+  } else {
+    console.warn("Monetag SDK not detected, executing fallback.");
+    callback();
+  }
+}
+
 document.getElementById('hammer-icon').addEventListener('click',()=>{
   if(!gameOn || hammerChg<100) return;
-  
-  // Trigger monetag ad
-  if (typeof show_11108267 === 'function') {
-    show_11108267().then(() => {
-      // Rewarded interstitial callback
-      hammerChg=0;shakeAmt=.5;audio.boom();
-      const sorted=cubes.filter(c3=>!c3.isShot).sort((a,b)=>b.body.position.z-a.body.position.z);
-      sorted.slice(0,7).forEach(c3=>{spawnParticles(c3.body.position.x,c3.body.position.y,c3.body.position.z,0xff8800,12,5);
-        removeCube(c3)});checkAutoSpawn();
-    }).catch(err => {
-      console.error("Ad playback failed", err);
-      // Fallback: execute immediately if ad network struggles loading on test/dev environments
-      hammerChg=0;shakeAmt=.5;audio.boom();
-      const sorted=cubes.filter(c3=>!c3.isShot).sort((a,b)=>b.body.position.z-a.body.position.z);
-      sorted.slice(0,7).forEach(c3=>{spawnParticles(c3.body.position.x,c3.body.position.y,c3.body.position.z,0xff8800,12,5);
-        removeCube(c3)});checkAutoSpawn();
-    });
-  }
+  triggerAdReward(() => {
+    hammerChg=0;shakeAmt=.5;audio.boom();
+    const sorted=cubes.filter(c3=>!c3.isShot).sort((a,b)=>b.body.position.z-a.body.position.z);
+    sorted.slice(0,7).forEach(c3=>{spawnParticles(c3.body.position.x,c3.body.position.y,c3.body.position.z,0xff8800,12,5);
+      removeCube(c3)});checkAutoSpawn();
+  });
 });
 
-// Boosters (Ads integration applied)
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused)return;
-  if (typeof show_11108267 === 'function') {
-    show_11108267().then(() => {
-      const counts={};cubes.forEach(c3=>{if(!c3.isShot)counts[c3.value]=(counts[c3.value]||0)+1});
-      const best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];if(best)curVal=parseInt(best[0]);drawNextHUD();
-    });
-  }
+  triggerAdReward(() => {
+    const counts={};cubes.forEach(c3=>{if(!c3.isShot)counts[c3.value]=(counts[c3.value]||0)+1});
+    const best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];if(best)curVal=parseInt(best[0]);drawNextHUD();
+  });
 });
-
-// Swap booster completely excised as instructed 
 
 document.getElementById('boost-bomb').addEventListener('click',()=>{
   if(!gameOn||paused)return;
-  if (typeof show_11108267 === 'function') {
-    show_11108267().then(() => {
-      audio.boom();shakeAmt=.3;
-      for(let i=cubes.length-1;i>=0;i--){const c3=cubes[i];if(c3.isShot)continue;
-        if(Math.abs(c3.body.position.x-aimX)<COL_W*1.3&&c3.body.position.z>0){
-          spawnParticles(c3.body.position.z,c3.body.position.y,c3.body.position.z,0xff4400,10,4);score+=c3.value;removeCube(c3)}}
-      checkAutoSpawn();
-    });
-  }
+  triggerAdReward(() => {
+    audio.boom();shakeAmt=.3;
+    for(let i=cubes.length-1;i>=0;i--){const c3=cubes[i];if(c3.isShot)continue;
+      if(Math.abs(c3.body.position.x-aimX)<COL_W*1.3&&c3.body.position.z>0){
+        spawnParticles(c3.body.position.z,c3.body.position.y,c3.body.position.z,0xff4400,10,4);score+=c3.value;removeCube(c3)}}
+    checkAutoSpawn();
+  });
 });
 
 document.getElementById('btn-pause').addEventListener('click',()=>{if(!gameOn)return;paused=!paused;
