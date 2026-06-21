@@ -402,14 +402,15 @@ const audio=(()=>{
 let gameOn=false,paused=false,gameLogicActive=false;
 let score=0,mult=1,comboBar=0,comboTimer=0;
 let hammerChg=0,curVal=2,nxtVal=2,aimX=0,maxReached=2;
-let conveyor=0.32,rowTimer=0,ROW_INTERVAL=3.0;
+let conveyor=0.32,rowTimer=0,ROW_INTERVAL=3.5;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 
-// Αρχική μπάρα και ράμπα
-let barrierBody = null, barrierMesh = null;
-let rampBody = null, rampMesh = null, rampActive = false;
-const rampSpeed = 6.0;
-const rampTargetZ = -TRACK_L/2 + 4.8; // Πόσο θα σπρώξει η ράμπα
+// ΜΕΤΑΒΛΗΤΕΣ ΓΙΑ ΤΗ ΝΕΑ ΚΟΚΚΙΝΗ ΡΑΜΠΑ (Ταξινομητής)
+let rampBody = null, rampMesh = null;
+let rampState = 'idle'; // 'idle', 'pushing', 'retracting'
+let rampIdleZ = -TRACK_L/2 + 1.8;
+let rampTargetZ = rampIdleZ + CUBE_SZ * 1.0; // Μήκος κίνησης = ακριβώς 1 κύβος
+const rampSpeed = 6.0; 
 
 function shooterPool(){
   let pool=[2,2,2,4,4,8];
@@ -493,11 +494,8 @@ function shoot(){
   if(!gameOn||paused||shotCube)return;
   if(!gameLogicActive) {
       gameLogicActive = true;
-      spawnParticles(0, 0.2, BARRIER_Z, 0xff4444, 20, 10);
-      if(barrierBody) { world.removeBody(barrierBody); barrierBody = null; }
-      if(barrierMesh) { scene.remove(barrierMesh); barrierMesh = null; }
-      for(const c of cubes) { if(!c.isShot) { c.body.velocity.z = -2 + (Math.random()*0.5); } }
       rowTimer = 0;
+      triggerRampSpawn(); // Αρχική ροή με την έναρξη του παιχνιδιού
   }
   audio.init();audio.shoot();
   const isRainbow=rainbowArmed;rainbowArmed=false;
@@ -517,35 +515,22 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΤΗ ΡΑΜΠΑ ═══
+// ═══ ΣΥΝΑΡΤΗΣΗ ΕΝΕΡΓΟΠΟΙΗΣΗΣ ΤΗΣ ΡΑΜΠΑΣ ═══
 function triggerRampSpawn() {
-    if (rampActive || !gameOn) return;
-    rampActive = true;
+    if (rampState !== 'idle' || !gameOn) return;
+    
+    // 1. Δημιουργία νέων κύβων ελάχιστα πιο μπροστά απ' όπου θα περάσει η ράμπα
+    spawnRow(rampIdleZ - 0.1);
 
-    // 1. Δημιουργία νέων κύβων λίγο πιο πίσω για να τους σπρώξει
-    spawnRow(-TRACK_L/2 + 1.8);
-
-    // 2. Δημιουργία σώματος της ράμπας
-    const rampWidth = TRACK_W + 0.5;
-    rampBody = new CANNON.Body({
-        mass: 0,
-        material: new CANNON.Material('ramp'),
-        shape: new CANNON.Box(new CANNON.Vec3(rampWidth/2, 0.5, 0.8))
-    });
-    rampBody.position.set(0, 0.5, -TRACK_L/2 + 1.2);
-    world.addBody(rampBody);
-
-    // 3. Δημιουργία 3D μοντέλου ράμπας (με χρώμα και λάμψη)
-    const rampMat = new THREE.MeshStandardMaterial({
-        color: 0xff4422,
-        emissive: 0xff2200,
-        emissiveIntensity: 1.8,
-        transparent: true,
-        opacity: 0.9
-    });
-    rampMesh = new THREE.Mesh(new THREE.BoxGeometry(rampWidth, 0.5, 0.8), rampMat);
-    rampMesh.position.copy(rampBody.position);
-    scene.add(rampMesh);
+    // 2. Μεταφορά της ράμπας στη θέση εκκίνησης
+    if (rampBody) {
+        rampBody.position.z = rampIdleZ;
+    }
+    if (rampMesh) {
+        rampMesh.position.z = rampIdleZ;
+        rampMesh.visible = true;
+    }
+    rampState = 'pushing';
 }
 
 // ═══ UPDATE ═══
@@ -556,41 +541,47 @@ function update(){
   spaceStars.rotation.y+=dt*0.01;
 
   if(gameOn&&!paused){
-      // Κίνηση της ράμπας (πρέπει να κινείται ακόμα και αν το gameLogicActive είναι false? 
-      // Στην περίπτωσή μας το rampActive θα τεθεί μόνο αφού ξεκινήσει το rowTimer στο gameLogicActive)
-      if (rampActive && rampBody) {
-          rampBody.position.z -= rampSpeed * dt;
-          rampMesh.position.z = rampBody.position.z;
-          
-          // Όταν η ράμπα φτάσει στο τέρμα της, εξαφανίζεται
-          if (rampBody.position.z <= rampTargetZ) {
-              world.removeBody(rampBody);
-              scene.remove(rampMesh);
-              rampBody = null;
-              rampMesh = null;
-              rampActive = false;
-          }
-      }
-
-      if(!gameLogicActive) {
-          world.step(1/60, dt, 4);
-          for(const c of cubes) {
-              if(c.isShot) continue;
-              if(c.body.position.z < BARRIER_Z) {
-                  c.body.position.z = BARRIER_Z;
-                  c.body.velocity.z = 0;
+      // 1. ΛΟΓΙΚΗ ΚΙΝΗΣΗΣ ΡΑΜΠΑΣ (Πάντα προτεραιότητα)
+      if (rampBody && rampState !== 'idle') {
+          if (rampState === 'pushing') {
+              // Κίνηση προς τα εμπρός (ίση με το μέγεθος του κύβου)
+              rampBody.position.z += rampSpeed * dt;
+              if (rampBody.position.z >= rampTargetZ) {
+                  rampBody.position.z = rampTargetZ;
+                  rampState = 'retracting';
+              }
+          } else if (rampState === 'retracting') {
+              // Επιστροφή πίσω
+              rampBody.position.z -= rampSpeed * dt;
+              if (rampBody.position.z <= rampIdleZ) {
+                  rampBody.position.z = rampIdleZ;
+                  rampState = 'idle';
+                  if (rampMesh) rampMesh.visible = false;
               }
           }
+          // Ενημέρωση του Mesh ώστε να ακολουθεί τη φυσική κίνηση
+          if (rampMesh) rampMesh.position.z = rampBody.position.z;
+      }
+
+      // 2. ΦΥΣΙΚΗ ΛΟΓΙΚΗ ΠΑΙΧΝΙΔΙΟΥ
+      // (Αν η ράμπα κινείται, δεν αυξάνουμε το rowTimer και ρίχνουμε λίγο την ταχύτητα των κύβων)
+      if(!gameLogicActive) {
+          world.step(1/60, dt, 4);
       } else {
-          for(const c of cubes){if(c.isShot)continue;if(c.body.velocity.z<conveyor)c.body.velocity.z+=conveyor*dt*4;if(c.flash>0)c.flash--}
-          rowTimer+=dt;
+          // Μειώνουμε τη ταχύτητα του conveyor όταν η ράμπα κινείται (για καλύτερη ευθυγράμμιση)
+          let currentConveyor = conveyor;
+          if (rampState !== 'idle') currentConveyor *= 0.2; 
           
-          // Αλλαγή: καλούμε την triggerRampSpawn αντί για spawnRow
-          if(rowTimer>=ROW_INTERVAL){
-              rowTimer=0;
-              triggerRampSpawn();
+          for(const c of cubes){if(c.isShot)continue;if(c.body.velocity.z<currentConveyor)c.body.velocity.z+=currentConveyor*dt*4;if(c.flash>0)c.flash--}
+          
+          if(rampState === 'idle') {
+              rowTimer+=dt;
+              if(rowTimer>=ROW_INTERVAL){
+                  rowTimer=0;
+                  triggerRampSpawn();
+              }
+              if(cubes.filter(c=>!c.isShot).length<=4) triggerRampSpawn();
           }
-          if(cubes.filter(c=>!c.isShot).length<=4) triggerRampSpawn();
 
           world.step(1/60,dt,4);
 
@@ -666,15 +657,14 @@ function triggerGameOver(){
   document.getElementById('hud').classList.remove('active');
 }
 function startGame(){
-  // Καθαρισμός παλιών μεταβλητών
   while(cubes.length)removeCube(cubes[0]);
   if(shotCube){shotCube=null}
   for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
-  if(barrierBody){ world.removeBody(barrierBody); barrierBody = null; }
-  if(barrierMesh){ scene.remove(barrierMesh); barrierMesh = null; }
+  
+  // Καθαρισμός ράμπας
   if(rampBody){ world.removeBody(rampBody); rampBody = null; }
   if(rampMesh){ scene.remove(rampMesh); rampMesh = null; }
-  rampActive = false;
+  rampState = 'idle';
 
   if(!shooterMesh)makeShooter();
   document.getElementById('overlay').classList.add('hidden');
@@ -685,24 +675,28 @@ function startGame(){
   camera.position.set(0,15.5,13);camera.lookAt(0,0.5,-0.5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;gameLogicActive=false;
 
-  // Αρχική τοποθέτηση της κόκκινης μπάρας
-  spawnRow(BARRIER_Z);
-  const barrierPhysMat = new CANNON.Material('barrier');
-  const barrierWidth = TRACK_W + 1;
-  barrierBody = new CANNON.Body({
-      mass: 0,
-      material: barrierPhysMat,
-      shape: new CANNON.Box(new CANNON.Vec3(barrierWidth/2, 0.4, 0.4))
-  });
-  barrierBody.position.set(0, 0.3, BARRIER_Z);
-  world.addBody(barrierBody);
+  // Αρχική εμφάνιση των κύβων. Η ράμπα περιμένει.
+  spawnRow(rampIdleZ - 0.1);
 
-  barrierMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(barrierWidth, 0.4, 0.4),
+  // ΔΗΜΙΟΥΡΓΙΑ ΤΗΣ ΡΑΜΠΑΣ (Αόρατη αρχικά)
+  const rampWidth = TRACK_W + 0.5;
+  const rampMat = new CANNON.Material('ramp');
+  rampBody = new CANNON.Body({
+      mass: 0,
+      material: rampMat,
+      shape: new CANNON.Box(new CANNON.Vec3(rampWidth/2, 0.1, 0.4))
+  });
+  rampBody.position.set(0, 0.2, rampIdleZ);
+  world.addBody(rampBody);
+
+  // 3D Mesh της ράμπας
+  rampMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(rampWidth, 0.15, 0.4),
       new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.95 })
   );
-  barrierMesh.position.set(0, 0.3, BARRIER_Z);
-  scene.add(barrierMesh);
+  rampMesh.position.set(0, 0.2, rampIdleZ);
+  rampMesh.visible = false;
+  scene.add(rampMesh);
 
   drawNextHUD();gameOn=true;audio.init();
 }
