@@ -56,6 +56,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   100%{transform:translate(-50%,-60px) scale(1);opacity:0}}
 @keyframes msf{0%{transform:translate(-50%,8px) scale(.5);opacity:0}20%{transform:translate(-50%,-10px) scale(1.3);opacity:1}
   80%{opacity:1}100%{transform:translate(-50%,-60px);opacity:0}}
+
 #boosters{width:100%;display:flex;justify-content:center;gap:22px;padding:10px 0 14px;
   background:linear-gradient(0deg,rgba(20,20,40,.95),rgba(15,15,30,.85));
   backdrop-filter:blur(10px);border-top:1px solid rgba(140,100,255,.2);flex-shrink:0;z-index:10}
@@ -69,10 +70,32 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   font-size:7px;padding:2px 5px;border-radius:5px;font-weight:800}
 .boost-name{color:#888;font-size:9px;font-weight:700}
 
-/* Overlay: Καλύπτει τα πάντα. Το φόντο έχει σωματίδια χωρίς κύβους. */
-#overlay{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(40,20,80,.5),rgba(8,8,20,.95));
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:200;backdrop-filter:blur(8px)}
+/* OVERLAY ΠΛΗΡΟΥΣ ΟΘΟΝΗΣ - Space Background + Κουμπιά */
+#overlay{position:absolute;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:transparent;}
 #overlay.hidden{display:none}
+
+#space-bg{position:absolute;inset:0;z-index:-1;background:#0a0815;overflow:hidden;pointer-events:none;}
+/* Κινούμενα αστέρια στο overlay */
+#space-bg::before, #space-bg::after {
+  content:'';position:absolute;width:400%;height:400%;top:-50%;left:-50%;
+  background-image:
+    radial-gradient(2px 2px at 10px 30px, #eee, transparent),
+    radial-gradient(2px 2px at 50px 140px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(3px 3px at 120px 220px, #ddd, transparent),
+    radial-gradient(2px 2px at 210px 70px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 300px 30px, #fff, transparent),
+    radial-gradient(2px 2px at 400px 160px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(3px 3px at 50px 300px, #eee, transparent),
+    radial-gradient(1px 1px at 150px 400px, #ddd, transparent),
+    radial-gradient(2px 2px at 450px 250px, rgba(255,255,255,0.9), transparent),
+    radial-gradient(1px 1px at 250px 500px, rgba(255,255,255,0.5), transparent);
+  background-size: 500px 500px;
+  animation: starField 120s linear infinite; opacity: 0.8;
+  pointer-events: none;
+}
+#space-bg::after { animation-direction: reverse; animation-duration: 160s; background-position: 0 0; opacity: 0.6; }
+@keyframes starField { 0% { transform: translate(0,0); } 100% { transform: translate(0, -50%); } }
+
 #overlay h1{color:#fff;font-size:36px;font-weight:900;letter-spacing:2px;
   background:linear-gradient(90deg,#a855f7,#ec4899,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 #overlay p{color:#aaa;font-size:13px;text-align:center;line-height:1.8;max-width:280px}
@@ -100,16 +123,19 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
     <div id="hammer-icon">🔨</div>
     <div id="hammer-track"><div id="hammer-fill" style="height:0%"></div></div>
   </div>
+  
   <div id="overlay">
+    <div id="space-bg"></div>
     <h1>MERGE CUBES 3D</h1>
     <p>Drag to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
       Don't let cubes cross the <b style="color:#ff4444">red line</b>!</p>
     <button class="play-btn" id="startBtn">PLAY</button>
   </div>
 </div>
+
+<!-- Booster Bar: Αφαιρέθηκε το Swap -->
 <div id="boosters">
   <div class="boost-btn" id="boost-rainbow"><div class="boost-circle"><span>🌈</span><span class="ad-badge">AD</span></div><div class="boost-name">Wildcard</div></div>
-  <div class="boost-btn" id="boost-swap"><div class="boost-circle"><span>🔄</span><span class="ad-badge">AD</span></div><div class="boost-name">Swap</div></div>
   <div class="boost-btn" id="boost-bomb"><div class="boost-circle"><span>💣</span><span class="ad-badge">AD</span></div><div class="boost-name">TNT</div></div>
 </div>
 
@@ -151,10 +177,10 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0a0815);
-scene.fog=new THREE.Fog(0x0a0815,16,30);
+scene.background=new THREE.Color(0x05030e); // Space Dark
+scene.fog=new THREE.Fog(0x05030e,18,35);
 
-// Camera: Καθαρή top-down προοπτική διαδρόμου (Gamee style) 
+// Camera: Καθαρή top-down προοπτική διαδρόμου (τύπου Gamee)
 const camera=new THREE.PerspectiveCamera(42,1,0.1,100);
 camera.position.set(0, 9, 6);
 camera.lookAt(0, 1.5, 0);
@@ -174,7 +200,15 @@ const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(1,1),0.6,0.7,0.85));
 
-// ═══ TRACK ═══
+// ═══ SPACE BACKGROUND (3D αστέρια γύρω από την πίστα) ═══
+const starGeo=new THREE.BufferGeometry();
+const starCount=600; const starPos=new Float32Array(starCount*3);
+for(let i=0;i<starCount*3;i++)starPos[i]=(Math.random()-.5)*80;
+starGeo.setAttribute('position',new THREE.BufferAttribute(starPos,3));
+const starMat=new THREE.PointsMaterial({color:0xaa99ff,size:0.15,transparent:true,opacity:0.7,blending:THREE.AdditiveBlending});
+const stars=new THREE.Points(starGeo,starMat);stars.position.y=5;scene.add(stars);
+
+// ═══ TRACK (Διάδρομος που "πετάει" στο διάστημα) ═══
 function buildTrack(){
   const g=new THREE.Group();
   // Floor
@@ -198,18 +232,13 @@ function buildTrack(){
   const bw=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+.7,1.8,.35),wm);
   bw.position.set(0,.9,-TRACK_L/2-.18);bw.castShadow=true;g.add(bw);
 
-  // Danger line (Πιο έντονη και παχιά)
+  // Danger line (Έντονη κόκκινη γραμμή)
   const dm=new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.9});
   const dl=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.25),dm);
   dl.rotation.x=-Math.PI/2;dl.position.set(0,.05,DANGER_Z);g.add(dl);
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,.7),
     new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.25}));
   dg.rotation.x=-Math.PI/2;dg.position.set(0,.06,DANGER_Z);g.add(dg);
-
-  // Ambient particles (Φόντο, ορατά στο Overlay)
-  const ap=[];for(let i=0;i<80;i++)ap.push((Math.random()-.5)*20,Math.random()*7+1,-Math.random()*14-2);
-  const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.Float32BufferAttribute(ap,3));
-  g.add(new THREE.Points(ag,new THREE.PointsMaterial({color:0xaa66ff,size:0.08,transparent:true,opacity:0.6})));
 
   return g;
 }
@@ -350,6 +379,7 @@ let gameOn=false,paused=false,score=0,mult=1,comboBar=0,comboTimer=0;
 let hammerChg=0,curVal=2,nxtVal=2,shotCube=null,aimX=0;
 let conveyorSpeed=.3,rowTimer=0,ROW_INTERVAL=9;
 let seenMS=new Set(),shakeAmt=0;
+let isOverlayVisible=true; // Flag ελέγχου για το 3D render και τον κύβο
 function rndStart(){return[2,2,2,4,4,8][Math.floor(Math.random()*6)]}
 
 // ═══ SHOOTER MESH ═══
@@ -358,13 +388,11 @@ function makeShooter(){
   shooterMesh=new THREE.Mesh(cubeGeo,getMats(curVal));
   shooterMesh.scale.setScalar(SHOOTER_SCALE);shooterMesh.castShadow=true;
   shooterMesh.position.set(0,CUBE_SZ*SHOOTER_SCALE/2+.1,SHOOTER_Z);scene.add(shooterMesh);
-  // Glow ring
   const glowGeo=new THREE.RingGeometry(.4,1.2,32);
   const glowMat=new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.35,side:THREE.DoubleSide});
   const glow=new THREE.Mesh(glowGeo,glowMat);glow.rotation.x=-Math.PI/2;
   glow.position.set(0,.02,SHOOTER_Z);scene.add(glow);
   shooterMesh._glow=glow;
-  // Aim line
   const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.5,SHOOTER_Z),new THREE.Vector3(0,.5,-TRACK_L/2+2)]);
   aimLine=new THREE.Line(lg,new THREE.LineDashedMaterial({color:0xffffff,dashSize:.3,gapSize:.3,opacity:.4,transparent:true}));
   aimLine.computeLineDistances();scene.add(aimLine);
@@ -393,7 +421,6 @@ function tryMerge(a,b){
   const nc=spawnCube(px,py,pz,nv);nc.flash=12;
   nc.body.velocity.set(0,4,0);
   nc.body.angularVelocity.set((Math.random()-.5)*5,(Math.random()-.5)*5,(Math.random()-.5)*5);
-  // Blast
   for(const c2 of cubes){if(c2.id===nc.id)continue;
     const dx=c2.body.position.x-px,dy=c2.body.position.y-py,dz=c2.body.position.z-pz;
     const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
@@ -409,8 +436,6 @@ function tryMerge(a,b){
   conveyorSpeed=Math.min(.6,.3+score*.000005);
   audio.merge(nv);return nc;
 }
-
-// Έλεγχος συγχώνευσης για κάθε κύβο του διαδρόμου (Αυτόματο Merge on Collision)
 function sweepChainMerges(){let iter=0;while(iter<6){iter++;let merged=false;
   outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
     const a=cubes[i],b=cubes[j];
@@ -418,7 +443,6 @@ function sweepChainMerges(){let iter=0;while(iter<6){iter++;let merged=false;
       dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
     if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.15)*(CUBE_SZ*1.15)){
       if(tryMerge(a,b)){
-        // Αν κάποιος από τους συγχωνευόμενους κύβους είναι ο shotCube, τον ακυρώνουμε
         if(a===shotCube || b===shotCube) shotCube=null;
         merged=true;break outer;
       }
@@ -427,13 +451,12 @@ function sweepChainMerges(){let iter=0;while(iter<6){iter++;let merged=false;
 
 // ═══ SHOOT (Συνεχής βολή χωρίς αναμονή) ═══
 function shoot(){
-  if(!gameOn||paused)return; // Καταργήθηκε το shotCube από εδώ
+  if(!gameOn||paused)return;
   audio.init();audio.shoot();
   const target=findAimTarget(aimX);
   const sx=aimX,sz=SHOOTER_Z;
   const dirX=target.x-sx,dirZ=target.z-sz;const len=Math.sqrt(dirX*dirX+dirZ*dirZ);
   const speed=22;const vx=(dirX/len)*speed*.15,vz=(dirZ/len)*speed;
-  // Δημιουργία του κύβου βολής (η μεταβλητή shotCube κρατάει τον τελευταίο που ρίχτηκε)
   shotCube=spawnCube(sx,CUBE_SZ/2+.4,sz,curVal,{isShot:true});
   shotCube.body.velocity.set(vx,3,vz);
   curVal=nxtVal;nxtVal=rndStart();drawNextHUD();
@@ -446,39 +469,33 @@ function findAimTarget(x){let best=null;
 // ═══ UPDATE ═══
 let lastT=performance.now();
 function update(){
+  if (isOverlayVisible) {
+    requestAnimationFrame(update); 
+    return; // Σταματάει φυσική και render 3D όσο το overlay είναι ενεργό
+  }
   const now=performance.now(),dt=Math.min(.05,(now-lastT)/1000);lastT=now;
   if(gameOn&&!paused){
-    // Conveyor
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.velocity.z<conveyorSpeed)c2.body.velocity.z+=conveyorSpeed*dt*4;if(c2.flash>0)c2.flash--}
-    // Row spawn
     rowTimer+=dt;if(rowTimer>=ROW_INTERVAL){rowTimer=0;spawnRow(-TRACK_L/2+1.5)}
     if(cubes.filter(c3=>!c3.isShot).length<=4)spawnRow(-TRACK_L/2+1.5);
-    // Physics step
     world.step(1/60,dt,3);
-    // Sync mesh↔body + flash
     for(const c2 of cubes){c2.mesh.position.copy(c2.body.position);c2.mesh.quaternion.copy(c2.body.quaternion);
       const ei=c2.flash>0?.15+(c2.flash/12)*1.5:.15;
       c2.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei})}
     
-    // Αυτόματη συγχώνευση κατά την επαφή (Merge on Collision)
-    sweepChainMerges(); 
-
-    // Shot cube cleanup
+    sweepChainMerges(); // Αυτόματη συγχώνευση κατά την επαφή
+    
     if(shotCube && (!cubes.includes(shotCube) || shotCube.body.position.y<-3 || shotCube.body.position.z>DANGER_Z+5)){
       if(cubes.includes(shotCube)) removeCube(shotCube);
       shotCube=null;comboBar=Math.max(0,comboBar-22);
       mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1;
     }
-    // Combo decay
     if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*14);
       mult=comboBar>=90?4:comboBar>=60?3:comboBar>=30?2:1}
-    // Camera shake
     if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=9+(Math.random()-.5)*shakeAmt;
       shakeAmt*=.85;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,9,6)}}
-    // Game over
     for(const c2 of cubes){if(c2.isShot)continue;if(c2.body.position.z>DANGER_Z+.2){triggerGameOver();return}}
   }
-  // Particles
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;
     p.mesh.position.z+=p.vz*dt;p.vy-=9*dt;p.life-=p.decay;
     if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();particles.splice(i,1)}
@@ -507,13 +524,13 @@ function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.t
   if(hammerChg>=100)hammerIconEl.classList.add('ready');else hammerIconEl.classList.remove('ready')}
 
 // ═══ GAME OVER / START ═══
-function triggerGameOver(){gameOn=false;if(shotCube){removeCube(shotCube);shotCube=null}audio.gameOver();
+function triggerGameOver(){gameOn=false;isOverlayVisible=true;
+  if(shotCube){removeCube(shotCube);shotCube=null}audio.gameOver();
   const ov=document.getElementById('overlay');
-  ov.innerHTML=`<h1>GAME OVER</h1><div style="color:#888;font-size:13px">Final Score</div>
+  ov.innerHTML=`<div id="space-bg"></div><h1>GAME OVER</h1><div style="color:#888;font-size:13px">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div><button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
-  ov.classList.remove('hidden');
+  ov.classList.remove('hidden'); // Το space-bg θα ξαναδημιουργηθεί με το innerHTML
   document.getElementById('startBtn').addEventListener('click',startGame);
-  // Απόκρυψη του HUD όταν βγαίνει το Game Over
   document.getElementById('hud').classList.remove('active');
 }
 function startGame(){
@@ -521,10 +538,9 @@ function startGame(){
   for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
   if(!shooterMesh)makeShooter();
   document.getElementById('overlay').classList.add('hidden');
-  // Εμφάνιση του HUD μόνο αφού πατηθεί το Play
   document.getElementById('hud').classList.add('active');
   score=0;mult=1;comboBar=0;comboTimer=0;hammerChg=0;paused=false;shotCube=null;
-  conveyorSpeed=.3;rowTimer=0;seenMS=new Set();shakeAmt=0;
+  conveyorSpeed=.3;rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;
   camera.position.set(0,9,6);camera.lookAt(0,1.5,0);
   curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();gameOn=true;audio.init()
 }
@@ -551,11 +567,10 @@ document.getElementById('hammer-icon').addEventListener('click',()=>{if(!gameOn|
   sorted.slice(0,7).forEach(c3=>{spawnParticles(c3.body.position.x,c3.body.position.y,c3.body.position.z,0xff8800,12,5);
     removeCube(c3)});checkAutoSpawn()});
 
-// Boosters
+// Boosters (Αφαιρέθηκε το Swap)
 document.getElementById('boost-rainbow').addEventListener('click',()=>{if(!gameOn||paused)return;
   const counts={};cubes.forEach(c3=>{if(!c3.isShot)counts[c3.value]=(counts[c3.value]||0)+1});
   const best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];if(best)curVal=parseInt(best[0]);drawNextHUD()});
-document.getElementById('boost-swap').addEventListener('click',()=>{if(!gameOn||paused)return;[curVal,nxtVal]=[nxtVal,curVal];drawNextHUD()});
 document.getElementById('boost-bomb').addEventListener('click',()=>{if(!gameOn||paused)return;audio.boom();shakeAmt=.3;
   for(let i=cubes.length-1;i>=0;i--){const c3=cubes[i];if(c3.isShot)continue;
     if(Math.abs(c3.body.position.x-aimX)<COL_W*1.3&&c3.body.position.z>0){
