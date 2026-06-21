@@ -165,8 +165,8 @@ const TRACK_W=9;
 const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.35;
 const TRACK_L=24;
-const DANGER_Z=5.5;          // bottom red line
-const SHOOTER_Z=8.0;        // shooter inside frame, below red line
+const DANGER_Z=5.5;
+const SHOOTER_Z=8.0;
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 
 // ═══ THREE.JS ═══
@@ -182,7 +182,7 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x080614);
 scene.fog=new THREE.Fog(0x080614,36,66);
 
-// camera shows whole track
+// camera shows whole trapezoid track
 const camera=new THREE.PerspectiveCamera(48,1,0.1,200);
 camera.position.set(0, 15.5, 13);
 camera.lookAt(0, 0.5, -0.5);
@@ -215,7 +215,7 @@ function addNebula(x,y,z,color,size,op){const m=new THREE.MeshBasicMaterial({col
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),m);mesh.position.set(x,y,z);mesh.lookAt(camera.position);scene.add(mesh)}
 addNebula(-26,8,-38,0x5522aa,50,0.16);addNebula(30,14,-44,0xaa2266,56,0.13);addNebula(0,24,-54,0x3344bb,70,0.11);
 
-// ═══ TRACK ═══
+// ═══ TRACK (trapezoid frame like the photo) ═══
 function buildTrack(){
   const g=new THREE.Group();
   const fm=new THREE.MeshStandardMaterial({color:0x2e1c4f,roughness:0.55,metalness:0.15,emissive:0x180e30,emissiveIntensity:0.4});
@@ -223,8 +223,9 @@ function buildTrack(){
   const gm=new THREE.LineBasicMaterial({color:0x8855dd,transparent:true,opacity:0.22});
   for(let i=0;i<=COLS;i++){const x=-TRACK_W/2+i*COL_W;
     const bg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,.02,-TRACK_L/2),new THREE.Vector3(x,.02,TRACK_L/2)]);g.add(new THREE.Line(bg,gm))}
-  const wm=new THREE.MeshStandardMaterial({color:0x7a55dd,roughness:0.35,metalness:0.6,emissive:0x6644cc,emissiveIntensity:0.85});
-  const wallH=1.5,wallT=0.5;
+  // glossy purple frame
+  const wm=new THREE.MeshStandardMaterial({color:0x7a55dd,roughness:0.3,metalness:0.65,emissive:0x6644cc,emissiveIntensity:0.9});
+  const wallH=1.5,wallT=0.55;
   const lw=new THREE.Mesh(new THREE.BoxGeometry(wallT,wallH,TRACK_L+wallT),wm);lw.position.set(-TRACK_W/2-wallT/2,wallH/2,0);lw.castShadow=true;g.add(lw);
   const rw=new THREE.Mesh(new THREE.BoxGeometry(wallT,wallH,TRACK_L+wallT),wm);rw.position.set(TRACK_W/2+wallT/2,wallH/2,0);rw.castShadow=true;g.add(rw);
   const bw=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+wallT*2,wallH,wallT),wm);bw.position.set(0,wallH/2,-TRACK_L/2-wallT/2);bw.castShadow=true;g.add(bw);
@@ -318,20 +319,17 @@ function spawnParticles(x,y,z,color,count=16,speed=4){
     const mesh=new THREE.Mesh(pGeo,mat);mesh.position.set(x,y,z);scene.add(mesh);
     const a=Math.random()*Math.PI*2,alt=(Math.random()-.3)*Math.PI;const s=speed*(.4+Math.random());
     particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.abs(Math.sin(alt))*s+1.5,
-      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.02+Math.random()*.01,rot:0,vrot:0,shard:false})}
+      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.02+Math.random()*.01,shard:false})}
 }
-// shards: little cube fragments that shatter outward
 const shardGeo=new THREE.BoxGeometry(.28,.28,.28);
 function spawnShards(x,y,z,color,count=10){
   for(let i=0;i<count;i++){
     const mat=new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.4,roughness:.4,metalness:.2,transparent:true,opacity:1});
-    const mesh=new THREE.Mesh(shardGeo,mat);mesh.position.set(x,y,z);
-    mesh.scale.setScalar(0.5+Math.random()*0.8);scene.add(mesh);
+    const mesh=new THREE.Mesh(shardGeo,mat);mesh.position.set(x,y,z);mesh.scale.setScalar(0.5+Math.random()*0.8);scene.add(mesh);
     const a=Math.random()*Math.PI*2,alt=Math.random()*Math.PI*0.6;const s=4+Math.random()*4;
     particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.sin(alt)*s+3,
-      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.018+Math.random()*.008,
-      rot:Math.random()*Math.PI,vrot:(Math.random()-.5)*12,shard:true,
-      rx:Math.random(),ry:Math.random(),rz:Math.random()})}
+      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.018+Math.random()*.008,shard:true,
+      vrot:(Math.random()-.5)*12,rx:Math.random(),ry:Math.random(),rz:Math.random()})}
 }
 
 // ═══ FLOATS ═══
@@ -344,55 +342,56 @@ function floatText(x,y,z,label,type='points'){
   setTimeout(()=>el.remove(),type==='milestone'?1600:1200);
 }
 
-// ═══ AUDIO (richer, real-ish) ═══
+// ═══ AUDIO ═══
 const audio=(()=>{
   let ctx=null,mg=null,muted=false;
   function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();mg=ctx.createGain();mg.gain.value=.45;mg.connect(ctx.destination)}
   function env(g,pk,a,d,s,dur){const t=ctx.currentTime;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(pk,t+a);g.gain.exponentialRampToValueAtTime(Math.max(.0001,pk*s),t+a+d);g.gain.exponentialRampToValueAtTime(.0001,t+dur)}
-  function noise(dur,vol,filterFreq,filterType='lowpass'){
-    const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);
+  function noise(dur,vol,freq,type='lowpass'){const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);
     for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
-    n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=filterType;fi.frequency.value=filterFreq;
-    const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n;
-  }
-  // launch: short "whoosh/zip"
+    n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=type;fi.frequency.value=freq;const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n}
+  // LAUNCH sound: bright ascending "pew/zap"
   function shoot(){if(muted)return;init();
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';
-    o.frequency.setValueAtTime(180,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(520,ctx.currentTime+.13);
-    o.connect(g).connect(mg);env(g,.12,.004,.03,.3,.15);o.start();o.stop(ctx.currentTime+.18);
-    noise(.12,.08,1200,'highpass');
+    const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';
+    o.frequency.setValueAtTime(420,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(880,ctx.currentTime+.1);
+    o.connect(g).connect(mg);env(g,.13,.003,.03,.2,.14);o.start();o.stop(ctx.currentTime+.16);
+    const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='sine';
+    o2.frequency.setValueAtTime(660,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(1320,ctx.currentTime+.1);
+    o2.connect(g2).connect(mg);env(g2,.08,.003,.03,.2,.13);o2.start();o2.stop(ctx.currentTime+.15);
   }
-  // collision: punchy "BAM" (low thump + click)
-  function impact(v){if(muted)return;init();
-    // low thump
+  // BOMB / explosion — used for collisions now
+  function boom(){if(muted)return;init();
+    noise(.5,.55,320,'lowpass');
     const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(150,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(55,ctx.currentTime+.18);
-    o.connect(g).connect(mg);env(g,.5,.002,.05,.2,.25);o.start();o.stop(ctx.currentTime+.28);
-    // crack noise
-    noise(.16,.3,2500,'bandpass');
-  }
-  // merge: musical chime + bam, pitch rises with value
-  function merge(v){if(muted)return;init();
-    impact(v);
-    const bf=240*Math.pow(1.05,Math.log2(v));
-    [1,1.5,2.0].forEach((mul,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=i===0?'square':'sine';
-      o.frequency.value=bf*mul;o.connect(g).connect(mg);env(g,.14/(i+1),.005,.06,.4,.3);o.start();o.stop(ctx.currentTime+.34)});
+    o.frequency.setValueAtTime(130,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(38,ctx.currentTime+.4);
+    o.connect(g).connect(mg);env(g,.55,.002,.1,.2,.5);o.start();o.stop(ctx.currentTime+.55);
+    noise(.18,.35,2600,'bandpass');
   }
   function blip(f,dur=.12,type='sine',vol=.4){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=f;o.connect(g).connect(mg);env(g,vol,.005,.04,.3,dur);o.start();o.stop(ctx.currentTime+dur+.05)}
   function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.2,'square',.28),i*90))}
-  function boom(){if(muted)return;init();noise(.5,.5,300,'lowpass');
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(110,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(35,ctx.currentTime+.4);o.connect(g).connect(mg);env(g,.5,.002,.1,.2,.5);o.start();o.stop(ctx.currentTime+.55)}
   function gameOver(){[330,277,220,175].forEach((f,i)=>setTimeout(()=>blip(f,.3,'triangle',.3),i*120))}
   function toggleMute(){muted=!muted;if(mg)mg.gain.value=muted?0:.45;return muted}
-  return{shoot,merge,impact,milestone,boom,gameOver,toggleMute,init}
+  return{shoot,boom,milestone,gameOver,toggleMute,init}
 })();
 
 // ═══ STATE ═══
 let gameOn=false,paused=false,score=0,mult=1,comboBar=0,comboTimer=0;
-let hammerChg=0,curVal=2,nxtVal=2,aimX=0;
+let hammerChg=0,curVal=2,nxtVal=2,aimX=0,maxReached=2;
 let conveyor=0.32,rowTimer=0,ROW_INTERVAL=3.0;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
-function rndStart(){return[2,2,2,4,4,8][Math.floor(Math.random()*6)]}
+
+// shooter value scales with game progress (maxReached)
+function shooterPool(){
+  // base small values, expand as the board climbs
+  let pool=[2,2,2,4,4,8];
+  if(maxReached>=32)pool=[2,4,4,8,8,16];
+  if(maxReached>=64)pool=[4,8,8,16,16,32];
+  if(maxReached>=128)pool=[8,16,16,32,32,64];
+  if(maxReached>=256)pool=[16,32,32,64,64,128];
+  if(maxReached>=512)pool=[32,64,64,128,128,256];
+  return pool;
+}
+function rndStart(){const p=shooterPool();return p[Math.floor(Math.random()*p.length)]}
 
 // ═══ SHOOTER ═══
 let shooterMesh=null,aimLine=null;
@@ -416,23 +415,22 @@ function updateShooter(){
   aimLine.computeLineDistances();
 }
 
-// ═══ MERGE (physics contact) ═══
+// ═══ MERGE (instant on contact, any side) ═══
 function tryMerge(a,b){
   if(a.value!==b.value)return false;
   const nv=nextVal(a.value);
+  if(nv>maxReached)maxReached=nv;
   const px=(a.body.position.x+b.body.position.x)/2;
   const py=Math.max(CUBE_SZ/2+.1,(a.body.position.y+b.body.position.y)/2);
   const pz=(a.body.position.z+b.body.position.z)/2;
   removeCube(a);removeCube(b);
   const nc=spawnCube(px,py,pz,nv);nc.flash=12;
-  // BOUNCE: pop up + spin like the original
-  nc.body.velocity.set((Math.random()-.5)*2,6.5,(Math.random()-.5)*2);
+  // BOUNCE up + spin, fly to a side a bit
+  nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*8,(Math.random()-.5)*8,(Math.random()-.5)*8);
-  // shockwave pushes nearby cubes
   for(const c2 of cubes){if(c2.id===nc.id)continue;
     const dx=c2.body.position.x-px,dy=c2.body.position.y-py,dz=c2.body.position.z-pz;const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
     if(d<3.5&&d>0.1){const f=7/(d+.4);c2.body.applyImpulse(new CANNON.Vec3((dx/d)*f,2.5,(dz/d)*f),new CANNON.Vec3(0,0,0))}}
-  // SHARDS + particles
   const pal=gp(nv);
   spawnShards(px,py,pz,gp(a.value).hex,10);
   spawnParticles(px,py,pz,pal.glow,16,5);
@@ -446,29 +444,30 @@ function tryMerge(a,b){
   floatText(px,py+.6,pz,`+${mult>1?mult+'×':''}${pts}`,lt);
   if(SEQ.includes(nv)&&!seenMS.has(nv)){seenMS.add(nv);floatText(0,3,0,`✦ ${nv} REACHED! ✦`,'milestone');audio.milestone()}
   conveyor=Math.min(0.55,0.32+score*0.000004);
-  audio.merge(nv);return nc;
+  audio.boom();  // collision = bomb sound
+  return nc;
 }
 function sweepMerges(){
   let iter=0;
-  while(iter<10){iter++;let merged=false;
+  while(iter<12){iter++;let merged=false;
     outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
       const a=cubes[i],b=cubes[j];if(a.value!==b.value)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
-      if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.18)*(CUBE_SZ*1.18)){
+      // generous threshold = immediate merge from any side
+      if(dx*dx+dy*dy+dz*dz<(CUBE_SZ*1.25)*(CUBE_SZ*1.25)){
         if(tryMerge(a,b)){if(a===shotCube||b===shotCube)shotCube=null;merged=true;break outer;}
       }
     }}if(!merged)break;
   }
 }
 
-// ═══ SHOOT (free physics movement) ═══
+// ═══ SHOOT ═══
 function shoot(){
   if(!gameOn||paused||shotCube)return;
   audio.init();audio.shoot();
   const isRainbow=rainbowArmed;rainbowArmed=false;
   shotCube=spawnCube(aimX,CUBE_SZ/2+.3,SHOOTER_Z,curVal,{isShot:true,rainbow:isRainbow});
   shotCube._rainbow=isRainbow;
-  // launch forward with a little arc — free movement
   shotCube.body.velocity.set(0,2,-24);
   curVal=nxtVal;nxtVal=rndStart();drawNextHUD();
 }
@@ -489,14 +488,12 @@ function update(){
   spaceStars.rotation.y+=dt*0.01;
 
   if(gameOn&&!paused){
-    // conveyor pushes settled cubes toward shooter
     for(const c of cubes){if(c.isShot)continue;if(c.body.velocity.z<conveyor)c.body.velocity.z+=conveyor*dt*4;if(c.flash>0)c.flash--}
     rowTimer+=dt;if(rowTimer>=ROW_INTERVAL){rowTimer=0;spawnRow(-TRACK_L/2+1.5)}
     if(cubes.filter(c=>!c.isShot).length<=4)spawnRow(-TRACK_L/2+1.5);
 
     world.step(1/60,dt,4);
 
-    // clamp inside frame
     for(const c of cubes){
       if(c.body.position.x>X_LIMIT){c.body.position.x=X_LIMIT;if(c.body.velocity.x>0)c.body.velocity.x*=-.3}
       else if(c.body.position.x<-X_LIMIT){c.body.position.x=-X_LIMIT;if(c.body.velocity.x<0)c.body.velocity.x*=-.3}
@@ -505,7 +502,6 @@ function update(){
       c.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei});
     }
 
-    // rainbow shot detonates on first contact
     if(shotCube&&shotCube._rainbow){
       for(const c of cubes){if(c===shotCube||c.isShot)continue;
         const dx=c.body.position.x-shotCube.body.position.x,dz=c.body.position.z-shotCube.body.position.z;
@@ -515,7 +511,6 @@ function update(){
     }else{
       sweepMerges();
       if(shotCube&&(!cubes.includes(shotCube)||shotCube.body.position.z<-TRACK_L/2-1)){if(cubes.includes(shotCube))shotCube=null;}
-      // once the shot settles (slow + touching something) it becomes a board cube
       if(shotCube&&Math.abs(shotCube.body.velocity.z)<1&&shotCube.body.position.z>-TRACK_L/2+2){shotCube.isShot=false;shotCube=null;}
     }
     sweepMerges();
@@ -526,7 +521,6 @@ function update(){
     for(const c of cubes){if(c.isShot)continue;if(c.body.position.z>DANGER_Z+0.2){triggerGameOver();return}}
   }
 
-  // particles + shards
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;p.vy-=12*dt;p.life-=p.decay;
     if(p.shard){p.mesh.rotation.x+=p.rx*p.vrot*dt;p.mesh.rotation.y+=p.ry*p.vrot*dt;p.mesh.rotation.z+=p.rz*p.vrot*dt;
@@ -578,7 +572,7 @@ function startGame(){
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
   document.getElementById('boosters').classList.add('active');
-  score=0;mult=1;comboBar=0;comboTimer=0;hammerChg=0;paused=false;rainbowArmed=false;
+  score=0;mult=1;comboBar=0;comboTimer=0;hammerChg=0;paused=false;rainbowArmed=false;maxReached=2;
   conveyor=0.32;rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;
   camera.position.set(0,15.5,13);camera.lookAt(0,0.5,-0.5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;spawnInitial();drawNextHUD();gameOn=true;audio.init();
