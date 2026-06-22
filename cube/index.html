@@ -64,6 +64,13 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
 .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
 .play-btn:active{transform:scale(.94)}
+#leaderboard-wrap{width:90%;max-width:320px;max-height:220px;overflow-y:auto;background:rgba(0,0,0,.5);border-radius:12px;padding:10px;border:1px solid rgba(255,170,51,.3);scrollbar-width:thin;scrollbar-color:#ffaa33 transparent}
+#leaderboard-wrap h3{color:#ffaa33;font-size:15px;text-align:center;margin-bottom:8px;letter-spacing:1px}
+.lb-entry{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px;color:#ddd}
+.lb-entry .lb-rank{color:#ffaa33;font-weight:700;min-width:24px}
+.lb-entry .lb-score{color:#FFD700;font-weight:700}
+.lb-entry .lb-date{color:#888;font-size:10px}
+.lb-empty{color:#666;text-align:center;font-size:12px;padding:20px}
 </style>
 <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
@@ -164,10 +171,29 @@ const SPAWN_Z     = RAMP_HOME_Z + 0.95;
 const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP;
 const RAMP_SPEED  = 5.0;
 
-// ═══ LOCAL HIGH SCORE ═══
+// ═══ LOCAL HIGH SCORE & LEADERBOARD ═══
 const LS_KEY='mergeCubes3D_highscore';
+const LB_KEY='mergeCubes3D_leaderboard';
 let highScore=parseInt(localStorage.getItem(LS_KEY)||'0',10);
 document.getElementById('highscore-val').textContent=highScore.toLocaleString();
+
+function getLeaderboard(){
+  try{return JSON.parse(localStorage.getItem(LB_KEY)||'[]')}catch(e){return[]}
+}
+function saveLeaderboard(lb){
+  localStorage.setItem(LB_KEY,JSON.stringify(lb));
+}
+function addToLeaderboard(s){
+  const lb=getLeaderboard();
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('el-GR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  const timeStr=now.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
+  lb.push({score:s,date:`${dateStr} ${timeStr}`});
+  lb.sort((a,b)=>b.score-a.score);
+  const top10=lb.slice(0,10);
+  saveLeaderboard(top10);
+  return top10;
+}
 
 function saveHighScoreIfNeeded(s){
   if(s>highScore){
@@ -346,7 +372,7 @@ function spawnCube(x,y,z,value,opts={}){
   const mesh=new THREE.Mesh(cubeGeo,opts.rainbow?getRainbowMats():getMats(value));
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.position.set(x,y,z);scene.add(mesh);
 
-  const isBouncy=opts.isShot && Math.random()<0.8; // 80% αναπήδηση
+  const isBouncy=opts.isShot && Math.random()<0.8;
   const mat=isBouncy?bouncyCubeMat:cubeMat;
   const linearDamping=isBouncy?0.3:0.5;
   const angularDamping=isBouncy?0.4:0.6;
@@ -355,7 +381,8 @@ function spawnCube(x,y,z,value,opts={}){
     shape:new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material:mat,position:new CANNON.Vec3(x,y,z),linearDamping,angularDamping});
   world.addBody(body);
-  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:!!opts.isShot,isBouncy};
+  // ★ ΟΛΟΙ οι κύβοι είναι mergeActive (μπορούν να ενωθούν αν ακουμπήσουν)
+  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:0};
   cubes.push(cube);return cube;
 }
 function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1)}
@@ -544,7 +571,7 @@ function bumpCombo(){
   if(mv){mv.classList.add('pop');setTimeout(()=>mv.classList.remove('pop'),110);}
 }
 
-// ═══ MERGE ═══
+// ═══ MERGE (επιτρέπεται για όλους, με cooldown) ═══
 function tryMerge(a,b){
   const nv=nextVal(a.value);
   if(nv>maxReached)maxReached=nv;
@@ -553,6 +580,7 @@ function tryMerge(a,b){
   const pz=(a.body.position.z+b.body.position.z)/2;
   removeCube(a);removeCube(b);
   const nc=spawnCube(px,py,pz,nv);nc.flash=12;nc.mergeActive=true;
+  nc.mergeCooldown=0.5; // ★ cooldown 0.5 δευτ. μετά από merge
   nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*9,(Math.random()-.5)*9,(Math.random()-.5)*9);
 
@@ -585,7 +613,8 @@ function sweepMerges(){
     outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
       const a=cubes[i],b=cubes[j];
       if(a.value!==b.value)continue;
-      if(!a.mergeActive&&!b.mergeActive)continue;
+      // ★ ΟΛΟΙ μπορούν να ενωθούν, εκτός αν έχουν cooldown
+      if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
         const nc=tryMerge(a,b);
@@ -595,9 +624,6 @@ function sweepMerges(){
     }}if(!merged)break;
   }
   return any;
-}
-function settleActiveCubes(){
-  for(const c of cubes){ if(c!==shotCube) c.mergeActive=false; }
 }
 
 // ═══ SCORE / GIFTS ═══
@@ -667,6 +693,11 @@ function update(){
   spaceStars.rotation.y+=dt*0.008;
 
   if(gameOn&&!paused){
+
+      // Μείωση cooldown για όλους
+      for(const c of cubes){
+        if(c.mergeCooldown>0)c.mergeCooldown-=dt;
+      }
 
       if(rampState==='idle'){
         rowTimer+=dt;
@@ -739,11 +770,10 @@ function update(){
         sweepMerges();
         if(shotCube&&!cubes.includes(shotCube)){shotCube=null;audio.rocketStop();}
         if(shotCube&&Math.abs(shotCube.body.velocity.z)<0.8&&shotCube.body.position.z>-TRACK_L/2+2){
-          shotCube.isShot=false;shotCube.mergeActive=false;shotCube=null;audio.rocketStop();
+          shotCube.isShot=false;shotCube.mergeCooldown=0.3;shotCube=null;audio.rocketStop();
         }
         if(shotCube&&shotCube.body.position.z<-TRACK_L/2-1){shotCube=null;audio.rocketStop();}
       }
-      if(!shotCube)settleActiveCubes();
 
       if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*16);mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1}
       if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=21+(Math.random()-.5)*shakeAmt;
@@ -809,13 +839,26 @@ function triggerGameOver(){
   audio.rocketStop();
   if(shotCube){removeCube(shotCube);shotCube=null}
   saveHighScoreIfNeeded(score);
+  const updatedLB=addToLeaderboard(score);
   audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
+
+  // Φτιάξε leaderboard HTML
+  let lbHTML='';
+  if(updatedLB.length===0){
+    lbHTML='<div class="lb-empty">No scores yet</div>';
+  }else{
+    updatedLB.forEach((entry,i)=>{
+      lbHTML+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${entry.score.toLocaleString()}</span><span class="lb-date">${entry.date}</span></div>`;
+    });
+  }
+
   const ov=document.getElementById('overlay');
   ov.innerHTML=`<div id="space-bg"></div><div id="starfield"></div><h1>GAME OVER</h1>
     <div style="color:#aaa;font-size:13px;position:relative">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div>
     <div style="color:#ffaa33;font-size:15px;position:relative">Best: ${highScore.toLocaleString()}</div>
+    <div id="leaderboard-wrap"><h3>🏆 TOP 10</h3>${lbHTML}</div>
     <button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
   buildStarfield();ov.classList.remove('hidden');
   document.getElementById('startBtn').addEventListener('click',startGame);
