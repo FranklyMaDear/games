@@ -60,6 +60,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
 .play-btn:active{transform:scale(.94)}
 </style>
+<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
 <body>
 <div id="hud">
@@ -142,7 +143,7 @@ const TRACK_W=7.5;          // πιο στενός
 const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;           // πιο μακρύς
-const DANGER_Z=6.0;
+const DANGER_Z=10.5;        // ★ Η ΚΟΚΚΙΝΗ ΓΡΑΜΜΗ ΤΩΡΑ ΣΤΗΝ ΕΚΤΟΞΕΥΣΗ (SHOOTER_Z)
 const SHOOTER_Z=10.5;
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 
@@ -247,7 +248,7 @@ function buildTrack(){
      cyl.position.set(cx, wallH/2, cz); cyl.castShadow = true; g.add(cyl);
   });
 
-  // Danger line (κόκκινη γραμμή λήξης, μπροστά κοντά στον παίκτη)
+  // Danger line (κόκκινη γραμμή λήξης, τώρα στη θέση εκτόξευσης)
   const dangerLineMat = new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, opacity: 0.9 });
   const dangerLine = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.55), dangerLineMat);
   dangerLine.rotation.x = -Math.PI / 2; dangerLine.position.set(0, 0.05, DANGER_Z); g.add(dangerLine);
@@ -524,7 +525,8 @@ function shoot(){
   const isRainbow=rainbowArmed;rainbowArmed=false;
   shotCube=spawnCube(aimX,CUBE_SZ/2+.3,SHOOTER_Z,curVal,{isShot:true,rainbow:isRainbow});
   shotCube._rainbow=isRainbow;shotCube.mergeActive=true;
-  shotCube.body.velocity.set(0,2,-26);
+  // ★ ΑΥΞΗΜΕΝΗ ΤΑΧΥΤΗΤΑ ΕΚΤΟΞΕΥΣΗΣ (z = -42)
+  shotCube.body.velocity.set(0,2,-42);
   chainCount=0;                                   // νέα ριπή → μηδενίζει ο μετρητής αλυσίδας
   curVal=nxtVal;nxtVal=rndStart();drawNextHUD();
 }
@@ -700,10 +702,8 @@ function startGame(){
     new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.95}));
   rampMesh.position.set(0,0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
-  // Αρχικές σειρές (ήδη προχωρημένες ώστε η θέση SPAWN_Z να μένει ελεύθερη)
+  // ★ ΜΟΝΟ ΜΙΑ ΣΕΙΡΑ ΑΡΧΙΚΑ (5 κύβοι)
   spawnRow(SPAWN_Z + ROW_STEP);
-  spawnRow(SPAWN_Z + ROW_STEP*2);
-  spawnRow(SPAWN_Z + ROW_STEP*3);
 
   drawNextHUD();audio.init();
 }
@@ -729,18 +729,44 @@ document.getElementById('hammer-icon').addEventListener('click',()=>{
   const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,8);
   sorted.forEach(c=>{spawnShards(c.body.position.x,c.body.position.y,c.body.position.z,gp(c.value).hex,8);removeCube(c)})});
 
-document.getElementById('boost-bomb').addEventListener('click',()=>{
-  if(!gameOn||paused)return;
-  if(freeBomb<=0){floatText(0,2.4,DANGER_Z-2,'Κέρδισέ το ανά 1000','points');return;}
-  freeBomb--;updateBoosterBadges();audio.boom();shakeAmt=.5;
+// ═══ REWARDED ADS ΛΕΙΤΟΥΡΓΙΑ ═══
+function useBomb(){
+  audio.boom();shakeAmt=.5;
   const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,9);
   sorted.forEach(c=>{spawnShards(c.body.position.x,c.body.position.y,c.body.position.z,0xff5500,10);addScore(c.value);removeCube(c)});
-  floatText(0,2.5,DANGER_Z-2,'BOOM!','points-mega')});
+  floatText(0,2.5,DANGER_Z-2,'BOOM!','points-mega');
+}
+
+function useRainbow(){
+  rainbowArmed=true;
+  floatText(aimX,2,SHOOTER_Z-1,'RAINBOW READY!','points-big');
+}
+
+document.getElementById('boost-bomb').addEventListener('click',()=>{
+  if(!gameOn||paused)return;
+  if(freeBomb>0){
+    freeBomb--; updateBoosterBadges(); useBomb();
+  } else {
+    if(typeof show_11108267 === 'function'){
+      show_11108267().then(() => { useBomb(); });
+    } else {
+      alert('Ad not available');
+    }
+  }
+});
+
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused||shotCube)return;
-  if(freeRainbow<=0){floatText(0,2.4,DANGER_Z-2,'Κέρδισέ το ανά 1000','points');return;}
-  freeRainbow--;updateBoosterBadges();rainbowArmed=true;
-  floatText(aimX,2,SHOOTER_Z-1,'RAINBOW READY!','points-big')});
+  if(freeRainbow>0){
+    freeRainbow--; updateBoosterBadges(); useRainbow();
+  } else {
+    if(typeof show_11108267 === 'function'){
+      show_11108267().then(() => { useRainbow(); });
+    } else {
+      alert('Ad not available');
+    }
+  }
+});
 
 document.getElementById('btn-pause').addEventListener('click',()=>{if(!gameOn)return;paused=!paused;
   document.getElementById('btn-pause').textContent=paused?'▶':'⏸'});
