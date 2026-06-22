@@ -7,9 +7,9 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
 body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
-#hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:10px;z-index:10;display:none !important;}
+#hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:8px;z-index:10;display:none !important;}
 #hud.active{display:flex !important;}
-#next-area{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 12px}
+#next-area{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 10px}
 #next-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
 #combo-col{display:flex;flex-direction:column;gap:4px}
 #mult-row{display:flex;align-items:center;gap:6px}
@@ -19,7 +19,10 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 #mult-fill{height:100%;background:linear-gradient(90deg,#f0a030,#ff5555);width:0%;transition:width .3s;border-radius:3px;box-shadow:0 0 8px rgba(255,140,80,.5)}
 #score-box{text-align:center;flex:1}
 #score-lbl{color:#666;font-size:9px;font-weight:700;letter-spacing:2px}
-#score-val{color:#fff;font-size:24px;font-weight:900;line-height:1;letter-spacing:-1px;text-shadow:0 0 16px rgba(140,100,255,.5);font-variant-numeric:tabular-nums}
+#score-val{color:#fff;font-size:22px;font-weight:900;line-height:1;letter-spacing:-1px;text-shadow:0 0 16px rgba(140,100,255,.5);font-variant-numeric:tabular-nums}
+#highscore-box{text-align:center;min-width:50px}
+#highscore-lbl{color:#ffaa33;font-size:9px;font-weight:700;letter-spacing:1.5px}
+#highscore-val{color:#ffaa33;font-size:16px;font-weight:900;text-shadow:0 0 8px rgba(255,160,48,.5);font-variant-numeric:tabular-nums}
 .hbtn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#aaa;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #hammer-wrap{position:absolute;left:6px;top:40%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:10}
 #hammer-icon{font-size:22px;cursor:pointer;filter:drop-shadow(0 0 6px rgba(255,140,40,.6));transition:transform .15s}
@@ -72,6 +75,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
       <div id="mult-track"><div id="mult-fill"></div></div></div></div>
   </div>
   <div id="score-box"><div id="score-lbl">SCORE</div><div id="score-val">0</div></div>
+  <div id="highscore-box"><div id="highscore-lbl">BEST</div><div id="highscore-val">0</div></div>
   <div style="display:flex;gap:6px"><div class="hbtn" id="btn-sound">🔊</div><div class="hbtn" id="btn-pause">⏸</div></div>
 </div>
 <div id="canvas-wrap">
@@ -152,13 +156,26 @@ const TRACK_L=34;
 const DANGER_Z=10.5;
 const SHOOTER_Z=10.5;
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
-const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;  // πίσω όριο
+const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const ROW_STEP    = CUBE_SZ + 0.06;
 const RAMP_HOME_Z = -TRACK_L/2 + 1.0;
 const SPAWN_Z     = RAMP_HOME_Z + 0.95;
 const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP;
 const RAMP_SPEED  = 5.0;
+
+// ═══ LOCAL HIGH SCORE ═══
+const LS_KEY='mergeCubes3D_highscore';
+let highScore=parseInt(localStorage.getItem(LS_KEY)||'0',10);
+document.getElementById('highscore-val').textContent=highScore.toLocaleString();
+
+function saveHighScoreIfNeeded(s){
+  if(s>highScore){
+    highScore=s;
+    localStorage.setItem(LS_KEY,highScore);
+    document.getElementById('highscore-val').textContent=highScore.toLocaleString();
+  }
+}
 
 // ═══ THREE.JS ═══
 const wrap=document.getElementById('canvas-wrap');
@@ -272,7 +289,6 @@ const bouncyCubeMat=new CANNON.Material('bouncyCube');
 const floorMat=new CANNON.Material('floor');
 const wallMat=new CANNON.Material('wall');
 
-// Μειωμένη ελαστικότητα για bouncy cubes ώστε να μένουν μέσα
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,floorMat,{friction:.5,restitution:0.7}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.4,restitution:0.55}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallMat,{friction:.3,restitution:0.75}));
@@ -329,15 +345,17 @@ const flashSpheres=[];
 function spawnCube(x,y,z,value,opts={}){
   const mesh=new THREE.Mesh(cubeGeo,opts.rainbow?getRainbowMats():getMats(value));
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.position.set(x,y,z);scene.add(mesh);
-  const mat=opts.isShot?bouncyCubeMat:cubeMat;
-  // Λίγο μεγαλύτερη απόσβεση για bouncy ώστε να ηρεμούν γρήγορα μέσα στο διάδρομο
-  const linearDamping=opts.isShot?0.3:0.5;
-  const angularDamping=opts.isShot?0.4:0.6;
+
+  const isBouncy=opts.isShot && Math.random()<0.8; // 80% αναπήδηση
+  const mat=isBouncy?bouncyCubeMat:cubeMat;
+  const linearDamping=isBouncy?0.3:0.5;
+  const angularDamping=isBouncy?0.4:0.6;
+
   const body=new CANNON.Body({mass:opts.isShot?2:1.2,
     shape:new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material:mat,position:new CANNON.Vec3(x,y,z),linearDamping,angularDamping});
   world.addBody(body);
-  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:!!opts.isShot};
+  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:!!opts.isShot,isBouncy};
   cubes.push(cube);return cube;
 }
 function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1)}
@@ -526,7 +544,7 @@ function bumpCombo(){
   if(mv){mv.classList.add('pop');setTimeout(()=>mv.classList.remove('pop'),110);}
 }
 
-// ═══ MERGE (ΠΙΟ ΕΥΑΙΣΘΗΤΟ) ═══
+// ═══ MERGE ═══
 function tryMerge(a,b){
   const nv=nextVal(a.value);
   if(nv>maxReached)maxReached=nv;
@@ -583,7 +601,11 @@ function settleActiveCubes(){
 }
 
 // ═══ SCORE / GIFTS ═══
-function addScore(p){ score+=p; checkGifts(); }
+function addScore(p){
+  score+=p;
+  saveHighScoreIfNeeded(score);
+  checkGifts();
+}
 function checkGifts(){
   while(score>=lastGiftScore+1000){
     lastGiftScore+=1000;
@@ -668,7 +690,6 @@ function update(){
       for(const c of cubes){
         if(c.flash>0)c.flash--;
 
-        // ★ ΙΣΧΥΡΟ CLAMP ΣΤΟ X (δεν βγαίνουν ποτέ έξω)
         if(c.body.position.x > X_LIMIT){
           c.body.position.x = X_LIMIT;
           if(c.body.velocity.x > 0) c.body.velocity.x *= -0.5;
@@ -677,7 +698,6 @@ function update(){
           if(c.body.velocity.x < 0) c.body.velocity.x *= -0.5;
         }
 
-        // ★ CLAMP ΣΤΟ Z (πίσω μέρος)
         if(c.body.position.z < Z_BACK){
           c.body.position.z = Z_BACK;
           if(c.body.velocity.z < 0) c.body.velocity.z *= -0.5;
@@ -787,16 +807,21 @@ function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.t
 function triggerGameOver(){
   gameOn=false;isOverlayVisible=true;
   audio.rocketStop();
-  if(shotCube){removeCube(shotCube);shotCube=null}audio.gameOver();
+  if(shotCube){removeCube(shotCube);shotCube=null}
+  saveHighScoreIfNeeded(score);
+  audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
   const ov=document.getElementById('overlay');
   ov.innerHTML=`<div id="space-bg"></div><div id="starfield"></div><h1>GAME OVER</h1>
     <div style="color:#aaa;font-size:13px;position:relative">Final Score</div>
-    <div class="score-big">${score.toLocaleString()}</div><button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
+    <div class="score-big">${score.toLocaleString()}</div>
+    <div style="color:#ffaa33;font-size:15px;position:relative">Best: ${highScore.toLocaleString()}</div>
+    <button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
   buildStarfield();ov.classList.remove('hidden');
   document.getElementById('startBtn').addEventListener('click',startGame);
   document.getElementById('hud').classList.remove('active');
 }
+
 function startGame(){
   while(cubes.length)removeCube(cubes[0]);
   if(shotCube){shotCube=null}
@@ -816,6 +841,7 @@ function startGame(){
   score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;hammerChg=0;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;
   lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;updateBoosterBadges();
+  document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(0,21,17.5);camera.lookAt(0,0.5,-1.5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
 
@@ -893,9 +919,12 @@ document.getElementById('boost-rainbow').addEventListener('click',()=>{
 
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267 === 'function'){
-    show_11108267();
+    show_11108267().then(() => {
+      startGame();
+    });
   } else {
-    alert('Loading new games...');
+    alert('Starting new game...');
+    startGame();
   }
 });
 
