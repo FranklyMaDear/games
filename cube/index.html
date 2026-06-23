@@ -504,7 +504,7 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
-// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ═══
+// ═══ ΠΡΟΣΤΑΤΕΥΤΙΚΟΣ ΤΟΙΧΟΣ ═══
 let tempWallBody=null,tempWallMesh=null;
 
 function createTempWall(zPos){
@@ -515,7 +515,7 @@ function createTempWall(zPos){
   tempWallBody=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)),material:tempWallMat});
   tempWallBody.position.set(0,h/2,zPos);
   tempWallBody.collisionFilterGroup=1;
-  tempWallBody.collisionFilterMask=~2;
+  tempWallBody.collisionFilterMask=~2; // Δεν συγκρούεται με shot cube
   world.addBody(tempWallBody);
   tempWallMesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
     new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.7}));
@@ -762,24 +762,26 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΝΕΟΣ ΚΥΚΛΟΣ SPAWN ═══
+// ═══ ΚΥΚΛΟΣ SPAWN ═══
 function startSpawnCycle(){
   if(spawnCycle!=='idle'||!gameOn||paused)return;
   
   // 1. Γέννηση νέων κύβων
   spawnRow(SPAWN_Z);
   
-  // 2. Τοποθέτηση τοίχου μπροστά τους
-  createTempWall(SPAWN_Z + ROW_STEP + CUBE_SZ*0.5);
+  // 2. Τοποθέτηση προστατευτικού τοίχου ΜΠΡΟΣΤΑ από τους νέους κύβους (μεγαλύτερο z, δηλ. πιο κοντά στους παίκτες)
+  // Οι νέοι κύβοι είναι στο SPAWN_Z (πιο πίσω), ο τοίχος μπαίνει πιο μπροστά για να τους απομονώσει
+  const wallZ = SPAWN_Z + ROW_STEP + CUBE_SZ*0.8; // Μπροστά από τους νέους κύβους
+  createTempWall(wallZ);
   
   spawnCycle='wall_up';
   cycleTimer=WALL_DURATION;
 }
 
-function pushNewCubes(){
+function pushAllCubes(){
   if(rampState!=='idle'||!rampBody)return;
   
-  // Ενεργοποίηση ράμπας για ώθηση
+  // Ενεργοποίηση ράμπας για ώθηση ΟΛΩΝ των κύβων προς τα κάτω
   rampBody.position.set(0,0.55,RAMP_HOME_Z);
   rampBody.velocity.set(0,0,RAMP_SPEED);
   if(rampMesh){rampMesh.position.z=RAMP_HOME_Z;rampMesh.visible=true;}
@@ -803,6 +805,7 @@ function update(){
       if(spawnCycle==='wall_up'){
         cycleTimer-=dt;
         if(cycleTimer<=0){
+          // Αφαίρεση τοίχου – οι νέοι κύβοι είναι πλέον ελεύθεροι αλλά απομονωμένοι
           removeTempWall();
           spawnCycle='waiting_push';
           cycleTimer=PUSH_DELAY;
@@ -810,10 +813,11 @@ function update(){
       }else if(spawnCycle==='waiting_push'){
         cycleTimer-=dt;
         if(cycleTimer<=0){
-          pushNewCubes();
+          // Ώθηση όλων των κύβων
+          pushAllCubes();
         }
       }else if(spawnCycle==='pushing'){
-        // Η ράμπα κινείται αυτόματα, ο κύκλος αλλάζει όταν φτάσει στο τέρμα
+        // Η ράμπα κινείται, η κατάσταση αλλάζει όταν φτάσει στο τέρμα
       }else if(spawnCycle==='idle'){
         rowTimer+=dt;
         const interval=Math.max(2.4, ROW_INTERVAL - score*0.000015);
@@ -1005,7 +1009,6 @@ function startGame(){
     new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.95}));
   rampMesh.position.set(0,0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
-  // Αντί να βάλουμε απ' ευθείας σειρά, ξεκινάμε τον κύκλο spawn
   startSpawnCycle();
 
   drawNextHUD();audio.init();
