@@ -9,8 +9,8 @@
 body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
 #hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:8px;z-index:10;display:none !important;}
 #hud.active{display:flex !important;}
-#next-area{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 10px}
-#next-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
+#next-area{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 10px;flex-wrap:wrap}
+.small-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;text-align:center}
 #combo-col{display:flex;flex-direction:column;gap:4px}
 #mult-row{display:flex;align-items:center;gap:6px}
 #mult-val{color:#f0a030;font-size:15px;font-weight:800;min-width:32px;text-shadow:0 0 8px rgba(240,160,48,.5);transition:transform .1s}
@@ -24,12 +24,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 #highscore-lbl{color:#ffaa33;font-size:9px;font-weight:700;letter-spacing:1.5px}
 #highscore-val{color:#ffaa33;font-size:16px;font-weight:900;text-shadow:0 0 8px rgba(255,160,48,.5);font-variant-numeric:tabular-nums}
 .hbtn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#aaa;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-#hammer-wrap{position:absolute;left:6px;top:40%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:10}
-#hammer-icon{font-size:22px;cursor:pointer;filter:drop-shadow(0 0 6px rgba(255,140,40,.6));transition:transform .15s}
-#hammer-icon.ready{animation:pulse 1s ease-in-out infinite}
-@keyframes pulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 6px rgba(255,200,0,.8))}50%{transform:scale(1.15);filter:drop-shadow(0 0 14px rgba(255,200,0,1))}}
-#hammer-track{width:12px;height:80px;background:rgba(20,20,40,.8);border-radius:6px;overflow:hidden;border:1px solid rgba(140,100,255,.3);position:relative}
-#hammer-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,#ff9900,#ff3300);transition:height .5s cubic-bezier(.4,0,.2,1);border-radius:6px;box-shadow:0 0 8px rgba(255,140,0,.6)}
+
 #canvas-wrap{flex:1;width:100%;position:relative;overflow:hidden}
 #three-canvas{display:block;width:100%;height:100%;cursor:crosshair}
 #fx-layer{position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden}
@@ -86,7 +81,10 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 <body>
 <div id="hud">
   <div id="next-area">
-    <div><div id="next-label">ΣΤΟΧΟΣ</div><canvas id="next-cnv" width="40" height="40"></canvas></div>
+    <div style="display:flex;gap:12px;">
+      <div><div class="small-label">NEXT</div><canvas id="next-cnv" width="40" height="40"></canvas></div>
+      <div><div class="small-label">ΣΤΟΧΟΣ</div><canvas id="target-cnv" width="40" height="40"></canvas></div>
+    </div>
     <div id="combo-col"><div id="mult-row"><span id="mult-val">1×</span>
       <div id="mult-track"><div id="mult-fill"></div></div></div></div>
   </div>
@@ -97,10 +95,6 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 <div id="canvas-wrap">
   <canvas id="three-canvas"></canvas>
   <div id="fx-layer"></div>
-  <div id="hammer-wrap">
-    <div id="hammer-icon">🔨</div>
-    <div id="hammer-track"><div id="hammer-fill" style="height:0%"></div></div>
-  </div>
   <div id="overlay">
     <div id="space-bg"></div>
     <div id="starfield"></div>
@@ -460,11 +454,24 @@ function spawnFlashSphere(x,y,z,color){
   flashSpheres.push({mesh,mat,life:0.55,decay:1.8,scaleSpeed:5.5});
 }
 const trailGeo=new THREE.SphereGeometry(0.15,6,6);
-function spawnTrailParticle(x,y,z,vx,vy,vz){
+function spawnTrailParticle(worldPos, velocity, cubeQuat){
+  // Ακριβώς πίσω από την πίσω πλευρά του κύβου (τοπικό -Z)
+  const backDir = new THREE.Vector3(0,0,-1).applyQuaternion(cubeQuat);
+  const offset = backDir.clone().multiplyScalar(CUBE_SZ/2 + 0.1);
+  const spawnPos = worldPos.clone().add(offset);
+  // Μικρή τυχαιότητα στην κατεύθυνση
   const color=new THREE.Color().setHSL(0.08+Math.random()*0.1,1,0.4+Math.random()*0.5);
   const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false});
-  const mesh=new THREE.Mesh(trailGeo,mat);mesh.position.set(x,y+trackY,z);scene.add(mesh);
-  trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
+  const mesh=new THREE.Mesh(trailGeo,mat);
+  mesh.position.copy(spawnPos);
+  scene.add(mesh);
+  trailParticles.push({
+    mesh, mat,
+    vx: velocity.x * 0.4 + (Math.random()-0.5)*3,
+    vy: velocity.y * 0.4 + (Math.random()-0.5)*2,
+    vz: velocity.z * 0.4 + (Math.random()-0.5)*3,
+    life:0.7+Math.random()*0.4, decay:1.6+Math.random()*0.8
+  });
 }
 
 const fxLayer=document.getElementById('fx-layer');
@@ -525,17 +532,88 @@ const audio=(()=>{
 
 let gameOn=false,paused=false,gameStarted=false;
 let score=0,mult=1,comboBar=0,comboTimer=0,chainCount=0;
-let hammerChg=0,curVal=2,nxtVal=2,aimX=0,maxReached=2;
+let curVal=2,nxtVal=2,aimX=0,maxReached=2;
 let rowTimer=0,ROW_INTERVAL=4.2;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 let rampBody=null,rampMesh=null,rampState='idle';
-let lastGiftScore=0,freeBomb=0,freeRainbow=0,giftFlip=0;
-let nextMilestone=2000;
-let targetVal=4; // Στόχος που δείχνουμε στο HUD
+let targetVal=4; // Στόχος ημέρας (επόμενο milestone που δεν έχει φτάσει)
+
+let freeBomb=0, freeRainbow=0;
 
 function updateTarget(){
   targetVal = nextVal(maxReached);
-  drawNextHUD();
+  drawTargetHUD();
+}
+
+// ----- Καθημερινό δώρο -----
+const GIFT_DATE_KEY = 'mergeCubes3D_giftDate';
+const FREE_BOMB_KEY = 'mergeCubes3D_freeBomb';
+const FREE_RAINBOW_KEY = 'mergeCubes3D_freeRainbow';
+
+function applyDailyGift(){
+  const today = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  const lastDate = localStorage.getItem(GIFT_DATE_KEY);
+  if (lastDate !== today) {
+    // Νέο δώρο σήμερα
+    freeBomb = 2;
+    freeRainbow = 2;
+    localStorage.setItem(GIFT_DATE_KEY, today);
+    localStorage.setItem(FREE_BOMB_KEY, '2');
+    localStorage.setItem(FREE_RAINBOW_KEY, '2');
+  } else {
+    // Φόρτωση από προηγούμενο παιχνίδι σήμερα
+    freeBomb = parseInt(localStorage.getItem(FREE_BOMB_KEY) || '0', 10);
+    freeRainbow = parseInt(localStorage.getItem(FREE_RAINBOW_KEY) || '0', 10);
+  }
+}
+
+function saveFreeItems(){
+  localStorage.setItem(FREE_BOMB_KEY, freeBomb.toString());
+  localStorage.setItem(FREE_RAINBOW_KEY, freeRainbow.toString());
+}
+
+function useBomb(){
+  audio.boom();shakeAmt=.5;
+  const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,9);
+  sorted.forEach(c=>{spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,0xff5500,10);addScore(c.value);removeCube(c)});
+  floatText(0,trackY+2.5,DANGER_Z-2,'BOOM!','points-mega');
+}
+function useRainbow(){
+  rainbowArmed=true;floatText(aimX,trackY+2,SHOOTER_Z-1,'RAINBOW READY!','points-big');
+}
+
+function updateBoosterBadges(){
+  const bb=document.getElementById('badge-bomb'),rb=document.getElementById('badge-rainbow');
+  const bWrap=document.getElementById('boost-bomb'),rWrap=document.getElementById('boost-rainbow');
+  if(freeBomb>0){bb.textContent='🎁 ×'+freeBomb;bb.classList.add('free');bWrap.classList.remove('locked');bWrap.classList.add('ready');}
+  else{bb.textContent='▶ AD';bb.classList.remove('free');bWrap.classList.add('locked');bWrap.classList.remove('ready');}
+  if(freeRainbow>0){rb.textContent='🎁 ×'+freeRainbow;rb.classList.add('free');rWrap.classList.remove('locked');rWrap.classList.add('ready');}
+  else{rb.textContent='▶ AD';rb.classList.remove('free');rWrap.classList.add('locked');rWrap.classList.remove('ready');}
+  saveFreeItems();
+}
+
+// ----- Mini cube drawing -----
+const nextCnv=document.getElementById('next-cnv'), nextCtx=nextCnv.getContext('2d');
+const targetCnv=document.getElementById('target-cnv'), targetCtx=targetCnv.getContext('2d');
+
+function drawMiniCube(mc,cx,cy,sz,val){
+  const pal=gp(val),d=sz*.22;
+  mc.fillStyle='#'+pal.glow.toString(16).padStart(6,'0');mc.beginPath();
+  mc.moveTo(cx-sz/2,cy);mc.lineTo(cx-sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2,cy);
+  mc.closePath();mc.fill();mc.fillStyle='rgba(0,0,0,.4)';mc.beginPath();
+  mc.moveTo(cx+sz/2,cy);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy+sz-d);mc.lineTo(cx+sz/2,cy+sz);
+  mc.closePath();mc.fill();mc.fillStyle='#'+pal.hex.toString(16).padStart(6,'0');mc.beginPath();
+  mc.roundRect(cx-sz/2,cy,sz,sz,sz*.12);mc.fill();mc.fillStyle='#fff';
+  mc.font=`800 ${Math.max(8,sz*(val>=100?.32:.46))}px Arial`;mc.textAlign='center';mc.textBaseline='middle';
+  mc.fillText(val,cx,cy+sz/2)
+}
+function drawNextHUD(){
+  nextCtx.clearRect(0,0,40,40);
+  drawMiniCube(nextCtx,20,8,24,nxtVal);
+}
+function drawTargetHUD(){
+  targetCtx.clearRect(0,0,40,40);
+  drawMiniCube(targetCtx,20,8,24,targetVal);
 }
 
 function shooterPool(){
@@ -602,7 +680,6 @@ function tryMerge(a,b){
   spawnFlashSphere(px-trackY,py-trackY,pz,pal.glow);spawnFlashSphere(px-trackY,py-trackY,pz,0xff8800);
   bumpCombo();
   const pts=nv*mult;addScore(pts);
-  hammerChg=Math.min(100,hammerChg+18);
   shakeAmt=Math.min(.55,.1+Math.log2(nv)*.03);
   const lt=nv>=64?'points-mega':nv>=16?'points-big':'points';
   floatText(px-trackY,py-trackY+.6,pz,`+${mult>1?mult+'× ':''}${pts}`,lt);
@@ -630,23 +707,7 @@ function sweepMerges(){
 }
 
 function addScore(p){
-  score+=p;saveHighScoreIfNeeded(score);updateRankScoreDisplay(score);checkGifts();
-}
-function checkGifts(){
-  while(score>=nextMilestone){
-    if(nextMilestone===2000){hammerChg=100;floatText(0,trackY+3.2,DANGER_Z-3,'🔨 HAMMER READY!','gift');}
-    if(nextMilestone%2000===0){freeBomb++;floatText(0,trackY+3.2,DANGER_Z-3,'🎁 +💣 BOMB','gift');}
-    if(nextMilestone%3000===0){freeRainbow++;floatText(0,trackY+3.2,DANGER_Z-3,'🎁 +🌈 RAINBOW','gift');}
-    nextMilestone+=1000;audio.gift();updateBoosterBadges();
-  }
-}
-function updateBoosterBadges(){
-  const bb=document.getElementById('badge-bomb'),rb=document.getElementById('badge-rainbow');
-  const bWrap=document.getElementById('boost-bomb'),rWrap=document.getElementById('boost-rainbow');
-  if(freeBomb>0){bb.textContent='🎁 ×'+freeBomb;bb.classList.add('free');bWrap.classList.remove('locked');bWrap.classList.add('ready');}
-  else{bb.textContent='▶ AD';bb.classList.remove('free');bWrap.classList.add('locked');bWrap.classList.remove('ready');}
-  if(freeRainbow>0){rb.textContent='🎁 ×'+freeRainbow;rb.classList.add('free');rWrap.classList.remove('locked');rWrap.classList.add('ready');}
-  else{rb.textContent='▶ AD';rb.classList.remove('free');rWrap.classList.add('locked');rWrap.classList.remove('ready');}
+  score+=p;saveHighScoreIfNeeded(score);updateRankScoreDisplay(score);
 }
 
 function shoot(){
@@ -715,7 +776,6 @@ function update(){
           rampBody.velocity.set(0,0,0);
           rampState='idle';
           if(rampMesh)rampMesh.visible=false;
-          // 🧹 Καθαρισμός πίσω ζώνης – μετακίνηση ό,τι έχει μείνει
           const minZ = RAMP_PUSH_Z + 1.2;
           cubes.forEach(c=>{
             if(c.isShot)return;
@@ -754,14 +814,10 @@ function update(){
 
     if(shotCube&&!shotCube._rainbow){
       const s=shotCube.body;
-      const backDir=new THREE.Vector3(-s.velocity.x,-s.velocity.y,-s.velocity.z).normalize();
-      // 🎯 Ουρά ακριβώς πίσω από την πίσω πλευρά
-      const px=s.position.x+backDir.x*(CUBE_SZ/2+0.1);
-      const py=s.position.y+backDir.y*(CUBE_SZ/2+0.1);
-      const pz=s.position.z+backDir.z*(CUBE_SZ/2+0.1);
+      const worldPos = new THREE.Vector3(s.position.x, s.position.y, s.position.z);
+      const quat = new THREE.Quaternion(s.quaternion.x, s.quaternion.y, s.quaternion.z, s.quaternion.w);
       for(let i=0;i<3;i++){
-        spawnTrailParticle(px-trackY,py-trackY,pz,
-          s.velocity.x*0.4,s.velocity.y*0.4,s.velocity.z*0.4);
+        spawnTrailParticle(worldPos, new THREE.Vector3(s.velocity.x, s.velocity.y, s.velocity.z), quat);
       }
     }
 
@@ -822,23 +878,11 @@ function update(){
 }
 
 const scoreEl=document.getElementById('score-val'),multEl=document.getElementById('mult-val'),
-  multFillEl=document.getElementById('mult-fill'),hammerFillEl=document.getElementById('hammer-fill'),
-  hammerIconEl=document.getElementById('hammer-icon');
-const nextCnv=document.getElementById('next-cnv'),nextCtx=nextCnv.getContext('2d');
-function drawMiniCube(mc,cx,cy,sz,val){const pal=gp(val),d=sz*.22;
-  mc.fillStyle='#'+pal.glow.toString(16).padStart(6,'0');mc.beginPath();
-  mc.moveTo(cx-sz/2,cy);mc.lineTo(cx-sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2,cy);
-  mc.closePath();mc.fill();mc.fillStyle='rgba(0,0,0,.4)';mc.beginPath();
-  mc.moveTo(cx+sz/2,cy);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy+sz-d);mc.lineTo(cx+sz/2,cy+sz);
-  mc.closePath();mc.fill();mc.fillStyle='#'+pal.hex.toString(16).padStart(6,'0');mc.beginPath();
-  mc.roundRect(cx-sz/2,cy,sz,sz,sz*.12);mc.fill();mc.fillStyle='#fff';
-  mc.font=`800 ${Math.max(8,sz*(val>=100?.32:.46))}px Arial`;mc.textAlign='center';mc.textBaseline='middle';
-  mc.fillText(val,cx,cy+sz/2)}
-function drawNextHUD(){nextCtx.clearRect(0,0,40,40);drawMiniCube(nextCtx,20,8,24,targetVal)}
+  multFillEl=document.getElementById('mult-fill');
+
 let hudFrame=0;
 function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.toLocaleString();
-  multEl.textContent=mult+'×';multFillEl.style.width=comboBar+'%';hammerFillEl.style.height=hammerChg+'%';
-  if(hammerChg>=100)hammerIconEl.classList.add('ready');else hammerIconEl.classList.remove('ready')}
+  multEl.textContent=mult+'×';multFillEl.style.width=comboBar+'%';}
 
 function triggerGameOver(){
   gameOn=false;gameStarted=false;isOverlayVisible=true;
@@ -872,11 +916,14 @@ function startGame(){
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
   document.getElementById('boosters').classList.add('active');
-  score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;hammerChg=0;paused=false;rainbowArmed=false;maxReached=2;
+  score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;gameStarted=false;
-  lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;nextMilestone=2000;
+
+  // Εφαρμογή καθημερινού δώρου
+  applyDailyGift();
+  updateBoosterBadges();
+  updateRankScoreDisplay(0);
   updateTarget();
-  updateBoosterBadges();updateRankScoreDisplay(0);
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(camX,camY,camZ);camera.lookAt(0,trackY,0);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
@@ -901,7 +948,9 @@ function startGame(){
     addScore(startVals[i]);
   }
 
-  drawNextHUD();audio.init();
+  drawNextHUD();
+  drawTargetHUD();
+  audio.init();
 }
 
 const raycaster=new THREE.Raycaster();const mouse=new THREE.Vector2();
@@ -919,35 +968,15 @@ canvas.addEventListener('touchstart',e=>{dragging=true;updateAim(e.touches[0].cl
 canvas.addEventListener('touchmove',e=>{e.preventDefault();if(gameOn&&!paused)updateAim(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
 canvas.addEventListener('touchend',e=>{e.preventDefault();shoot();dragging=false},{passive:false});
 
-document.getElementById('hammer-icon').addEventListener('click',()=>{
-  if(!gameOn||hammerChg<100)return;hammerChg=0;shakeAmt=.5;audio.boom();
-  const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,8);
-  sorted.forEach(c=>{
-    spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,gp(c.value).hex,8);
-    addScore(c.value);
-    removeCube(c);
-  });
-});
-
-function useBomb(){
-  audio.boom();shakeAmt=.5;
-  const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,9);
-  sorted.forEach(c=>{spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,0xff5500,10);addScore(c.value);removeCube(c)});
-  floatText(0,trackY+2.5,DANGER_Z-2,'BOOM!','points-mega');
-}
-function useRainbow(){
-  rainbowArmed=true;floatText(aimX,trackY+2,SHOOTER_Z-1,'RAINBOW READY!','points-big');
-}
-
 document.getElementById('boost-bomb').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeBomb>0){freeBomb--;updateBoosterBadges();useBomb();}
-  else{if(typeof show_11108267==='function'){show_11108267().then(()=>useBomb());}else alert('Ad not available');}
+  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeBomb++;updateBoosterBadges();useBomb();});}else alert('Ad not available');}
 });
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
-  else{if(typeof show_11108267==='function'){show_11108267().then(()=>useRainbow());}else alert('Ad not available');}
+  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267==='function'){show_11108267().then(()=>startGame());}else startGame();
