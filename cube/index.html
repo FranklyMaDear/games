@@ -255,16 +255,14 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x080614);
 scene.fog=new THREE.Fog(0x080614,46,92);
 
-// ★ Κάμερα με Rotation X: 30° και Y: 45° (ισομετρική λοξή ματιά)
-const camera=new THREE.PerspectiveCamera(50,1,0.1,250);
-const camDistance = 42;
-const phi = THREE.MathUtils.degToRad(60); // 90-30 = 60°
-const theta = THREE.MathUtils.degToRad(45);
-const camY = camDistance * Math.cos(phi); // 21
-const camX = camDistance * Math.sin(phi) * Math.sin(theta); // 42 * 0.866 * 0.707 ≈ 25.7
-const camZ = camDistance * Math.sin(phi) * Math.cos(theta); // ≈ 25.7
+const camera=new THREE.PerspectiveCamera(55,1,0.1,250);
+const camDistance = 40;
+const phi = THREE.MathUtils.degToRad(52);
+const theta = THREE.MathUtils.degToRad(0);
+const camY = camDistance * Math.cos(phi);
+const camX = camDistance * Math.sin(phi) * Math.sin(theta);
+const camZ = camDistance * Math.sin(phi) * Math.cos(theta);
 camera.position.set(camX, camY, camZ);
-// Το ταμπλό είναι ανεβασμένο κατά 3 μονάδες, οπότε κοιτάμε εκεί
 const trackY = 3;
 camera.lookAt(0, trackY, 0);
 
@@ -335,7 +333,7 @@ function buildTrack(){
   return g;
 }
 const trackGroup = buildTrack();
-trackGroup.position.y = trackY; // ανέβασμα του διαδρόμου
+trackGroup.position.y = trackY;
 scene.add(trackGroup);
 
 const world=new CANNON.World({gravity:new CANNON.Vec3(0,-16,0)});
@@ -374,7 +372,6 @@ function makeTexture(value,pal){
   const gr=ctx.createRadialGradient(sz/2,sz/2,sz*.15,sz/2,sz/2,sz*.75);
   gr.addColorStop(0,'rgba(255,255,255,.22)');gr.addColorStop(1,'rgba(0,0,0,.3)');ctx.fillStyle=gr;ctx.fillRect(0,0,sz,sz);
   ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=10;ctx.strokeRect(5,5,sz-10,sz-10);
-  // Μεγαλύτερη γραμματοσειρά για ευκρίνεια στον shooter
   const fontSize = value >= 1000 ? 120 : value >= 100 ? 150 : value >= 10 ? 190 : 230;
   ctx.fillStyle='#fff';ctx.font=`900 ${fontSize}px Arial`;
   ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=10;ctx.shadowOffsetY=5;
@@ -424,7 +421,7 @@ function spawnCube(x,y,z,value,opts={}){
     body.collisionFilterMask=~0;
   }
   world.addBody(body);
-  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:0};
+  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:opts.mergeCooldown||0};
   cubes.push(cube);return cube;
 }
 function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1)}
@@ -546,12 +543,11 @@ function rndStart(){const p=shooterPool();return p[Math.floor(Math.random()*p.le
 
 let shooterMesh=null,aimLine=null;
 function makeShooter(){
-  const shooterY = trackY + CUBE_SZ/2 + 0.1; // Σωστό ύψος από την αρχή
   shooterMesh=new THREE.Mesh(cubeGeo,getMats(curVal));shooterMesh.castShadow=true;
-  shooterMesh.position.set(0, shooterY, SHOOTER_Z);scene.add(shooterMesh);
+  shooterMesh.position.set(0,CUBE_SZ/2+.1,SHOOTER_Z);scene.add(shooterMesh);
   const glow=new THREE.Mesh(new THREE.RingGeometry(.4,1.0,32),new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.4,side:THREE.DoubleSide}));
-  glow.rotation.x=-Math.PI/2;glow.position.set(0, trackY + .03, SHOOTER_Z);scene.add(glow);shooterMesh._glow=glow;
-  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, shooterY, SHOOTER_Z), new THREE.Vector3(0, shooterY, -TRACK_L/2+2)]);
+  glow.rotation.x=-Math.PI/2;glow.position.set(0,.03,SHOOTER_Z);scene.add(glow);shooterMesh._glow=glow;
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.4,SHOOTER_Z),new THREE.Vector3(0,.4,-TRACK_L/2+2)]);
   aimLine=new THREE.Line(lg,new THREE.LineDashedMaterial({color:0xffffff,dashSize:.3,gapSize:.3,opacity:.5,transparent:true}));
   aimLine.computeLineDistances();scene.add(aimLine);
 }
@@ -559,11 +555,10 @@ function updateShooter(){
   if(!shooterMesh)return;
   const show=gameOn&&!shotCube;
   shooterMesh.visible=show;aimLine.visible=gameOn&&!shotCube;shooterMesh._glow.visible=show;
-  const shooterY = trackY + CUBE_SZ/2 + .1;
-  shooterMesh.position.x=aimX;shooterMesh.position.y=shooterY+Math.sin(performance.now()*.004)*.06;
+  shooterMesh.position.x=aimX;shooterMesh.position.y=trackY + CUBE_SZ/2+.1+Math.sin(performance.now()*.004)*.06;
   shooterMesh.rotation.y+=.01;shooterMesh._glow.position.x=aimX;shooterMesh._glow.position.y=trackY+.03;
   shooterMesh.material=rainbowArmed?getRainbowMats():getMats(curVal);
-  aimLine.geometry.setFromPoints([new THREE.Vector3(aimX, shooterY, SHOOTER_Z), new THREE.Vector3(aimX, shooterY, -TRACK_L/2+2)]);
+  aimLine.geometry.setFromPoints([new THREE.Vector3(aimX,.4,SHOOTER_Z),new THREE.Vector3(aimX,.4,-TRACK_L/2+2)]);
   aimLine.computeLineDistances();
 }
 
@@ -582,7 +577,7 @@ function tryMerge(a,b){
   const py=Math.max(trackY+CUBE_SZ/2+.1,(a.body.position.y+b.body.position.y)/2);
   const pz=(a.body.position.z+b.body.position.z)/2;
   removeCube(a);removeCube(b);
-  const nc=spawnCube(px-trackY,py-trackY,pz,nv); // spawnCube προσθέτει trackY
+  const nc=spawnCube(px-trackY,py-trackY,pz,nv);
   nc.flash=12;nc.mergeActive=true;nc.mergeCooldown=0.5;
   nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*9,(Math.random()-.5)*9,(Math.random()-.5)*9);
@@ -712,7 +707,7 @@ function update(){
           rampBody.velocity.set(0,0,0);
           rampState='idle';
           if(rampMesh)rampMesh.visible=false;
-          spawnRow(SPAWN_Z);
+          spawnRow(Z_BACK);
         }
       }
     }
@@ -735,8 +730,7 @@ function update(){
         c.body.position.x+=(cx-c.body.position.x)*0.18;c.body.velocity.x*=0.5;
       }
       c.mesh.position.copy(c.body.position);
-      // ΔΙΟΡΘΩΣΗ: ΔΕΝ αφαιρούμε το trackY. Το mesh Y πρέπει να είναι ΑΚΡΙΒΩΣ το body Y.
-      // c.mesh.position.y -= trackY; // <-- Αυτό το σχόλιο/διαγραφή είναι η λύση
+      // ★ ΔΙΟΡΘΩΣΗ: αφαιρέθηκε το c.mesh.position.y -= trackY;
       c.mesh.quaternion.copy(c.body.quaternion);
       const ei=c.flash>0?.28+(c.flash/12)*1.7:.28;
       c.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei});
@@ -881,13 +875,12 @@ function startGame(){
     new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
   rampMesh.position.set(0,trackY+0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
-  // ★ 5 αρχικοί κύβοι προς το πάνω μέρος της οθόνης (z = -8)
-  const startZ = -8;
-  const startVals = [2,4,2,8,4];
+  const startVals=[2,4,8,16,4];
+  const startRowZ=Z_BACK+CUBE_SZ*0.6;
   for(let i=0;i<COLS;i++){
-    const cx = -TRACK_W/2+COL_W/2+i*COL_W + (Math.random()*0.6 - 0.3);
-    const cz = startZ + (Math.random()*1.2 - 0.6);
-    spawnCube(cx, CUBE_SZ/2+0.05, cz, startVals[i]);
+    const cx=-TRACK_W/2+COL_W/2+i*COL_W;
+    spawnCube(cx,CUBE_SZ/2+0.05,startRowZ,startVals[i],{mergeCooldown:0.4});
+    addScore(startVals[i]);
   }
 
   drawNextHUD();audio.init();
@@ -911,7 +904,12 @@ canvas.addEventListener('touchend',e=>{e.preventDefault();shoot();dragging=false
 document.getElementById('hammer-icon').addEventListener('click',()=>{
   if(!gameOn||hammerChg<100)return;hammerChg=0;shakeAmt=.5;audio.boom();
   const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,8);
-  sorted.forEach(c=>{spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,gp(c.value).hex,8);removeCube(c)})});
+  sorted.forEach(c=>{
+    spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,gp(c.value).hex,8);
+    addScore(c.value);
+    removeCube(c);
+  });
+});
 
 function useBomb(){
   audio.boom();shakeAmt=.5;
