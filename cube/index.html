@@ -546,11 +546,12 @@ function rndStart(){const p=shooterPool();return p[Math.floor(Math.random()*p.le
 
 let shooterMesh=null,aimLine=null;
 function makeShooter(){
+  const shooterY = trackY + CUBE_SZ/2 + 0.1; // Σωστό ύψος από την αρχή
   shooterMesh=new THREE.Mesh(cubeGeo,getMats(curVal));shooterMesh.castShadow=true;
-  shooterMesh.position.set(0,CUBE_SZ/2+.1,SHOOTER_Z);scene.add(shooterMesh);
+  shooterMesh.position.set(0, shooterY, SHOOTER_Z);scene.add(shooterMesh);
   const glow=new THREE.Mesh(new THREE.RingGeometry(.4,1.0,32),new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.4,side:THREE.DoubleSide}));
-  glow.rotation.x=-Math.PI/2;glow.position.set(0,.03,SHOOTER_Z);scene.add(glow);shooterMesh._glow=glow;
-  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.4,SHOOTER_Z),new THREE.Vector3(0,.4,-TRACK_L/2+2)]);
+  glow.rotation.x=-Math.PI/2;glow.position.set(0, trackY + .03, SHOOTER_Z);scene.add(glow);shooterMesh._glow=glow;
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, shooterY, SHOOTER_Z), new THREE.Vector3(0, shooterY, -TRACK_L/2+2)]);
   aimLine=new THREE.Line(lg,new THREE.LineDashedMaterial({color:0xffffff,dashSize:.3,gapSize:.3,opacity:.5,transparent:true}));
   aimLine.computeLineDistances();scene.add(aimLine);
 }
@@ -558,10 +559,11 @@ function updateShooter(){
   if(!shooterMesh)return;
   const show=gameOn&&!shotCube;
   shooterMesh.visible=show;aimLine.visible=gameOn&&!shotCube;shooterMesh._glow.visible=show;
-  shooterMesh.position.x=aimX;shooterMesh.position.y=trackY + CUBE_SZ/2+.1+Math.sin(performance.now()*.004)*.06;
+  const shooterY = trackY + CUBE_SZ/2 + .1;
+  shooterMesh.position.x=aimX;shooterMesh.position.y=shooterY+Math.sin(performance.now()*.004)*.06;
   shooterMesh.rotation.y+=.01;shooterMesh._glow.position.x=aimX;shooterMesh._glow.position.y=trackY+.03;
   shooterMesh.material=rainbowArmed?getRainbowMats():getMats(curVal);
-  aimLine.geometry.setFromPoints([new THREE.Vector3(aimX,.4,SHOOTER_Z),new THREE.Vector3(aimX,.4,-TRACK_L/2+2)]);
+  aimLine.geometry.setFromPoints([new THREE.Vector3(aimX, shooterY, SHOOTER_Z), new THREE.Vector3(aimX, shooterY, -TRACK_L/2+2)]);
   aimLine.computeLineDistances();
 }
 
@@ -733,7 +735,8 @@ function update(){
         c.body.position.x+=(cx-c.body.position.x)*0.18;c.body.velocity.x*=0.5;
       }
       c.mesh.position.copy(c.body.position);
-      c.mesh.position.y -= trackY; // διορθώνουμε την απεικόνιση
+      // ΔΙΟΡΘΩΣΗ: ΔΕΝ αφαιρούμε το trackY. Το mesh Y πρέπει να είναι ΑΚΡΙΒΩΣ το body Y.
+      // c.mesh.position.y -= trackY; // <-- Αυτό το σχόλιο/διαγραφή είναι η λύση
       c.mesh.quaternion.copy(c.body.quaternion);
       const ei=c.flash>0?.28+(c.flash/12)*1.7:.28;
       c.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei});
