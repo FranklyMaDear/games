@@ -183,15 +183,15 @@ const TRACK_W=7.5;
 const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;
-const DANGER_Z=11.5;       // ★ κόκκινη γραμμή πιο μπροστά
-const SHOOTER_Z=13.5;      // shooter ΠΙΣΩ από την κόκκινη γραμμή
+const DANGER_Z = 13.5;      // ★ Κόκκινη γραμμή στο κάτω μέρος
+const SHOOTER_Z = 15.5;     // ★ Κύβος ρίψης πίσω από την κόκκινη γραμμή
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const ROW_STEP    = CUBE_SZ + 0.06;
-const RAMP_HOME_Z = -TRACK_L/2 + 1.0;
-const SPAWN_Z     = RAMP_HOME_Z + 0.95;
-const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP;
+const RAMP_HOME_Z = -TRACK_L/2 + 2.0;    // -15 (Πάνω μέρος)
+const SPAWN_Z     = RAMP_HOME_Z + 0.95;  // -14.05 (Εμφάνιση νέων κύβων)
+const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP; // -13.69 (Μετακίνηση κατά ένα μέγεθος κύβου)
 const RAMP_SPEED  = 5.0;
 
 // ═══ LOCAL HIGH SCORE ═══
@@ -524,8 +524,8 @@ function createTempWall(zPos){
     new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.7}));
   tempWallMesh.position.copy(tempWallBody.position);
   scene.add(tempWallMesh);
-  tempWallTimer=1.2;
   tempWallActive=true;
+  tempWallTimer=0;
 }
 
 function removeTempWall(){
@@ -763,15 +763,21 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ (ο τοίχος κινείται μαζί με τη ράμπα) ═══
+// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ (Ο τοίχος κινείται μαζί με τη ράμπα) ═══
 function triggerRampSpawn(){
   if(rampState!=='idle'||!gameOn||paused||!rampBody)return;
+  
+  // 1. Δημιουργία νέων κύβων στο SPAWN_Z
   spawnRow(SPAWN_Z);
-  // Ο τοίχος ξεκινάει από την αρχική θέση των νέων κύβων
-  createTempWall(SPAWN_Z + CUBE_SZ*0.6);
-  rampBody.position.set(0,0.55,RAMP_HOME_Z);
-  rampBody.velocity.set(0,0,RAMP_SPEED);
-  if(rampMesh){rampMesh.position.z=RAMP_HOME_Z;rampMesh.visible=true;}
+  
+  // 2. Δημιουργία προσωρινού τοίχου πίσω από τους νέους κύβους
+  createTempWall(SPAWN_Z - CUBE_SZ * 0.7);
+  
+  // 3. Ενεργοποίηση ράμπας και τοίχου για ώθηση προς τα εμπρός
+  rampBody.position.set(0, 0.55, RAMP_HOME_Z);
+  rampBody.velocity.set(0, 0, RAMP_SPEED);
+  if(rampMesh){ rampMesh.position.z = RAMP_HOME_Z; rampMesh.visible = true; }
+  
   rampState='pushing';
   audio.thud();
 }
@@ -787,15 +793,15 @@ function update(){
 
       for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
 
-      // Ο τοίχος ακολουθεί τη ράμπα όσο είναι ενεργός
-      if(tempWallActive && rampBody && rampState==='pushing'){
+      // Κίνηση τοίχου μαζί με τη ράμπα
+      if(tempWallActive && rampBody && rampState === 'pushing'){
         if(tempWallBody){
-          tempWallBody.position.z = rampBody.position.z + CUBE_SZ*0.8;
-          tempWallBody.velocity.set(0,0,RAMP_SPEED);
+          tempWallBody.position.z = rampBody.position.z + (SPAWN_Z - RAMP_HOME_Z - CUBE_SZ * 0.7);
+          tempWallBody.velocity.set(0, 0, RAMP_SPEED);
         }
       }
 
-      if(tempWallTimer>0 && !tempWallActive){
+      if(tempWallTimer > 0 && !tempWallActive){
         tempWallTimer-=dt;
         if(tempWallTimer<=0)removeTempWall();
       }
@@ -809,25 +815,26 @@ function update(){
 
       if(rampBody){
         if(rampState==='pushing'){
-          if(rampBody.position.z>=RAMP_PUSH_Z){
-            rampBody.position.z=RAMP_PUSH_Z;
-            rampBody.velocity.set(0,0,-RAMP_SPEED);
+          if(rampBody.position.z >= RAMP_PUSH_Z){
+            rampBody.position.z = RAMP_PUSH_Z;
+            rampBody.velocity.set(0, 0, -RAMP_SPEED);
             rampState='retracting';
-            // Όταν η ράμπα φτάσει μπροστά, ο τοίχος μένει για λίγο και μετά φεύγει
+            
+            // Σταμάτημα τοίχου και καταστροφή μετά από λίγο
             if(tempWallActive && tempWallBody){
-              tempWallBody.velocity.set(0,0,0);
-              tempWallActive=false;
-              tempWallTimer=0.8;
+              tempWallBody.velocity.set(0, 0, 0);
+              tempWallActive = false;
+              tempWallTimer = 0.6;
             }
           }
         }else if(rampState==='retracting'){
-          if(rampBody.position.z<=RAMP_HOME_Z){
-            rampBody.position.set(0,0.55,RAMP_HOME_Z);
-            rampBody.velocity.set(0,0,0);
+          if(rampBody.position.z <= RAMP_HOME_Z){
+            rampBody.position.set(0, 0.55, RAMP_HOME_Z);
+            rampBody.velocity.set(0, 0, 0);
             rampState='idle';
             if(rampMesh)rampMesh.visible=false;
           }
-        }else{rampBody.velocity.set(0,0,0);}
+        }else{rampBody.velocity.set(0, 0, 0);}
       }
 
       world.step(1/60,dt,4);
