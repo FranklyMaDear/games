@@ -71,6 +71,11 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .lb-entry .lb-score{color:#FFD700;font-weight:700}
 .lb-entry .lb-date{color:#888;font-size:10px}
 .lb-empty{color:#666;text-align:center;font-size:12px;padding:20px}
+#modal-leaderboard{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85)}
+#modal-leaderboard.active{display:flex}
+#modal-content{background:#111;border:2px solid #ffaa33;border-radius:18px;padding:20px;width:90%;max-width:340px;max-height:70vh;overflow-y:auto}
+#modal-content h2{color:#ffaa33;text-align:center;margin-bottom:12px}
+#modal-close{display:block;margin:12px auto 0;background:#ffaa33;color:#000;border:none;border-radius:8px;padding:8px 24px;font-weight:700;cursor:pointer}
 </style>
 <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
@@ -113,6 +118,18 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   <div class="boost-btn" id="btn-newgames">
     <div class="boost-circle"><span>🆕</span></div>
     <div class="boost-name">NEW GAMES</div>
+  </div>
+  <div class="boost-btn" id="btn-rank">
+    <div class="boost-circle"><span>🏆</span></div>
+    <div class="boost-name">RANK</div>
+  </div>
+</div>
+
+<div id="modal-leaderboard">
+  <div id="modal-content">
+    <h2>🏆 WEEKLY TOP 10</h2>
+    <div id="modal-lb-list"></div>
+    <button id="modal-close">CLOSE</button>
   </div>
 </div>
 
@@ -161,7 +178,7 @@ const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;
 const DANGER_Z=10.5;
-const SHOOTER_Z=12.5;   // ★ ο shooter ΠΙΣΩ από την κόκκινη γραμμή
+const SHOOTER_Z=13.5;   // ο shooter ΠΙΟ ΠΙΣΩ από την κόκκινη γραμμή
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
@@ -215,6 +232,31 @@ function saveHighScoreIfNeeded(s){
     document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   }
 }
+
+// ═══ MODAL LEADERBOARD ═══
+function openLeaderboardModal(){
+  const modal=document.getElementById('modal-leaderboard');
+  const list=document.getElementById('modal-lb-list');
+  const lb=getWeeklyLeaderboard();
+  let html='';
+  if(lb.length===0){
+    html='<div class="lb-empty">No scores yet this week</div>';
+  }else{
+    lb.forEach((entry,i)=>{
+      html+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${entry.score.toLocaleString()}</span><span class="lb-date">${entry.date}</span></div>`;
+    });
+  }
+  list.innerHTML=html;
+  modal.classList.add('active');
+}
+document.getElementById('btn-rank').addEventListener('click',openLeaderboardModal);
+document.getElementById('modal-close').addEventListener('click',()=>{
+  document.getElementById('modal-leaderboard').classList.remove('active');
+});
+document.getElementById('modal-leaderboard').addEventListener('click',(e)=>{
+  if(e.target===document.getElementById('modal-leaderboard'))
+    document.getElementById('modal-leaderboard').classList.remove('active');
+});
 
 // ═══ THREE.JS ═══
 const wrap=document.getElementById('canvas-wrap');
@@ -396,6 +438,14 @@ function spawnCube(x,y,z,value,opts={}){
   const body=new CANNON.Body({mass:opts.isShot?2:1.2,
     shape:new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material:mat,position:new CANNON.Vec3(x,y,z),linearDamping,angularDamping});
+  // Ο shot cube ανήκει σε collision group 2, ο τοίχος σε group 1
+  if(opts.isShot){
+    body.collisionFilterGroup=2;
+    body.collisionFilterMask=~2; // συγκρούεται με όλους εκτός από group 2
+  } else {
+    body.collisionFilterGroup=1;
+    body.collisionFilterMask=~0;
+  }
   world.addBody(body);
   const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:0};
   cubes.push(cube);return cube;
@@ -444,7 +494,7 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
-// ═══ ΠΡΟΣΩΡΙΝΟ ΤΕΙΧΟΣ ΩΘΗΣΗΣ ═══
+// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ΩΘΗΣΗΣ (σπρώχνει τους κύβους) ═══
 let tempWallBody=null,tempWallMesh=null,tempWallTimer=0;
 
 function createTempWall(zPos){
@@ -454,12 +504,15 @@ function createTempWall(zPos){
   const d=0.3;
   tempWallBody=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)),material:tempWallMat});
   tempWallBody.position.set(0,h/2,zPos);
+  // collision group 1 (έτσι ώστε ο shot cube με group 2 να περνάει από μέσα)
+  tempWallBody.collisionFilterGroup=1;
+  tempWallBody.collisionFilterMask=~2;
   world.addBody(tempWallBody);
   tempWallMesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
     new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.7}));
   tempWallMesh.position.copy(tempWallBody.position);
   scene.add(tempWallMesh);
-  tempWallTimer=1.2; // θα μείνει 1.2 δευτ.
+  tempWallTimer=1.2;
 }
 
 function removeTempWall(){
@@ -543,7 +596,7 @@ let rowTimer=0,ROW_INTERVAL=4.2;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 let rampBody=null,rampMesh=null,rampState='idle';
 let lastGiftScore=0,freeBomb=0,freeRainbow=0,giftFlip=0;
-let nextMilestone=2000; // ★ επόμενο ορόσημο δώρου (2000,3000,4000...)
+let nextMilestone=2000;
 
 function shooterPool(){
   let pool=[2,2,2,4,4,8];
@@ -641,7 +694,7 @@ function sweepMerges(){
   return any;
 }
 
-// ═══ SCORE / GIFTS (ορόσημα 2000,3000...) ═══
+// ═══ SCORE / GIFTS ═══
 function addScore(p){
   score+=p;
   saveHighScoreIfNeeded(score);
@@ -650,7 +703,6 @@ function addScore(p){
 function checkGifts(){
   while(score>=nextMilestone){
     if(nextMilestone===2000){
-      // Γέμισμα σφυριού
       hammerChg=100;
       floatText(0,3.2,DANGER_Z-3,'🔨 HAMMER READY!','gift');
     }
@@ -700,7 +752,7 @@ function rainbowClear(refCube){
 function triggerRampSpawn(){
   if(rampState!=='idle'||!gameOn||paused||!rampBody)return;
   spawnRow(SPAWN_Z);
-  // Προσωρινό τείχος μπροστά από τους νέους κύβους
+  // Προσωρινό τείχος μπροστά από τους νέους κύβους (σπρώχνει)
   createTempWall(RAMP_PUSH_Z + CUBE_SZ*0.7);
   rampBody.position.set(0,0.55,RAMP_HOME_Z);
   rampBody.velocity.set(0,0,RAMP_SPEED);
@@ -718,10 +770,8 @@ function update(){
 
   if(gameOn&&!paused){
 
-      // Μείωση cooldown
       for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
 
-      // Προσωρινό τείχος
       if(tempWallTimer>0){
         tempWallTimer-=dt;
         if(tempWallTimer<=0)removeTempWall();
@@ -865,25 +915,14 @@ function triggerGameOver(){
   removeTempWall();
   if(shotCube){removeCube(shotCube);shotCube=null}
   saveHighScoreIfNeeded(score);
-  const weeklyLB=addToWeeklyLeaderboard(score);
+  addToWeeklyLeaderboard(score);
   audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
-
-  let lbHTML='';
-  if(weeklyLB.length===0){
-    lbHTML='<div class="lb-empty">No scores yet this week</div>';
-  }else{
-    weeklyLB.forEach((entry,i)=>{
-      lbHTML+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${entry.score.toLocaleString()}</span><span class="lb-date">${entry.date}</span></div>`;
-    });
-  }
-
   const ov=document.getElementById('overlay');
   ov.innerHTML=`<div id="space-bg"></div><div id="starfield"></div><h1>GAME OVER</h1>
     <div style="color:#aaa;font-size:13px;position:relative">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div>
     <div style="color:#ffaa33;font-size:15px;position:relative">All-Time Best: ${highScore.toLocaleString()}</div>
-    <div id="leaderboard-wrap"><h3>🏆 WEEKLY TOP 10</h3>${lbHTML}</div>
     <button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
   buildStarfield();ov.classList.remove('hidden');
   document.getElementById('startBtn').addEventListener('click',startGame);
