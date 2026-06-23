@@ -1,87 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>Merge Cubes 3D</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
-    body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
-    #hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:8px;z-index:10;display:none !important;}
-    #hud.active{display:flex !important;}
-    #next-area{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 10px}
-    #next-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
-    #combo-col{display:flex;flex-direction:column;gap:4px}
-    #mult-row{display:flex;align-items:center;gap:6px}
-    #mult-val{color:#f0a030;font-size:15px;font-weight:800;min-width:32px;text-shadow:0 0 8px rgba(240,160,48,.5);transition:transform .1s}
-    #mult-val.pop{transform:scale(1.35)}
-    #mult-track{width:74px;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
-    #mult-fill{height:100%;background:linear-gradient(90deg,#f0a030,#ff5555);width:0%;transition:width .3s;border-radius:3px;box-shadow:0 0 8px rgba(255,140,80,.5)}
-    #score-box{text-align:center;flex:1}
-    #score-lbl{color:#666;font-size:9px;font-weight:700;letter-spacing:2px}
-    #score-val{color:#fff;font-size:22px;font-weight:900;line-height:1;letter-spacing:-1px;text-shadow:0 0 16px rgba(140,100,255,.5);font-variant-numeric:tabular-nums}
-    #highscore-box{text-align:center;min-width:50px}
-    #highscore-lbl{color:#ffaa33;font-size:9px;font-weight:700;letter-spacing:1.5px}
-    #highscore-val{color:#ffaa33;font-size:16px;font-weight:900;text-shadow:0 0 8px rgba(255,160,48,.5);font-variant-numeric:tabular-nums}
-    .hbtn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#aaa;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-    #hammer-wrap{position:absolute;left:6px;top:40%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:10}
-    #hammer-icon{font-size:22px;cursor:pointer;filter:drop-shadow(0 0 6px rgba(255,140,40,.6));transition:transform .15s}
-    #hammer-icon.ready{animation:pulse 1s ease-in-out infinite}
-    @keyframes pulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 6px rgba(255,200,0,.8))}50%{transform:scale(1.15);filter:drop-shadow(0 0 14px rgba(255,200,0,1))}}
-    #hammer-track{width:12px;height:80px;background:rgba(20,20,40,.8);border-radius:6px;overflow:hidden;border:1px solid rgba(140,100,255,.3);position:relative}
-    #hammer-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,#ff9900,#ff3300);transition:height .5s cubic-bezier(.4,0,.2,1);border-radius:6px;box-shadow:0 0 8px rgba(255,140,0,.6)}
-    #canvas-wrap{flex:1;width:100%;position:relative;overflow:hidden}
-    #three-canvas{display:block;width:100%;height:100%;cursor:crosshair}
-    #fx-layer{position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden}
-    .float-text{position:absolute;font-weight:900;letter-spacing:.5px;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;animation:fup 1.2s cubic-bezier(.2,.7,.3,1) forwards}
-    .float-text.milestone{font-size:24px;color:#FFD700;text-shadow:0 0 20px rgba(255,180,0,.9);animation:msf 1.6s cubic-bezier(.2,.7,.3,1) forwards}
-    .float-text.points{font-size:16px;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.9),0 0 12px rgba(255,180,0,.5)}
-    .float-text.points-big{font-size:22px}
-    .float-text.points-mega{font-size:28px;color:#FFA500}
-    .float-text.gift{font-size:22px;color:#7CFC00;text-shadow:0 0 18px rgba(120,255,80,.9)}
-    @keyframes fup{0%{transform:translate(-50%,0) scale(.7);opacity:0}12%{transform:translate(-50%,-8px) scale(1.15);opacity:1}100%{transform:translate(-50%,-55px) scale(1);opacity:0}}
-    @keyframes msf{0%{transform:translate(-50%,8px) scale(.5);opacity:0}20%{transform:translate(-50%,-10px) scale(1.3);opacity:1}80%{opacity:1}100%{transform:translate(-50%,-55px);opacity:0}}
-    #boosters{width:100%;display:flex;justify-content:center;align-items:center;gap:30px;padding:8px 0 12px;background:linear-gradient(0deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-top:1px solid rgba(140,100,255,.2);flex-shrink:0;z-index:10;display:none !important;}
-    #boosters.active{display:flex !important;}
-    .boost-btn{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
-    .boost-circle{width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 32%,#4a3a80,#1a1a3a);border:2px solid #7766cc;display:flex;align-items:center;justify-content:center;font-size:28px;position:relative;box-shadow:0 0 18px rgba(120,90,220,.55),inset 0 2px 0 rgba(255,255,255,.15);transition:transform .12s,filter .2s}
-    .boost-circle:active{transform:scale(.86)}
-    .boost-btn.locked .boost-circle{filter:grayscale(.7) brightness(.6)}
-    .boost-btn.ready .boost-circle{border-color:#16a34a;box-shadow:0 0 22px rgba(40,210,90,.7),inset 0 2px 0 rgba(255,255,255,.15);animation:pulse 1.1s ease-in-out infinite}
-    .ad-badge{position:absolute;top:-5px;right:-6px;background:#555;color:#fff;font-size:8px;padding:2px 6px;border-radius:6px;font-weight:800;display:flex;align-items:center;gap:2px}
-    .ad-badge.free{background:#16a34a}
-    .boost-name{color:#999;font-size:9px;font-weight:700;letter-spacing:.5px}
-    #btn-newgames .boost-circle{background:radial-gradient(circle at 35% 32%,#e05800,#7a2200);border:2px solid #ff6622;box-shadow:0 0 20px rgba(255,100,20,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
-    #btn-newgames .boost-name{color:#ff8844}
-    #btn-rank .boost-circle{background:radial-gradient(circle at 35% 32%,#b8860b,#6b4e00);border:2px solid #ffaa33;box-shadow:0 0 20px rgba(255,170,51,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
-    #btn-rank .boost-name{color:#ffaa33}
-    #btn-rank .rank-score{color:#FFD700;font-size:8px;font-weight:700;margin-top:-2px}
-    #overlay{position:absolute;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:transparent;overflow:hidden}
-    #overlay.hidden{display:none}
-    #space-bg{position:absolute;inset:0;z-index:-2;background:radial-gradient(ellipse at 50% 35%, #251a45 0%, #150f30 40%, #0a0720 70%, #050310 100%);overflow:hidden;pointer-events:none}
-    #starfield{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
-    .star-layer{position:absolute;width:200%;height:200%;top:-50%;left:-50%}
-    @keyframes warpStars{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-50%) scale(1.1)}}
-    #overlay h1{position:relative;color:#fff;font-size:38px;font-weight:900;letter-spacing:2px;background:linear-gradient(90deg,#a855f7,#ec4899,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(168,85,247,.5))}
-    #overlay p{position:relative;color:#dde;font-size:13px;text-align:center;line-height:1.8;max-width:280px;text-shadow:0 2px 10px rgba(0,0,0,.9)}
-    .score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
-    .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
-    .play-btn:active{transform:scale(.94)}
-    #leaderboard-wrap{width:90%;max-width:320px;max-height:180px;overflow-y:auto;background:rgba(0,0,0,.5);border-radius:12px;padding:10px;border:1px solid rgba(255,170,51,.3);scrollbar-width:thin;scrollbar-color:#ffaa33 transparent}
-    #leaderboard-wrap h3{color:#ffaa33;font-size:15px;text-align:center;margin-bottom:8px;letter-spacing:1px}
-    .lb-entry{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px;color:#ddd}
-    .lb-entry .lb-rank{color:#ffaa33;font-weight:700;min-width:24px}
-    .lb-entry .lb-score{color:#FFD700;font-weight:700}
-    .lb-entry .lb-date{color:#888;font-size:10px}
-    .lb-empty{color:#666;text-align:center;font-size:12px;padding:20px}
-    #modal-leaderboard{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85)}
-    #modal-leaderboard.active{display:flex}
-    #modal-content{background:#111;border:2px solid #ffaa33;border-radius:18px;padding:20px;width:90%;max-width:340px;max-height:70vh;overflow-y:auto}
-    #modal-content h2{color:#ffaa33;text-align:center;margin-bottom:4px}
-    #modal-content .current-score{color:#FFD700;text-align:center;font-size:18px;font-weight:800;margin-bottom:12px}
-    #modal-close{display:block;margin:12px auto 0;background:#ffaa33;color:#000;border:none;border-radius:8px;padding:8px 24px;font-weight:700;cursor:pointer}
-  </style>
-  <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Merge Cubes 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
+body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
+#hud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 14px 6px;background:linear-gradient(180deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.2);flex-shrink:0;gap:8px;z-index:10;display:none !important;}
+#hud.active{display:flex !important;}
+#next-area{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:5px 10px}
+#next-label{color:#888;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
+#combo-col{display:flex;flex-direction:column;gap:4px}
+#mult-row{display:flex;align-items:center;gap:6px}
+#mult-val{color:#f0a030;font-size:15px;font-weight:800;min-width:32px;text-shadow:0 0 8px rgba(240,160,48,.5);transition:transform .1s}
+#mult-val.pop{transform:scale(1.35)}
+#mult-track{width:74px;height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+#mult-fill{height:100%;background:linear-gradient(90deg,#f0a030,#ff5555);width:0%;transition:width .3s;border-radius:3px;box-shadow:0 0 8px rgba(255,140,80,.5)}
+#score-box{text-align:center;flex:1}
+#score-lbl{color:#666;font-size:9px;font-weight:700;letter-spacing:2px}
+#score-val{color:#fff;font-size:22px;font-weight:900;line-height:1;letter-spacing:-1px;text-shadow:0 0 16px rgba(140,100,255,.5);font-variant-numeric:tabular-nums}
+#highscore-box{text-align:center;min-width:50px}
+#highscore-lbl{color:#ffaa33;font-size:9px;font-weight:700;letter-spacing:1.5px}
+#highscore-val{color:#ffaa33;font-size:16px;font-weight:900;text-shadow:0 0 8px rgba(255,160,48,.5);font-variant-numeric:tabular-nums}
+.hbtn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#aaa;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#hammer-wrap{position:absolute;left:6px;top:40%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:10}
+#hammer-icon{font-size:22px;cursor:pointer;filter:drop-shadow(0 0 6px rgba(255,140,40,.6));transition:transform .15s}
+#hammer-icon.ready{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 6px rgba(255,200,0,.8))}50%{transform:scale(1.15);filter:drop-shadow(0 0 14px rgba(255,200,0,1))}}
+#hammer-track{width:12px;height:80px;background:rgba(20,20,40,.8);border-radius:6px;overflow:hidden;border:1px solid rgba(140,100,255,.3);position:relative}
+#hammer-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,#ff9900,#ff3300);transition:height .5s cubic-bezier(.4,0,.2,1);border-radius:6px;box-shadow:0 0 8px rgba(255,140,0,.6)}
+#canvas-wrap{flex:1;width:100%;position:relative;overflow:hidden}
+#three-canvas{display:block;width:100%;height:100%;cursor:crosshair}
+#fx-layer{position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden}
+.float-text{position:absolute;font-weight:900;letter-spacing:.5px;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;animation:fup 1.2s cubic-bezier(.2,.7,.3,1) forwards}
+.float-text.milestone{font-size:24px;color:#FFD700;text-shadow:0 0 20px rgba(255,180,0,.9);animation:msf 1.6s cubic-bezier(.2,.7,.3,1) forwards}
+.float-text.points{font-size:16px;color:#FFD700;text-shadow:0 2px 10px rgba(0,0,0,.9),0 0 12px rgba(255,180,0,.5)}
+.float-text.points-big{font-size:22px}
+.float-text.points-mega{font-size:28px;color:#FFA500}
+.float-text.gift{font-size:22px;color:#7CFC00;text-shadow:0 0 18px rgba(120,255,80,.9)}
+@keyframes fup{0%{transform:translate(-50%,0) scale(.7);opacity:0}12%{transform:translate(-50%,-8px) scale(1.15);opacity:1}100%{transform:translate(-50%,-55px) scale(1);opacity:0}}
+@keyframes msf{0%{transform:translate(-50%,8px) scale(.5);opacity:0}20%{transform:translate(-50%,-10px) scale(1.3);opacity:1}80%{opacity:1}100%{transform:translate(-50%,-55px);opacity:0}}
+#boosters{width:100%;display:flex;justify-content:center;align-items:center;gap:30px;padding:8px 0 12px;background:linear-gradient(0deg,rgba(20,20,40,.95),rgba(15,15,30,.85));backdrop-filter:blur(10px);border-top:1px solid rgba(140,100,255,.2);flex-shrink:0;z-index:10;display:none !important;}
+#boosters.active{display:flex !important;}
+.boost-btn{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.boost-circle{width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 32%,#4a3a80,#1a1a3a);border:2px solid #7766cc;display:flex;align-items:center;justify-content:center;font-size:28px;position:relative;box-shadow:0 0 18px rgba(120,90,220,.55),inset 0 2px 0 rgba(255,255,255,.15);transition:transform .12s,filter .2s}
+.boost-circle:active{transform:scale(.86)}
+.boost-btn.locked .boost-circle{filter:grayscale(.7) brightness(.6)}
+.boost-btn.ready .boost-circle{border-color:#16a34a;box-shadow:0 0 22px rgba(40,210,90,.7),inset 0 2px 0 rgba(255,255,255,.15);animation:pulse 1.1s ease-in-out infinite}
+.ad-badge{position:absolute;top:-5px;right:-6px;background:#555;color:#fff;font-size:8px;padding:2px 6px;border-radius:6px;font-weight:800;display:flex;align-items:center;gap:2px}
+.ad-badge.free{background:#16a34a}
+.boost-name{color:#999;font-size:9px;font-weight:700;letter-spacing:.5px}
+#btn-newgames .boost-circle{background:radial-gradient(circle at 35% 32%,#e05800,#7a2200);border:2px solid #ff6622;box-shadow:0 0 20px rgba(255,100,20,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
+#btn-newgames .boost-name{color:#ff8844}
+#btn-rank .boost-circle{background:radial-gradient(circle at 35% 32%,#b8860b,#6b4e00);border:2px solid #ffaa33;box-shadow:0 0 20px rgba(255,170,51,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
+#btn-rank .boost-name{color:#ffaa33}
+#btn-rank .rank-score{color:#FFD700;font-size:8px;font-weight:700;margin-top:-2px}
+#overlay{position:absolute;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:transparent;overflow:hidden}
+#overlay.hidden{display:none}
+#space-bg{position:absolute;inset:0;z-index:-2;background:radial-gradient(ellipse at 50% 35%, #251a45 0%, #150f30 40%, #0a0720 70%, #050310 100%);overflow:hidden;pointer-events:none}
+#starfield{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.star-layer{position:absolute;width:200%;height:200%;top:-50%;left:-50%}
+@keyframes warpStars{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-50%) scale(1.1)}}
+#overlay h1{position:relative;color:#fff;font-size:38px;font-weight:900;letter-spacing:2px;background:linear-gradient(90deg,#a855f7,#ec4899,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(168,85,247,.5))}
+#overlay p{position:relative;color:#dde;font-size:13px;text-align:center;line-height:1.8;max-width:280px;text-shadow:0 2px 10px rgba(0,0,0,.9)}
+.score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
+.play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
+.play-btn:active{transform:scale(.94)}
+#leaderboard-wrap{width:90%;max-width:320px;max-height:180px;overflow-y:auto;background:rgba(0,0,0,.5);border-radius:12px;padding:10px;border:1px solid rgba(255,170,51,.3);scrollbar-width:thin;scrollbar-color:#ffaa33 transparent}
+#leaderboard-wrap h3{color:#ffaa33;font-size:15px;text-align:center;margin-bottom:8px;letter-spacing:1px}
+.lb-entry{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px;color:#ddd}
+.lb-entry .lb-rank{color:#ffaa33;font-weight:700;min-width:24px}
+.lb-entry .lb-score{color:#FFD700;font-weight:700}
+.lb-entry .lb-date{color:#888;font-size:10px}
+.lb-empty{color:#666;text-align:center;font-size:12px;padding:20px}
+#modal-leaderboard{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85)}
+#modal-leaderboard.active{display:flex}
+#modal-content{background:#111;border:2px solid #ffaa33;border-radius:18px;padding:20px;width:90%;max-width:340px;max-height:70vh;overflow-y:auto}
+#modal-content h2{color:#ffaa33;text-align:center;margin-bottom:4px}
+#modal-content .current-score{color:#FFD700;text-align:center;font-size:18px;font-weight:800;margin-bottom:12px}
+#modal-close{display:block;margin:12px auto 0;background:#ffaa33;color:#000;border:none;border-radius:8px;padding:8px 24px;font-weight:700;cursor:pointer}
+</style>
+<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
 <body>
 <div id="hud">
@@ -139,7 +139,9 @@
   </div>
 </div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/","cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"}}</script>
 
 <script type="module">
 import * as THREE from 'three';
@@ -177,20 +179,21 @@ function nextVal(v){const i=SEQ.indexOf(v);return i>=0&&i+1<SEQ.length?SEQ[i+1]:
 
 // ── Διάδρομος ──
 const COLS=5;
-const CUBE_SZ=1.6;          // ★ ΜΕΓΑΛΥΤΕΡΟΙ ΚΥΒΟΙ για ευανάγνωστους αριθμούς
-const TRACK_W=8.0;          // φάρδος διαδρόμου
+const TRACK_W=7.5;
 const COL_W=TRACK_W/COLS;
+const CUBE_SZ=1.25;
 const TRACK_L=34;
 const DANGER_Z = 13.5;
 const SHOOTER_Z = 15.5;
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
-const ROW_STEP    = CUBE_SZ + 0.08;
+// Πιο μεγάλη απόσταση μεταξύ σειρών για να μην ακουμπούν
+const ROW_STEP    = CUBE_SZ + 0.6;   // παλιό 0.06 → 0.6
 const RAMP_HOME_Z = -TRACK_L/2 + 2.0;
-const SPAWN_Z     = RAMP_HOME_Z + 1.0;
+const SPAWN_Z     = RAMP_HOME_Z + 0.95;
 const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP;
-const RAMP_SPEED  = 5.0;
+const RAMP_SPEED  = 2.5;             // πιο αργή ώθηση (παλιό 5.0)
 
 // ═══ LOCAL HIGH SCORE ═══
 const LS_KEY='mergeCubes3D_highscore';
@@ -460,9 +463,57 @@ function spawnCube(x,y,z,value,opts={}){
 }
 function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1)}
 
-function spawnRow(z){
-  const vals=[[2,4,2,8,4],[4,2,8,2,4],[2,8,4,4,2],[4,2,4,8,2],[2,4,8,2,4]][Math.floor(Math.random()*5)];
-  for(let i=0;i<COLS;i++)spawnCube(-TRACK_W/2+COL_W/2+i*COL_W,CUBE_SZ/2+0.05,z,vals[i]);
+// ═══ ΝΕΟ SPAWN ROW με τυχαίες θέσεις και έλεγχο αποστάσεων ═══
+function spawnRow(z) {
+  const vals = [[2,4,2,8,4],[4,2,8,2,4],[2,8,4,4,2],[4,2,4,8,2],[2,4,8,2,4]][Math.floor(Math.random()*5)];
+  const usedPositions = [];
+  const spawnDelay = 120; // ms μεταξύ κάθε κύβου
+
+  for (let i = 0; i < COLS; i++) {
+    let x, zPos;
+    let found = false;
+    // Προσπαθούμε να βρούμε θέση που δεν συγκρούεται με υπάρχοντες ή με τους άλλους νέους
+    for (let attempt = 0; attempt < 20; attempt++) {
+      x = -TRACK_W/2 + COL_W/2 + Math.random() * (TRACK_W - COL_W);
+      zPos = z + (Math.random() - 0.5) * 0.8; // μικρή διακύμανση στο Z
+      let collision = false;
+      // Έλεγχος με κύβους που ήδη υπάρχουν (εκτός από shot)
+      for (const c of cubes) {
+        if (c.isShot) continue;
+        const dx = c.body.position.x - x;
+        const dz = c.body.position.z - zPos;
+        if (dx*dx + dz*dz < (CUBE_SZ * 1.7) * (CUBE_SZ * 1.7)) {
+          collision = true;
+          break;
+        }
+      }
+      // Έλεγχος με νέους κύβους που έχουν ήδη τοποθετηθεί
+      if (!collision) {
+        for (const used of usedPositions) {
+          const dx = used.x - x;
+          const dz = used.z - zPos;
+          if (dx*dx + dz*dz < (CUBE_SZ * 1.7) * (CUBE_SZ * 1.7)) {
+            collision = true;
+            break;
+          }
+        }
+      }
+      if (!collision) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      // Αν δεν βρέθηκε θέση, τοποθετούμε σε κανονική σειρά (έτσι κι αλλιώς σπάνιο)
+      x = -TRACK_W/2 + COL_W/2 + i * COL_W;
+      zPos = z;
+    }
+    usedPositions.push({x, z: zPos});
+    // Καθυστερημένη δημιουργία για να μην συγκρουστούν μεταξύ τους
+    setTimeout(() => {
+      spawnCube(x, CUBE_SZ/2 + 0.05, zPos, vals[i]);
+    }, i * spawnDelay);
+  }
 }
 
 // ═══ PARTICLES, SHARDS & FLASH SPHERES ═══
@@ -502,25 +553,12 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
-// ═══ ΠΡΟΣΤΑΤΕΥΤΙΚΟΣ ΤΟΙΧΟΣ ═══
+// ═══ ΠΡΟΣΤΑΤΕΥΤΙΚΟΣ ΤΟΙΧΟΣ (τώρα αχρησιμοποίητος, αλλά τον κρατάμε για συμβατότητα) ═══
 let tempWallBody=null,tempWallMesh=null;
 
 function createTempWall(zPos){
-  removeTempWall();
-  const w=TRACK_W-0.6;
-  const h=1.8;
-  const d=0.4;
-  tempWallBody=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)),material:tempWallMat});
-  tempWallBody.position.set(0,h/2,zPos);
-  tempWallBody.collisionFilterGroup=1;
-  tempWallBody.collisionFilterMask=~2;
-  world.addBody(tempWallBody);
-  tempWallMesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-    new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.6}));
-  tempWallMesh.position.copy(tempWallBody.position);
-  scene.add(tempWallMesh);
+  // Απενεργοποιημένος – δεν χρειάζεται πια
 }
-
 function removeTempWall(){
   if(tempWallBody){world.removeBody(tempWallBody);tempWallBody=null}
   if(tempWallMesh){scene.remove(tempWallMesh);tempWallMesh=null}
@@ -603,10 +641,10 @@ let rampBody=null,rampMesh=null,rampState='idle';
 let lastGiftScore=0,freeBomb=0,freeRainbow=0,giftFlip=0;
 let nextMilestone=2000;
 
-// ═══ SPAWN CYCLE (ΔΙΟΡΘΩΜΕΝΟ) ═══
-let spawnCycle='idle';
+// ═══ SPAWN CYCLE (απλοποιημένος, χωρίς τοίχο) ═══
+let spawnCycle='idle'; // 'idle', 'waiting_push', 'pushing', 'retracting'
 let cycleTimer=0;
-const PUSH_DELAY=3.0;
+const PUSH_DELAY=5.0;  // 5 δευτ. αναμονή μετά το spawn
 
 function shooterPool(){
   let pool=[2,2,2,4,4,8];
@@ -759,25 +797,28 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΝΕΑ ΛΟΓΙΚΗ SPAWN ═══
-function pushThenSpawn(){
-  if(rampState!=='idle'||!rampBody||spawnCycle!=='pushing')return;
-  // Δημιουργία τοίχου και ώθηση
-  createTempWall(RAMP_HOME_Z + ROW_STEP*0.5);
+// ═══ ΚΥΚΛΟΣ SPAWN (χωρίς τοίχο) ═══
+function startSpawnCycle(){
+  if(spawnCycle!=='idle'||!gameOn||paused)return;
+  
+  // Γέννηση νέων κύβων με τυχαίες θέσεις
+  spawnRow(SPAWN_Z);
+  
+  // Μετά το spawn, περιμένουμε πριν την ώθηση
+  spawnCycle='waiting_push';
+  cycleTimer=PUSH_DELAY;
+}
+
+function pushAllCubes(){
+  if(rampState!=='idle'||!rampBody)return;
+  
+  // Ενεργοποίηση ράμπας για ώθηση ΟΛΩΝ των κύβων προς τα κάτω
   rampBody.position.set(0,0.55,RAMP_HOME_Z);
   rampBody.velocity.set(0,0,RAMP_SPEED);
   if(rampMesh){rampMesh.position.z=RAMP_HOME_Z;rampMesh.visible=true;}
   rampState='pushing';
+  spawnCycle='pushing';
   audio.thud();
-}
-
-function finishPushAndSpawn(){
-  // Αφαίρεση τοίχου, επαναφορά ράμπας, και ΓΕΝΝΗΣΗ ΝΕΩΝ ΚΥΒΩΝ στην άδεια κορυφή
-  removeTempWall();
-  rampState='idle';
-  if(rampMesh)rampMesh.visible=false;
-  spawnRow(SPAWN_Z);
-  spawnCycle='idle';
 }
 
 // ═══ UPDATE ═══
@@ -788,40 +829,49 @@ function update(){
   spaceStars.rotation.y+=dt*0.008;
 
   if(gameOn&&!paused){
+      // Cooldowns
       for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
 
       // Διαχείριση κύκλου spawn
-      if(spawnCycle==='idle'){
+      if(spawnCycle==='waiting_push'){
+        cycleTimer-=dt;
+        if(cycleTimer<=0){
+          pushAllCubes();
+        }
+      }else if(spawnCycle==='pushing'){
+        // Η ράμπα κινείται, η κατάσταση αλλάζει όταν φτάσει στο τέρμα
+      }else if(spawnCycle==='idle'){
         rowTimer+=dt;
         const interval=Math.max(2.4, ROW_INTERVAL - score*0.000015);
         const liveCubes=cubes.filter(c=>!c.isShot).length;
         if(rowTimer>=interval || liveCubes<=2){
           rowTimer=0;
-          spawnCycle='pushing';
-          pushThenSpawn();
-        }
-      } else if(spawnCycle==='pushing'){
-        // Η ράμπα κινείται, όταν φτάσει στο τέρμα γεννάμε
-        if(rampState==='pushing' && rampBody && rampBody.position.z >= RAMP_PUSH_Z){
-          rampBody.position.z = RAMP_PUSH_Z;
-          rampBody.velocity.set(0,0,-RAMP_SPEED);
-          finishPushAndSpawn();
+          startSpawnCycle();
         }
       }
 
-      // Κίνηση ράμπας (retracting)
-      if(rampBody && rampState==='retracting'){
-        if(rampBody.position.z <= RAMP_HOME_Z){
-          rampBody.position.set(0,0.55,RAMP_HOME_Z);
-          rampBody.velocity.set(0,0,0);
-          rampState='idle';
-          if(rampMesh)rampMesh.visible=false;
-        }
+      // Κίνηση ράμπας
+      if(rampBody){
+        if(rampState==='pushing'){
+          if(rampBody.position.z>=RAMP_PUSH_Z){
+            rampBody.position.z=RAMP_PUSH_Z;
+            rampBody.velocity.set(0,0,-RAMP_SPEED);
+            rampState='retracting';
+            spawnCycle='retracting';
+          }
+        }else if(rampState==='retracting'){
+          if(rampBody.position.z<=RAMP_HOME_Z){
+            rampBody.position.set(0,0.55,RAMP_HOME_Z);
+            rampBody.velocity.set(0,0,0);
+            rampState='idle';
+            if(rampMesh)rampMesh.visible=false;
+            spawnCycle='idle';
+          }
+        }else{rampBody.velocity.set(0,0,0);}
       }
 
       world.step(1/60,dt,4);
       if(rampMesh&&rampBody)rampMesh.position.z=rampBody.position.z;
-      if(tempWallMesh&&tempWallBody)tempWallMesh.position.copy(tempWallBody.position);
 
       const settling = (rampState==='idle');
       for(const c of cubes){
@@ -877,6 +927,7 @@ function update(){
       }
   }
 
+  // Σωματίδια, flash spheres, trail
   for(let i=flashSpheres.length-1;i>=0;i--){
     const fs=flashSpheres[i];fs.life-=dt;
     fs.mesh.scale.setScalar(fs.mesh.scale.x+fs.scaleSpeed*dt);
@@ -979,9 +1030,7 @@ function startGame(){
     new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.95}));
   rampMesh.position.set(0,0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
-  // Ξεκινάμε με μια σειρά
-  spawnRow(SPAWN_Z);
-  spawnCycle='idle';
+  startSpawnCycle();
 
   drawNextHUD();audio.init();
 }
