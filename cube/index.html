@@ -183,15 +183,15 @@ const TRACK_W=7.5;
 const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;
-const DANGER_Z = 13.5;      // ★ Κόκκινη γραμμή στο κάτω μέρος
-const SHOOTER_Z = 15.5;     // ★ Κύβος ρίψης πίσω από την κόκκινη γραμμή
+const DANGER_Z = 13.5;      // ★ Κόκκινη γραμμή (πάνω από τον shooter)
+const SHOOTER_Z = 15.5;     // ★ Shooter (κάτω από την κόκκινη γραμμή)
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const ROW_STEP    = CUBE_SZ + 0.06;
 const RAMP_HOME_Z = -TRACK_L/2 + 2.0;    // -15 (Πάνω μέρος)
 const SPAWN_Z     = RAMP_HOME_Z + 0.95;  // -14.05 (Εμφάνιση νέων κύβων)
-const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP; // -13.69 (Μετακίνηση κατά ένα μέγεθος κύβου)
+const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP; // -13.69
 const RAMP_SPEED  = 5.0;
 
 // ═══ LOCAL HIGH SCORE ═══
@@ -239,12 +239,10 @@ function saveHighScoreIfNeeded(s){
   }
 }
 
-// ═══ UPDATE RANK SCORE DISPLAY ═══
 function updateRankScoreDisplay(s){
   document.getElementById('rank-score-display').textContent='Score: '+s.toLocaleString();
 }
 
-// ═══ MODAL LEADERBOARD ═══
 function openLeaderboardModal(){
   const modal=document.getElementById('modal-leaderboard');
   const list=document.getElementById('modal-lb-list');
@@ -284,9 +282,10 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x080614);
 scene.fog=new THREE.Fog(0x080614,46,92);
 
+// ★ Κάμερα: πιο ψηλά και πίσω, κοιτάζοντας πιο κάτω για να φαίνεται ο shooter
 const camera=new THREE.PerspectiveCamera(50,1,0.1,250);
-camera.position.set(0, 21, 17.5);
-camera.lookAt(0, 0.5, -1.5);
+camera.position.set(0, 25, 20);
+camera.lookAt(0, 1, 5);
 
 const ambient=new THREE.AmbientLight(0x7766cc,0.65);scene.add(ambient);
 const keyLight=new THREE.DirectionalLight(0xffffff,1.4);
@@ -506,7 +505,7 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
-// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ΩΘΗΣΗΣ (κινείται μαζί με τη ράμπα) ═══
+// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ΩΘΗΣΗΣ ═══
 let tempWallBody=null,tempWallMesh=null,tempWallTimer=0;
 let tempWallActive=false;
 
@@ -763,21 +762,14 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ (Ο τοίχος κινείται μαζί με τη ράμπα) ═══
+// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ ═══
 function triggerRampSpawn(){
   if(rampState!=='idle'||!gameOn||paused||!rampBody)return;
-  
-  // 1. Δημιουργία νέων κύβων στο SPAWN_Z
   spawnRow(SPAWN_Z);
-  
-  // 2. Δημιουργία προσωρινού τοίχου πίσω από τους νέους κύβους
   createTempWall(SPAWN_Z - CUBE_SZ * 0.7);
-  
-  // 3. Ενεργοποίηση ράμπας και τοίχου για ώθηση προς τα εμπρός
   rampBody.position.set(0, 0.55, RAMP_HOME_Z);
   rampBody.velocity.set(0, 0, RAMP_SPEED);
   if(rampMesh){ rampMesh.position.z = RAMP_HOME_Z; rampMesh.visible = true; }
-  
   rampState='pushing';
   audio.thud();
 }
@@ -790,10 +782,8 @@ function update(){
   spaceStars.rotation.y+=dt*0.008;
 
   if(gameOn&&!paused){
-
       for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
 
-      // Κίνηση τοίχου μαζί με τη ράμπα
       if(tempWallActive && rampBody && rampState === 'pushing'){
         if(tempWallBody){
           tempWallBody.position.z = rampBody.position.z + (SPAWN_Z - RAMP_HOME_Z - CUBE_SZ * 0.7);
@@ -819,8 +809,6 @@ function update(){
             rampBody.position.z = RAMP_PUSH_Z;
             rampBody.velocity.set(0, 0, -RAMP_SPEED);
             rampState='retracting';
-            
-            // Σταμάτημα τοίχου και καταστροφή μετά από λίγο
             if(tempWallActive && tempWallBody){
               tempWallBody.velocity.set(0, 0, 0);
               tempWallActive = false;
@@ -844,20 +832,9 @@ function update(){
       const settling = (rampState==='idle');
       for(const c of cubes){
         if(c.flash>0)c.flash--;
-
-        if(c.body.position.x > X_LIMIT){
-          c.body.position.x = X_LIMIT;
-          if(c.body.velocity.x > 0) c.body.velocity.x *= -0.5;
-        } else if(c.body.position.x < -X_LIMIT){
-          c.body.position.x = -X_LIMIT;
-          if(c.body.velocity.x < 0) c.body.velocity.x *= -0.5;
-        }
-
-        if(c.body.position.z < Z_BACK){
-          c.body.position.z = Z_BACK;
-          if(c.body.velocity.z < 0) c.body.velocity.z *= -0.5;
-        }
-
+        if(c.body.position.x > X_LIMIT){c.body.position.x = X_LIMIT;if(c.body.velocity.x > 0)c.body.velocity.x *= -0.5;}
+        else if(c.body.position.x < -X_LIMIT){c.body.position.x = -X_LIMIT;if(c.body.velocity.x < 0)c.body.velocity.x *= -0.5;}
+        if(c.body.position.z < Z_BACK){c.body.position.z = Z_BACK;if(c.body.velocity.z < 0)c.body.velocity.z *= -0.5;}
         if(settling&&!c.isShot&&Math.abs(c.body.velocity.z)<0.6&&Math.abs(c.body.velocity.x)<0.6){
           let col=Math.round((c.body.position.x+TRACK_W/2-COL_W/2)/COL_W);
           col=Math.max(0,Math.min(COLS-1,col));
@@ -872,14 +849,14 @@ function update(){
       if(shotCube&&!shotCube._rainbow){
         const s=shotCube.body;
         const backDir=new THREE.Vector3(-s.velocity.x,-s.velocity.y,-s.velocity.z).normalize();
-        const px=s.position.x+backDir.x*CUBE_SZ*0.7;
-        const py=s.position.y+backDir.y*CUBE_SZ*0.7;
-        const pz=s.position.z+backDir.z*CUBE_SZ*0.7;
         for(let i=0;i<3;i++){
-          spawnTrailParticle(px+(Math.random()-.5)*0.5,py+(Math.random()-.5)*0.5,pz+(Math.random()-.5)*0.5,
+          spawnTrailParticle(s.position.x+backDir.x*CUBE_SZ*0.7+(Math.random()-.5)*0.5,
+            s.position.y+backDir.y*CUBE_SZ*0.7+(Math.random()-.5)*0.5,
+            s.position.z+backDir.z*CUBE_SZ*0.7+(Math.random()-.5)*0.5,
             s.velocity.x*0.4,s.velocity.y*0.4,s.velocity.z*0.4);
         }
       }
+      if(!shotCube) audio.rocketStop;
 
       if(shotCube&&shotCube._rainbow){
         for(const c of cubes){if(c===shotCube||c.isShot)continue;
@@ -897,8 +874,8 @@ function update(){
       }
 
       if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*16);mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1}
-      if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=21+(Math.random()-.5)*shakeAmt;
-        shakeAmt*=.86;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,21,17.5)}}
+      if(shakeAmt>0){camera.position.x=(Math.random()-.5)*shakeAmt*2;camera.position.y=25+(Math.random()-.5)*shakeAmt;
+        shakeAmt*=.86;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,25,20)}}
 
       if(rampState==='idle'){
         for(const c of cubes){if(c.isShot)continue;
@@ -909,8 +886,7 @@ function update(){
 
   for(let i=flashSpheres.length-1;i>=0;i--){
     const fs=flashSpheres[i];fs.life-=dt;
-    const s=fs.mesh.scale.x+fs.scaleSpeed*dt;
-    fs.mesh.scale.setScalar(s);
+    fs.mesh.scale.setScalar(fs.mesh.scale.x+fs.scaleSpeed*dt);
     fs.mat.opacity=Math.max(0,fs.life*1.8);
     if(fs.life<=0){scene.remove(fs.mesh);fs.mat.dispose();flashSpheres.splice(i,1)}
   }
@@ -920,7 +896,7 @@ function update(){
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;
     p.vy+=1.5*dt;p.life-=p.decay*dt;
     p.mat.opacity=Math.max(0,p.life);
-    const sc=0.3+p.life*0.7;p.mesh.scale.setScalar(sc);
+    p.mesh.scale.setScalar(0.3+p.life*0.7);
     if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();trailParticles.splice(i,1)}
   }
 
@@ -997,7 +973,7 @@ function startGame(){
   updateBoosterBadges();
   updateRankScoreDisplay(0);
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
-  camera.position.set(0,21,17.5);camera.lookAt(0,0.5,-1.5);
+  camera.position.set(0,25,20);camera.lookAt(0,1,5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
 
   const rampWidth=TRACK_W+0.4;
@@ -1009,7 +985,6 @@ function startGame(){
   rampMesh.position.set(0,0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
   spawnRow(SPAWN_Z + ROW_STEP);
-
   drawNextHUD();audio.init();
 }
 
@@ -1048,42 +1023,22 @@ function useRainbow(){
 
 document.getElementById('boost-bomb').addEventListener('click',()=>{
   if(!gameOn||paused)return;
-  if(freeBomb>0){
-    freeBomb--; updateBoosterBadges(); useBomb();
-  } else {
-    if(typeof show_11108267 === 'function'){
-      show_11108267().then(() => { useBomb(); });
-    } else {
-      alert('Ad not available');
-    }
-  }
+  if(freeBomb>0){freeBomb--;updateBoosterBadges();useBomb();}
+  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{useBomb()})}else{alert('Ad not available')}}
 });
 
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused||shotCube)return;
-  if(freeRainbow>0){
-    freeRainbow--; updateBoosterBadges(); useRainbow();
-  } else {
-    if(typeof show_11108267 === 'function'){
-      show_11108267().then(() => { useRainbow(); });
-    } else {
-      alert('Ad not available');
-    }
-  }
+  if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
+  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{useRainbow()})}else{alert('Ad not available')}}
 });
 
 document.getElementById('btn-newgames').addEventListener('click',()=>{
-  if(typeof show_11108267 === 'function'){
-    show_11108267().then(() => { startGame(); });
-  } else {
-    startGame();
-  }
+  if(typeof show_11108267==='function'){show_11108267().then(()=>{startGame()})}else{startGame()}
 });
 
-document.getElementById('btn-pause').addEventListener('click',()=>{if(!gameOn)return;paused=!paused;
-  document.getElementById('btn-pause').textContent=paused?'▶':'⏸'});
-document.getElementById('btn-sound').addEventListener('click',()=>{const m=audio.toggleMute();
-  document.getElementById('btn-sound').textContent=m?'🔇':'🔊'});
+document.getElementById('btn-pause').addEventListener('click',()=>{if(!gameOn)return;paused=!paused;document.getElementById('btn-pause').textContent=paused?'▶':'⏸'});
+document.getElementById('btn-sound').addEventListener('click',()=>{const m=audio.toggleMute();document.getElementById('btn-sound').textContent=m?'🔇':'🔊'});
 document.getElementById('startBtn').addEventListener('click',startGame);
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);
