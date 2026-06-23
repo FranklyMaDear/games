@@ -86,7 +86,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 <body>
 <div id="hud">
   <div id="next-area">
-    <div><div id="next-label">Next</div><canvas id="next-cnv" width="40" height="40"></canvas></div>
+    <div><div id="next-label">ΣΤΟΧΟΣ</div><canvas id="next-cnv" width="40" height="40"></canvas></div>
     <div id="combo-col"><div id="mult-row"><span id="mult-val">1×</span>
       <div id="mult-track"><div id="mult-fill"></div></div></div></div>
   </div>
@@ -165,12 +165,13 @@ function buildStarfield(){
 }
 buildStarfield();
 
-const SEQ=[2,4,8,16,32,64,128,256,512,1024,2048,4096];
+const SEQ=[2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384];
 const PAL={
   2:{hex:0x3ecf5a,glow:0x2aff5a},4:{hex:0x8b5cf6,glow:0xa070ff},8:{hex:0xf97316,glow:0xffaa44},
   16:{hex:0x14b8a6,glow:0x44e0c8},32:{hex:0xf5b50a,glow:0xffd24a},64:{hex:0x0ea5e9,glow:0x44ccff},
   128:{hex:0x3b82f6,glow:0x77aaff},256:{hex:0xe11d48,glow:0xff3366},512:{hex:0xec4899,glow:0xff66bb},
   1024:{hex:0x7c3aed,glow:0xaa66ff},2048:{hex:0xFFD700,glow:0xffee44},4096:{hex:0xff5500,glow:0xff8844},
+  8192:{hex:0x00ffff,glow:0x00ffff},16384:{hex:0xff00ff,glow:0xff00ff},
 };
 function gp(v){return PAL[v]||{hex:0xcc44ff,glow:0xff88ff}}
 function nextVal(v){const i=SEQ.indexOf(v);return i>=0&&i+1<SEQ.length?SEQ[i+1]:v*2}
@@ -372,7 +373,8 @@ function makeTexture(value,pal){
   const gr=ctx.createRadialGradient(sz/2,sz/2,sz*.15,sz/2,sz/2,sz*.75);
   gr.addColorStop(0,'rgba(255,255,255,.22)');gr.addColorStop(1,'rgba(0,0,0,.3)');ctx.fillStyle=gr;ctx.fillRect(0,0,sz,sz);
   ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=10;ctx.strokeRect(5,5,sz-10,sz-10);
-  const fontSize = value >= 1000 ? 120 : value >= 100 ? 150 : value >= 10 ? 190 : 230;
+  let fontSize;
+  if(value>=10000)fontSize=80;else if(value>=1000)fontSize=120;else if(value>=100)fontSize=150;else if(value>=10)fontSize=190;else fontSize=230;
   ctx.fillStyle='#fff';ctx.font=`900 ${fontSize}px Arial`;
   ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=10;ctx.shadowOffsetY=5;
   ctx.fillText(value,sz/2,sz/2+8);
@@ -529,6 +531,12 @@ let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed
 let rampBody=null,rampMesh=null,rampState='idle';
 let lastGiftScore=0,freeBomb=0,freeRainbow=0,giftFlip=0;
 let nextMilestone=2000;
+let targetVal=4; // Στόχος που δείχνουμε στο HUD
+
+function updateTarget(){
+  targetVal = nextVal(maxReached);
+  drawNextHUD();
+}
 
 function shooterPool(){
   let pool=[2,2,2,4,4,8];
@@ -572,7 +580,7 @@ function bumpCombo(){
 
 function tryMerge(a,b){
   const nv=nextVal(a.value);
-  if(nv>maxReached)maxReached=nv;
+  if(nv>maxReached){maxReached=nv;updateTarget();}
   const px=(a.body.position.x+b.body.position.x)/2;
   const py=Math.max(trackY+CUBE_SZ/2+.1,(a.body.position.y+b.body.position.y)/2);
   const pz=(a.body.position.z+b.body.position.z)/2;
@@ -707,6 +715,15 @@ function update(){
           rampBody.velocity.set(0,0,0);
           rampState='idle';
           if(rampMesh)rampMesh.visible=false;
+          // 🧹 Καθαρισμός πίσω ζώνης – μετακίνηση ό,τι έχει μείνει
+          const minZ = RAMP_PUSH_Z + 1.2;
+          cubes.forEach(c=>{
+            if(c.isShot)return;
+            if(c.body.position.z < minZ){
+              c.body.position.z = minZ;
+              c.body.velocity.z = 0;
+            }
+          });
           spawnRow(Z_BACK);
         }
       }
@@ -730,7 +747,6 @@ function update(){
         c.body.position.x+=(cx-c.body.position.x)*0.18;c.body.velocity.x*=0.5;
       }
       c.mesh.position.copy(c.body.position);
-      // ★ ΔΙΟΡΘΩΣΗ: αφαιρέθηκε το c.mesh.position.y -= trackY;
       c.mesh.quaternion.copy(c.body.quaternion);
       const ei=c.flash>0?.28+(c.flash/12)*1.7:.28;
       c.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei});
@@ -739,9 +755,10 @@ function update(){
     if(shotCube&&!shotCube._rainbow){
       const s=shotCube.body;
       const backDir=new THREE.Vector3(-s.velocity.x,-s.velocity.y,-s.velocity.z).normalize();
-      const px=s.position.x+backDir.x*CUBE_SZ*0.7;
-      const py=s.position.y+backDir.y*CUBE_SZ*0.7;
-      const pz=s.position.z+backDir.z*CUBE_SZ*0.7;
+      // 🎯 Ουρά ακριβώς πίσω από την πίσω πλευρά
+      const px=s.position.x+backDir.x*(CUBE_SZ/2+0.1);
+      const py=s.position.y+backDir.y*(CUBE_SZ/2+0.1);
+      const pz=s.position.z+backDir.z*(CUBE_SZ/2+0.1);
       for(let i=0;i<3;i++){
         spawnTrailParticle(px-trackY,py-trackY,pz,
           s.velocity.x*0.4,s.velocity.y*0.4,s.velocity.z*0.4);
@@ -817,7 +834,7 @@ function drawMiniCube(mc,cx,cy,sz,val){const pal=gp(val),d=sz*.22;
   mc.roundRect(cx-sz/2,cy,sz,sz,sz*.12);mc.fill();mc.fillStyle='#fff';
   mc.font=`800 ${Math.max(8,sz*(val>=100?.32:.46))}px Arial`;mc.textAlign='center';mc.textBaseline='middle';
   mc.fillText(val,cx,cy+sz/2)}
-function drawNextHUD(){nextCtx.clearRect(0,0,40,40);drawMiniCube(nextCtx,20,8,24,nxtVal)}
+function drawNextHUD(){nextCtx.clearRect(0,0,40,40);drawMiniCube(nextCtx,20,8,24,targetVal)}
 let hudFrame=0;
 function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.toLocaleString();
   multEl.textContent=mult+'×';multFillEl.style.width=comboBar+'%';hammerFillEl.style.height=hammerChg+'%';
@@ -858,6 +875,7 @@ function startGame(){
   score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;hammerChg=0;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;gameStarted=false;
   lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;nextMilestone=2000;
+  updateTarget();
   updateBoosterBadges();updateRankScoreDisplay(0);
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(camX,camY,camZ);camera.lookAt(0,trackY,0);
