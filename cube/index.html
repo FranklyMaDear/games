@@ -53,6 +53,9 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .boost-name{color:#999;font-size:9px;font-weight:700;letter-spacing:.5px}
 #btn-newgames .boost-circle{background:radial-gradient(circle at 35% 32%,#e05800,#7a2200);border:2px solid #ff6622;box-shadow:0 0 20px rgba(255,100,20,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
 #btn-newgames .boost-name{color:#ff8844}
+#btn-rank .boost-circle{background:radial-gradient(circle at 35% 32%,#b8860b,#6b4e00);border:2px solid #ffaa33;box-shadow:0 0 20px rgba(255,170,51,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
+#btn-rank .boost-name{color:#ffaa33}
+#btn-rank .rank-score{color:#FFD700;font-size:8px;font-weight:700;margin-top:-2px}
 #overlay{position:absolute;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:transparent;overflow:hidden}
 #overlay.hidden{display:none}
 #space-bg{position:absolute;inset:0;z-index:-2;background:radial-gradient(ellipse at 50% 35%, #251a45 0%, #150f30 40%, #0a0720 70%, #050310 100%);overflow:hidden;pointer-events:none}
@@ -74,7 +77,8 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 #modal-leaderboard{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.85)}
 #modal-leaderboard.active{display:flex}
 #modal-content{background:#111;border:2px solid #ffaa33;border-radius:18px;padding:20px;width:90%;max-width:340px;max-height:70vh;overflow-y:auto}
-#modal-content h2{color:#ffaa33;text-align:center;margin-bottom:12px}
+#modal-content h2{color:#ffaa33;text-align:center;margin-bottom:4px}
+#modal-content .current-score{color:#FFD700;text-align:center;font-size:18px;font-weight:800;margin-bottom:12px}
 #modal-close{display:block;margin:12px auto 0;background:#ffaa33;color:#000;border:none;border-radius:8px;padding:8px 24px;font-weight:700;cursor:pointer}
 </style>
 <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
@@ -122,12 +126,14 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   <div class="boost-btn" id="btn-rank">
     <div class="boost-circle"><span>🏆</span></div>
     <div class="boost-name">RANK</div>
+    <div class="rank-score" id="rank-score-display">Score: 0</div>
   </div>
 </div>
 
 <div id="modal-leaderboard">
   <div id="modal-content">
     <h2>🏆 WEEKLY TOP 10</h2>
+    <div class="current-score" id="modal-current-score">Your Score: 0</div>
     <div id="modal-lb-list"></div>
     <button id="modal-close">CLOSE</button>
   </div>
@@ -177,8 +183,8 @@ const TRACK_W=7.5;
 const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;
-const DANGER_Z=10.5;
-const SHOOTER_Z=13.5;   // ο shooter ΠΙΟ ΠΙΣΩ από την κόκκινη γραμμή
+const DANGER_Z=11.5;       // ★ κόκκινη γραμμή πιο μπροστά
+const SHOOTER_Z=13.5;      // shooter ΠΙΣΩ από την κόκκινη γραμμή
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
@@ -233,10 +239,17 @@ function saveHighScoreIfNeeded(s){
   }
 }
 
+// ═══ UPDATE RANK SCORE DISPLAY ═══
+function updateRankScoreDisplay(s){
+  document.getElementById('rank-score-display').textContent='Score: '+s.toLocaleString();
+}
+
 // ═══ MODAL LEADERBOARD ═══
 function openLeaderboardModal(){
   const modal=document.getElementById('modal-leaderboard');
   const list=document.getElementById('modal-lb-list');
+  const currentScoreEl=document.getElementById('modal-current-score');
+  currentScoreEl.textContent='Your Score: '+score.toLocaleString();
   const lb=getWeeklyLeaderboard();
   let html='';
   if(lb.length===0){
@@ -438,10 +451,9 @@ function spawnCube(x,y,z,value,opts={}){
   const body=new CANNON.Body({mass:opts.isShot?2:1.2,
     shape:new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material:mat,position:new CANNON.Vec3(x,y,z),linearDamping,angularDamping});
-  // Ο shot cube ανήκει σε collision group 2, ο τοίχος σε group 1
   if(opts.isShot){
     body.collisionFilterGroup=2;
-    body.collisionFilterMask=~2; // συγκρούεται με όλους εκτός από group 2
+    body.collisionFilterMask=~2;
   } else {
     body.collisionFilterGroup=1;
     body.collisionFilterMask=~0;
@@ -494,8 +506,9 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
-// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ΩΘΗΣΗΣ (σπρώχνει τους κύβους) ═══
+// ═══ ΠΡΟΣΩΡΙΝΟ ΤΟΙΧΟΣ ΩΘΗΣΗΣ (κινείται μαζί με τη ράμπα) ═══
 let tempWallBody=null,tempWallMesh=null,tempWallTimer=0;
+let tempWallActive=false;
 
 function createTempWall(zPos){
   removeTempWall();
@@ -504,7 +517,6 @@ function createTempWall(zPos){
   const d=0.3;
   tempWallBody=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)),material:tempWallMat});
   tempWallBody.position.set(0,h/2,zPos);
-  // collision group 1 (έτσι ώστε ο shot cube με group 2 να περνάει από μέσα)
   tempWallBody.collisionFilterGroup=1;
   tempWallBody.collisionFilterMask=~2;
   world.addBody(tempWallBody);
@@ -513,12 +525,14 @@ function createTempWall(zPos){
   tempWallMesh.position.copy(tempWallBody.position);
   scene.add(tempWallMesh);
   tempWallTimer=1.2;
+  tempWallActive=true;
 }
 
 function removeTempWall(){
   if(tempWallBody){world.removeBody(tempWallBody);tempWallBody=null}
   if(tempWallMesh){scene.remove(tempWallMesh);tempWallMesh=null}
   tempWallTimer=0;
+  tempWallActive=false;
 }
 
 // ═══ FLOATS ═══
@@ -698,6 +712,7 @@ function sweepMerges(){
 function addScore(p){
   score+=p;
   saveHighScoreIfNeeded(score);
+  updateRankScoreDisplay(score);
   checkGifts();
 }
 function checkGifts(){
@@ -748,12 +763,12 @@ function rainbowClear(refCube){
   floatText(targetX,2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
-// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ ═══
+// ═══ ΩΘΗΣΗ ΣΕΙΡΑΣ (ο τοίχος κινείται μαζί με τη ράμπα) ═══
 function triggerRampSpawn(){
   if(rampState!=='idle'||!gameOn||paused||!rampBody)return;
   spawnRow(SPAWN_Z);
-  // Προσωρινό τείχος μπροστά από τους νέους κύβους (σπρώχνει)
-  createTempWall(RAMP_PUSH_Z + CUBE_SZ*0.7);
+  // Ο τοίχος ξεκινάει από την αρχική θέση των νέων κύβων
+  createTempWall(SPAWN_Z + CUBE_SZ*0.6);
   rampBody.position.set(0,0.55,RAMP_HOME_Z);
   rampBody.velocity.set(0,0,RAMP_SPEED);
   if(rampMesh){rampMesh.position.z=RAMP_HOME_Z;rampMesh.visible=true;}
@@ -772,7 +787,15 @@ function update(){
 
       for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
 
-      if(tempWallTimer>0){
+      // Ο τοίχος ακολουθεί τη ράμπα όσο είναι ενεργός
+      if(tempWallActive && rampBody && rampState==='pushing'){
+        if(tempWallBody){
+          tempWallBody.position.z = rampBody.position.z + CUBE_SZ*0.8;
+          tempWallBody.velocity.set(0,0,RAMP_SPEED);
+        }
+      }
+
+      if(tempWallTimer>0 && !tempWallActive){
         tempWallTimer-=dt;
         if(tempWallTimer<=0)removeTempWall();
       }
@@ -786,9 +809,24 @@ function update(){
 
       if(rampBody){
         if(rampState==='pushing'){
-          if(rampBody.position.z>=RAMP_PUSH_Z){rampBody.position.z=RAMP_PUSH_Z;rampBody.velocity.set(0,0,-RAMP_SPEED);rampState='retracting';}
+          if(rampBody.position.z>=RAMP_PUSH_Z){
+            rampBody.position.z=RAMP_PUSH_Z;
+            rampBody.velocity.set(0,0,-RAMP_SPEED);
+            rampState='retracting';
+            // Όταν η ράμπα φτάσει μπροστά, ο τοίχος μένει για λίγο και μετά φεύγει
+            if(tempWallActive && tempWallBody){
+              tempWallBody.velocity.set(0,0,0);
+              tempWallActive=false;
+              tempWallTimer=0.8;
+            }
+          }
         }else if(rampState==='retracting'){
-          if(rampBody.position.z<=RAMP_HOME_Z){rampBody.position.set(0,0.55,RAMP_HOME_Z);rampBody.velocity.set(0,0,0);rampState='idle';if(rampMesh)rampMesh.visible=false;}
+          if(rampBody.position.z<=RAMP_HOME_Z){
+            rampBody.position.set(0,0.55,RAMP_HOME_Z);
+            rampBody.velocity.set(0,0,0);
+            rampState='idle';
+            if(rampMesh)rampMesh.visible=false;
+          }
         }else{rampBody.velocity.set(0,0,0);}
       }
 
@@ -916,6 +954,7 @@ function triggerGameOver(){
   if(shotCube){removeCube(shotCube);shotCube=null}
   saveHighScoreIfNeeded(score);
   addToWeeklyLeaderboard(score);
+  updateRankScoreDisplay(score);
   audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
   const ov=document.getElementById('overlay');
@@ -949,6 +988,7 @@ function startGame(){
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;
   lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;nextMilestone=2000;
   updateBoosterBadges();
+  updateRankScoreDisplay(0);
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(0,21,17.5);camera.lookAt(0,0.5,-1.5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
