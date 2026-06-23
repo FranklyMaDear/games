@@ -64,7 +64,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
 .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
 .play-btn:active{transform:scale(.94)}
-#leaderboard-wrap{width:90%;max-width:320px;max-height:220px;overflow-y:auto;background:rgba(0,0,0,.5);border-radius:12px;padding:10px;border:1px solid rgba(255,170,51,.3);scrollbar-width:thin;scrollbar-color:#ffaa33 transparent}
+#leaderboard-wrap{width:90%;max-width:320px;max-height:180px;overflow-y:auto;background:rgba(0,0,0,.5);border-radius:12px;padding:10px;border:1px solid rgba(255,170,51,.3);scrollbar-width:thin;scrollbar-color:#ffaa33 transparent}
 #leaderboard-wrap h3{color:#ffaa33;font-size:15px;text-align:center;margin-bottom:8px;letter-spacing:1px}
 .lb-entry{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px;color:#ddd}
 .lb-entry .lb-rank{color:#ffaa33;font-weight:700;min-width:24px}
@@ -161,7 +161,7 @@ const COL_W=TRACK_W/COLS;
 const CUBE_SZ=1.25;
 const TRACK_L=34;
 const DANGER_Z=10.5;
-const SHOOTER_Z=10.5;
+const SHOOTER_Z=12.5;   // ★ ο shooter ΠΙΣΩ από την κόκκινη γραμμή
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
@@ -171,27 +171,40 @@ const SPAWN_Z     = RAMP_HOME_Z + 0.95;
 const RAMP_PUSH_Z = RAMP_HOME_Z + ROW_STEP;
 const RAMP_SPEED  = 5.0;
 
-// ═══ LOCAL HIGH SCORE & LEADERBOARD ═══
+// ═══ LOCAL HIGH SCORE ═══
 const LS_KEY='mergeCubes3D_highscore';
-const LB_KEY='mergeCubes3D_leaderboard';
 let highScore=parseInt(localStorage.getItem(LS_KEY)||'0',10);
 document.getElementById('highscore-val').textContent=highScore.toLocaleString();
 
-function getLeaderboard(){
-  try{return JSON.parse(localStorage.getItem(LB_KEY)||'[]')}catch(e){return[]}
+// ═══ WEEKLY LEADERBOARD ═══
+function getISOWeek(d){
+  const date=new Date(d);
+  date.setHours(0,0,0,0);
+  date.setDate(date.getDate()+3-(date.getDay()+6)%7);
+  const week1=new Date(date.getFullYear(),0,4);
+  return 1+Math.round(((date.getTime()-week1.getTime())/86400000-3+(week1.getDay()+6)%7)/7);
 }
-function saveLeaderboard(lb){
-  localStorage.setItem(LB_KEY,JSON.stringify(lb));
+function getWeekKey(){
+  const now=new Date();
+  const year=now.getFullYear();
+  const week=getISOWeek(now);
+  return `mergeCubes3D_weekly_${year}_w${week}`;
 }
-function addToLeaderboard(s){
-  const lb=getLeaderboard();
+function getWeeklyLeaderboard(){
+  try{return JSON.parse(localStorage.getItem(getWeekKey())||'[]')}catch(e){return[]}
+}
+function saveWeeklyLeaderboard(lb){
+  localStorage.setItem(getWeekKey(),JSON.stringify(lb));
+}
+function addToWeeklyLeaderboard(s){
+  const lb=getWeeklyLeaderboard();
   const now=new Date();
   const dateStr=now.toLocaleDateString('el-GR',{day:'2-digit',month:'2-digit',year:'2-digit'});
   const timeStr=now.toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
   lb.push({score:s,date:`${dateStr} ${timeStr}`});
   lb.sort((a,b)=>b.score-a.score);
   const top10=lb.slice(0,10);
-  saveLeaderboard(top10);
+  saveWeeklyLeaderboard(top10);
   return top10;
 }
 
@@ -314,15 +327,18 @@ const cubeMat=new CANNON.Material('cube');
 const bouncyCubeMat=new CANNON.Material('bouncyCube');
 const floorMat=new CANNON.Material('floor');
 const wallMat=new CANNON.Material('wall');
+const tempWallMat=new CANNON.Material('tempWall');
 
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,floorMat,{friction:.5,restitution:0.7}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.4,restitution:0.55}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallMat,{friction:.3,restitution:0.75}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.5,restitution:0.5}));
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,tempWallMat,{friction:.3,restitution:0.2}));
 
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,floorMat,{friction:.6,restitution:.05}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.5,restitution:.05}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallMat,{friction:.3,restitution:.15}));
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,tempWallMat,{friction:.3,restitution:0.1}));
 
 const floorBody=new CANNON.Body({mass:0,shape:new CANNON.Plane(),material:floorMat});
 floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);world.addBody(floorBody);
@@ -381,7 +397,6 @@ function spawnCube(x,y,z,value,opts={}){
     shape:new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material:mat,position:new CANNON.Vec3(x,y,z),linearDamping,angularDamping});
   world.addBody(body);
-  // ★ ΟΛΟΙ οι κύβοι είναι mergeActive (μπορούν να ενωθούν αν ακουμπήσουν)
   const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:0};
   cubes.push(cube);return cube;
 }
@@ -429,6 +444,30 @@ function spawnTrailParticle(x,y,z,vx,vy,vz){
   trailParticles.push({mesh,mat,vx:vx+(Math.random()-.5)*3,vy:vy+(Math.random()-.5)*2,vz:vz+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
+// ═══ ΠΡΟΣΩΡΙΝΟ ΤΕΙΧΟΣ ΩΘΗΣΗΣ ═══
+let tempWallBody=null,tempWallMesh=null,tempWallTimer=0;
+
+function createTempWall(zPos){
+  removeTempWall();
+  const w=TRACK_W-0.6;
+  const h=1.5;
+  const d=0.3;
+  tempWallBody=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)),material:tempWallMat});
+  tempWallBody.position.set(0,h/2,zPos);
+  world.addBody(tempWallBody);
+  tempWallMesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.7}));
+  tempWallMesh.position.copy(tempWallBody.position);
+  scene.add(tempWallMesh);
+  tempWallTimer=1.2; // θα μείνει 1.2 δευτ.
+}
+
+function removeTempWall(){
+  if(tempWallBody){world.removeBody(tempWallBody);tempWallBody=null}
+  if(tempWallMesh){scene.remove(tempWallMesh);tempWallMesh=null}
+  tempWallTimer=0;
+}
+
 // ═══ FLOATS ═══
 const fxLayer=document.getElementById('fx-layer');
 function project3D(p){const v=p.clone().project(camera);return{x:(v.x*.5+.5)*canvas.clientWidth,y:(-v.y*.5+.5)*canvas.clientHeight}}
@@ -442,46 +481,22 @@ function floatText(x,y,z,label,type='points'){
 // ═══ AUDIO ═══
 const audio=(()=>{
   let ctx=null,mg=null,muted=false;
-  let rocketOsc=null,rocketGain=null,rocketNoise=null;
   function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();mg=ctx.createGain();mg.gain.value=.45;mg.connect(ctx.destination)}
   function env(g,pk,a,d,s,dur){const t=ctx.currentTime;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(pk,t+a);g.gain.exponentialRampToValueAtTime(Math.max(.0001,pk*s),t+a+d);g.gain.exponentialRampToValueAtTime(.0001,t+dur)}
   function noise(dur,vol,freq,type='lowpass'){const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);
     for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
     n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=type;fi.frequency.value=freq;const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n}
 
-  function shoot(){if(muted)return;init();
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';
-    o.frequency.setValueAtTime(420,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(880,ctx.currentTime+.1);
-    o.connect(g).connect(mg);env(g,.13,.003,.03,.2,.14);o.start();o.stop(ctx.currentTime+.16);
-    const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='sine';
-    o2.frequency.setValueAtTime(660,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(1320,ctx.currentTime+.1);
-    o2.connect(g2).connect(mg);env(g2,.08,.003,.03,.2,.13);o2.start();o2.stop(ctx.currentTime+.15);
-  }
-
-  function rocketStart(){if(muted)return;init();
-    rocketStop();
-    const buf=ctx.createBuffer(1,ctx.sampleRate*0.8,ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,0.3);
-    rocketNoise=ctx.createBufferSource();rocketNoise.buffer=buf;rocketNoise.loop=true;
-    const fi=ctx.createBiquadFilter();fi.type='bandpass';fi.frequency.value=200;fi.Q.value=0.5;
-    rocketGain=ctx.createGain();rocketGain.gain.value=0.22;
-    rocketNoise.connect(fi).connect(rocketGain).connect(mg);
-    rocketOsc=ctx.createOscillator();rocketOsc.type='sawtooth';
-    rocketOsc.frequency.setValueAtTime(80,ctx.currentTime);
-    rocketOsc.frequency.exponentialRampToValueAtTime(280,ctx.currentTime+0.25);
-    const og=ctx.createGain();og.gain.setValueAtTime(0.08,ctx.currentTime);
-    rocketOsc.connect(og).connect(mg);
-    rocketOsc.start();rocketNoise.start();
-    rocketOsc._og=og;rocketNoise._fi=fi;
-  }
-
-  function rocketStop(){
-    if(rocketOsc||rocketNoise){
-      const t=ctx.currentTime;
-      if(rocketOsc){try{rocketOsc._og.gain.exponentialRampToValueAtTime(0.001,t+0.15);rocketOsc.stop(t+0.18)}catch(e){}rocketOsc=null}
-      if(rocketNoise){try{rocketGain.gain.exponentialRampToValueAtTime(0.001,t+0.15);rocketNoise.stop(t+0.18)}catch(e){}rocketNoise=null;rocketGain=null}
-    }
+  function launch(){if(muted)return;init();
+    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';
+    o.frequency.setValueAtTime(150,ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(600,ctx.currentTime+0.12);
+    o.connect(g).connect(mg);env(g,.18,.005,.02,.2,.16);o.start();o.stop(ctx.currentTime+.18);
+    const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='triangle';
+    o2.frequency.setValueAtTime(80,ctx.currentTime);
+    o2.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+0.1);
+    o2.connect(g2).connect(mg);env(g2,.12,.003,.02,.2,.14);o2.start();o2.stop(ctx.currentTime+.16);
+    noise(.14,.28,800,'bandpass');
   }
 
   function boom(){if(muted)return;init();
@@ -516,8 +531,8 @@ const audio=(()=>{
   function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.2,'square',.28),i*90))}
   function gift(){[659,880,1175,1568].forEach((f,i)=>setTimeout(()=>blip(f,.18,'triangle',.3),i*80))}
   function gameOver(){[330,277,220,175].forEach((f,i)=>setTimeout(()=>blip(f,.3,'triangle',.3),i*120))}
-  function toggleMute(){muted=!muted;if(muted)rocketStop();if(mg)mg.gain.value=muted?0:.45;return muted}
-  return{shoot,boom,thud,mergeBoom,rocketStart,rocketStop,milestone,gift,gameOver,toggleMute,init}
+  function toggleMute(){muted=!muted;if(mg)mg.gain.value=muted?0:.45;return muted}
+  return{launch,boom,thud,mergeBoom,milestone,gift,gameOver,toggleMute,init}
 })();
 
 // ═══ STATE ═══
@@ -528,6 +543,7 @@ let rowTimer=0,ROW_INTERVAL=4.2;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 let rampBody=null,rampMesh=null,rampState='idle';
 let lastGiftScore=0,freeBomb=0,freeRainbow=0,giftFlip=0;
+let nextMilestone=2000; // ★ επόμενο ορόσημο δώρου (2000,3000,4000...)
 
 function shooterPool(){
   let pool=[2,2,2,4,4,8];
@@ -571,7 +587,7 @@ function bumpCombo(){
   if(mv){mv.classList.add('pop');setTimeout(()=>mv.classList.remove('pop'),110);}
 }
 
-// ═══ MERGE (επιτρέπεται για όλους, με cooldown) ═══
+// ═══ MERGE ═══
 function tryMerge(a,b){
   const nv=nextVal(a.value);
   if(nv>maxReached)maxReached=nv;
@@ -580,7 +596,7 @@ function tryMerge(a,b){
   const pz=(a.body.position.z+b.body.position.z)/2;
   removeCube(a);removeCube(b);
   const nc=spawnCube(px,py,pz,nv);nc.flash=12;nc.mergeActive=true;
-  nc.mergeCooldown=0.5; // ★ cooldown 0.5 δευτ. μετά από merge
+  nc.mergeCooldown=0.5;
   nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*9,(Math.random()-.5)*9,(Math.random()-.5)*9);
 
@@ -613,7 +629,6 @@ function sweepMerges(){
     outer:for(let i=0;i<cubes.length;i++){for(let j=i+1;j<cubes.length;j++){
       const a=cubes[i],b=cubes[j];
       if(a.value!==b.value)continue;
-      // ★ ΟΛΟΙ μπορούν να ενωθούν, εκτός αν έχουν cooldown
       if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
@@ -626,18 +641,26 @@ function sweepMerges(){
   return any;
 }
 
-// ═══ SCORE / GIFTS ═══
+// ═══ SCORE / GIFTS (ορόσημα 2000,3000...) ═══
 function addScore(p){
   score+=p;
   saveHighScoreIfNeeded(score);
   checkGifts();
 }
 function checkGifts(){
-  while(score>=lastGiftScore+1000){
-    lastGiftScore+=1000;
-    if(giftFlip%2===0){ freeBomb++; floatText(0,3.2,DANGER_Z-3,'🎁 +💣 BOMB','gift'); }
-    else { freeRainbow++; floatText(0,3.2,DANGER_Z-3,'🎁 +🌈 RAINBOW','gift'); }
-    giftFlip++;
+  while(score>=nextMilestone){
+    if(nextMilestone===2000){
+      // Γέμισμα σφυριού
+      hammerChg=100;
+      floatText(0,3.2,DANGER_Z-3,'🔨 HAMMER READY!','gift');
+    }
+    if(nextMilestone%2000===0){
+      freeBomb++; floatText(0,3.2,DANGER_Z-3,'🎁 +💣 BOMB','gift');
+    }
+    if(nextMilestone%3000===0){
+      freeRainbow++; floatText(0,3.2,DANGER_Z-3,'🎁 +🌈 RAINBOW','gift');
+    }
+    nextMilestone+=1000;
     audio.gift();
     updateBoosterBadges();
   }
@@ -654,8 +677,7 @@ function updateBoosterBadges(){
 // ═══ SHOOT ═══
 function shoot(){
   if(!gameOn||paused||shotCube)return;
-  audio.init();audio.shoot();
-  audio.rocketStart();
+  audio.init();audio.launch();
   const isRainbow=rainbowArmed;rainbowArmed=false;
   shotCube=spawnCube(aimX,CUBE_SZ/2+.3,SHOOTER_Z,curVal,{isShot:true,rainbow:isRainbow});
   shotCube._rainbow=isRainbow;shotCube.mergeActive=true;
@@ -678,6 +700,8 @@ function rainbowClear(refCube){
 function triggerRampSpawn(){
   if(rampState!=='idle'||!gameOn||paused||!rampBody)return;
   spawnRow(SPAWN_Z);
+  // Προσωρινό τείχος μπροστά από τους νέους κύβους
+  createTempWall(RAMP_PUSH_Z + CUBE_SZ*0.7);
   rampBody.position.set(0,0.55,RAMP_HOME_Z);
   rampBody.velocity.set(0,0,RAMP_SPEED);
   if(rampMesh){rampMesh.position.z=RAMP_HOME_Z;rampMesh.visible=true;}
@@ -694,9 +718,13 @@ function update(){
 
   if(gameOn&&!paused){
 
-      // Μείωση cooldown για όλους
-      for(const c of cubes){
-        if(c.mergeCooldown>0)c.mergeCooldown-=dt;
+      // Μείωση cooldown
+      for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
+
+      // Προσωρινό τείχος
+      if(tempWallTimer>0){
+        tempWallTimer-=dt;
+        if(tempWallTimer<=0)removeTempWall();
       }
 
       if(rampState==='idle'){
@@ -716,6 +744,7 @@ function update(){
 
       world.step(1/60,dt,4);
       if(rampMesh&&rampBody)rampMesh.position.z=rampBody.position.z;
+      if(tempWallMesh&&tempWallBody)tempWallMesh.position.copy(tempWallBody.position);
 
       const settling = (rampState==='idle');
       for(const c of cubes){
@@ -756,23 +785,20 @@ function update(){
             s.velocity.x*0.4,s.velocity.y*0.4,s.velocity.z*0.4);
         }
       }
-      if(!shotCube){
-        audio.rocketStop();
-      }
 
       if(shotCube&&shotCube._rainbow){
         for(const c of cubes){if(c===shotCube||c.isShot)continue;
           const dx=c.body.position.x-shotCube.body.position.x,dz=c.body.position.z-shotCube.body.position.z;
-          if(dx*dx+dz*dz<(CUBE_SZ*1.3)*(CUBE_SZ*1.3)){const ref=shotCube;removeCube(shotCube);shotCube=null;audio.rocketStop();rainbowClear(ref);break;}
+          if(dx*dx+dz*dz<(CUBE_SZ*1.3)*(CUBE_SZ*1.3)){const ref=shotCube;removeCube(shotCube);shotCube=null;rainbowClear(ref);break;}
         }
-        if(shotCube&&shotCube.body.position.z<-TRACK_L/2+2){const ref=shotCube;removeCube(shotCube);shotCube=null;audio.rocketStop();rainbowClear(ref);}
+        if(shotCube&&shotCube.body.position.z<-TRACK_L/2+2){const ref=shotCube;removeCube(shotCube);shotCube=null;rainbowClear(ref);}
       }else{
         sweepMerges();
-        if(shotCube&&!cubes.includes(shotCube)){shotCube=null;audio.rocketStop();}
+        if(shotCube&&!cubes.includes(shotCube))shotCube=null;
         if(shotCube&&Math.abs(shotCube.body.velocity.z)<0.8&&shotCube.body.position.z>-TRACK_L/2+2){
-          shotCube.isShot=false;shotCube.mergeCooldown=0.3;shotCube=null;audio.rocketStop();
+          shotCube.isShot=false;shotCube.mergeCooldown=0.3;shotCube=null;
         }
-        if(shotCube&&shotCube.body.position.z<-TRACK_L/2-1){shotCube=null;audio.rocketStop();}
+        if(shotCube&&shotCube.body.position.z<-TRACK_L/2-1)shotCube=null;
       }
 
       if(comboTimer>0)comboTimer-=dt;else{comboBar=Math.max(0,comboBar-dt*16);mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1}
@@ -836,19 +862,18 @@ function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.t
 // ═══ GAME OVER / START ═══
 function triggerGameOver(){
   gameOn=false;isOverlayVisible=true;
-  audio.rocketStop();
+  removeTempWall();
   if(shotCube){removeCube(shotCube);shotCube=null}
   saveHighScoreIfNeeded(score);
-  const updatedLB=addToLeaderboard(score);
+  const weeklyLB=addToWeeklyLeaderboard(score);
   audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
 
-  // Φτιάξε leaderboard HTML
   let lbHTML='';
-  if(updatedLB.length===0){
-    lbHTML='<div class="lb-empty">No scores yet</div>';
+  if(weeklyLB.length===0){
+    lbHTML='<div class="lb-empty">No scores yet this week</div>';
   }else{
-    updatedLB.forEach((entry,i)=>{
+    weeklyLB.forEach((entry,i)=>{
       lbHTML+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${entry.score.toLocaleString()}</span><span class="lb-date">${entry.date}</span></div>`;
     });
   }
@@ -857,8 +882,8 @@ function triggerGameOver(){
   ov.innerHTML=`<div id="space-bg"></div><div id="starfield"></div><h1>GAME OVER</h1>
     <div style="color:#aaa;font-size:13px;position:relative">Final Score</div>
     <div class="score-big">${score.toLocaleString()}</div>
-    <div style="color:#ffaa33;font-size:15px;position:relative">Best: ${highScore.toLocaleString()}</div>
-    <div id="leaderboard-wrap"><h3>🏆 TOP 10</h3>${lbHTML}</div>
+    <div style="color:#ffaa33;font-size:15px;position:relative">All-Time Best: ${highScore.toLocaleString()}</div>
+    <div id="leaderboard-wrap"><h3>🏆 WEEKLY TOP 10</h3>${lbHTML}</div>
     <button class="play-btn" id="startBtn">PLAY AGAIN</button>`;
   buildStarfield();ov.classList.remove('hidden');
   document.getElementById('startBtn').addEventListener('click',startGame);
@@ -868,7 +893,7 @@ function triggerGameOver(){
 function startGame(){
   while(cubes.length)removeCube(cubes[0]);
   if(shotCube){shotCube=null}
-  audio.rocketStop();
+  removeTempWall();
   for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
   for(let i=trailParticles.length-1;i>=0;i--){scene.remove(trailParticles[i].mesh);trailParticles[i].mat.dispose()}trailParticles.length=0;
   for(let i=flashSpheres.length-1;i>=0;i--){scene.remove(flashSpheres[i].mesh);flashSpheres[i].mat.dispose()}flashSpheres.length=0;
@@ -883,7 +908,8 @@ function startGame(){
   document.getElementById('boosters').classList.add('active');
   score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;hammerChg=0;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;
-  lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;updateBoosterBadges();
+  lastGiftScore=0;freeBomb=0;freeRainbow=0;giftFlip=0;nextMilestone=2000;
+  updateBoosterBadges();
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(0,21,17.5);camera.lookAt(0,0.5,-1.5);
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
@@ -962,11 +988,8 @@ document.getElementById('boost-rainbow').addEventListener('click',()=>{
 
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267 === 'function'){
-    show_11108267().then(() => {
-      startGame();
-    });
+    show_11108267().then(() => { startGame(); });
   } else {
-    alert('Starting new game...');
     startGame();
   }
 });
