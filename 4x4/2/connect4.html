@@ -8,8 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- YouTube Playables SDK -->
-    <script src="https://www.youtube.com/game_api/v1/ytgame-sdk.js"></script>
+    <!-- Playgama SDK -->
+    <script src="https://sdk.playgama.com/js/playgama.js"></script>
 
     <style>
         * {
@@ -747,7 +747,6 @@
             // ========== AUDIO ENGINE ==========
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             let splashAudioCtx = null;
-            let gameAudioCtx = null;
 
             function initSplashAudio() {
                 if (!splashAudioCtx) {
@@ -916,7 +915,6 @@
             const playBtn = document.getElementById('playBtn');
             const gameWrapper = document.getElementById('gameWrapper');
 
-            // Αρχικά κρύβουμε το game wrapper
             gameWrapper.style.display = 'none';
 
             playBtn.addEventListener('click', function() {
@@ -943,10 +941,6 @@
                 setTimeout(() => {
                     splashOverlay.style.display = 'none';
                     gameWrapper.style.display = 'flex';
-                    // YouTube: firstFrameReady μόλις φανεί το UI του παιχνιδιού
-                    if (typeof ytgame !== 'undefined' && ytgame.game) {
-                        ytgame.game.firstFrameReady();
-                    }
                     // Εκκίνηση του παιχνιδιού
                     new ConnectFour();
                 }, 800);
@@ -1026,7 +1020,7 @@
                 }
             }
 
-            // ========== CONNECT FOUR ENGINE ==========
+            // ========== CONNECT FOUR ENGINE (Playgama ready) ==========
             class ConnectFour {
                 constructor() {
                     this.ROWS = 6;
@@ -1039,7 +1033,6 @@
                     this.audio = new GameAudio();
                     this.aiFirst = false;
                     this.difficulty = 'hard';
-                    this.gameReadyCalled = false;
 
                     this.domBoard = document.getElementById('board');
                     this.domStatus = document.getElementById('status');
@@ -1052,9 +1045,7 @@
                     this.initDOMEvents();
                     this.audio.init();
                     this.updateDifficultyButton();
-                    this.loadCloudScores().then(() => {
-                        this.newGame();
-                    });
+                    this.newGame();
                 }
 
                 initDOMEvents() {
@@ -1062,31 +1053,6 @@
                     this.newGameBtn.addEventListener('click', () => this.newGame());
                     this.toggleFirstBtn.addEventListener('click', () => this.toggleFirstPlayer());
                     this.toggleDifficultyBtn.addEventListener('click', () => this.toggleDifficulty());
-                }
-
-                async loadCloudScores() {
-                    if (typeof ytgame !== 'undefined' && ytgame.game) {
-                        try {
-                            const data = await ytgame.game.loadData();
-                            if (data) {
-                                const saved = JSON.parse(data);
-                                if (saved && typeof saved[1] === 'number' && typeof saved[2] === 'number') {
-                                    this.scores[1] = saved[1];
-                                    this.scores[2] = saved[2];
-                                    this.updateScores();
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('⚠️ Failed to load cloud saves', e);
-                        }
-                    }
-                }
-
-                saveCloudScores() {
-                    if (typeof ytgame !== 'undefined' && ytgame.game) {
-                        const data = JSON.stringify({ 1: this.scores[1], 2: this.scores[2] });
-                        ytgame.game.saveData(data).catch(e => console.warn('⚠️ Save failed', e));
-                    }
                 }
 
                 setButtonsEnabled(enabled) {
@@ -1129,13 +1095,6 @@
                     }
                     this.gameInProgress = true;
                     this.currentPlayer = 1;
-
-                    if (!this.gameReadyCalled) {
-                        this.gameReadyCalled = true;
-                        if (typeof ytgame !== 'undefined' && ytgame.game) {
-                            ytgame.game.gameReady();
-                        }
-                    }
 
                     if (this.aiFirst) {
                         this.currentPlayer = 2;
@@ -1256,7 +1215,6 @@
                     this.gameInProgress = false;
                     this.scores[this.currentPlayer]++;
                     this.updateScores();
-                    this.saveCloudScores();
                     this.audio.playVictorySound();
                     this.triggerConfettiEffect();
                     this.domStatus.textContent = this.currentPlayer === 1 ? 'You Win! 🎉' : 'AI Wins! 😞';
@@ -1267,29 +1225,76 @@
                 handleDrawState() {
                     this.gameInProgress = false;
                     this.domStatus.textContent = "It's a Draw! 🤝";
-                    this.saveCloudScores();
                     this.notifyHub('draw');
                     this.postGameAdFlow();
                 }
 
+                // ========== PLAYGAMA ADS ==========
                 postGameAdFlow() {
                     this.setButtonsEnabled(false);
-                    if (typeof ytgame !== 'undefined' && ytgame.ads) {
-                        ytgame.ads.requestRewardedAd()
-                            .then(() => this.setButtonsEnabled(true))
-                            .catch(() => this.setButtonsEnabled(true));
+
+                    // Έλεγχος αν το Playgama SDK είναι διαθέσιμο
+                    if (typeof playgama !== 'undefined' && playgama.ads) {
+                        // Χρήση interstitial διαφήμισης (ή rewarded αν προτιμάς)
+                        playgama.ads.showInterstitial({
+                            onClose: () => {
+                                // Η διαφήμιση έκλεισε – ενεργοποίηση κουμπιών
+                                this.setButtonsEnabled(true);
+                            },
+                            onError: (error) => {
+                                // Σφάλμα – ενεργοποίηση κουμπιών ούτως ή άλλως
+                                console.warn('Playgama ad error:', error);
+                                this.setButtonsEnabled(true);
+                            }
+                        });
                     } else {
+                        // Εκτός Playgama περιβάλλοντος, άμεση ενεργοποίηση
                         this.setButtonsEnabled(true);
                     }
                 }
 
+                // ========== PLAYGAMA BRIDGE EVENTS ==========
                 notifyHub(result) {
-                    if (window.parent !== window) {
-                        window.parent.postMessage({ type: 'updateMission', game: 'connect4', result: result },
-                        '*');
+                    // Αποστολή events στο Playgama Bridge
+                    if (typeof playgama !== 'undefined' && playgama.bridge) {
+                        // Γενικό event τερματισμού παιχνιδιού
+                        playgama.bridge.sendMessage({
+                            type: 'gameEnd',
+                            result: result,
+                            scores: { player: this.scores[1], ai: this.scores[2] }
+                        });
+
+                        // Αν ο παίκτης κέρδισε, στέλνουμε και mission complete
                         if (result === 'win') {
-                            window.parent.postMessage({ type: 'gameScore', game: 'Connect 4', score: 0 },
-                        '*');
+                            playgama.bridge.sendMessage({
+                                type: 'missionComplete',
+                                mission: 'win_connect4',
+                                score: this.scores[1]
+                            });
+                        }
+
+                        // Αποστολή ανανεωμένου σκορ
+                        playgama.bridge.sendMessage({
+                            type: 'scoreUpdate',
+                            game: 'connect4',
+                            playerScore: this.scores[1],
+                            aiScore: this.scores[2]
+                        });
+                    }
+
+                    // Fallback: postMessage για περιβάλλοντα που το υποστηρίζουν (για testing)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'updateMission',
+                            game: 'connect4',
+                            result: result
+                        }, '*');
+                        if (result === 'win') {
+                            window.parent.postMessage({
+                                type: 'gameScore',
+                                game: 'Connect 4',
+                                score: this.scores[1]
+                            }, '*');
                         }
                     }
                 }
@@ -1484,7 +1489,6 @@
                 newGame() {
                     this.scores = { 1: 0, 2: 0 };
                     this.updateScores();
-                    this.saveCloudScores();
                     this.restartGame();
                 }
             }
