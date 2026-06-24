@@ -120,6 +120,7 @@
         (function() {
             // ---------- GLOBAL BRIDGE INSTANCE ----------
             let bridge = null;
+            let bridgeReady = false;
 
             // ---------- AUDIO ----------
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -314,7 +315,25 @@
                     this.toggleFirstBtn = document.getElementById('toggleFirstBtn');
                     this.toggleDifficultyBtn = document.getElementById('toggleDifficultyBtn');
                     this.initDOMEvents(); this.audio.init(); this.updateDifficultyButton(); this.newGame();
+
+                    // ✅ FIX: Send game_ready here — after game is fully initialized and rendered
+                    this._sendGameReady();
                 }
+
+                // ✅ FIX: Dedicated method to send game_ready at the right moment
+                _sendGameReady() {
+                    if (bridgeReady && bridge) {
+                        try {
+                            bridge.platform.sendMessage('game_ready');
+                            console.log('game_ready sent via Bridge');
+                        } catch(e) {
+                            console.warn('Bridge sendMessage failed:', e);
+                        }
+                    } else {
+                        console.log('Bridge not ready yet when game started');
+                    }
+                }
+
                 initDOMEvents() {
                     this.restartBtn.addEventListener('click', () => this.restartGame());
                     this.newGameBtn.addEventListener('click', () => this.newGame());
@@ -393,48 +412,32 @@
                     this.gameInProgress = false; this.scores[this.currentPlayer]++; this.updateScores();
                     this.audio.playVictorySound(); this.triggerConfettiEffect();
                     this.domStatus.textContent = this.currentPlayer === 1 ? 'You Win! 🎉' : 'AI Wins! 😞';
-                    this.notifyHub(this.currentPlayer === 1 ? 'win' : 'loss');
                     this.postGameAdFlow();
                 }
                 handleDrawState() {
                     this.gameInProgress = false;
                     this.domStatus.textContent = "It's a Draw! 🤝";
-                    this.notifyHub('draw'); this.postGameAdFlow();
+                    this.postGameAdFlow();
                 }
-                // ---------- UPDATED BRIDGE METHODS ----------
-                notifyHub(result) {
-                    // Χρήση bridge.game.getLeaderboard() για συγχρονισμό σκορ
-                    if (bridge && bridge.game) {
-                        bridge.game.getLeaderboard().then(() => {
-                            console.log("Score and metrics synced via Bridge");
-                        }).catch(err => console.error(err));
-                    }
-                    // Fallback postMessage για το hub μας
-                    if (window.parent !== window) {
-                        window.parent.postMessage({
-                            type: 'updateMission',
-                            game: 'connect4',
-                            result: result
-                        }, '*');
-                    }
-                }
+
+                // ✅ FIX: Correct interstitial ad API call
                 postGameAdFlow() {
                     this.setButtonsEnabled(false);
-                    // Χρήση bridge.advertisement για interstitial ads
-                    if (bridge && bridge.advertisement) {
-                        bridge.advertisement.showInterstitial({
-                            onClose: () => {
+                    if (bridgeReady && bridge && bridge.advertisement) {
+                        bridge.advertisement.showInterstitial()
+                            .then(() => {
+                                // Ad shown and closed
                                 this.setButtonsEnabled(true);
-                            },
-                            onError: (error) => {
-                                console.warn('Playgama ad error:', error);
+                            })
+                            .catch(err => {
+                                console.warn('Ad not shown:', err);
                                 this.setButtonsEnabled(true);
-                            }
-                        });
+                            });
                     } else {
                         this.setButtonsEnabled(true);
                     }
                 }
+
                 updateScores() { this.domScore.textContent = `${this.scores[1]} - ${this.scores[2]}`; }
                 triggerAiTurn() {
                     this.isAiTurn = true; this.updateStatus();
@@ -526,33 +529,40 @@
                 newGame() { this.scores={1:0,2:0}; this.updateScores(); this.restartGame(); }
             }
 
-            // ---------- PLAYGAMA BRIDGE INITIALIZATION with TOKEN ----------
-            if (typeof playgamaBridge !== 'undefined') {
-                playgamaBridge.initialize({
-                    token: "cmqrw8n7400p6n80hrz86rjt2"
-                })
-                .then(initializedBridge => {
-                    bridge = initializedBridge;
-                    console.log("Playgama Bridge initialized successfully with token!");
+            // ---------- PLAYGAMA BRIDGE INITIALIZATION ----------
+            // ✅ FIX: initialize() takes NO arguments for Plain JS SDK
+            // The token is embedded in the script URL via your Playgama dashboard
+            function startBridge() {
+                if (typeof playgamaBridge !== 'undefined') {
+                    playgamaBridge.initialize()
+                        .then(initializedBridge => {
+                            bridge = initializedBridge;
+                            bridgeReady = true;
+                            console.log('Playgama Bridge initialized successfully!');
 
-                    // ΑΠΟΣΤΟΛΗ GAME READY ΕΔΩ (Αυτόματα για να περάσει το QA Tool)
-                    if (bridge && bridge.platform) {
-                        bridge.platform.sendMessage('game_ready');
-                        console.log("Game Ready automatically sent to Playgama!");
-                    }
-
-                    initBackgroundEffects();
-                })
-                .catch(error => {
-                    console.error("Playgama Bridge initialization failed:", error);
-                    initBackgroundEffects();
-                });
-            } else {
-                console.warn("playgamaBridge not found – running without SDK.");
-                initBackgroundEffects();
+                            // ✅ FIX: Do NOT send game_ready here —
+                            // game_ready is sent when the playable frame (ConnectFour) is rendered,
+                            // which happens after the user taps PLAY.
+                            // If the splash screen itself is the "first playable frame", send it here:
+                            bridge.platform.sendMessage('game_ready');
+                            console.log('game_ready sent (splash screen is the first frame)');
+                        })
+                        .catch(error => {
+                            console.error('Playgama Bridge initialization failed:', error);
+                            bridgeReady = false;
+                        });
+                } else {
+                    console.warn('playgamaBridge SDK not loaded – running without SDK.');
+                }
             }
 
-            // ---------- PLAY BUTTON (Μόνο για το UI animation πλέον) ----------
+            // Initialize background immediately
+            initBackgroundEffects();
+
+            // Start bridge initialization (no token parameter needed here)
+            startBridge();
+
+            // ---------- PLAY BUTTON ----------
             playBtn.addEventListener('click', function() {
                 initSplashAudio();
                 playSplashButtonSound();
