@@ -8,8 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- Playgama SDK -->
-    <script src="https://sdk.playgama.com/js/playgama.js"></script>
+    <!-- Playgama SDK (bridge version >= 1.24) -->
+    <script src="https://sdk.playgama.com/js/playgama.js?bridge_version=1.24"></script>
 
     <style>
         * {
@@ -921,7 +921,7 @@
                 initSplashAudio();
                 playSplashButtonSound();
 
-                // Διόρθωση 1: Αποστολή game_ready στο Playgama Bridge
+                // Επιπλέον αποστολή game_ready όταν ο παίκτης ξεκινά (δεν βλάπτει)
                 if (typeof playgama !== 'undefined' && playgama.bridge) {
                     playgama.bridge.sendMessage('game_ready');
                 }
@@ -1234,43 +1234,34 @@
                     this.postGameAdFlow();
                 }
 
-                // ========== PLAYGAMA ADS (Διόρθωση 2) ==========
+                // ========== PLAYGAMA ADS ==========
                 postGameAdFlow() {
-                    // Απενεργοποίηση κουμπιών κατά τη διάρκεια της διαφήμισης
                     this.setButtonsEnabled(false);
 
-                    // Έλεγχος αν το Playgama SDK είναι διαθέσιμο
                     if (typeof playgama !== 'undefined' && playgama.ads) {
-                        // Κλήση interstitial διαφήμισης
                         playgama.ads.showInterstitial({
                             onClose: () => {
-                                // Η διαφήμιση έκλεισε – ενεργοποίηση κουμπιών
                                 this.setButtonsEnabled(true);
                             },
                             onError: (error) => {
-                                // Σφάλμα στη διαφήμιση – ενεργοποίηση κουμπιών ούτως ή άλλως
                                 console.warn('Playgama ad error:', error);
                                 this.setButtonsEnabled(true);
                             }
                         });
                     } else {
-                        // Εκτός Playgama περιβάλλοντος, άμεση ενεργοποίηση
                         this.setButtonsEnabled(true);
                     }
                 }
 
                 // ========== PLAYGAMA BRIDGE EVENTS ==========
                 notifyHub(result) {
-                    // Αποστολή events στο Playgama Bridge
                     if (typeof playgama !== 'undefined' && playgama.bridge) {
-                        // Γενικό event τερματισμού παιχνιδιού
                         playgama.bridge.sendMessage({
                             type: 'gameEnd',
                             result: result,
                             scores: { player: this.scores[1], ai: this.scores[2] }
                         });
 
-                        // Αν ο παίκτης κέρδισε, στέλνουμε και mission complete
                         if (result === 'win') {
                             playgama.bridge.sendMessage({
                                 type: 'missionComplete',
@@ -1279,7 +1270,6 @@
                             });
                         }
 
-                        // Αποστολή ανανεωμένου σκορ
                         playgama.bridge.sendMessage({
                             type: 'scoreUpdate',
                             game: 'connect4',
@@ -1288,7 +1278,6 @@
                         });
                     }
 
-                    // Fallback: postMessage για περιβάλλοντα που το υποστηρίζουν (για testing)
                     if (window.parent !== window) {
                         window.parent.postMessage({
                             type: 'updateMission',
@@ -1499,7 +1488,43 @@
                 }
             }
 
-            // ========== INIT ==========
+            // ========== AUTOMATIC PLAYGAMA INITIALIZATION (game_ready) ==========
+            function sendGameReady() {
+                if (typeof playgama !== 'undefined' && playgama.bridge) {
+                    // Επίσημη αρχικοποίηση του bridge (αν υπάρχει μέθοδος initialize)
+                    if (typeof playgama.bridge.initialize === 'function') {
+                        playgama.bridge.initialize();
+                    }
+                    // Αποστολή του απαραίτητου μηνύματος game_ready
+                    playgama.bridge.sendMessage('game_ready');
+                    console.log('Playgama: game_ready sent');
+                }
+            }
+
+            // Αποστολή game_ready μόλις το SDK είναι διαθέσιμο
+            if (typeof playgama !== 'undefined') {
+                // Αν το playgama έχει ήδη φορτώσει
+                sendGameReady();
+            } else {
+                // Αναμονή για το script να φορτώσει (σε περίπτωση που είναι async)
+                window.addEventListener('load', function() {
+                    if (typeof playgama !== 'undefined') {
+                        sendGameReady();
+                    } else {
+                        console.warn('Playgama SDK not loaded');
+                    }
+                });
+            }
+
+            // Δεύτερη προσπάθεια όταν όλα τα resources έχουν φορτώσει (για σιγουριά)
+            window.addEventListener('load', function() {
+                if (typeof playgama !== 'undefined' && playgama.bridge) {
+                    // Μικρή καθυστέρηση για να βεβαιωθούμε ότι το bridge είναι εντελώς έτοιμο
+                    setTimeout(sendGameReady, 100);
+                }
+            });
+
+            // ========== INIT BACKGROUND EFFECTS ==========
             initBackgroundEffects();
         })();
     </script>
