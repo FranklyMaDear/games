@@ -233,9 +233,10 @@
                     this.gameInProgress=false; this.scores[this.currentPlayer]++; this.updateScores();
                     this.audio.playVictorySound(); this.triggerConfettiEffect();
                     this.domStatus.textContent=this.currentPlayer===1?'You Win! 🎉':'AI Wins! 😞';
+                    this.saveProgress();
                     this.postGameAdFlow();
                 }
-                handleDrawState() { this.gameInProgress=false; this.domStatus.textContent="It's a Draw! 🤝"; this.postGameAdFlow(); }
+                handleDrawState() { this.gameInProgress=false; this.domStatus.textContent="It's a Draw! 🤝"; this.saveProgress(); this.postGameAdFlow(); }
                 postGameAdFlow() {
                     this.setButtonsEnabled(false);
                     if (typeof bridge !== 'undefined' && bridge && bridge.advertisement) {
@@ -287,19 +288,52 @@
                 triggerConfettiEffect() {
                     for(let i=0;i<60;i++){const c=document.createElement('div');c.classList.add('confetti');c.style.left=Math.random()*100+'vw';c.style.animationDelay=Math.random()*0.5+'s';c.style.animationDuration=(Math.random()*2+2)+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),3500);}
                 }
+                // ✅ ΑΠΟΘΗΚΕΥΣΗ μέσω Bridge storage
+                saveProgress() {
+                    if (typeof bridge !== 'undefined' && bridge && bridge.storage) {
+                        bridge.storage.set('scores', JSON.stringify(this.scores))
+                            .catch(() => {});
+                    }
+                }
+                // ✅ ΦΟΡΤΩΣΗ αποθηκευμένου progress
+                loadProgress() {
+                    if (typeof bridge !== 'undefined' && bridge && bridge.storage) {
+                        bridge.storage.get('scores')
+                            .then(data => {
+                                if (data) {
+                                    const saved = JSON.parse(data);
+                                    this.scores = saved;
+                                    this.updateScores();
+                                }
+                            })
+                            .catch(() => {});
+                    }
+                }
                 restartGame() { this.currentPlayer=1;this.isAiTurn=false;this.initializeBoard();this.updateStatus();this.updatePlayerIndicators();document.querySelectorAll('.confetti').forEach(c=>c.remove());this.setButtonsEnabled(true); }
-                newGame() { this.scores={1:0,2:0};this.updateScores();this.restartGame(); }
+                newGame() { this.scores={1:0,2:0};this.updateScores();this.saveProgress();this.restartGame(); }
             }
 
             // ✅ Ξεκινάμε παιχνίδι και background ΑΜΕΣΩΣ
             initBackgroundEffects();
-            new ConnectFour();
+            window._game = new ConnectFour();
 
             // ✅ Bridge: ελέγχουμε αν φορτώθηκε το SDK πριν καλέσουμε initialize()
             if (typeof bridge !== 'undefined' && bridge !== null) {
                 bridge.initialize()
                     .then(() => {
                         bridge.platform.sendMessage('game_ready');
+                        // ✅ Φόρτωσε αποθηκευμένο progress μετά το init
+                        if (bridge.storage) {
+                            bridge.storage.get('scores')
+                                .then(data => {
+                                    if (data && window._game) {
+                                        const saved = JSON.parse(data);
+                                        window._game.scores = saved;
+                                        window._game.updateScores();
+                                    }
+                                })
+                                .catch(() => {});
+                        }
                         console.log('✅ game_ready sent!');
                     })
                     .catch(error => {
