@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+    <!-- YouTube Playables SDK (πρέπει να φορτώνει ΠΡΩΤΑ) -->
+    <script src="https://www.gstatic.com/ytgame/sdk/ytgame.js"></script>
+    <!-- Playgama Bridge SDK -->
     <script src="https://bridge.playgama.com/v1/stable/playgama-bridge.js"></script>
 
     <style>
@@ -356,16 +359,106 @@
                 newGame() { this.scores={1:0,2:0};this.updateScores();this.restartGame(); }
             }
 
-            // ✅ Ξεκινάμε παιχνίδι και background ΑΜΕΣΩΣ
+            // ✅ Ξεκινάμε background ΑΜΕΣΩΣ
             initBackgroundEffects();
+
+            // ============================================================
+            // YOUTUBE PLAYABLES SDK integration
+            // ============================================================
+            const isYouTube = (typeof ytgame !== 'undefined' && ytgame !== null && ytgame.IN_PLAYABLES_ENV);
+
+            if (isYouTube) {
+                // 1) firstFrameReady: το παιχνίδι αρχίζει να φορτώνει (εμφανίζεται loading/splash)
+                ytgame.game.firstFrameReady();
+                console.log('✅ ytgame.firstFrameReady() called');
+
+                // 2) onPause / onResume — ΥΠΟΧΡΕΩΤΙΚΟ
+                ytgame.game.onPause(() => {
+                    if (window._game) {
+                        window._game._ytPaused = true;
+                        window._game.gameInProgress && (window._game._wasInProgress = window._game.gameInProgress);
+                        window._game.gameInProgress = false;   // παγώνει το game loop
+                        window._game.isAiTurn = false;
+                    }
+                    console.log('⏸ ytgame onPause');
+                });
+
+                ytgame.game.onResume(() => {
+                    if (window._game && window._game._ytPaused) {
+                        window._game._ytPaused = false;
+                        window._game.gameInProgress = window._game._wasInProgress || false;
+                    }
+                    console.log('▶️ ytgame onResume');
+                });
+
+                // 3) Φόρτωσε αποθηκευμένο σκορ από YouTube cloud save
+                ytgame.game.loadData().then(data => {
+                    if (data && window._game) {
+                        try {
+                            const saved = JSON.parse(data);
+                            window._game.scores = saved;
+                            window._game.updateScores();
+                        } catch(e) {}
+                    }
+                }).catch(() => {});
+            }
+
+            // ============================================================
+            // Ξεκινάμε παιχνίδι
+            // ============================================================
             window._game = new ConnectFour();
 
-            // ✅ Bridge init
-            if (typeof bridge !== 'undefined' && bridge !== null) {
+            // Patch: αποθήκευση σκορ μέσω YouTube SDK αν τρέχει εκεί
+            const _origSaveProgress = window._game.saveProgress.bind(window._game);
+            window._game.saveProgress = function() {
+                _origSaveProgress();
+                if (isYouTube) {
+                    ytgame.game.saveData(JSON.stringify(this.scores)).catch(()=>{});
+                }
+            };
+
+            // Patch: αποστολή σκορ μέσω YouTube SDK
+            const _origSubmitScore = window._game.submitScore.bind(window._game);
+            window._game.submitScore = function(score) {
+                _origSubmitScore(score);
+                if (isYouTube) {
+                    ytgame.game.sendScore(score).catch(()=>{});
+                }
+            };
+
+            // 4) gameReady: το παιχνίδι είναι έτοιμο για αλληλεπίδραση
+            if (isYouTube) {
+                ytgame.game.gameReady();
+                console.log('✅ ytgame.gameReady() called');
+            }
+
+            // ============================================================
+            // PLAYGAMA BRIDGE init (για Mediacube / άλλες πλατφόρμες)
+            // ============================================================
+            if (!isYouTube && typeof bridge !== 'undefined' && bridge !== null) {
                 bridge.initialize()
                     .then(() => {
                         bridge.platform.sendMessage('game_ready');
-                        // Φόρτωσε αποθηκευμένο σκορ
+
+                        // Pause / Resume μέσω Playgama Bridge
+                        if (bridge.game) {
+                            bridge.game.on('pause', () => {
+                                if (window._game) {
+                                    window._game._pgPaused = true;
+                                    window._game._wasInProgress = window._game.gameInProgress;
+                                    window._game.gameInProgress = false;
+                                    window._game.isAiTurn = false;
+                                }
+                            });
+                            bridge.game.on('resume', () => {
+                                if (window._game && window._game._pgPaused) {
+                                    window._game._pgPaused = false;
+                                    window._game.gameInProgress = window._game._wasInProgress || false;
+                                }
+                            });
+                        }
+
+                        // Φόρτωσε αποθηκευμένο σκορ μέσω Playgama storage
                         if (bridge.storage) {
                             bridge.storage.get('scores')
                                 .then(data => {
@@ -378,11 +471,11 @@
                                     }
                                 }).catch(()=>{});
                         }
-                        console.log('✅ game_ready sent!');
+                        console.log('✅ Playgama Bridge: game_ready sent!');
                     })
                     .catch(error => { console.error('Bridge error:', error); });
-            } else {
-                console.warn('Bridge SDK not loaded');
+            } else if (!isYouTube) {
+                console.warn('No SDK loaded — running standalone');
             }
 
         })();
