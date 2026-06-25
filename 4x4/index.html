@@ -298,18 +298,41 @@
             initBackgroundEffects();
             new ConnectFour(); // ← Παιχνίδι αμέσως!
 
+            // ✅ Fallback: αν το SDK δεν φορτώσει ή δεν αρχικοποιηθεί
+            // μέσα σε 3 δευτερόλεπτα, στείλε game_ready με postMessage απευθείας
+            let gameReadySent = false;
+            function sendGameReady() {
+                if (gameReadySent) return;
+                gameReadySent = true;
+                // Μέθοδος 1: μέσω Bridge
+                if (bridge && bridge.platform) {
+                    bridge.platform.sendMessage('game_ready');
+                    console.log('✅ game_ready via Bridge');
+                }
+                // Μέθοδος 2: postMessage fallback (πάντα στέλνεται)
+                try {
+                    window.parent.postMessage({ type: 'game_ready' }, '*');
+                    window.postMessage({ type: 'game_ready' }, '*');
+                    console.log('✅ game_ready via postMessage');
+                } catch(e) {}
+            }
+
+            // Timeout fallback — αν το Bridge δεν απαντήσει σε 2sec
+            setTimeout(sendGameReady, 2000);
+
             if (typeof playgamaBridge !== 'undefined') {
                 playgamaBridge.initialize()
                     .then(function(b) {
                         bridge = b;
-                        bridge.platform.sendMessage('game_ready');
-                        console.log('✅ game_ready sent!');
+                        sendGameReady();
                     })
                     .catch(function(err) {
                         console.error('❌ Bridge init failed:', err);
+                        sendGameReady(); // στείλε και αν αποτύχει
                     });
             } else {
                 console.warn('playgamaBridge not found – standalone mode.');
+                sendGameReady();
             }
 
         })();
