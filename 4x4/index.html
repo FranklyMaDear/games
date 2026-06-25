@@ -557,49 +557,65 @@
         // Exact order: firstFrameReady → await initGameAssets → gameReady
         // ============================================================
 
-        // initGameAssets: called by the load listener (required name for SDK checker)
+        // initGameAssets: required function name for YouTube SDK checker
         async function initGameAssets() {
-            var isYT = (typeof ytgame !== 'undefined' && ytgame !== null && ytgame.IN_PLAYABLES_ENV);
-            if (!isYT) return;
+            var hasYTGame = (typeof ytgame !== 'undefined' && ytgame !== null);
+            if (!hasYTGame) return;
 
             // Audio state
-            window._game.audio._muted = !ytgame.system.isAudioEnabled();
-            ytgame.system.onAudioEnabledChange(function(e) { window._game.audio._muted = !e; });
+            try {
+                if (ytgame.system && typeof ytgame.system.isAudioEnabled === 'function') {
+                    window._game.audio._muted = !ytgame.system.isAudioEnabled();
+                    ytgame.system.onAudioEnabledChange(function(e) { window._game.audio._muted = !e; });
+                }
+            } catch(e) {}
 
             // Pause / Resume
-            ytgame.game.onPause(function() {
-                if (window._game) { window._game._savedProgress = window._game.gameInProgress; window._game.gameInProgress = false; window._game.isAiTurn = false; }
-            });
-            ytgame.game.onResume(function() {
-                if (window._game) { window._game.gameInProgress = window._game._savedProgress || false; }
-            });
+            try {
+                if (ytgame.game && typeof ytgame.game.onPause === 'function') {
+                    ytgame.game.onPause(function() {
+                        if (window._game) { window._game._savedProgress = window._game.gameInProgress; window._game.gameInProgress = false; window._game.isAiTurn = false; }
+                    });
+                    ytgame.game.onResume(function() {
+                        if (window._game) { window._game.gameInProgress = window._game._savedProgress || false; }
+                    });
+                }
+            } catch(e) {}
 
             // Load saved data
-            await ytgame.game.loadData().then(function(data) {
-                if (data && window._game) {
-                    try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
+            try {
+                if (ytgame.game && typeof ytgame.game.loadData === 'function') {
+                    await ytgame.game.loadData().then(function(data) {
+                        if (data && window._game) {
+                            try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
+                        }
+                    }).catch(function(){});
                 }
-            }).catch(function(){});
+            } catch(e) {}
         }
 
         window.addEventListener('load', async function() {
-            var isYT = (typeof ytgame !== 'undefined' && ytgame !== null && ytgame.IN_PLAYABLES_ENV);
+            var hasYTGame = (typeof ytgame !== 'undefined' && ytgame !== null);
+            var isYT = hasYTGame && ytgame.IN_PLAYABLES_ENV;
 
-            if (isYT) {
-                // STEP 1: firstFrameReady — immediately
-                ytgame.game.firstFrameReady();
+            // STEP 1: firstFrameReady — call always if SDK present
+            if (hasYTGame && ytgame.game && typeof ytgame.game.firstFrameReady === 'function') {
+                try { ytgame.game.firstFrameReady(); } catch(e) {}
+            }
 
-                // STEP 2: await initGameAssets (required pattern)
-                await initGameAssets();
+            // STEP 2: await initGameAssets (sets up audio, pause, loads data)
+            await initGameAssets();
 
-                // STEP 3: gameReady — after await
-                ytgame.game.gameReady();
-                window._ytgameReady = true;
-                console.log('✅ YouTube SDK ready');
+            // STEP 3: gameReady — call always if SDK present
+            if (hasYTGame && ytgame.game && typeof ytgame.game.gameReady === 'function') {
+                try {
+                    ytgame.game.gameReady();
+                    window._ytgameReady = isYT;
+                } catch(e) {}
             }
 
             // ============================================================
-            // Playgama Bridge (Mediacube) — only if NOT YouTube
+            // Playgama Bridge (Mediacube)
             // ============================================================
             if (!isYT && bridge) {
                 try {
@@ -616,7 +632,7 @@
                                 }
                             } catch(e) {}
                         })
-                        .catch(function() {});  // silent fail — not a Playgama environment
+                        .catch(function() {});
                 } catch(e) {}
             }
         });
