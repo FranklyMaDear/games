@@ -139,6 +139,8 @@
 
     <script>
     (function() {
+        // Safe bridge reference — avoids ReferenceError if SDK not loaded
+        var bridge = (typeof window.bridge !== 'undefined') ? window.bridge : null;
 
         // ---------- STARFIELD ----------
         const canvas = document.getElementById('starCanvas');
@@ -339,18 +341,11 @@
                 try { return JSON.parse(localStorage.getItem('cf_allscores') || '{}'); } catch(e) { return {}; }
             }
             saveAllScores(all) {
-                localStorage.setItem('cf_allscores', JSON.stringify(all));
-                // Save to YouTube/Bridge if available
-                if (window._ytgameReady && typeof ytgame !== 'undefined') {
-                    ytgame.game.saveData(JSON.stringify(all)).catch(function(){});
-                }
-                if (typeof bridge !== 'undefined' && bridge && bridge.storage) {
-                    bridge.storage.set('cf_allscores', JSON.stringify(all)).catch(function(){});
-                }
+                try { localStorage.setItem('cf_allscores', JSON.stringify(all)); } catch(e) {}
             }
             checkDayReset() {
                 // Αν άλλαξε μέρα, αποθηκεύουμε το χθεσινό σκορ και μηδενίζουμε
-                const lastDay = localStorage.getItem('cf_lastday') || '';
+                const lastDay = (function(){try{return localStorage.getItem('cf_lastday');}catch(e){return '';}}()) || '';
                 const today = this.getTodayKey();
                 if (lastDay && lastDay !== today) {
                     // Αποθήκευσε το σκορ της χθεσινής μέρας
@@ -365,9 +360,9 @@
                         this.saveAllScores(trimmed);
                     }
                     // Μηδένισε σκορ σήμερα
-                    localStorage.removeItem('cf_todayscores');
+                    try { localStorage.removeItem('cf_todayscores'); } catch(e) {}
                 }
-                localStorage.setItem('cf_lastday', today);
+                try { localStorage.setItem('cf_lastday', today); } catch(e) {}
             }
             loadTodayScores() {
                 try { return JSON.parse(localStorage.getItem('cf_todayscores') || '{}'); } catch(e) { return {}; }
@@ -378,20 +373,36 @@
                 // Αποθήκευσε τρέχον σκορ
                 today[this.difficulty].w = this.scores[1];
                 today[this.difficulty].l = this.scores[2];
-                localStorage.setItem('cf_todayscores', JSON.stringify(today));
+                try { localStorage.setItem('cf_todayscores', JSON.stringify(today)); } catch(e) {}
             }
             saveProgress() {
                 this.saveTodayScore();
                 this.renderScoreboard();
+                // YouTube cloud save
+                if (window._ytgameReady && typeof ytgame !== 'undefined') {
+                    try { ytgame.game.saveData(JSON.stringify(this.scores)).catch(function(){}); } catch(e) {}
+                }
+                // Playgama Bridge storage
+                if (bridge) {
+                    try {
+                        if (bridge.storage && typeof bridge.storage.set === 'function') {
+                            bridge.storage.set('cf_scores', JSON.stringify(this.scores)).catch(function(){});
+                        }
+                    } catch(e) {}
+                }
             }
             postGameAdFlow() {
                 this.saveProgress();
                 this.setButtonsEnabled(false);
-                if (typeof bridge !== 'undefined' && bridge && bridge.advertisement) {
-                    bridge.advertisement.showInterstitial()
-                        .then(() => { this.setButtonsEnabled(true); })
-                        .catch(() => { this.setButtonsEnabled(true); });
-                } else { this.setButtonsEnabled(true); }
+                try {
+                    if (bridge && bridge.advertisement && typeof bridge.advertisement.showInterstitial === 'function') {
+                        bridge.advertisement.showInterstitial()
+                            .then(() => { this.setButtonsEnabled(true); })
+                            .catch(() => { this.setButtonsEnabled(true); });
+                    } else {
+                        this.setButtonsEnabled(true);
+                    }
+                } catch(e) { this.setButtonsEnabled(true); }
             }
             updateScores() {
                 this.domScore.textContent=`${this.scores[1]} - ${this.scores[2]}`;
@@ -536,10 +547,10 @@
         }
 
         // ============================================================
-        // ΕΚΚΙΝΗΣΗ — παιχνίδι + background ΑΜΕΣΑ
+        // START — game + background immediately
         // ============================================================
-        initBackgroundEffects();
-        window._game = new ConnectFour();
+        try { initBackgroundEffects(); } catch(e) {}
+        try { window._game = new ConnectFour(); } catch(e) {}
 
         // ============================================================
         // YouTube Playables SDK
@@ -588,22 +599,25 @@
             }
 
             // ============================================================
-            // Playgama Bridge (Mediacube) — μόνο αν ΔΕΝ είναι YouTube
+            // Playgama Bridge (Mediacube) — only if NOT YouTube
             // ============================================================
-            if (!isYT && typeof bridge !== 'undefined' && bridge !== null) {
-                bridge.initialize()
-                    .then(function() {
-                        bridge.platform.sendMessage('game_ready');
-                        if (bridge.storage) {
-                            bridge.storage.get('scores').then(function(data) {
-                                if (data && window._game) {
-                                    try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
+            if (!isYT && bridge) {
+                try {
+                    bridge.initialize()
+                        .then(function() {
+                            try { bridge.platform.sendMessage('game_ready'); } catch(e) {}
+                            try {
+                                if (bridge.storage && typeof bridge.storage.get === 'function') {
+                                    bridge.storage.get('cf_scores').then(function(data) {
+                                        if (data && window._game) {
+                                            try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
+                                        }
+                                    }).catch(function(){});
                                 }
-                            }).catch(function(){});
-                        }
-                        console.log('✅ Playgama Bridge ready');
-                    })
-                    .catch(function(e) { console.error('Bridge error:', e); });
+                            } catch(e) {}
+                        })
+                        .catch(function() {});  // silent fail — not a Playgama environment
+                } catch(e) {}
             }
         });
 
