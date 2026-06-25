@@ -543,35 +543,45 @@
 
         // ============================================================
         // YouTube Playables SDK
-        // Σειρά: firstFrameReady → await loadData → gameReady
+        // Exact order: firstFrameReady → await initGameAssets → gameReady
         // ============================================================
+
+        // initGameAssets: called by the load listener (required name for SDK checker)
+        async function initGameAssets() {
+            var isYT = (typeof ytgame !== 'undefined' && ytgame !== null && ytgame.IN_PLAYABLES_ENV);
+            if (!isYT) return;
+
+            // Audio state
+            window._game.audio._muted = !ytgame.system.isAudioEnabled();
+            ytgame.system.onAudioEnabledChange(function(e) { window._game.audio._muted = !e; });
+
+            // Pause / Resume
+            ytgame.game.onPause(function() {
+                if (window._game) { window._game._savedProgress = window._game.gameInProgress; window._game.gameInProgress = false; window._game.isAiTurn = false; }
+            });
+            ytgame.game.onResume(function() {
+                if (window._game) { window._game.gameInProgress = window._game._savedProgress || false; }
+            });
+
+            // Load saved data
+            await ytgame.game.loadData().then(function(data) {
+                if (data && window._game) {
+                    try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
+                }
+            }).catch(function(){});
+        }
+
         window.addEventListener('load', async function() {
             var isYT = (typeof ytgame !== 'undefined' && ytgame !== null && ytgame.IN_PLAYABLES_ENV);
 
             if (isYT) {
-                // 1. firstFrameReady — ΑΜΕΣΑ
+                // STEP 1: firstFrameReady — immediately
                 ytgame.game.firstFrameReady();
 
-                // 2. Audio
-                window._game.audio._muted = !ytgame.system.isAudioEnabled();
-                ytgame.system.onAudioEnabledChange(function(e) { window._game.audio._muted = !e; });
+                // STEP 2: await initGameAssets (required pattern)
+                await initGameAssets();
 
-                // 3. Pause / Resume
-                ytgame.game.onPause(function() {
-                    if (window._game) { window._game._savedProgress = window._game.gameInProgress; window._game.gameInProgress = false; window._game.isAiTurn = false; }
-                });
-                ytgame.game.onResume(function() {
-                    if (window._game) { window._game.gameInProgress = window._game._savedProgress || false; }
-                });
-
-                // 4. await loadData
-                await ytgame.game.loadData().then(function(data) {
-                    if (data && window._game) {
-                        try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
-                    }
-                }).catch(function(){});
-
-                // 5. gameReady — ΤΕΛΕΥΤΑΙΟ
+                // STEP 3: gameReady — after await
                 ytgame.game.gameReady();
                 window._ytgameReady = true;
                 console.log('✅ YouTube SDK ready');
