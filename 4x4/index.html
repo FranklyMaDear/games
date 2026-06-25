@@ -60,7 +60,7 @@
 <body>
     <canvas id="starCanvas"></canvas>
 
-    <div class="game-wrapper" id="gameWrapper">
+    <div class="game-wrapper">
         <div class="game-container">
             <h1>🪐 CONNECT FOUR</h1>
             <div class="players-info">
@@ -87,7 +87,6 @@
 
     <script>
         (function() {
-            let bridge = null;
 
             // ---------- STARFIELD ----------
             const canvas = document.getElementById('starCanvas');
@@ -239,7 +238,7 @@
                 handleDrawState() { this.gameInProgress=false; this.domStatus.textContent="It's a Draw! 🤝"; this.postGameAdFlow(); }
                 postGameAdFlow() {
                     this.setButtonsEnabled(false);
-                    if (bridge && bridge.advertisement) {
+                    if (typeof bridge !== 'undefined' && bridge && bridge.advertisement) {
                         bridge.advertisement.showInterstitial()
                             .then(() => { this.setButtonsEnabled(true); })
                             .catch(() => { this.setButtonsEnabled(true); });
@@ -292,22 +291,23 @@
                 newGame() { this.scores={1:0,2:0};this.updateScores();this.restartGame(); }
             }
 
-            // ---------- PLAYGAMA BRIDGE ----------
-            // ✅ Ξεκινάμε το παιχνίδι ΑΜΕΣΩΣ — χωρίς splash, χωρίς PLAY button
-            // ✅ game_ready στέλνεται μόλις το Bridge αρχικοποιηθεί
+            // ✅ Ξεκινάμε παιχνίδι και background ΑΜΕΣΩΣ
             initBackgroundEffects();
-            new ConnectFour(); // ← Παιχνίδι αμέσως!
+            new ConnectFour();
 
-            // ✅ ΑΚΡΙΒΩΣ όπως η τεκμηρίωση του Playgama Plain JS
-            bridge.initialize()
-                .then(() => {
-                    // Αποστολή game_ready μόλις το SDK είναι έτοιμο
-                    bridge.platform.sendMessage('game_ready');
-                    console.log('✅ game_ready sent!');
-                })
-                .catch(error => {
-                    console.error('Bridge error:', error);
-                });
+            // ✅ Bridge: ελέγχουμε αν φορτώθηκε το SDK πριν καλέσουμε initialize()
+            if (typeof bridge !== 'undefined' && bridge !== null) {
+                bridge.initialize()
+                    .then(() => {
+                        bridge.platform.sendMessage('game_ready');
+                        console.log('✅ game_ready sent!');
+                    })
+                    .catch(error => {
+                        console.error('Bridge error:', error);
+                    });
+            } else {
+                console.warn('Bridge SDK not loaded');
+            }
 
         })();
     </script>
