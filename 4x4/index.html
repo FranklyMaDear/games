@@ -8,14 +8,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- 1. YouTube Playables SDK — ΠΡΩΤΟ -->
+    <!-- YouTube Playables SDK (the ONLY platform SDK allowed under Playables CSP) -->
     <script src="https://www.youtube.com/game_api/v1"></script>
-    <!-- 2. Playgama Bridge -->
-    <script src="https://bridge.playgama.com/v1/stable/playgama-bridge.js"></script>
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; justify-content: center; align-items: center; background: #000010; overflow: hidden; position: relative; touch-action: manipulation; }
+        html, body { overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; justify-content: center; align-items: center; background: #000010; position: relative; touch-action: manipulation; }
         #starCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
         .shooting-star { position: fixed; width: 3px; height: 80px; background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0)); border-radius: 50%; z-index: 1; pointer-events: none; animation: shoot linear forwards; transform-origin: top center; }
         @keyframes shoot { 0% { opacity: 1; transform: translate(0,0) rotate(-35deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-400px,600px) rotate(-35deg); } }
@@ -139,8 +138,10 @@
 
     <script>
     (function() {
-        // Safe bridge reference — avoids ReferenceError if SDK not loaded
-        var bridge = (typeof window.bridge !== 'undefined') ? window.bridge : null;
+        // ---- YouTube Playables SDK handle + lifecycle flags ----
+        var YT = (typeof ytgame !== 'undefined' && ytgame !== null) ? ytgame : null;
+        var ytLoaded = false; // true once loadData() has resolved — saveData is blocked until then
+        var ytReady  = false; // true once gameReady() has been called
 
         // ---------- STARFIELD ----------
         const canvas = document.getElementById('starCanvas');
@@ -189,11 +190,26 @@
         window.addEventListener('resize', () => { resizeCanvas(); createStars(200); });
 
         // ---------- AUDIO ----------
+        // Mute/pause now SUSPEND the AudioContext so active output actually stops
+        // (the platform mute test measures real metered output, not just a flag).
         class GameAudio {
-            constructor() { this.audioCtx = null; this.initialized = false; this._muted = false; }
+            constructor() { this.audioCtx = null; this.initialized = false; this._muted = false; this._paused = false; }
             init() { if (this.initialized) return; try { this.audioCtx = new (window.AudioContext||window.webkitAudioContext)(); this.initialized = true; } catch(e) {} }
+            _apply() {
+                if (!this.audioCtx) return;
+                try {
+                    if (this._muted || this._paused) { if (this.audioCtx.state === 'running') this.audioCtx.suspend(); }
+                    else { if (this.audioCtx.state === 'suspended') this.audioCtx.resume(); }
+                } catch(e) {}
+            }
+            setMuted(m)  { this._muted = !!m;  this._apply(); }
+            setPaused(p) { this._paused = !!p; this._apply(); }
+            _silenced()  { return this._muted || this._paused; }
+            _ensureRunning() { this.init(); if (this.audioCtx && this.audioCtx.state === 'suspended') { try { this.audioCtx.resume(); } catch(e) {} } }
             playDropSound() {
-                if (this._muted || !this.initialized) { this.init(); return; } if (!this.audioCtx) return;
+                if (this._silenced()) return;
+                this._ensureRunning();
+                if (!this.audioCtx) return;
                 try {
                     const now = this.audioCtx.currentTime;
                     const o = this.audioCtx.createOscillator(); const g = this.audioCtx.createGain();
@@ -204,7 +220,9 @@
                 } catch(e) {}
             }
             playVictorySound() {
-                if (this._muted || !this.initialized) return; if (!this.audioCtx) return;
+                if (this._silenced()) return;
+                this._ensureRunning();
+                if (!this.audioCtx) return;
                 try {
                     const now = this.audioCtx.currentTime;
                     [{freq:523.25,time:0,dur:0.2},{freq:659.25,time:0.15,dur:0.2},{freq:783.99,time:0.3,dur:0.2},{freq:1046.50,time:0.45,dur:0.4}].forEach(note => {
@@ -224,6 +242,7 @@
                 this.ROWS=6; this.COLS=7; this.board=[]; this.currentPlayer=1; this.gameInProgress=false;
                 this.isAiTurn=false; this.scores={1:0,2:0}; this.audio=new GameAudio(); this.aiFirst=false;
                 this.difficulty='hard'; // 'easy' | 'medium' | 'hard'
+                this._wasPaused=false; this._savedProgress=false;
                 this.domBoard=document.getElementById('board'); this.domStatus=document.getElementById('status');
                 this.domScore=document.getElementById('scoreDisplay');
                 this.restartBtn=document.getElementById('restartBtn'); this.newGameBtn=document.getElementById('newGameBtn');
@@ -257,13 +276,11 @@
                 if (d === 'easy') this.diffEasyBtn.classList.add('active');
                 else if (d === 'medium') this.diffMediumBtn.classList.add('active');
                 else this.diffHardBtn.classList.add('active');
-                // Συγχρόνισε και το tab του scoreboard
                 const tabMap = {easy:'tabEasy', medium:'tabMedium', hard:'tabHard'};
                 document.querySelectorAll('.score-tab').forEach(t => t.classList.remove('active'));
                 const activeTab = document.getElementById(tabMap[d]);
                 if (activeTab) activeTab.classList.add('active');
                 this._scoreTab = d;
-                // Φόρτωσε σκορ για αυτό το επίπεδο
                 const today = this.loadTodayScores();
                 const saved = today[d] || {w:0, l:0};
                 this.scores = {1: saved.w, 2: saved.l};
@@ -293,6 +310,7 @@
                 this.board[row][col]=this.currentPlayer; this.animateDiscDrop(row,col,this.currentPlayer); this.audio.playDropSound();
                 if (this.checkWinCondition(row,col)) { this.handleWinState(); return; }
                 if (this.checkDrawCondition()) { this.handleDrawState(); return; }
+                this.cloudSave(); // persist after meaningful input
                 this.currentPlayer=this.currentPlayer===1?2:1; this.updateStatus(); this.updatePlayerIndicators();
                 if (this.currentPlayer===2&&this.gameInProgress) this.triggerAiTurn();
             }
@@ -324,12 +342,12 @@
                 this.audio.playVictorySound(); this.triggerConfettiEffect();
                 this.domStatus.textContent=this.currentPlayer===1?'You Win! 🎉':'AI Wins! 😞';
                 this.submitScore(this.scores[1]);
-                this.postGameAdFlow();
+                this.handleGameEnd();
             }
-            handleDrawState() { this.gameInProgress=false; this.domStatus.textContent="It's a Draw! 🤝"; this.postGameAdFlow(); }
+            handleDrawState() { this.gameInProgress=false; this.domStatus.textContent="It's a Draw! 🤝"; this.handleGameEnd(); }
             submitScore(score) {
-                if (window._ytgameReady && typeof ytgame !== 'undefined') {
-                    ytgame.game.sendScore(score).catch(function(){});
+                if (ytReady && YT && YT.game && typeof YT.game.sendScore === 'function') {
+                    try { YT.game.sendScore(score).catch(function(){}); } catch(e) {}
                 }
             }
             // ---- ΑΠΟΘΗΚΕΥΣΗ & SCOREBOARD ----
@@ -344,22 +362,18 @@
                 try { localStorage.setItem('cf_allscores', JSON.stringify(all)); } catch(e) {}
             }
             checkDayReset() {
-                // Αν άλλαξε μέρα, αποθηκεύουμε το χθεσινό σκορ και μηδενίζουμε
                 const lastDay = (function(){try{return localStorage.getItem('cf_lastday');}catch(e){return '';}}()) || '';
                 const today = this.getTodayKey();
                 if (lastDay && lastDay !== today) {
-                    // Αποθήκευσε το σκορ της χθεσινής μέρας
                     const all = this.loadAllScores();
                     const saved = JSON.parse(localStorage.getItem('cf_todayscores') || '{}');
                     if (Object.keys(saved).length > 0) {
                         all[lastDay] = saved;
-                        // Κράτα μόνο τις τελευταίες 14 μέρες
                         const keys = Object.keys(all).sort().slice(-14);
                         const trimmed = {};
                         keys.forEach(k => { trimmed[k] = all[k]; });
                         this.saveAllScores(trimmed);
                     }
-                    // Μηδένισε σκορ σήμερα
                     try { localStorage.removeItem('cf_todayscores'); } catch(e) {}
                 }
                 try { localStorage.setItem('cf_lastday', today); } catch(e) {}
@@ -370,39 +384,34 @@
             saveTodayScore() {
                 const today = this.loadTodayScores();
                 if (!today[this.difficulty]) today[this.difficulty] = {w:0, l:0};
-                // Αποθήκευσε τρέχον σκορ
                 today[this.difficulty].w = this.scores[1];
                 today[this.difficulty].l = this.scores[2];
                 try { localStorage.setItem('cf_todayscores', JSON.stringify(today)); } catch(e) {}
             }
+            // Cloud save — ONLY after loadData() has resolved (ytLoaded). Safe to call often.
+            cloudSave() {
+                if (YT && ytLoaded && YT.game && typeof YT.game.saveData === 'function') {
+                    try { YT.game.saveData(JSON.stringify(this.scores)).catch(function(){}); } catch(e) {}
+                }
+            }
+            // Apply data returned from the platform cloud-save store on boot.
+            applySavedData(data) {
+                try {
+                    const s = JSON.parse(data);
+                    if (s && typeof s === 'object' && (('1' in s) || ('2' in s))) {
+                        this.scores = {1: (s[1]||0), 2: (s[2]||0)};
+                        this.updateScores();
+                    }
+                } catch(e) {}
+            }
             saveProgress() {
                 this.saveTodayScore();
                 this.renderScoreboard();
-                // YouTube cloud save
-                if (window._ytgameReady && typeof ytgame !== 'undefined') {
-                    try { ytgame.game.saveData(JSON.stringify(this.scores)).catch(function(){}); } catch(e) {}
-                }
-                // Playgama Bridge storage
-                if (bridge) {
-                    try {
-                        if (bridge.storage && typeof bridge.storage.set === 'function') {
-                            bridge.storage.set('cf_scores', JSON.stringify(this.scores)).catch(function(){});
-                        }
-                    } catch(e) {}
-                }
+                this.cloudSave();
             }
-            postGameAdFlow() {
+            handleGameEnd() {
                 this.saveProgress();
-                this.setButtonsEnabled(false);
-                try {
-                    if (bridge && bridge.advertisement && typeof bridge.advertisement.showInterstitial === 'function') {
-                        bridge.advertisement.showInterstitial()
-                            .then(() => { this.setButtonsEnabled(true); })
-                            .catch(() => { this.setButtonsEnabled(true); });
-                    } else {
-                        this.setButtonsEnabled(true);
-                    }
-                } catch(e) { this.setButtonsEnabled(true); }
+                this.setButtonsEnabled(true);
             }
             updateScores() {
                 this.domScore.textContent=`${this.scores[1]} - ${this.scores[2]}`;
@@ -411,30 +420,22 @@
                 const tab = this._scoreTab || this.difficulty;
                 const content = document.getElementById('scoreboardContent');
                 if (!content) return;
-
-                // Συγκέντρωσε δεδομένα: σήμερα + ιστορικό
                 const todayKey = this.getTodayKey();
                 const todayScores = this.loadTodayScores();
                 const allScores = this.loadAllScores();
-
-                // Συνδύασε: αρχικά ιστορικό, μετά σήμερα (override)
                 const combined = Object.assign({}, allScores);
                 if (todayScores && Object.keys(todayScores).length > 0) {
                     combined[todayKey] = todayScores;
                 }
-
-                // Φίλτρο για το επιλεγμένο tab
                 const rows = Object.keys(combined).sort().reverse().map(date => {
                     const dayData = combined[date] || {};
                     const diff = dayData[tab] || null;
                     return { date, diff };
                 }).filter(r => r.diff);
-
                 if (rows.length === 0) {
                     content.innerHTML = '<div class="no-history">No history yet for this difficulty level.</div>';
                     return;
                 }
-
                 let html = '<table class="score-table"><thead><tr><th>📅 Date</th><th class="win">✅ Wins</th><th class="loss">❌ Losses</th></tr></thead><tbody>';
                 rows.forEach(r => {
                     const isToday = r.date === todayKey;
@@ -456,7 +457,6 @@
                         this.renderScoreboard();
                     });
                 });
-                // Modal open/close
                 const openBtn = document.getElementById('openScoreboardBtn');
                 const closeBtn = document.getElementById('closeScoreboardBtn');
                 const modal = document.getElementById('scoreModal');
@@ -467,39 +467,28 @@
                 if (closeBtn) closeBtn.addEventListener('click', () => {
                     modal.classList.remove('open');
                 });
-                // Close on overlay click
                 if (modal) modal.addEventListener('click', (e) => {
                     if (e.target === modal) modal.classList.remove('open');
                 });
             }
             triggerAiTurn() {
                 this.isAiTurn=true; this.updateStatus();
-                // Easy: slower delay, Hard: faster
                 const delay = this.difficulty==='easy' ? Math.random()*800+600 : Math.random()*400+300;
                 setTimeout(() => { if (!this.gameInProgress) { this.isAiTurn=false; return; } const col=this.computeAiMove(); this.isAiTurn=false; this.makeMove(col); }, delay);
             }
             computeAiMove() {
                 const valid=[]; for(let c=0;c<this.COLS;c++) if(this.getAvailableRow(c)!==-1) valid.push(c);
-
-                // ΕΎΚΟΛΟ: 70% τυχαία κίνηση
                 if (this.difficulty === 'easy') {
                     if (Math.random() < 0.70) return valid[Math.floor(Math.random()*valid.length)];
-                    // 30% αποκλείει μόνο άμεση νίκη/ήττα
                     for(let c of valid){let r=this.getAvailableRow(c);this.board[r][c]=2;if(this.checkWinSimulation(r,c,2)){this.board[r][c]=0;return c;}this.board[r][c]=0;}
                     for(let c of valid){let r=this.getAvailableRow(c);this.board[r][c]=1;if(this.checkWinSimulation(r,c,1)){this.board[r][c]=0;return c;}this.board[r][c]=0;}
                     return valid[Math.floor(Math.random()*valid.length)];
                 }
-
-                // ΜΈΤΡΙΟ & ΠΟΛΎ ΔΎΣΚΟΛΟ: πάντα ελέγχει νίκη/ήττα
                 for(let c of valid){let r=this.getAvailableRow(c);this.board[r][c]=2;if(this.checkWinSimulation(r,c,2)){this.board[r][c]=0;return c;}this.board[r][c]=0;}
                 for(let c of valid){let r=this.getAvailableRow(c);this.board[r][c]=1;if(this.checkWinSimulation(r,c,1)){this.board[r][c]=0;return c;}this.board[r][c]=0;}
-
-                // ΜΈΤΡΙΟ: 30% τυχαία μετά τους άμεσους ελέγχους
                 if (this.difficulty === 'medium' && Math.random() < 0.30) {
                     return valid[Math.floor(Math.random()*valid.length)];
                 }
-
-                // Minimax: depth 3 για μέτριο, depth 5 για πολύ δύσκολο
                 const depth = this.difficulty==='medium' ? 3 : 5;
                 let best=-Infinity, cols=[valid[0]];
                 for(let c of valid){let r=this.getAvailableRow(c);this.board[r][c]=2;let s=this.minimax(depth,false,-Infinity,Infinity);this.board[r][c]=0;if(s>best){best=s;cols=[c];}else if(s===best)cols.push(c);}
@@ -536,104 +525,86 @@
                 for(let i=0;i<60;i++){const c=document.createElement('div');c.classList.add('confetti');c.style.left=Math.random()*100+'vw';c.style.animationDelay=Math.random()*0.5+'s';c.style.animationDuration=(Math.random()*2+2)+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),3500);}
             }
             restartGame() { this.currentPlayer=1;this.isAiTurn=false;this.initializeBoard();this.updateStatus();this.updatePlayerIndicators();document.querySelectorAll('.confetti').forEach(c=>c.remove());this.setButtonsEnabled(true); }
-            newGame() {
-                // ΝΕΟ: δεν μηδενίζουμε το σκορ — συνεχίζεται!
-                this.restartGame();
+            newGame() { this.restartGame(); }
+            resetScores() { this.scores={1:0,2:0}; this.updateScores(); }
+
+            // ---- PLATFORM PAUSE / RESUME ----
+            handlePause() {
+                this._wasPaused = true;
+                this._savedProgress = this.gameInProgress;
+                this.gameInProgress = false;
+                this.isAiTurn = false;
+                if (this.audio) this.audio.setPaused(true);
             }
-            resetScores() {
-                // Μηδενισμός μόνο αν ο παίκτης το ζητήσει ρητά (δεν χρησιμοποιείται τώρα)
-                this.scores={1:0,2:0}; this.updateScores();
+            handleResume() {
+                if (this.audio) this.audio.setPaused(false);
+                if (this._wasPaused) {
+                    this.gameInProgress = !!this._savedProgress;
+                    this._wasPaused = false;
+                }
+                this.updateStatus();
+                this.updatePlayerIndicators();
             }
         }
 
         // ============================================================
-        // START — game + background immediately
+        // START — background + game immediately
         // ============================================================
         try { initBackgroundEffects(); } catch(e) {}
         try { window._game = new ConnectFour(); } catch(e) {}
 
         // ============================================================
-        // YouTube Playables SDK
-        // Exact order: firstFrameReady → await initGameAssets → gameReady
+        // YouTube Playables SDK lifecycle
+        // Required order: firstFrameReady() -> await loadData() -> gameReady()
         // ============================================================
-
-        // initGameAssets: required function name for YouTube SDK checker
         async function initGameAssets() {
-            var hasYTGame = (typeof ytgame !== 'undefined' && ytgame !== null);
-            if (!hasYTGame) return;
+            if (!YT) return;
 
-            // Audio state
+            // --- Audio: sync to current platform state + subscribe to changes ---
             try {
-                if (ytgame.system && typeof ytgame.system.isAudioEnabled === 'function') {
-                    window._game.audio._muted = !ytgame.system.isAudioEnabled();
-                    ytgame.system.onAudioEnabledChange(function(e) { window._game.audio._muted = !e; });
+                if (YT.system && typeof YT.system.isAudioEnabled === 'function') {
+                    window._game.audio.setMuted(!YT.system.isAudioEnabled());
                 }
-            } catch(e) {}
-
-            // Pause / Resume
-            try {
-                if (ytgame.game && typeof ytgame.game.onPause === 'function') {
-                    ytgame.game.onPause(function() {
-                        if (window._game) { window._game._savedProgress = window._game.gameInProgress; window._game.gameInProgress = false; window._game.isAiTurn = false; }
-                    });
-                    ytgame.game.onResume(function() {
-                        if (window._game) { window._game.gameInProgress = window._game._savedProgress || false; }
+                if (YT.system && typeof YT.system.onAudioEnabledChange === 'function') {
+                    YT.system.onAudioEnabledChange(function(enabled) {
+                        if (window._game) window._game.audio.setMuted(!enabled);
                     });
                 }
             } catch(e) {}
 
-            // Load saved data
+            // --- Pause / Resume live on ytgame.system (NOT ytgame.game) ---
             try {
-                if (ytgame.game && typeof ytgame.game.loadData === 'function') {
-                    await ytgame.game.loadData().then(function(data) {
-                        if (data && window._game) {
-                            try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
-                        }
-                    }).catch(function(){});
+                if (YT.system && typeof YT.system.onPause === 'function') {
+                    YT.system.onPause(function() { if (window._game) window._game.handlePause(); });
+                }
+                if (YT.system && typeof YT.system.onResume === 'function') {
+                    YT.system.onResume(function() { if (window._game) window._game.handleResume(); });
                 }
             } catch(e) {}
+
+            // --- Load cloud save BEFORE any saveData can run ---
+            try {
+                if (YT.game && typeof YT.game.loadData === 'function') {
+                    const data = await YT.game.loadData();
+                    if (data && window._game) window._game.applySavedData(data);
+                }
+            } catch(e) {}
+
+            ytLoaded = true; // saveData unblocked from here
         }
 
         window.addEventListener('load', async function() {
-            var hasYTGame = (typeof ytgame !== 'undefined' && ytgame !== null);
-            var isYT = hasYTGame && ytgame.IN_PLAYABLES_ENV;
-
-            // STEP 1: firstFrameReady — call always if SDK present
-            if (hasYTGame && ytgame.game && typeof ytgame.game.firstFrameReady === 'function') {
-                try { ytgame.game.firstFrameReady(); } catch(e) {}
+            // 1) firstFrameReady — must come before gameReady
+            if (YT && YT.game && typeof YT.game.firstFrameReady === 'function') {
+                try { YT.game.firstFrameReady(); } catch(e) {}
             }
 
-            // STEP 2: await initGameAssets (sets up audio, pause, loads data)
-            await initGameAssets();
+            // 2) initialize assets + await cloud load
+            try { await initGameAssets(); } catch(e) { ytLoaded = true; }
 
-            // STEP 3: gameReady — call always if SDK present
-            if (hasYTGame && ytgame.game && typeof ytgame.game.gameReady === 'function') {
-                try {
-                    ytgame.game.gameReady();
-                    window._ytgameReady = isYT;
-                } catch(e) {}
-            }
-
-            // ============================================================
-            // Playgama Bridge (Mediacube)
-            // ============================================================
-            if (!isYT && bridge) {
-                try {
-                    bridge.initialize()
-                        .then(function() {
-                            try { bridge.platform.sendMessage('game_ready'); } catch(e) {}
-                            try {
-                                if (bridge.storage && typeof bridge.storage.get === 'function') {
-                                    bridge.storage.get('cf_scores').then(function(data) {
-                                        if (data && window._game) {
-                                            try { var s=JSON.parse(data); window._game.scores=s; window._game.updateScores(); } catch(e) {}
-                                        }
-                                    }).catch(function(){});
-                                }
-                            } catch(e) {}
-                        })
-                        .catch(function() {});
-                } catch(e) {}
+            // 3) gameReady — only once loading is done and player can interact
+            if (YT && YT.game && typeof YT.game.gameReady === 'function') {
+                try { YT.game.gameReady(); ytReady = true; } catch(e) {}
             }
         });
 
