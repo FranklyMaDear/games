@@ -64,14 +64,32 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
 .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
 .play-btn:active{transform:scale(.94)}
-.goals-panel{background:rgba(0,0,0,.45);border:1px solid rgba(255,215,0,.25);border-radius:14px;padding:12px 20px;text-align:center;position:relative;backdrop-filter:blur(6px)}
-.goals-panel h3{color:#FFD700;font-size:14px;margin-bottom:8px;letter-spacing:1px}
-.goals-panel div{color:#ccc;font-size:13px;margin:4px 0}
 #lost-modal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);flex-direction:column;gap:20px}
 #lost-modal.active{display:flex}
 #lost-modal h1{font-size:56px;color:#ff3333;text-shadow:0 0 30px red;margin:0}
 #lost-modal .lost-score{font-size:22px;color:#FFD700}
 #lost-modal button{background:#ff4444;color:#fff;border:none;padding:12px 40px;border-radius:16px;font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 0 20px rgba(255,0,0,.6)}
+
+/* ─── RANK MODAL (επαγγελματικό) ──────────────────────────── */
+#rank-modal{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px}
+#rank-modal.active{display:flex}
+#rank-box{background:linear-gradient(145deg,#1a1a3a,#111122);border:2px solid #ffaa33;border-radius:24px;padding:24px 20px 20px;width:92%;max-width:380px;max-height:82vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,170,51,.25),inset 0 1px 0 rgba(255,255,255,.05);scrollbar-width:thin;scrollbar-color:#ffaa33 #111}
+#rank-box h2{color:#ffaa33;text-align:center;font-size:20px;font-weight:800;letter-spacing:1px;margin-bottom:4px}
+#rank-box .rank-subtitle{color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:16px}
+#rank-box .rank-current{background:rgba(255,170,51,.1);border:1px solid rgba(255,170,51,.2);border-radius:12px;padding:10px;text-align:center;margin-bottom:14px;color:#FFD700;font-size:16px;font-weight:700}
+#rank-box .lb-list{margin-bottom:14px}
+.lb-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#ddd}
+.lb-row .lb-pos{color:#ffaa33;font-weight:700;min-width:28px}
+.lb-row .lb-score{color:#FFD700;font-weight:700}
+.lb-row .lb-date{color:#666;font-size:10px}
+.lb-empty-row{color:#555;text-align:center;padding:18px;font-style:italic}
+#rank-box .goals-divider{height:1px;background:rgba(255,170,51,.3);margin:12px 0}
+#rank-box h3{color:#FFD700;text-align:center;font-size:15px;font-weight:700;letter-spacing:.5px;margin-bottom:8px}
+#rank-box .goal-row{display:flex;justify-content:space-between;font-size:13px;color:#ccc;padding:4px 0}
+#rank-box .goal-row .goal-val{color:#fff;font-weight:600}
+#rank-box .bonus-row{text-align:center;font-size:12px;color:#FFD700;margin-top:6px;font-weight:600}
+#rank-close-btn{display:block;margin:16px auto 0;background:linear-gradient(135deg,#ffaa33,#cc8800);color:#000;border:none;border-radius:12px;padding:10px 36px;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.5px;box-shadow:0 4px 16px rgba(255,170,51,.4)}
+#rank-close-btn:active{transform:scale(.94)}
 </style>
 <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
@@ -127,12 +145,19 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   <button id="lost-newgame-btn">NEW GAME</button>
 </div>
 
-<div id="modal-leaderboard">
-  <div id="modal-content">
+<!-- RANK MODAL (leaderboard + goals) -->
+<div id="rank-modal">
+  <div id="rank-box">
     <h2>🏆 WEEKLY TOP 10</h2>
-    <div class="current-score" id="modal-current-score">Your Score: 0</div>
-    <div id="modal-lb-list"></div>
-    <button id="modal-close">CLOSE</button>
+    <div class="rank-subtitle">TOP PLAYERS THIS WEEK</div>
+    <div class="rank-current" id="rank-your-score">Your Score: 0</div>
+    <div class="lb-list" id="rank-lb-list"></div>
+    <div class="goals-divider"></div>
+    <h3>🎯 ACTIVE GOALS</h3>
+    <div class="goal-row"><span>Round Score</span><span class="goal-val" id="rank-goal-score">0 / 25.000</span></div>
+    <div class="goal-row"><span>Max Cube</span><span class="goal-val" id="rank-goal-cube">2 / 128</span></div>
+    <div class="bonus-row">🏆 Bonus: Lv.×50 + Lv.×100</div>
+    <button id="rank-close-btn">CLOSE</button>
   </div>
 </div>
 
@@ -183,7 +208,7 @@ const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const RAMP_HOME_Z = -TRACK_L/2 + 0.3;
-const RAMP_PUSH_Z = RAMP_HOME_Z + 2.8;  // σπρώχνει μόνο 15% της οθόνης
+const RAMP_PUSH_Z = RAMP_HOME_Z + (TRACK_L * 0.10);  /* 10% του μήκους */
 const RAMP_SPEED  = 9.0;
 
 const GRP_TRACK  = 1;
@@ -243,17 +268,24 @@ function addToWeeklyLeaderboard(s){
 function saveHighScoreIfNeeded(s){if(s>highScore){highScore=s;saveProgression();document.getElementById('highscore-val').textContent=highScore.toLocaleString();}}
 function updateRankScoreDisplay(s){document.getElementById('rank-score-display').textContent='Score: '+s.toLocaleString();}
 
-function openLeaderboardModal(){
-  const modal=document.getElementById('modal-leaderboard');
-  document.getElementById('modal-current-score').textContent='Your Score: '+score.toLocaleString();
-  const lb=getWeeklyLeaderboard();let html='';
-  if(lb.length===0){html='<div class="lb-empty">No scores yet this week</div>';}
-  else{lb.forEach((e,i)=>{html+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${e.score.toLocaleString()}</span><span class="lb-date">${e.date}</span></div>`;});}
-  document.getElementById('modal-lb-list').innerHTML=html;modal.classList.add('active');
+function openRankModal(){
+  const modal=document.getElementById('rank-modal');
+  document.getElementById('rank-your-score').textContent='Your Score: ' + score.toLocaleString();
+  const lb=getWeeklyLeaderboard();
+  let html='';
+  if(lb.length===0){html='<div class="lb-empty-row">No scores yet this week</div>';}
+  else{lb.forEach((e,i)=>{html+=`<div class="lb-row"><span class="lb-pos">#${i+1}</span><span class="lb-score">${e.score.toLocaleString()}</span><span class="lb-date">${e.date}</span></div>`;});}
+  document.getElementById('rank-lb-list').innerHTML=html;
+  document.getElementById('rank-goal-score').textContent=`0 / ${roundScoreGoal.toLocaleString()}`;
+  document.getElementById('rank-goal-cube').textContent=`2 / ${roundCubeGoal}`;
+  modal.classList.add('active');
 }
-document.getElementById('btn-rank').addEventListener('click',openLeaderboardModal);
-document.getElementById('modal-close').addEventListener('click',()=>document.getElementById('modal-leaderboard').classList.remove('active'));
-document.getElementById('modal-leaderboard').addEventListener('click',(e)=>{if(e.target===document.getElementById('modal-leaderboard'))document.getElementById('modal-leaderboard').classList.remove('active');});
+function closeRankModal(){
+  document.getElementById('rank-modal').classList.remove('active');
+}
+document.getElementById('btn-rank').addEventListener('click',openRankModal);
+document.getElementById('rank-close-btn').addEventListener('click',closeRankModal);
+document.getElementById('rank-modal').addEventListener('click',(e)=>{if(e.target===document.getElementById('rank-modal'))closeRankModal();});
 
 /* ─── 3D SETUP ──────────────────────────────────────────────── */
 const wrap=document.getElementById('canvas-wrap');
@@ -285,7 +317,6 @@ keyLight.shadow.bias=-0.0005;scene.add(keyLight);
 const fillLight=new THREE.DirectionalLight(0x9977ff,0.5);fillLight.position.set(-7,13,9);scene.add(fillLight);
 const rimLight=new THREE.PointLight(0xaa88ff,2.8,60);rimLight.position.set(0,10,-20);scene.add(rimLight);
 
-// Δυναμικό φως για τον κύβο‑βλήμα
 const shotLight = new THREE.PointLight(0xffaa00, 8, 12);
 shotLight.position.set(0, trackY+2, SHOOTER_Z);
 scene.add(shotLight);
@@ -534,7 +565,6 @@ function shoot(){
   nc.body.updateMassProperties();
   nc.body.wakeUp();
 
-  // Γρήγορη ολίσθηση μέχρι το τέρμα
   nc.body.velocity.set(0, 6, -36);
   nc.body.angularVelocity.set(0, 0, 0);
 
@@ -588,7 +618,6 @@ function tryMerge(a,b){
   const lt=nv>=64?'points-mega':nv>=16?'points-big':'points';
   floatText(px-trackY,py-trackY+.6,pz,`+${pts}`,lt);
   if(SEQ.includes(nv)&&!seenMS.has(nv)){seenMS.add(nv);floatText(0,trackY+3,0,`✦ ${nv} REACHED! ✦`,'milestone');audio.milestone();}
-  // Δυνατό μπουμ κατά τη συγχώνευση
   audio.mergeBoom();
   spawnParticles(px-trackY,py-trackY,pz,0xffaa00,30,9);
   return nc;
@@ -792,12 +821,8 @@ function showLostModal(){
   document.getElementById('lost-final-score').textContent = 'Score: ' + score.toLocaleString();
   document.getElementById('lost-modal').classList.add('active');
 }
-function hideLostModal(){
-  document.getElementById('lost-modal').classList.remove('active');
-}
 document.getElementById('lost-newgame-btn').addEventListener('click', ()=>{
-  hideLostModal();
-  startGame();
+  window.location.reload();
 });
 
 /* ─── OVERLAY ───────────────────────────────────────────────── */
@@ -808,18 +833,10 @@ function buildOverlay(htmlContent){
 }
 
 function showInitialOverlay(){
-  const cubeIdx=Math.min(SEQ.length-1,3+Math.floor(playerLevel/3));
-  const scGoal=playerLevel*2500,cuGoal=SEQ[cubeIdx];
   buildOverlay(`
     <h1>MERGE CUBES 3D</h1>
     <p>Tap to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
       Don't let cubes cross the <b style="color:#ff4444">red line</b>!</p>
-    <div class="goals-panel">
-      <h3>🎯 ACTIVE GOALS</h3>
-      <div>Round Score: 0 / ${scGoal.toLocaleString()}</div>
-      <div>Max Cube: 2 / ${cuGoal}</div>
-      <div style="color:#FFD700;font-size:11px;margin-top:4px;">🏆 Bonus: Lv.×50 + Lv.×100</div>
-    </div>
     <button class="play-btn" id="startBtn">PLAY</button>
   `);
   document.getElementById('startBtn').addEventListener('click',startGame);
@@ -849,7 +866,6 @@ function update(){
 
   if(gameOn&&!paused){
     for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt;}
-
     for(const c of cubes){
       if(c.isNewRow){
         c.newRowTimer-=dt;
@@ -899,7 +915,6 @@ function update(){
       if(c.body.position.x > X_LIMIT){c.body.position.x = X_LIMIT; if(c.body.velocity.x>0)c.body.velocity.x*=-0.5;}
       else if(c.body.position.x < -X_LIMIT){c.body.position.x = -X_LIMIT; if(c.body.velocity.x<0)c.body.velocity.x*=-0.5;}
       if(c.body.position.z < Z_BACK){c.body.position.z = Z_BACK; if(c.body.velocity.z<0)c.body.velocity.z*=-0.5;}
-
       if(c.isNewRow){
         if(c.body.position.y < trackY+CUBE_SZ/2+0.1){
           c.body.position.y = trackY+CUBE_SZ/2+0.02;
@@ -910,7 +925,6 @@ function update(){
           c.body.quaternion.set(0,0,0,1);
         }
       }
-
       if(settling && !c.isShot && !c.isNewRow && Math.abs(c.body.velocity.z)<0.6 && Math.abs(c.body.velocity.x)<0.6){
         let col = Math.round((c.body.position.x + TRACK_W/2 - COL_W/2) / COL_W);
         col = Math.max(0, Math.min(COLS-1, col));
@@ -918,7 +932,6 @@ function update(){
         c.body.position.x += (cx - c.body.position.x)*0.18;
         c.body.velocity.x *= 0.5;
       }
-
       c.mesh.position.copy(c.body.position);
       c.mesh.quaternion.copy(c.body.quaternion);
       const ei = c.flash>0 ? .28+(c.flash/12)*1.7 : .28;
@@ -926,13 +939,10 @@ function update(){
       mats.forEach(m=>{if(m&&m.emissiveIntensity!==undefined)m.emissiveIntensity=ei;});
     }
 
-    // Φωτισμός πίσω από τον κύβο‑βλήμα
     if(shotCube){
       shotLight.position.copy(shotCube.body.position);
       shotLight.intensity = 10;
-    } else {
-      shotLight.intensity = 0;
-    }
+    } else { shotLight.intensity = 0; }
 
     if(shotCube && !shotCube.rainbow){
       const s=shotCube.body;
@@ -952,26 +962,17 @@ function update(){
     } else {
       sweepMerges();
       if(shotCube && !cubes.includes(shotCube)) shotCube=null;
-
       if(shotCube){
         if(shotCube.launchZ === undefined){
-          shotCube.isShot = false;
-          shotCube.body.collisionFilterGroup = GRP_TRACK;
-          shotCube.body.collisionFilterMask = ~0;
-          shotCube.mergeCooldown = 0.3;
-          shotCube = null;
+          shotCube.isShot = false; shotCube.body.collisionFilterGroup = GRP_TRACK; shotCube.body.collisionFilterMask = ~0;
+          shotCube.mergeCooldown = 0.3; shotCube = null;
         } else {
-          if(shotCube.body.position.z < DANGER_Z - 4){
-            shotCube.body.linearDamping = 0.45;
-          }
+          if(shotCube.body.position.z < DANGER_Z - 4) shotCube.body.linearDamping = 0.45;
           const traveled = shotCube.launchZ - shotCube.body.position.z;
           if(traveled > 8.0 && Math.abs(shotCube.body.velocity.z) < 0.5 && Math.abs(shotCube.body.velocity.x) < 0.5 && shotCube.body.position.z < DANGER_Z - 2){
-            shotCube.isShot = false;
-            shotCube.body.linearDamping = 0.5;
-            shotCube.body.collisionFilterGroup = GRP_TRACK;
-            shotCube.body.collisionFilterMask = ~0;
-            shotCube.mergeCooldown = 0.3;
-            shotCube = null;
+            shotCube.isShot = false; shotCube.body.linearDamping = 0.5;
+            shotCube.body.collisionFilterGroup = GRP_TRACK; shotCube.body.collisionFilterMask = ~0;
+            shotCube.mergeCooldown = 0.3; shotCube = null;
           }
         }
       }
@@ -1149,7 +1150,7 @@ document.getElementById('boost-rainbow').addEventListener('click',()=>{
   else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
-  if(typeof show_11108267==='function'){show_11108267().then(()=>startGame());}else startGame();
+  if(typeof show_11108267==='function'){show_11108267().then(()=>window.location.reload());}else window.location.reload();
 });
 document.getElementById('btn-pause').addEventListener('click',()=>{
   if(!gameOn)return;paused=!paused;document.getElementById('btn-pause').textContent=paused?'▶':'⏸';
@@ -1178,7 +1179,6 @@ function startGame(){
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
   document.getElementById('boosters').classList.add('active');
-  hideLostModal();
   score=0;mult=1;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;gameStarted=false;
   roundScoreGoal=playerLevel*2500;
@@ -1200,8 +1200,9 @@ function startGame(){
   rampMesh=new THREE.Mesh(new THREE.BoxGeometry(rampWidth,0.45,0.48),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
   rampMesh.position.set(0,trackY+0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
+  /* Οι πρώτοι κύβοι τοποθετούνται ΑΚΡΙΒΩΣ στο σημείο που σπρώχνει η ράμπα (10%) */
+  const startRowZ = RAMP_PUSH_Z;
   const startVals=[2,4,8,16,4];
-  const startRowZ=Z_BACK+CUBE_SZ*0.6;
   for(let i=0;i<COLS;i++){
     const cx=-TRACK_W/2+COL_W/2+i*COL_W;
     spawnCube(cx,CUBE_SZ/2+0.05,startRowZ,startVals[i],{isNewRow:true,mergeCooldown:1.2});
