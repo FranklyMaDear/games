@@ -25,14 +25,12 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 #highscore-lbl{color:#ffaa33;font-size:8px;font-weight:700;letter-spacing:1.5px}
 #highscore-val{color:#ffaa33;font-size:15px;font-weight:900;text-shadow:0 0 8px rgba(255,160,48,.5);font-variant-numeric:tabular-nums}
 .hbtn{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#aaa;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-
 #level-box{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.07);border-radius:10px;padding:3px 8px;font-size:13px;font-weight:800;color:#c0aaff}
 #xp-bar-wrap{width:70px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin:0 4px}
 #xp-bar-fill{height:100%;width:0%;background:linear-gradient(90deg,#a855f7,#7cfc00);border-radius:3px;transition:width .3s}
 #coins-box{display:flex;align-items:center;gap:3px;background:rgba(255,215,0,.12);border-radius:10px;padding:3px 8px;font-size:13px;font-weight:700;color:#FFD700}
 #goals-inline{display:flex;gap:10px;font-size:11px;font-weight:600;color:#ccc}
 .goal-met{color:#7cfc00 !important;text-shadow:0 0 8px rgba(120,255,0,.5)}
-
 #canvas-wrap{flex:1;width:100%;position:relative;overflow:hidden}
 #three-canvas{display:block;width:100%;height:100%;cursor:crosshair}
 #fx-layer{position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden}
@@ -158,7 +156,7 @@ import{EffectComposer}from'three/addons/postprocessing/EffectComposer.js';
 import{RenderPass}from'three/addons/postprocessing/RenderPass.js';
 import{UnrealBloomPass}from'three/addons/postprocessing/UnrealBloomPass.js';
 
-/* ---------- STARFIELD ---------- */
+/* ─── STARFIELD ─────────────────────────────────────────────── */
 function buildStarfield(){
   const sf=document.getElementById('starfield');if(!sf)return;sf.innerHTML='';
   function layer(count,size,dur,op){
@@ -173,7 +171,7 @@ function buildStarfield(){
   layer(160,1.6,38,0.9);layer(220,1.0,68,0.7);layer(300,0.6,105,0.5);
 }
 
-/* ---------- CONSTANTS & DATA ---------- */
+/* ─── CONSTANTS ─────────────────────────────────────────────── */
 const SEQ=[2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384];
 const PAL={
   2:{hex:0x3ecf5a,glow:0x2aff5a},4:{hex:0x8b5cf6,glow:0xa070ff},8:{hex:0xf97316,glow:0xffaa44},
@@ -195,125 +193,86 @@ const SHOOTER_Z=16.0;
 const X_LIMIT=TRACK_W/2-CUBE_SZ/2;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
-const ROW_STEP    = CUBE_SZ + 0.06;
 const RAMP_HOME_Z = -TRACK_L/2 + 0.3;
 const SPAWN_Z     = RAMP_HOME_Z + 0.88;
 const RAMP_PUSH_Z = SPAWN_Z + CUBE_SZ + 1.0;
 const RAMP_SPEED  = 9.0;
 
-/* ---------- LOCAL STORAGE KEYS ---------- */
-const LS_HIGHSCORE = 'mergeCubes3D_highscore';
-const LS_LEVEL     = 'mergeCubes3D_playerLevel';
-const LS_XP        = 'mergeCubes3D_playerXP';
-const LS_COINS     = 'mergeCubes3D_coins';
-const GIFT_DATE_KEY = 'mergeCubes3D_giftDate';
-const FREE_BOMB_KEY = 'mergeCubes3D_freeBomb';
-const FREE_RAINBOW_KEY = 'mergeCubes3D_freeRainbow';
+/* ─── Collision filter groups ───────────────────────────────── */
+// 1 = settled track cubes
+// 2 = shot cube (player)
+// 4 = ramp / walls
+// 8 = newly spawned row cubes (ghost phase – no cube-cube collision)
+const GRP_TRACK  = 1;
+const GRP_SHOT   = 2;
+const GRP_WALL   = 4;
+const GRP_NEWROW = 8;
 
-/* ---------- GLOBAL PROGRESSION STATE ---------- */
-let playerLevel = parseInt(localStorage.getItem(LS_LEVEL) || '1',10);
-let playerXP    = parseInt(localStorage.getItem(LS_XP) || '0',10);
-let coins       = parseInt(localStorage.getItem(LS_COINS) || '0',10);
-let highScore   = parseInt(localStorage.getItem(LS_HIGHSCORE)||'0',10);
+/* ─── LOCAL STORAGE ─────────────────────────────────────────── */
+const LS_HIGHSCORE='mergeCubes3D_highscore';
+const LS_LEVEL='mergeCubes3D_playerLevel';
+const LS_XP='mergeCubes3D_playerXP';
+const LS_COINS='mergeCubes3D_coins';
+const GIFT_DATE_KEY='mergeCubes3D_giftDate';
+const FREE_BOMB_KEY='mergeCubes3D_freeBomb';
+const FREE_RAINBOW_KEY='mergeCubes3D_freeRainbow';
 
-function xpForLevel(lv){ return Math.floor(1000 * Math.pow(lv, 2)); }
+let playerLevel=parseInt(localStorage.getItem(LS_LEVEL)||'1',10);
+let playerXP=parseInt(localStorage.getItem(LS_XP)||'0',10);
+let coins=parseInt(localStorage.getItem(LS_COINS)||'0',10);
+let highScore=parseInt(localStorage.getItem(LS_HIGHSCORE)||'0',10);
+
+function xpForLevel(lv){return Math.floor(1000*Math.pow(lv,2));}
 function saveProgression(){
-  localStorage.setItem(LS_LEVEL, playerLevel);
-  localStorage.setItem(LS_XP, playerXP);
-  localStorage.setItem(LS_COINS, coins);
-  localStorage.setItem(LS_HIGHSCORE, highScore);
+  localStorage.setItem(LS_LEVEL,playerLevel);
+  localStorage.setItem(LS_XP,playerXP);
+  localStorage.setItem(LS_COINS,coins);
+  localStorage.setItem(LS_HIGHSCORE,highScore);
 }
 
-/* ---------- ROUND MISSION STATE ---------- */
-let roundScoreGoal = 5000;
-let roundCubeGoal  = 16;
-let roundScoreMet  = false;
-let roundCubeMet   = false;
-let roundCoins     = 0;
+let roundScoreGoal=5000,roundCubeGoal=16,roundScoreMet=false,roundCubeMet=false,roundCoins=0;
 
-/* ---------- UI ELEMENTS ---------- */
-document.getElementById('highscore-val').textContent = highScore.toLocaleString();
-const hudProgression = document.getElementById('hud-progression');
+document.getElementById('highscore-val').textContent=highScore.toLocaleString();
 
-function updateLevelDisplay(){
-  document.getElementById('level-box').textContent = `Lv.${playerLevel}`;
-}
-function updateXPBar(){
-  const needed = xpForLevel(playerLevel);
-  const pct = Math.min(100, (playerXP / needed) * 100);
-  document.getElementById('xp-bar-fill').style.width = pct + '%';
-}
-function updateCoinsDisplay(){
-  document.getElementById('coins-box').innerHTML = `🪙 ${coins.toLocaleString()}`;
-}
+function updateLevelDisplay(){document.getElementById('level-box').textContent=`Lv.${playerLevel}`;}
+function updateXPBar(){const needed=xpForLevel(playerLevel);const pct=Math.min(100,(playerXP/needed)*100);document.getElementById('xp-bar-fill').style.width=pct+'%';}
+function updateCoinsDisplay(){document.getElementById('coins-box').innerHTML=`🪙 ${coins.toLocaleString()}`;}
 function updateGoalsUI(){
-  const scEl = document.getElementById('goal-score-text');
-  const cuEl = document.getElementById('goal-cube-text');
-  if(scEl){
-    scEl.textContent = `🎯 ${score.toLocaleString()} / ${roundScoreGoal.toLocaleString()}`;
-    scEl.className = roundScoreMet ? 'goal-met' : '';
-  }
-  if(cuEl){
-    cuEl.textContent = `🧊 ${maxReached} / ${roundCubeGoal}`;
-    cuEl.className = roundCubeMet ? 'goal-met' : '';
-  }
+  const scEl=document.getElementById('goal-score-text');
+  const cuEl=document.getElementById('goal-cube-text');
+  if(scEl){scEl.textContent=`🎯 ${score.toLocaleString()} / ${roundScoreGoal.toLocaleString()}`;scEl.className=roundScoreMet?'goal-met':'';}
+  if(cuEl){cuEl.textContent=`🧊 ${maxReached} / ${roundCubeGoal}`;cuEl.className=roundCubeMet?'goal-met':'';}
 }
-function refreshAllProgressionUI(){
-  updateLevelDisplay();
-  updateXPBar();
-  updateCoinsDisplay();
-  updateGoalsUI();
-}
+function refreshAllProgressionUI(){updateLevelDisplay();updateXPBar();updateCoinsDisplay();updateGoalsUI();}
 
-/* ---------- WEEKLY LEADERBOARD ---------- */
-function getISOWeek(d){
-  const date=new Date(d);
-  date.setHours(0,0,0,0);
-  date.setDate(date.getDate()+3-(date.getDay()+6)%7);
-  const week1=new Date(date.getFullYear(),0,4);
-  return 1+Math.round(((date.getTime()-week1.getTime())/86400000-3+(week1.getDay()+6)%7)/7);
-}
-function getWeekKey(){
-  const now=new Date();
-  return `mergeCubes3D_weekly_${now.getFullYear()}_w${getISOWeek(now)}`;
-}
-function getWeeklyLeaderboard(){
-  try{return JSON.parse(localStorage.getItem(getWeekKey())||'[]')}catch(e){return[]}
-}
+/* ─── LEADERBOARD ───────────────────────────────────────────── */
+function getISOWeek(d){const date=new Date(d);date.setHours(0,0,0,0);date.setDate(date.getDate()+3-(date.getDay()+6)%7);const week1=new Date(date.getFullYear(),0,4);return 1+Math.round(((date.getTime()-week1.getTime())/86400000-3+(week1.getDay()+6)%7)/7);}
+function getWeekKey(){const now=new Date();return `mergeCubes3D_weekly_${now.getFullYear()}_w${getISOWeek(now)}`;}
+function getWeeklyLeaderboard(){try{return JSON.parse(localStorage.getItem(getWeekKey())||'[]')}catch(e){return[]}}
 function saveWeeklyLeaderboard(lb){localStorage.setItem(getWeekKey(),JSON.stringify(lb));}
 function addToWeeklyLeaderboard(s){
-  const lb=getWeeklyLeaderboard();
-  const now=new Date();
+  const lb=getWeeklyLeaderboard();const now=new Date();
   const dateStr=now.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'2-digit'});
   const timeStr=now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-  lb.push({score:s,date:`${dateStr} ${timeStr}`});
-  lb.sort((a,b)=>b.score-a.score);
-  const top10=lb.slice(0,10);
-  saveWeeklyLeaderboard(top10);
-  return top10;
+  lb.push({score:s,date:`${dateStr} ${timeStr}`});lb.sort((a,b)=>b.score-a.score);
+  const top10=lb.slice(0,10);saveWeeklyLeaderboard(top10);return top10;
 }
-function saveHighScoreIfNeeded(s){
-  if(s>highScore){highScore=s;saveProgression();document.getElementById('highscore-val').textContent=highScore.toLocaleString();}
-}
-function updateRankScoreDisplay(s){
-  document.getElementById('rank-score-display').textContent='Score: '+s.toLocaleString();
-}
+function saveHighScoreIfNeeded(s){if(s>highScore){highScore=s;saveProgression();document.getElementById('highscore-val').textContent=highScore.toLocaleString();}}
+function updateRankScoreDisplay(s){document.getElementById('rank-score-display').textContent='Score: '+s.toLocaleString();}
 
 function openLeaderboardModal(){
   const modal=document.getElementById('modal-leaderboard');
-  const list=document.getElementById('modal-lb-list');
   document.getElementById('modal-current-score').textContent='Your Score: '+score.toLocaleString();
-  const lb=getWeeklyLeaderboard();
-  let html='';
+  const lb=getWeeklyLeaderboard();let html='';
   if(lb.length===0){html='<div class="lb-empty">No scores yet this week</div>';}
-  else{lb.forEach((e,i)=>{html+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${e.score.toLocaleString()}</span><span class="lb-date">${e.date}</span></div>`});}
-  list.innerHTML=html;modal.classList.add('active');
+  else{lb.forEach((e,i)=>{html+=`<div class="lb-entry"><span class="lb-rank">#${i+1}</span><span class="lb-score">${e.score.toLocaleString()}</span><span class="lb-date">${e.date}</span></div>`;});}
+  document.getElementById('modal-lb-list').innerHTML=html;modal.classList.add('active');
 }
 document.getElementById('btn-rank').addEventListener('click',openLeaderboardModal);
 document.getElementById('modal-close').addEventListener('click',()=>document.getElementById('modal-leaderboard').classList.remove('active'));
-document.getElementById('modal-leaderboard').addEventListener('click',(e)=>{if(e.target===document.getElementById('modal-leaderboard'))document.getElementById('modal-leaderboard').classList.remove('active')});
+document.getElementById('modal-leaderboard').addEventListener('click',(e)=>{if(e.target===document.getElementById('modal-leaderboard'))document.getElementById('modal-leaderboard').classList.remove('active');});
 
-/* ---------- 3D SETUP ---------- */
+/* ─── 3D SETUP ──────────────────────────────────────────────── */
 const wrap=document.getElementById('canvas-wrap');
 const canvas=document.getElementById('three-canvas');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -327,15 +286,13 @@ scene.background=new THREE.Color(0x080614);
 scene.fog=new THREE.Fog(0x080614,46,92);
 
 const camera=new THREE.PerspectiveCamera(55,1,0.1,250);
-const camDistance = 45;
-const phi = THREE.MathUtils.degToRad(35);
-const theta = THREE.MathUtils.degToRad(0);
-const camY = camDistance * Math.cos(phi);
-const camX = camDistance * Math.sin(phi) * Math.sin(theta);
-const camZ = camDistance * Math.sin(phi) * Math.cos(theta);
-camera.position.set(camX, camY, camZ);
-const trackY = 3;
-camera.lookAt(0, trackY, 0);
+const camDistance=45,phi=THREE.MathUtils.degToRad(35),theta=THREE.MathUtils.degToRad(0);
+const camY=camDistance*Math.cos(phi);
+const camX=camDistance*Math.sin(phi)*Math.sin(theta);
+const camZ=camDistance*Math.sin(phi)*Math.cos(theta);
+camera.position.set(camX,camY,camZ);
+const trackY=3;
+camera.lookAt(0,trackY,0);
 
 const ambient=new THREE.AmbientLight(0x7766cc,0.65);scene.add(ambient);
 const keyLight=new THREE.DirectionalLight(0xffffff,1.4);
@@ -354,100 +311,102 @@ composer.addPass(new UnrealBloomPass(new THREE.Vector2(1,1),0.65,0.85,0.85));
 
 const starGeo=new THREE.BufferGeometry();
 const starN=2600;const stp=new Float32Array(starN*3);
-for(let i=0;i<starN;i++){const r=55+Math.random()*100,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
-  stp[i*3]=r*Math.sin(ph)*Math.cos(th);stp[i*3+1]=r*Math.cos(ph)*0.7+6;stp[i*3+2]=r*Math.sin(ph)*Math.sin(th);}
+for(let i=0;i<starN;i++){const r=55+Math.random()*100,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);stp[i*3]=r*Math.sin(ph)*Math.cos(th);stp[i*3+1]=r*Math.cos(ph)*0.7+6;stp[i*3+2]=r*Math.sin(ph)*Math.sin(th);}
 starGeo.setAttribute('position',new THREE.BufferAttribute(stp,3));
-const spaceStars=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xddccff,size:0.4,sizeAttenuation:true,
-  transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,fog:false}));
+const spaceStars=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xddccff,size:0.4,sizeAttenuation:true,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,fog:false}));
 scene.add(spaceStars);
-function addNebula(x,y,z,color,size,op){const m=new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),m);mesh.position.set(x,y,z);mesh.lookAt(camera.position);scene.add(mesh)}
+function addNebula(x,y,z,color,size,op){const m=new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),m);mesh.position.set(x,y,z);mesh.lookAt(camera.position);scene.add(mesh);}
 addNebula(-30,9,-46,0x5522aa,56,0.16);addNebula(34,15,-52,0xaa2266,62,0.13);addNebula(0,27,-64,0x3344bb,78,0.11);
 
 function buildTrack(){
   const g=new THREE.Group();
   const W=TRACK_W,L=TRACK_L,wallT=0.5,wallH=1.7;
-  const floorMat=new THREE.MeshStandardMaterial({color:0x221c55,roughness:0.5,metalness:0.2});
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(W,L),floorMat);
+  // FIX: renamed local var to avoid shadowing cannon floorMat
+  const trackFloorMat=new THREE.MeshStandardMaterial({color:0x221c55,roughness:0.5,metalness:0.2});
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(W,L),trackFloorMat);
   floor.rotation.x=-Math.PI/2;floor.position.y=0.01;floor.receiveShadow=true;g.add(floor);
-
   const lineMat=new THREE.LineBasicMaterial({color:0x6655aa,transparent:true,opacity:0.35});
-  for(let i=0;i<=COLS;i++){
-    const x=-W/2+i*(W/COLS);
-    const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0.02,-L/2),new THREE.Vector3(x,0.02,L/2)]);
-    g.add(new THREE.Line(geo,lineMat));
-  }
-
+  for(let i=0;i<=COLS;i++){const x=-W/2+i*(W/COLS);const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0.02,-L/2),new THREE.Vector3(x,0.02,L/2)]);g.add(new THREE.Line(geo,lineMat));}
   const frameMat=new THREE.MeshStandardMaterial({color:0x7d4bdd,roughness:0.25,metalness:0.65,emissive:0x4a25a8,emissiveIntensity:1.2});
-  const addWallMesh=(x,z,w,h,d)=>{const wall=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),frameMat);wall.position.set(x,h/2,z);wall.castShadow=true;g.add(wall)};
-  addWallMesh(-W/2-wallT/2,0,wallT,wallH,L+wallT);
-  addWallMesh( W/2+wallT/2,0,wallT,wallH,L+wallT);
-  addWallMesh(0,-L/2-wallT/2,W+wallT*2,wallH,wallT);
-  addWallMesh(0, L/2+wallT/2,W+wallT*2,wallH,wallT);
-
+  const addWallMesh=(x,z,w,h,d)=>{const wall=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),frameMat);wall.position.set(x,h/2,z);wall.castShadow=true;g.add(wall);};
+  addWallMesh(-W/2-wallT/2,0,wallT,wallH,L+wallT);addWallMesh(W/2+wallT/2,0,wallT,wallH,L+wallT);
+  addWallMesh(0,-L/2-wallT/2,W+wallT*2,wallH,wallT);addWallMesh(0,L/2+wallT/2,W+wallT*2,wallH,wallT);
   const cornerMat=new THREE.MeshStandardMaterial({color:0x8d5bee,roughness:0.2,metalness:0.8,emissive:0x6a41d4,emissiveIntensity:1.5});
-  [[- W/2-wallT/2,-L/2-wallT/2],[W/2+wallT/2,-L/2-wallT/2],[-W/2-wallT/2,L/2+wallT/2],[W/2+wallT/2,L/2+wallT/2]].forEach(([cx,cz])=>{
+  [[-W/2-wallT/2,-L/2-wallT/2],[W/2+wallT/2,-L/2-wallT/2],[-W/2-wallT/2,L/2+wallT/2],[W/2+wallT/2,L/2+wallT/2]].forEach(([cx,cz])=>{
     const cyl=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,wallH,16),cornerMat);cyl.position.set(cx,wallH/2,cz);cyl.castShadow=true;g.add(cyl);
   });
-
   const dangerLineMat=new THREE.MeshBasicMaterial({color:0xff3333,transparent:true,opacity:0.9});
   const dangerLine=new THREE.Mesh(new THREE.PlaneGeometry(W,0.55),dangerLineMat);
   dangerLine.rotation.x=-Math.PI/2;dangerLine.position.set(0,0.05,DANGER_Z);g.add(dangerLine);
   const dangerGlowMat=new THREE.MeshBasicMaterial({color:0xff2222,transparent:true,opacity:0.25});
   const dangerGlow=new THREE.Mesh(new THREE.PlaneGeometry(W,1.7),dangerGlowMat);
   dangerGlow.rotation.x=-Math.PI/2;dangerGlow.position.set(0,0.06,DANGER_Z);g.add(dangerGlow);
-
   const shooterZoneMat=new THREE.MeshBasicMaterial({color:0x4422aa,transparent:true,opacity:0.18,depthWrite:false});
   const shooterZone=new THREE.Mesh(new THREE.PlaneGeometry(W,L/2-DANGER_Z+L/2),shooterZoneMat);
   shooterZone.rotation.x=-Math.PI/2;shooterZone.position.set(0,0.04,(DANGER_Z+L/2)/2);g.add(shooterZone);
-
   return g;
 }
-const trackGroup = buildTrack();
-trackGroup.position.y = trackY;
+const trackGroup=buildTrack();
+trackGroup.position.y=trackY;
 scene.add(trackGroup);
 
+/* ─── PHYSICS ───────────────────────────────────────────────── */
 const world=new CANNON.World({gravity:new CANNON.Vec3(0,-16,0)});
-world.broadphase=new CANNON.NaiveBroadphase();world.solver.iterations=16;
+world.broadphase=new CANNON.NaiveBroadphase();
+world.solver.iterations=16;
+
+// FIX: renamed to cannonFloorMat to avoid conflict with THREE trackFloorMat
+const cannonFloorMat=new CANNON.Material('floor');
 const cubeMat=new CANNON.Material('cube');
 const bouncyCubeMat=new CANNON.Material('bouncyCube');
-const floorMat=new CANNON.Material('floor');
-const wallMat=new CANNON.Material('wall');
+// FIX: separate material for new row cubes (zero restitution = no bounce)
+const newRowMat=new CANNON.Material('newRow');
+const wallPhysMat=new CANNON.Material('wall');
 
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,floorMat,{friction:.5,restitution:0.3}));
+// Contact materials
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cannonFloorMat,{friction:.5,restitution:0.3}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.4,restitution:0.2}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallMat,{friction:.3,restitution:0.3}));
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallPhysMat,{friction:.3,restitution:0.3}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.5,restitution:0.2}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,floorMat,{friction:.6,restitution:0.05}));
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cannonFloorMat,{friction:.6,restitution:0.05}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.5,restitution:0.05}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallMat,{friction:.3,restitution:0.15}));
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallPhysMat,{friction:.3,restitution:0.15}));
+// FIX: new row cubes — zero restitution (no bounce), high friction
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cannonFloorMat,{friction:.95,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,wallPhysMat,{friction:.8,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cubeMat,{friction:.7,restitution:0.0}));
 
-const floorBody=new CANNON.Body({mass:0,shape:new CANNON.Plane(),material:floorMat});
+const floorBody=new CANNON.Body({mass:0,shape:new CANNON.Plane(),material:cannonFloorMat});
 floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);
-floorBody.position.y = trackY;
+floorBody.position.y=trackY;
 world.addBody(floorBody);
+
 function addPhysWall(x,y,z,sx,sy,sz){
-  const b=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(sx,sy,sz)),material:wallMat});
-  b.position.set(x,y+trackY,z);world.addBody(b);
+  const b=new CANNON.Body({mass:0,shape:new CANNON.Box(new CANNON.Vec3(sx,sy,sz)),material:wallPhysMat});
+  b.position.set(x,y+trackY,z);
+  b.collisionFilterGroup=GRP_WALL;
+  b.collisionFilterMask=~0;
+  world.addBody(b);
 }
 addPhysWall(-TRACK_W/2-0.25,1.5,0,0.25,3,TRACK_L/2+2);
 addPhysWall(TRACK_W/2+0.25,1.5,0,0.25,3,TRACK_L/2+2);
 addPhysWall(0,1.5,-TRACK_L/2-0.25,TRACK_W/2+1,3,0.25);
 addPhysWall(0,1.5,TRACK_L/2+0.25,TRACK_W/2+1,3,0.25);
 
+/* ─── MATERIALS / TEXTURES ──────────────────────────────────── */
 const cubeGeo=new THREE.BoxGeometry(CUBE_SZ,CUBE_SZ,CUBE_SZ);
 const matCache=new Map();
+let rainbowMatsCache=null; // FIX: cache rainbow materials, don't recreate per frame
+
 function makeTexture(value,pal){
   const sz=256,cv=document.createElement('canvas');cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');
   ctx.fillStyle='#'+pal.hex.toString(16).padStart(6,'0');ctx.fillRect(0,0,sz,sz);
   const gr=ctx.createRadialGradient(sz/2,sz/2,sz*.15,sz/2,sz/2,sz*.75);
   gr.addColorStop(0,'rgba(255,255,255,.22)');gr.addColorStop(1,'rgba(0,0,0,.3)');ctx.fillStyle=gr;ctx.fillRect(0,0,sz,sz);
   ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=10;ctx.strokeRect(5,5,sz-10,sz-10);
-  let fontSize;
-  if(value>=10000)fontSize=80;else if(value>=1000)fontSize=120;else if(value>=100)fontSize=150;else if(value>=10)fontSize=190;else fontSize=230;
-  ctx.fillStyle='#fff';ctx.font=`900 ${fontSize}px Arial`;
-  ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=10;ctx.shadowOffsetY=5;
-  ctx.fillText(value,sz/2,sz/2+8);
+  let fontSize;if(value>=10000)fontSize=80;else if(value>=1000)fontSize=120;else if(value>=100)fontSize=150;else if(value>=10)fontSize=190;else fontSize=230;
+  ctx.fillStyle='#fff';ctx.font=`900 ${fontSize}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=10;ctx.shadowOffsetY=5;ctx.fillText(value,sz/2,sz/2+8);
   const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;return t;
 }
 function getMats(value){
@@ -458,107 +417,166 @@ function getMats(value){
   const mp=new THREE.MeshStandardMaterial({color:pal.hex,roughness:.3,metalness:.2,emissive:pal.glow,emissiveIntensity:.28});
   const ms=[mn,mn,mn,mp,mn,mn];matCache.set(value,ms);return ms;
 }
-let rainbowTex=null;
 function getRainbowMats(){
-  if(!rainbowTex){const sz=256,cv=document.createElement('canvas');cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');
-    const g=ctx.createLinearGradient(0,0,sz,sz);
-    ['#ff0040','#ff8800','#ffee00','#33dd33','#0099ff','#8844ff'].forEach((c,i,a)=>g.addColorStop(i/(a.length-1),c));
-    ctx.fillStyle=g;ctx.fillRect(0,0,sz,sz);ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=10;ctx.strokeRect(5,5,sz-10,sz-10);
-    rainbowTex=new THREE.CanvasTexture(cv);rainbowTex.colorSpace=THREE.SRGBColorSpace;}
-  const m=new THREE.MeshStandardMaterial({map:rainbowTex,roughness:.25,metalness:.3,emissive:0xffffff,emissiveIntensity:.2});
-  return [m,m,m,m,m,m];
+  // FIX: build once and cache
+  if(rainbowMatsCache)return rainbowMatsCache;
+  const sz=256,cv=document.createElement('canvas');cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');
+  const g=ctx.createLinearGradient(0,0,sz,sz);
+  ['#ff0040','#ff8800','#ffee00','#33dd33','#0099ff','#8844ff'].forEach((c,i,a)=>g.addColorStop(i/(a.length-1),c));
+  ctx.fillStyle=g;ctx.fillRect(0,0,sz,sz);ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=10;ctx.strokeRect(5,5,sz-10,sz-10);
+  const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
+  const m=new THREE.MeshStandardMaterial({map:tex,roughness:.25,metalness:.3,emissive:0xffffff,emissiveIntensity:.2});
+  rainbowMatsCache=[m,m,m,m,m,m];
+  return rainbowMatsCache;
 }
 
-let uid=1;const cubes=[];
+/* ─── CUBE SPAWNING ─────────────────────────────────────────── */
+let uid=1;
+const cubes=[];
 const flashSpheres=[];
 
 function spawnCube(x,y,z,value,opts={}){
   const mesh=new THREE.Mesh(cubeGeo,opts.rainbow?getRainbowMats():getMats(value));
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.position.set(x,y+trackY,z);scene.add(mesh);
 
-  const isBouncy=opts.isShot&&Math.random()<0.8;
-  const mat=isBouncy?bouncyCubeMat:cubeMat;
-  const linearDamping=isBouncy?0.3:0.5;
-  const angularDamping=isBouncy?0.4:0.6;
+  // FIX: shot cube keeps bouncyCube material; new row cubes get newRowMat (zero bounce)
+  let physMat;
+  let linearDamping,angularDamping;
+  if(opts.isShot){
+    physMat=bouncyCubeMat;linearDamping=0.3;angularDamping=0.4;
+  } else if(opts.isNewRow){
+    // FIX: new row cubes use newRowMat — no bounce, high damping
+    physMat=newRowMat;linearDamping=0.88;angularDamping=0.95;
+  } else if(opts.kinematic){
+    physMat=cubeMat;linearDamping=0.5;angularDamping=0.6;
+  } else {
+    physMat=cubeMat;linearDamping=0.5;angularDamping=0.6;
+  }
 
   const body=new CANNON.Body({
     mass: opts.isShot ? 2 : (opts.kinematic ? 0 : 1.2),
     type: opts.kinematic ? CANNON.Body.KINEMATIC : CANNON.Body.DYNAMIC,
-    shape: new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2, CUBE_SZ/2, CUBE_SZ/2)),
-    material: mat,
-    position: new CANNON.Vec3(x, y+trackY, z),
+    shape: new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
+    material: physMat,
+    position: new CANNON.Vec3(x,y+trackY,z),
     linearDamping,
     angularDamping
   });
 
   if(opts.isShot){
-    body.collisionFilterGroup=2;
-    body.collisionFilterMask=1|8;
+    // Shot cube: collides with track cubes and walls, not with other shot cubes
+    body.collisionFilterGroup=GRP_SHOT;
+    body.collisionFilterMask=GRP_TRACK|GRP_WALL;
+  } else if(opts.isNewRow){
+    // FIX: new row cubes: collide with floor/walls, NOT with existing cubes (ghost phase)
+    body.collisionFilterGroup=GRP_NEWROW;
+    body.collisionFilterMask=GRP_WALL; // only walls (and floor via plane is always hit)
+  } else if(opts.kinematic){
+    body.collisionFilterGroup=GRP_TRACK;
+    body.collisionFilterMask=~0;
   } else {
-    body.collisionFilterGroup=1;
+    body.collisionFilterGroup=GRP_TRACK;
     body.collisionFilterMask=~0;
   }
+
   world.addBody(body);
-  const cube={id:uid++,mesh,body,value,isShot:!!opts.isShot,rainbow:!!opts.rainbow,flash:0,mergeActive:true,mergeCooldown:opts.mergeCooldown||0};
-  if (opts.addToCubes !== false) {
-    cubes.push(cube);
-  }
+
+  const cube={
+    id:uid++,mesh,body,value,
+    isShot:!!opts.isShot,
+    rainbow:!!opts.rainbow,
+    flash:0,
+    mergeActive:true,
+    mergeCooldown:opts.mergeCooldown||0,
+    isNewRow:!!opts.isNewRow,   // FIX: track ghost phase
+    newRowTimer:opts.isNewRow?1.5:0, // FIX: seconds until we activate collision
+    settled:false
+  };
+
+  if(opts.addToCubes!==false){cubes.push(cube);}
   return cube;
 }
-function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1)}
+
+function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1);}
+
+/* ─── FIX: Activate new row cubes after they have settled ───── */
+function activateNewRowCube(c){
+  c.isNewRow=false;
+  c.newRowTimer=0;
+  // Switch to track group — now they participate in merge detection
+  c.body.collisionFilterGroup=GRP_TRACK;
+  c.body.collisionFilterMask=~0;
+}
+
+/* ─── FIX: Clear spawn zone before new row ──────────────────── */
+function clearSpawnZone(){
+  // Push any track cubes that are in the back zone forward so new row can spawn cleanly
+  const clearZ=Z_BACK+CUBE_SZ*1.8;
+  for(const c of cubes){
+    if(c.isShot||c.isNewRow)continue;
+    if(c.body.position.z<clearZ){
+      // Snap them forward
+      c.body.position.z=clearZ;
+      if(c.body.velocity.z<0)c.body.velocity.z=0;
+      c.body.velocity.x*=0.5;
+      c.body.velocity.y*=0.5;
+    }
+  }
+}
 
 function spawnRow(z){
+  // FIX: clear spawn zone first
+  clearSpawnZone();
   const vals=[[2,4,2,8,4],[4,2,8,2,4],[2,8,4,4,2],[4,2,4,8,2],[2,4,8,2,4]][Math.floor(Math.random()*5)];
-  for(let i=0;i<COLS;i++)spawnCube(-TRACK_W/2+COL_W/2+i*COL_W, CUBE_SZ/2+0.05, z, vals[i]);
+  for(let i=0;i<COLS;i++){
+    spawnCube(
+      -TRACK_W/2+COL_W/2+i*COL_W,
+      CUBE_SZ/2+0.02, // just above floor
+      z,
+      vals[i],
+      {isNewRow:true, mergeCooldown:1.0}
+    );
+  }
 }
 
-const particles=[];const pGeo=new THREE.SphereGeometry(.08,6,6);
+/* ─── PARTICLES ─────────────────────────────────────────────── */
+const particles=[];
 const trailParticles=[];
+const pGeo=new THREE.SphereGeometry(.08,6,6);
+const shardGeo=new THREE.BoxGeometry(.26,.26,.26);
+const trailGeo=new THREE.SphereGeometry(0.15,6,6);
+const flashGeo=new THREE.SphereGeometry(0.5,32,32);
 
 function spawnParticles(x,y,z,color,count=16,speed=4){
-  for(let i=0;i<count;i++){const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:1});
-    const mesh=new THREE.Mesh(pGeo,mat);mesh.position.set(x,y+trackY,z);scene.add(mesh);
+  for(let i=0;i<count;i++){const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:1});const mesh=new THREE.Mesh(pGeo,mat);mesh.position.set(x,y+trackY,z);scene.add(mesh);
     const a=Math.random()*Math.PI*2,alt=(Math.random()-.3)*Math.PI;const s=speed*(.4+Math.random());
-    particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.abs(Math.sin(alt))*s+1.5,
-      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.02+Math.random()*.01,shard:false})}
+    particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.abs(Math.sin(alt))*s+1.5,vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.02+Math.random()*.01,shard:false});}
 }
-const shardGeo=new THREE.BoxGeometry(.26,.26,.26);
 function spawnShards(x,y,z,color,count=10){
   for(let i=0;i<count;i++){
     const mat=new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.4,roughness:.4,metalness:.2,transparent:true,opacity:1});
     const mesh=new THREE.Mesh(shardGeo,mat);mesh.position.set(x,y+trackY,z);mesh.scale.setScalar(0.5+Math.random()*0.8);scene.add(mesh);
     const a=Math.random()*Math.PI*2,alt=Math.random()*Math.PI*0.6;const s=4+Math.random()*4;
-    particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.sin(alt)*s+3,
-      vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.018+Math.random()*.008,shard:true,
-      vrot:(Math.random()-.5)*12,rx:Math.random(),ry:Math.random(),rz:Math.random()})}
+    particles.push({mesh,mat,vx:Math.cos(a)*Math.cos(alt)*s,vy:Math.sin(alt)*s+3,vz:Math.sin(a)*Math.cos(alt)*s,life:1,decay:.018+Math.random()*.008,shard:true,vrot:(Math.random()-.5)*12,rx:Math.random(),ry:Math.random(),rz:Math.random()});}
 }
-const flashGeo=new THREE.SphereGeometry(0.5,32,32);
 function spawnFlashSphere(x,y,z,color){
   const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false});
   const mesh=new THREE.Mesh(flashGeo,mat);mesh.position.set(x,y+trackY,z);mesh.scale.setScalar(0.3);scene.add(mesh);
   flashSpheres.push({mesh,mat,life:0.55,decay:1.8,scaleSpeed:5.5});
 }
-const trailGeo=new THREE.SphereGeometry(0.15,6,6);
-function spawnTrailParticle(worldPos, velocity, cubeQuat){
-  const backDir = new THREE.Vector3(0,0,-1).applyQuaternion(cubeQuat);
-  const offset = backDir.clone().multiplyScalar(CUBE_SZ/2 + 0.1);
-  const spawnPos = worldPos.clone().add(offset);
+function spawnTrailParticle(worldPos,velocity,cubeQuat){
+  const backDir=new THREE.Vector3(0,0,-1).applyQuaternion(cubeQuat);
+  const offset=backDir.clone().multiplyScalar(CUBE_SZ/2+0.1);
+  const spawnPos=worldPos.clone().add(offset);
   const color=new THREE.Color().setHSL(0.08+Math.random()*0.1,1,0.4+Math.random()*0.5);
   const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false});
-  const mesh=new THREE.Mesh(trailGeo,mat);
-  mesh.position.copy(spawnPos);
-  scene.add(mesh);
-  trailParticles.push({
-    mesh, mat,
-    vx: velocity.x * 0.4 + (Math.random()-0.5)*3,
-    vy: velocity.y * 0.4 + (Math.random()-0.5)*2,
-    vz: velocity.z * 0.4 + (Math.random()-0.5)*3,
-    life:0.7+Math.random()*0.4, decay:1.6+Math.random()*0.8
-  });
+  const mesh=new THREE.Mesh(trailGeo,mat);mesh.position.copy(spawnPos);scene.add(mesh);
+  trailParticles.push({mesh,mat,vx:velocity.x*0.4+(Math.random()-.5)*3,vy:velocity.y*0.4+(Math.random()-.5)*2,vz:velocity.z*0.4+(Math.random()-.5)*3,life:0.7+Math.random()*0.4,decay:1.6+Math.random()*0.8});
 }
 
+/* ─── FX LAYER ──────────────────────────────────────────────── */
 const fxLayer=document.getElementById('fx-layer');
-function project3D(p){const v=p.clone().project(camera);return{x:(v.x*.5+.5)*canvas.clientWidth,y:(-v.y*.5+.5)*canvas.clientHeight}}
+function project3D(p){const v=p.clone().project(camera);return{x:(v.x*.5+.5)*canvas.clientWidth,y:(-v.y*.5+.5)*canvas.clientHeight};}
 function floatText(x,y,z,label,type='points'){
   const v=project3D(new THREE.Vector3(x,y+trackY,z));
   const el=document.createElement('div');el.className='float-text '+type;el.textContent=label;
@@ -566,163 +584,86 @@ function floatText(x,y,z,label,type='points'){
   setTimeout(()=>el.remove(),type==='milestone'||type==='gift'?1600:1200);
 }
 
+/* ─── AUDIO ─────────────────────────────────────────────────── */
 const audio=(()=>{
   let ctx=null,mg=null,muted=false;
-  function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();mg=ctx.createGain();mg.gain.value=.45;mg.connect(ctx.destination)}
-  function env(g,pk,a,d,s,dur){const t=ctx.currentTime;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(pk,t+a);g.gain.exponentialRampToValueAtTime(Math.max(.0001,pk*s),t+a+d);g.gain.exponentialRampToValueAtTime(.0001,t+dur)}
-  function noise(dur,vol,freq,type='lowpass'){const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
-    n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=type;fi.frequency.value=freq;const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n}
-  function launch(){if(muted)return;init();
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';
-    o.frequency.setValueAtTime(150,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(600,ctx.currentTime+0.12);
-    o.connect(g).connect(mg);env(g,.18,.005,.02,.2,.16);o.start();o.stop(ctx.currentTime+.18);
-    const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='triangle';
-    o2.frequency.setValueAtTime(80,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+0.1);
-    o2.connect(g2).connect(mg);env(g2,.12,.003,.02,.2,.14);o2.start();o2.stop(ctx.currentTime+.16);
-    noise(.14,.28,800,'bandpass');
-  }
-  function boom(){if(muted)return;init();
-    noise(.5,.55,320,'lowpass');
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(130,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(38,ctx.currentTime+.4);
-    o.connect(g).connect(mg);env(g,.55,.002,.1,.2,.5);o.start();o.stop(ctx.currentTime+.55);
-    noise(.18,.35,2600,'bandpass');
-  }
-  function mergeBoom(){if(muted)return;init();
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(90,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(22,ctx.currentTime+0.35);
-    o.connect(g).connect(mg);env(g,0.7,0.005,0.08,0.3,0.45);o.start();o.stop(ctx.currentTime+0.5);
-    noise(0.3,0.5,400,'bandpass');
-    const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='triangle';
-    o2.frequency.setValueAtTime(160,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(50,ctx.currentTime+0.25);
-    o2.connect(g2).connect(mg);env(g2,0.35,0.003,0.06,0.2,0.35);o2.start();o2.stop(ctx.currentTime+0.4);
-    noise(0.12,0.25,3200,'highpass');
-  }
-  function thud(){if(muted)return;init();
-    noise(.2,.32,160,'lowpass');
-    const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(80,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(45,ctx.currentTime+.16);
-    o.connect(g).connect(mg);env(g,.32,.002,.06,.2,.2);o.start();o.stop(ctx.currentTime+.22);
-  }
-  function blip(f,dur=.12,type='sine',vol=.4){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=f;o.connect(g).connect(mg);env(g,vol,.005,.04,.3,dur);o.start();o.stop(ctx.currentTime+dur+.05)}
-  function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.2,'square',.28),i*90))}
-  function gift(){[659,880,1175,1568].forEach((f,i)=>setTimeout(()=>blip(f,.18,'triangle',.3),i*80))}
-  function gameOver(){[330,277,220,175].forEach((f,i)=>setTimeout(()=>blip(f,.3,'triangle',.3),i*120))}
-  function toggleMute(){muted=!muted;if(mg)mg.gain.value=muted?0:.45;return muted}
-  return{launch,boom,thud,mergeBoom,milestone,gift,gameOver,toggleMute,init}
+  function init(){if(ctx)return;ctx=new(window.AudioContext||window.webkitAudioContext)();mg=ctx.createGain();mg.gain.value=.45;mg.connect(ctx.destination);}
+  function env(g,pk,a,d,s,dur){const t=ctx.currentTime;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(pk,t+a);g.gain.exponentialRampToValueAtTime(Math.max(.0001,pk*s),t+a+d);g.gain.exponentialRampToValueAtTime(.0001,t+dur);}
+  function noise(dur,vol,freq,type='lowpass'){const n=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);n.buffer=buf;const fi=ctx.createBiquadFilter();fi.type=type;fi.frequency.value=freq;const g=ctx.createGain();g.gain.value=vol;n.connect(fi).connect(g).connect(mg);n.start();return n;}
+  function launch(){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(150,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(600,ctx.currentTime+0.12);o.connect(g).connect(mg);env(g,.18,.005,.02,.2,.16);o.start();o.stop(ctx.currentTime+.18);const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='triangle';o2.frequency.setValueAtTime(80,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+0.1);o2.connect(g2).connect(mg);env(g2,.12,.003,.02,.2,.14);o2.start();o2.stop(ctx.currentTime+.16);noise(.14,.28,800,'bandpass');}
+  function boom(){if(muted)return;init();noise(.5,.55,320,'lowpass');const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(130,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(38,ctx.currentTime+.4);o.connect(g).connect(mg);env(g,.55,.002,.1,.2,.5);o.start();o.stop(ctx.currentTime+.55);noise(.18,.35,2600,'bandpass');}
+  function mergeBoom(){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(90,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(22,ctx.currentTime+0.35);o.connect(g).connect(mg);env(g,0.7,0.005,0.08,0.3,0.45);o.start();o.stop(ctx.currentTime+0.5);noise(0.3,0.5,400,'bandpass');const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='triangle';o2.frequency.setValueAtTime(160,ctx.currentTime);o2.frequency.exponentialRampToValueAtTime(50,ctx.currentTime+0.25);o2.connect(g2).connect(mg);env(g2,0.35,0.003,0.06,0.2,0.35);o2.start();o2.stop(ctx.currentTime+0.4);noise(0.12,0.25,3200,'highpass');}
+  function thud(){if(muted)return;init();noise(.2,.32,160,'lowpass');const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(80,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(45,ctx.currentTime+.16);o.connect(g).connect(mg);env(g,.32,.002,.06,.2,.2);o.start();o.stop(ctx.currentTime+.22);}
+  function blip(f,dur=.12,type='sine',vol=.4){if(muted)return;init();const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=f;o.connect(g).connect(mg);env(g,vol,.005,.04,.3,dur);o.start();o.stop(ctx.currentTime+dur+.05);}
+  function milestone(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,.2,'square',.28),i*90));}
+  function gift(){[659,880,1175,1568].forEach((f,i)=>setTimeout(()=>blip(f,.18,'triangle',.3),i*80));}
+  function gameOver(){[330,277,220,175].forEach((f,i)=>setTimeout(()=>blip(f,.3,'triangle',.3),i*120));}
+  function toggleMute(){muted=!muted;if(mg)mg.gain.value=muted?0:.45;return muted;}
+  return{launch,boom,thud,mergeBoom,milestone,gift,gameOver,toggleMute,init};
 })();
 
+/* ─── GAME STATE ────────────────────────────────────────────── */
 let gameOn=false,paused=false,gameStarted=false;
 let score=0,mult=1,comboBar=0,comboTimer=0,chainCount=0;
 let curVal=2,nxtVal=2,aimX=0,maxReached=2;
-let rowTimer=0,ROW_INTERVAL=4.2;
+let rowTimer=0;
 let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 let rampBody=null,rampMesh=null,rampState='idle';
 let targetVal=4;
-let readyCube = null; // kinematic cube waiting at shooter
-let shooterGlow = null;
-let aimLine = null;
+let readyCube=null;
+let shooterGlow=null;
+let aimLine=null;
+let freeBomb=0,freeRainbow=0;
 
-let freeBomb=0, freeRainbow=0;
+const BOMB_COST=200;
+const RAINBOW_COST=300;
 
-const BOMB_COST = 200;
-const RAINBOW_COST = 300;
-
-/* ---------- DAILY GIFTS & BOOSTER UI ---------- */
+/* ─── DAILY GIFTS ───────────────────────────────────────────── */
 function applyDailyGift(){
-  const today = new Date().toISOString().slice(0,10);
-  const lastDate = localStorage.getItem(GIFT_DATE_KEY);
-  if (lastDate !== today) {
-    freeBomb = 2;
-    freeRainbow = 2;
-    localStorage.setItem(GIFT_DATE_KEY, today);
-    localStorage.setItem(FREE_BOMB_KEY, '2');
-    localStorage.setItem(FREE_RAINBOW_KEY, '2');
-  } else {
-    freeBomb = parseInt(localStorage.getItem(FREE_BOMB_KEY) || '0', 10);
-    freeRainbow = parseInt(localStorage.getItem(FREE_RAINBOW_KEY) || '0', 10);
-  }
+  const today=new Date().toISOString().slice(0,10);
+  const lastDate=localStorage.getItem(GIFT_DATE_KEY);
+  if(lastDate!==today){freeBomb=2;freeRainbow=2;localStorage.setItem(GIFT_DATE_KEY,today);localStorage.setItem(FREE_BOMB_KEY,'2');localStorage.setItem(FREE_RAINBOW_KEY,'2');}
+  else{freeBomb=parseInt(localStorage.getItem(FREE_BOMB_KEY)||'0',10);freeRainbow=parseInt(localStorage.getItem(FREE_RAINBOW_KEY)||'0',10);}
 }
-function saveFreeItems(){
-  localStorage.setItem(FREE_BOMB_KEY, freeBomb.toString());
-  localStorage.setItem(FREE_RAINBOW_KEY, freeRainbow.toString());
-}
+function saveFreeItems(){localStorage.setItem(FREE_BOMB_KEY,freeBomb.toString());localStorage.setItem(FREE_RAINBOW_KEY,freeRainbow.toString());}
 
 function updateBoosterBadges(){
-  const bb=document.getElementById('badge-bomb'), rb=document.getElementById('badge-rainbow');
-  const bWrap=document.getElementById('boost-bomb'), rWrap=document.getElementById('boost-rainbow');
-
-  const setBadge = (badge, btn, freeCount, cost) => {
-    if(freeCount > 0){
-      badge.textContent = '🎁 ×'+freeCount;
-      badge.className = 'ad-badge free';
-      btn.classList.remove('locked'); btn.classList.add('ready');
-    } else if(coins >= cost){
-      badge.textContent = '🪙 '+cost;
-      badge.className = 'ad-badge coin';
-      btn.classList.remove('locked','ready');
-    } else {
-      badge.textContent = '▶ AD';
-      badge.className = 'ad-badge';
-      btn.classList.add('locked'); btn.classList.remove('ready');
-    }
+  const bb=document.getElementById('badge-bomb'),rb=document.getElementById('badge-rainbow');
+  const bWrap=document.getElementById('boost-bomb'),rWrap=document.getElementById('boost-rainbow');
+  const setBadge=(badge,btn,freeCount,cost)=>{
+    if(freeCount>0){badge.textContent='🎁 ×'+freeCount;badge.className='ad-badge free';btn.classList.remove('locked');btn.classList.add('ready');}
+    else if(coins>=cost){badge.textContent='🪙 '+cost;badge.className='ad-badge coin';btn.classList.remove('locked','ready');}
+    else{badge.textContent='▶ AD';badge.className='ad-badge';btn.classList.add('locked');btn.classList.remove('ready');}
   };
-  setBadge(bb, bWrap, freeBomb, BOMB_COST);
-  setBadge(rb, rWrap, freeRainbow, RAINBOW_COST);
+  setBadge(bb,bWrap,freeBomb,BOMB_COST);
+  setBadge(rb,rWrap,freeRainbow,RAINBOW_COST);
   saveFreeItems();
 }
 
-/* ---------- PROGRESSION FUNCTIONS ---------- */
+/* ─── PROGRESSION ───────────────────────────────────────────── */
 function addXP(amount){
-  if(!gameOn) return;
-  playerXP += amount;
-  while(playerXP >= xpForLevel(playerLevel)){
-    playerXP -= xpForLevel(playerLevel);
-    playerLevel++;
-    floatText(0, trackY+5, 0, `⭐ LEVEL UP: ${playerLevel}! ⭐`, 'milestone');
-    audio.milestone();
-  }
-  refreshAllProgressionUI();
-  saveProgression();
+  if(!gameOn)return;
+  playerXP+=amount;
+  while(playerXP>=xpForLevel(playerLevel)){playerXP-=xpForLevel(playerLevel);playerLevel++;floatText(0,trackY+5,0,`⭐ LEVEL UP: ${playerLevel}! ⭐`,'milestone');audio.milestone();}
+  refreshAllProgressionUI();saveProgression();
 }
-
 function addCoins(amount){
-  if(!gameOn) return;
-  roundCoins += amount;
-  coins += amount;
-  saveProgression();
-  updateCoinsDisplay();
+  if(!gameOn)return;
+  roundCoins+=amount;coins+=amount;saveProgression();updateCoinsDisplay();
 }
+function checkScoreGoal(){if(!roundScoreMet&&score>=roundScoreGoal){roundScoreMet=true;floatText(0,trackY+5,0,'🎯 SCORE GOAL MET!','gift');updateGoalsUI();}}
+function checkCubeGoal(val){if(!roundCubeMet&&val>=roundCubeGoal){roundCubeMet=true;floatText(0,trackY+4.5,0,'🎯 CUBE GOAL MET!','gift');updateGoalsUI();}}
 
-function checkScoreGoal(){
-  if(!roundScoreMet && score >= roundScoreGoal){
-    roundScoreMet = true;
-    floatText(0, trackY+5, 0, '🎯 SCORE GOAL MET!', 'gift');
-    updateGoalsUI();
-  }
-}
-
-function checkCubeGoal(val){
-  if(!roundCubeMet && val >= roundCubeGoal){
-    roundCubeMet = true;
-    floatText(0, trackY+4.5, 0, '🎯 CUBE GOAL MET!', 'gift');
-    updateGoalsUI();
-  }
-}
-
-/* ---------- GAME LOGIC ---------- */
-function updateTarget(){ targetVal = nextVal(maxReached); drawTargetHUD(); }
+/* ─── GAME LOGIC ────────────────────────────────────────────── */
+function updateTarget(){targetVal=nextVal(maxReached);drawTargetHUD();}
 
 function useBomb(){
   audio.boom();shakeAmt=.5;
   const sorted=cubes.filter(c=>!c.isShot).sort((a,b)=>b.body.position.z-a.body.position.z).slice(0,9);
-  sorted.forEach(c=>{spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,0xff5500,10);addScore(c.value);removeCube(c)});
+  sorted.forEach(c=>{spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,0xff5500,10);addScore(c.value);removeCube(c);});
   floatText(0,trackY+2.5,DANGER_Z-2,'BOOM!','points-mega');
 }
-function useRainbow(){
-  rainbowArmed=true;floatText(aimX,trackY+2,SHOOTER_Z-1,'RAINBOW READY!','points-big');
-}
+function useRainbow(){rainbowArmed=true;floatText(aimX,trackY+2,SHOOTER_Z-1,'RAINBOW READY!','points-big');}
 
 function tryMerge(a,b){
   const nv=nextVal(a.value);
@@ -735,11 +676,9 @@ function tryMerge(a,b){
   nc.flash=12;nc.mergeActive=true;nc.mergeCooldown=0.5;
   nc.body.velocity.set((Math.random()-.5)*3,6.5,(Math.random()-.5)*3);
   nc.body.angularVelocity.set((Math.random()-.5)*9,(Math.random()-.5)*9,(Math.random()-.5)*9);
-
   for(const c2 of cubes){if(c2.id===nc.id)continue;
     const dx=c2.body.position.x-px,dy=c2.body.position.y-py,dz=c2.body.position.z-pz;const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
-    if(d<3.5&&d>0.1){const f=7/(d+.3);c2.body.applyImpulse(new CANNON.Vec3((dx/d)*f,2.5,(dz/d)*f),new CANNON.Vec3(0,0,0))}}
-
+    if(d<3.5&&d>0.1){const f=7/(d+.3);c2.body.applyImpulse(new CANNON.Vec3((dx/d)*f,2.5,(dz/d)*f),new CANNON.Vec3(0,0,0));}}
   const pal=gp(nv);
   spawnShards(px-trackY,py-trackY,pz,gp(a.value).hex,16);
   spawnParticles(px-trackY,py-trackY,pz,pal.glow,24,7);
@@ -747,14 +686,12 @@ function tryMerge(a,b){
   if(nv>=16)spawnParticles(px-trackY,py-trackY,pz,0xFFD700,14,7);
   spawnFlashSphere(px-trackY,py-trackY,pz,pal.glow);spawnFlashSphere(px-trackY,py-trackY,pz,0xff8800);
   bumpCombo();
-  const pts = nv;
-  addScore(pts);
-  addXP(pts);
-  addCoins(Math.max(1, Math.floor((nv * mult) / 10)));
+  const pts=nv;
+  addScore(pts);addXP(pts);addCoins(Math.max(1,Math.floor((nv*mult)/10)));
   shakeAmt=Math.min(.55,.1+Math.log2(nv)*.03);
   const lt=nv>=64?'points-mega':nv>=16?'points-big':'points';
   floatText(px-trackY,py-trackY+.6,pz,`+${pts}`,lt);
-  if(SEQ.includes(nv)&&!seenMS.has(nv)){seenMS.add(nv);floatText(0,trackY+3,0,`✦ ${nv} REACHED! ✦`,'milestone');audio.milestone()}
+  if(SEQ.includes(nv)&&!seenMS.has(nv)){seenMS.add(nv);floatText(0,trackY+3,0,`✦ ${nv} REACHED! ✦`,'milestone');audio.milestone();}
   audio.mergeBoom();
   return nc;
 }
@@ -767,79 +704,116 @@ function sweepMerges(){
       const a=cubes[i],b=cubes[j];
       if(a.value!==b.value)continue;
       if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
+      // FIX: don't merge cubes still in ghost/new-row phase
+      if(a.isNewRow||b.isNewRow)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
         const nc=tryMerge(a,b);
         if(a===shotCube||b===shotCube)shotCube=nc;
         merged=true;break outer;
-      }
-    }}if(!merged)break;
+      }}}if(!merged)break;
   }
 }
 
 function addScore(p){
-  score+=p;saveHighScoreIfNeeded(score);updateRankScoreDisplay(score);
-  checkScoreGoal();
+  score+=p;saveHighScoreIfNeeded(score);updateRankScoreDisplay(score);checkScoreGoal();
 }
 
 function bumpCombo(){
-  chainCount++;
-  comboBar=Math.min(100,comboBar+34);comboTimer=2.6;
+  chainCount++;comboBar=Math.min(100,comboBar+34);comboTimer=2.6;
   mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1;
   const mv=document.getElementById('mult-val');
   if(mv){mv.classList.add('pop');setTimeout(()=>mv.classList.remove('pop'),110);}
 }
 
 function createReadyCube(value){
+  // Only remove the existing ready cube (not any launched cube)
   if(readyCube){
     scene.remove(readyCube.mesh);
     world.removeBody(readyCube.body);
-    readyCube = null;
+    readyCube=null;
   }
-  const cube = spawnCube(aimX, CUBE_SZ/2 + 0.1, SHOOTER_Z, value, { kinematic: true, addToCubes: false });
-  readyCube = cube;
-  readyCube.mesh.position.set(aimX, trackY + CUBE_SZ/2 + 0.1, SHOOTER_Z);
-  readyCube.body.position.set(aimX, trackY + CUBE_SZ/2 + 0.1, SHOOTER_Z);
-  // ensure kinematic
-  readyCube.body.type = CANNON.Body.KINEMATIC;
-  readyCube.body.mass = 0;
+  const cube=spawnCube(aimX, CUBE_SZ/2+0.1, SHOOTER_Z, value, {kinematic:true, addToCubes:false});
+  readyCube=cube;
+  // Force position and make truly kinematic
+  readyCube.body.type=CANNON.Body.KINEMATIC;
+  readyCube.body.mass=0;
   readyCube.body.updateMassProperties();
-  // update glow
+  readyCube.body.velocity.set(0,0,0);
+  readyCube.body.angularVelocity.set(0,0,0);
+  readyCube.body.position.set(aimX, trackY+CUBE_SZ/2+0.1, SHOOTER_Z);
+  readyCube.mesh.position.set(aimX, trackY+CUBE_SZ/2+0.1, SHOOTER_Z);
   if(shooterGlow){
-    shooterGlow.position.x = aimX;
-    shooterGlow.position.y = trackY + 0.03;
-    shooterGlow.position.z = SHOOTER_Z;
+    shooterGlow.position.x=aimX;
+    shooterGlow.position.y=trackY+0.03;
+    shooterGlow.position.z=SHOOTER_Z;
   }
   updateAimLine();
 }
 
+/* ─── SHOOT ─────────────────────────────────────────────────── */
 function shoot(){
   if(!gameOn||paused)return;
+  if(!readyCube)return;
+
+  // If previous shot still travelling, settle it immediately
   if(shotCube){
     shotCube.isShot=false;
+    shotCube.body.collisionFilterGroup=GRP_TRACK;
+    shotCube.body.collisionFilterMask=~0;
     shotCube.mergeCooldown=0.3;
     shotCube=null;
   }
+
   if(!gameStarted){gameStarted=true;}
   audio.init();audio.launch();
-  if(!readyCube) return;
-  const rc = readyCube;
-  // make dynamic
-  rc.body.type = CANNON.Body.DYNAMIC;
-  rc.body.mass = 2;
+
+  const rc=readyCube;
+  readyCube=null; // clear first so createReadyCube won't remove it
+
+  // Snap to exact aim position before launch
+  rc.body.position.set(aimX, trackY+CUBE_SZ/2+0.1, SHOOTER_Z);
+  rc.mesh.position.copy(rc.body.position);
+  rc.body.quaternion.set(0,0,0,1);
+  rc.mesh.quaternion.set(0,0,0,1);
+
+  // Switch from kinematic to dynamic
+  rc.body.type=CANNON.Body.DYNAMIC;
+  rc.body.mass=2;
+  rc.body.linearDamping=0.06;
+  rc.body.angularDamping=0.25;
   rc.body.updateMassProperties();
-  rc.body.velocity.set(0, 2.5, -45);
-  // add to cubes array
+  rc.body.wakeUp(); // CRITICAL: wake the physics body so it actually moves
+
+  // Shot cube collides with track cubes + walls, not with other shot cubes
+  rc.body.collisionFilterGroup=GRP_SHOT;
+  rc.body.collisionFilterMask=GRP_TRACK|GRP_WALL;
+
+  // Launch velocity
+  rc.body.velocity.set(0, 2.0, -32);
+  rc.body.angularVelocity.set(
+    (Math.random()-.5)*5,
+    (Math.random()-.5)*5,
+    (Math.random()-.5)*5
+  );
+
+  // Rainbow flag
+  rc._rainbow=!!rainbowArmed;
+  if(rc._rainbow){rc.rainbow=true;rc.mesh.material=getRainbowMats();}
+  rc.isShot=true;
+
+  // Register in cubes array
   cubes.push(rc);
-  shotCube = rc;
-  readyCube = null;
-  // update values
-  curVal = nxtVal;
-  nxtVal = rndStart();
+  shotCube=rc;
+
+  // Advance to next value
+  curVal=nxtVal;
+  nxtVal=rndStart();
   drawNextHUD();
-  // create new ready cube
+
+  // Prepare the next ready cube
   createReadyCube(curVal);
-  rainbowArmed = false;
+  rainbowArmed=false;
 }
 
 function rainbowClear(refCube){
@@ -847,7 +821,7 @@ function rainbowClear(refCube){
   const col=Math.round((refCube.body.position.x+TRACK_W/2-COL_W/2)/COL_W);
   const targetX=-TRACK_W/2+COL_W/2+col*COL_W;
   for(let i=cubes.length-1;i>=0;i--){const c=cubes[i];if(c.isShot)continue;
-    if(Math.abs(c.body.position.x-targetX)<COL_W*0.9){spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,gp(c.value).hex,8);addScore(c.value);removeCube(c)}}
+    if(Math.abs(c.body.position.x-targetX)<COL_W*0.9){spawnShards(c.body.position.x-trackY,c.body.position.y-trackY,c.body.position.z,gp(c.value).hex,8);addScore(c.value);removeCube(c);}}
   floatText(targetX,trackY+2,DANGER_Z-2,'CLEARED!','points-big');
 }
 
@@ -860,19 +834,33 @@ function triggerRampSpawn(){
   audio.thud();
 }
 
+/* ─── MAIN LOOP ─────────────────────────────────────────────── */
 let lastT=performance.now();
 function update(){
   if(isOverlayVisible){requestAnimationFrame(update);return;}
   const now=performance.now(),dt=Math.min(.05,(now-lastT)/1000);lastT=now;
   spaceStars.rotation.y+=dt*0.008;
 
-  if(gameOn&&!paused&&gameStarted){
+  // Physics runs whenever game is on — gameStarted only gates row spawning
+  if(gameOn&&!paused){
 
-    for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt}
+    // Tick cooldowns
+    for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt;}
 
-    if(rampState==='idle'){
+    // FIX: tick new-row ghost timer and activate when ready
+    for(const c of cubes){
+      if(c.isNewRow){
+        c.newRowTimer-=dt;
+        if(c.newRowTimer<=0){
+          activateNewRowCube(c);
+          // Check merge now that it's active
+        }
+      }
+    }
+
+    if(gameStarted&&rampState==='idle'){
       rowTimer+=dt;
-      const interval = Math.max(2.0, 4.2 - (playerLevel - 1) * 0.12);
+      const interval=Math.max(2.0,4.2-(playerLevel-1)*0.12);
       const liveCubes=cubes.filter(c=>!c.isShot).length;
       if(rowTimer>=interval||liveCubes<=2){rowTimer=0;triggerRampSpawn();}
     }
@@ -881,24 +869,15 @@ function update(){
       if(rampState==='pushing'){
         rampBody.velocity.set(0,0,RAMP_SPEED);
         if(rampBody.position.z>=RAMP_PUSH_Z){
-          rampBody.position.z=RAMP_PUSH_Z;
-          rampBody.velocity.set(0,0,-RAMP_SPEED*2);
-          rampState='retracting';
+          rampBody.position.z=RAMP_PUSH_Z;rampBody.velocity.set(0,0,-RAMP_SPEED*2);rampState='retracting';
         }
       } else if(rampState==='retracting'){
         if(rampBody.position.z<=RAMP_HOME_Z){
-          rampBody.position.set(0,0.55+trackY,RAMP_HOME_Z);
-          rampBody.velocity.set(0,0,0);
-          rampState='idle';
+          rampBody.position.set(0,0.55+trackY,RAMP_HOME_Z);rampBody.velocity.set(0,0,0);rampState='idle';
           if(rampMesh)rampMesh.visible=false;
-          const minZ = RAMP_PUSH_Z + 1.2;
-          cubes.forEach(c=>{
-            if(c.isShot)return;
-            if(c.body.position.z < minZ){
-              c.body.position.z = minZ;
-              c.body.velocity.z = 0;
-            }
-          });
+          // FIX: push any cubes that slipped too far back
+          const minZ=RAMP_PUSH_Z+1.2;
+          cubes.forEach(c=>{if(c.isShot||c.isNewRow)return;if(c.body.position.z<minZ){c.body.position.z=minZ;c.body.velocity.z=0;}});
           spawnRow(Z_BACK);
         }
       }
@@ -911,118 +890,136 @@ function update(){
     for(const c of cubes){
       if(c.flash>0)c.flash--;
 
+      // Boundary clamp X
       if(c.body.position.x>X_LIMIT){c.body.position.x=X_LIMIT;if(c.body.velocity.x>0)c.body.velocity.x*=-0.5;}
       else if(c.body.position.x<-X_LIMIT){c.body.position.x=-X_LIMIT;if(c.body.velocity.x<0)c.body.velocity.x*=-0.5;}
       if(c.body.position.z<Z_BACK){c.body.position.z=Z_BACK;if(c.body.velocity.z<0)c.body.velocity.z*=-0.5;}
 
-      if(settling&&!c.isShot&&Math.abs(c.body.velocity.z)<0.6&&Math.abs(c.body.velocity.x)<0.6){
+      // FIX: new row cubes — kill bounce entirely on first frame contact with floor
+      if(c.isNewRow){
+        if(c.body.position.y<trackY+CUBE_SZ/2+0.1){
+          c.body.position.y=trackY+CUBE_SZ/2+0.02;
+          c.body.velocity.y=0;
+          c.body.velocity.x*=0.7;
+          c.body.velocity.z*=0.7;
+          c.body.angularVelocity.set(0,0,0);
+          c.body.quaternion.set(0,0,0,1); // keep flat
+        }
+      }
+
+      // Column snap for settled cubes
+      if(settling&&!c.isShot&&!c.isNewRow&&Math.abs(c.body.velocity.z)<0.6&&Math.abs(c.body.velocity.x)<0.6){
         let col=Math.round((c.body.position.x+TRACK_W/2-COL_W/2)/COL_W);
         col=Math.max(0,Math.min(COLS-1,col));
         const cx=-TRACK_W/2+COL_W/2+col*COL_W;
         c.body.position.x+=(cx-c.body.position.x)*0.18;c.body.velocity.x*=0.5;
       }
+
       c.mesh.position.copy(c.body.position);
       c.mesh.quaternion.copy(c.body.quaternion);
       const ei=c.flash>0?.28+(c.flash/12)*1.7:.28;
-      c.mesh.material.forEach(m=>{if(m.emissiveIntensity!==undefined)m.emissiveIntensity=ei});
+      const mats=Array.isArray(c.mesh.material)?c.mesh.material:[c.mesh.material];
+      mats.forEach(m=>{if(m&&m.emissiveIntensity!==undefined)m.emissiveIntensity=ei;});
     }
 
-    // Conveyor buffer: push cubes that slide back too close to shooter
-    const pushZ = SHOOTER_Z - 1.5;
-    for (const c of cubes) {
-      if (c.isShot) continue;
-      if (c.body.position.z > pushZ) {
-        c.body.velocity.z += 0.5;
-      }
-    }
+    // FIX: removed conveyor buffer — was causing jitter near shooter
+    // Instead, the clearSpawnZone() handles this on new row spawn
 
+    // Trail for shot cube
     if(shotCube&&!shotCube._rainbow){
       const s=shotCube.body;
-      const worldPos = new THREE.Vector3(s.position.x, s.position.y, s.position.z);
-      const quat = new THREE.Quaternion(s.quaternion.x, s.quaternion.y, s.quaternion.z, s.quaternion.w);
-      for(let i=0;i<3;i++){
-        spawnTrailParticle(worldPos, new THREE.Vector3(s.velocity.x, s.velocity.y, s.velocity.z), quat);
-      }
+      const worldPos=new THREE.Vector3(s.position.x,s.position.y,s.position.z);
+      const quat=new THREE.Quaternion(s.quaternion.x,s.quaternion.y,s.quaternion.z,s.quaternion.w);
+      for(let i=0;i<3;i++){spawnTrailParticle(worldPos,new THREE.Vector3(s.velocity.x,s.velocity.y,s.velocity.z),quat);}
     }
 
+    // Rainbow collision check
     if(shotCube&&shotCube._rainbow){
       for(const c of cubes){if(c===shotCube||c.isShot)continue;
         const dx=c.body.position.x-shotCube.body.position.x,dz=c.body.position.z-shotCube.body.position.z;
-        if(dx*dx+dz*dz<(CUBE_SZ*1.3)*(CUBE_SZ*1.3)){const ref=shotCube;removeCube(shotCube);shotCube=null;rainbowClear(ref);break;}
-      }
+        if(dx*dx+dz*dz<(CUBE_SZ*1.3)*(CUBE_SZ*1.3)){const ref=shotCube;removeCube(shotCube);shotCube=null;rainbowClear(ref);break;}}
       if(shotCube&&shotCube.body.position.z<-TRACK_L/2+2){const ref=shotCube;removeCube(shotCube);shotCube=null;rainbowClear(ref);}
     } else {
       sweepMerges();
       if(shotCube&&!cubes.includes(shotCube))shotCube=null;
-      if(shotCube&&Math.abs(shotCube.body.velocity.z)<0.3&&shotCube.body.position.z>-TRACK_L/2+2){
-        shotCube.isShot=false;shotCube.mergeCooldown=0.3;shotCube=null;
+      // FIX: settle shot cube when slowed enough (was causing jitter at boundary)
+      if(shotCube&&Math.abs(shotCube.body.velocity.z)<0.4&&Math.abs(shotCube.body.velocity.x)<0.4&&shotCube.body.position.z>-TRACK_L/2+2){
+        // Switch to track group and settle
+        shotCube.isShot=false;
+        shotCube.body.collisionFilterGroup=GRP_TRACK;
+        shotCube.body.collisionFilterMask=~0;
+        shotCube.mergeCooldown=0.3;
+        shotCube=null;
       }
       if(shotCube&&shotCube.body.position.z<-TRACK_L/2-1)shotCube=null;
     }
 
+    // Combo decay
     if(comboTimer>0)comboTimer-=dt;
-    else{comboBar=Math.max(0,comboBar-dt*16);mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1}
+    else{comboBar=Math.max(0,comboBar-dt*16);mult=comboBar>=90?5:comboBar>=70?4:comboBar>=45?3:comboBar>=22?2:1;}
 
+    // Camera shake
     if(shakeAmt>0){
       camera.position.x=camX+(Math.random()-.5)*shakeAmt*2;
       camera.position.y=camY+(Math.random()-.5)*shakeAmt;
       shakeAmt*=.86;if(shakeAmt<.005){shakeAmt=0;camera.position.set(camX,camY,camZ);}
     }
 
-    if(rampState==='idle'){
-      for(const c of cubes){if(c.isShot)continue;
-        if(c.body.position.z>DANGER_Z&&Math.abs(c.body.velocity.z)<1.2){triggerGameOver();return}
+    // Danger zone check — only when ramp is idle and game has started
+    if(gameStarted&&rampState==='idle'){
+      for(const c of cubes){
+        if(c.isShot||c.isNewRow)continue; // FIX: ghost cubes don't trigger game over
+        if(c.body.position.z>DANGER_Z&&Math.abs(c.body.velocity.z)<1.2){triggerGameOver();return;}
       }
     }
   }
 
+  // Flash spheres
   for(let i=flashSpheres.length-1;i>=0;i--){
-    const fs=flashSpheres[i];fs.life-=dt;
-    fs.mesh.scale.setScalar(fs.mesh.scale.x+fs.scaleSpeed*dt);
+    const fs=flashSpheres[i];fs.life-=dt;fs.mesh.scale.setScalar(fs.mesh.scale.x+fs.scaleSpeed*dt);
     fs.mat.opacity=Math.max(0,fs.life*1.8);
-    if(fs.life<=0){scene.remove(fs.mesh);fs.mat.dispose();flashSpheres.splice(i,1)}
+    if(fs.life<=0){scene.remove(fs.mesh);fs.mat.dispose();flashSpheres.splice(i,1);}
   }
 
+  // Trail particles
   for(let i=trailParticles.length-1;i>=0;i--){
     const p=trailParticles[i];
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;
-    p.vy+=1.5*dt;p.life-=p.decay*dt;
-    p.mat.opacity=Math.max(0,p.life);p.mesh.scale.setScalar(0.3+p.life*0.7);
-    if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();trailParticles.splice(i,1)}
+    p.vy+=1.5*dt;p.life-=p.decay*dt;p.mat.opacity=Math.max(0,p.life);p.mesh.scale.setScalar(0.3+p.life*0.7);
+    if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();trailParticles.splice(i,1);}
   }
 
+  // Regular particles
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;p.vy-=12*dt;p.life-=p.decay;
     if(p.shard){p.mesh.rotation.x+=p.rx*p.vrot*dt;p.mesh.rotation.y+=p.ry*p.vrot*dt;p.mesh.rotation.z+=p.rz*p.vrot*dt;
-      if(p.mesh.position.y<trackY+0.15){p.mesh.position.y=trackY+0.15;p.vy*=-.4;p.vx*=.6;p.vz*=.6}}
-    if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();particles.splice(i,1)}
-    else{p.mat.opacity=p.life;if(!p.shard)p.mesh.scale.setScalar(.6+p.life*.6)}}
+      if(p.mesh.position.y<trackY+0.15){p.mesh.position.y=trackY+0.15;p.vy*=-.4;p.vx*=.6;p.vz*=.6;}}
+    if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();particles.splice(i,1);}
+    else{p.mat.opacity=p.life;if(!p.shard)p.mesh.scale.setScalar(.6+p.life*.6);}
+  }
 
   updateShooter();updateHUD();composer.render();requestAnimationFrame(update);
 }
 
-const scoreEl=document.getElementById('score-val'),multEl=document.getElementById('mult-val'),
-  multFillEl=document.getElementById('mult-fill');
-
+/* ─── HUD ───────────────────────────────────────────────────── */
+const scoreEl=document.getElementById('score-val'),multEl=document.getElementById('mult-val'),multFillEl=document.getElementById('mult-fill');
 let hudFrame=0;
-function updateHUD(){hudFrame++;if(hudFrame%3)return;scoreEl.textContent=score.toLocaleString();
-  multEl.textContent=mult+'×';multFillEl.style.width=comboBar+'%';
-  updateGoalsUI();updateXPBar();updateCoinsDisplay();}
+function updateHUD(){
+  hudFrame++;if(hudFrame%3)return;
+  scoreEl.textContent=score.toLocaleString();multEl.textContent=mult+'×';multFillEl.style.width=comboBar+'%';
+  updateGoalsUI();updateXPBar();updateCoinsDisplay();
+}
 
+/* ─── OVERLAY ───────────────────────────────────────────────── */
 function buildOverlay(htmlContent){
   const ov=document.getElementById('overlay');
-  ov.innerHTML = `
-    <div id="space-bg"></div>
-    <div id="starfield"></div>
-    ${htmlContent}
-  `;
+  ov.innerHTML=`<div id="space-bg"></div><div id="starfield"></div>${htmlContent}`;
   buildStarfield();
 }
 
 function showInitialOverlay(){
-  const cubeIdx = Math.min(SEQ.length-1, 3 + Math.floor(playerLevel/3));
-  const scGoal = playerLevel * 2500;
-  const cuGoal = SEQ[cubeIdx];
+  const cubeIdx=Math.min(SEQ.length-1,3+Math.floor(playerLevel/3));
+  const scGoal=playerLevel*2500,cuGoal=SEQ[cubeIdx];
   buildOverlay(`
     <h1>MERGE CUBES 3D</h1>
     <p>Drag to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
@@ -1035,35 +1032,23 @@ function showInitialOverlay(){
     </div>
     <button class="play-btn" id="startBtn">PLAY</button>
   `);
-  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('startBtn').addEventListener('click',startGame);
 }
 
 function triggerGameOver(){
   gameOn=false;gameStarted=false;isOverlayVisible=true;
-  if(shotCube){removeCube(shotCube);shotCube=null}
-  if(readyCube){
-    scene.remove(readyCube.mesh);
-    world.removeBody(readyCube.body);
-    readyCube = null;
-  }
+  if(shotCube){removeCube(shotCube);shotCube=null;}
+  if(readyCube){scene.remove(readyCube.mesh);world.removeBody(readyCube.body);readyCube=null;}
   saveHighScoreIfNeeded(score);addToWeeklyLeaderboard(score);updateRankScoreDisplay(score);
   audio.gameOver();
   document.getElementById('boosters').classList.remove('active');
   document.getElementById('hud').classList.remove('active');
-
-  let bonus = 0;
-  if(roundScoreMet) bonus += playerLevel * 50;
-  if(roundCubeMet) bonus += playerLevel * 100;
-  if(bonus > 0) {
-    coins += bonus;
-    roundCoins += bonus;
-    saveProgression();
-  }
-
-  const cubeIdx = Math.min(SEQ.length-1, 3 + Math.floor(playerLevel/3));
-  const nextScGoal = playerLevel * 2500;
-  const nextCuGoal = SEQ[cubeIdx];
-
+  let bonus=0;
+  if(roundScoreMet)bonus+=playerLevel*50;
+  if(roundCubeMet)bonus+=playerLevel*100;
+  if(bonus>0){coins+=bonus;roundCoins+=bonus;saveProgression();}
+  const cubeIdx=Math.min(SEQ.length-1,3+Math.floor(playerLevel/3));
+  const nextScGoal=playerLevel*2500,nextCuGoal=SEQ[cubeIdx];
   buildOverlay(`
     <h1>GAME OVER</h1>
     <div style="color:#aaa;font-size:13px;position:relative">Final Score</div>
@@ -1079,87 +1064,67 @@ function triggerGameOver(){
     </div>
     <button class="play-btn" id="startBtn">PLAY AGAIN</button>
   `);
-  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('startBtn').addEventListener('click',startGame);
 }
 
 function startGame(){
   while(cubes.length)removeCube(cubes[0]);
   shotCube=null;
-  if(readyCube){
-    scene.remove(readyCube.mesh);
-    world.removeBody(readyCube.body);
-    readyCube = null;
-  }
-  for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose()}particles.length=0;
-  for(let i=trailParticles.length-1;i>=0;i--){scene.remove(trailParticles[i].mesh);trailParticles[i].mat.dispose()}trailParticles.length=0;
-  for(let i=flashSpheres.length-1;i>=0;i--){scene.remove(flashSpheres[i].mesh);flashSpheres[i].mat.dispose()}flashSpheres.length=0;
-
+  if(readyCube){scene.remove(readyCube.mesh);world.removeBody(readyCube.body);readyCube=null;}
+  for(let i=particles.length-1;i>=0;i--){scene.remove(particles[i].mesh);particles[i].mat.dispose();}particles.length=0;
+  for(let i=trailParticles.length-1;i>=0;i--){scene.remove(trailParticles[i].mesh);trailParticles[i].mat.dispose();}trailParticles.length=0;
+  for(let i=flashSpheres.length-1;i>=0;i--){scene.remove(flashSpheres[i].mesh);flashSpheres[i].mat.dispose();}flashSpheres.length=0;
   if(rampBody){world.removeBody(rampBody);rampBody=null;}
   if(rampMesh){scene.remove(rampMesh);rampMesh=null;}
   rampState='idle';
 
-  makeShooter();
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
   document.getElementById('boosters').classList.add('active');
   score=0;mult=1;comboBar=0;comboTimer=0;chainCount=0;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;gameStarted=false;
-
-  roundScoreGoal = playerLevel * 2500;
-  const cubeIdx = Math.min(SEQ.length-1, 3 + Math.floor(playerLevel/3));
-  roundCubeGoal = SEQ[cubeIdx];
-  roundScoreMet = false;
-  roundCubeMet = false;
-  roundCoins = 0;
-
-  applyDailyGift();
-  updateBoosterBadges();
-  refreshAllProgressionUI();
-  updateRankScoreDisplay(0);
-  updateTarget();
+  roundScoreGoal=playerLevel*2500;
+  const cubeIdx=Math.min(SEQ.length-1,3+Math.floor(playerLevel/3));
+  roundCubeGoal=SEQ[cubeIdx];
+  roundScoreMet=false;roundCubeMet=false;roundCoins=0;
+  applyDailyGift();updateBoosterBadges();refreshAllProgressionUI();updateRankScoreDisplay(0);updateTarget();
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(camX,camY,camZ);camera.lookAt(0,trackY,0);
+  // CRITICAL: set curVal/nxtVal BEFORE makeShooter so ready cube has correct value
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
+  makeShooter();
 
+  // Ramp physics body
   const rampWidth=TRACK_W+0.4;
-  rampBody=new CANNON.Body({type:CANNON.Body.KINEMATIC,material:wallMat,
-    shape:new CANNON.Box(new CANNON.Vec3(rampWidth/2,0.55,0.24))});
+  rampBody=new CANNON.Body({type:CANNON.Body.KINEMATIC,material:wallPhysMat,shape:new CANNON.Box(new CANNON.Vec3(rampWidth/2,0.55,0.24))});
   rampBody.position.set(0,0.55+trackY,RAMP_HOME_Z);rampBody.velocity.set(0,0,0);
-  rampBody.collisionFilterGroup=4;
-  rampBody.collisionFilterMask=1;
+  rampBody.collisionFilterGroup=GRP_WALL;
+  rampBody.collisionFilterMask=GRP_TRACK|GRP_NEWROW;
   world.addBody(rampBody);
-
-  rampMesh=new THREE.Mesh(new THREE.BoxGeometry(rampWidth,0.45,0.48),
-    new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
+  rampMesh=new THREE.Mesh(new THREE.BoxGeometry(rampWidth,0.45,0.48),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
   rampMesh.position.set(0,trackY+0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
+  // FIX: start with cubes — do NOT add score for them (was a bug)
   const startVals=[2,4,8,16,4];
   const startRowZ=Z_BACK+CUBE_SZ*0.6;
   for(let i=0;i<COLS;i++){
     const cx=-TRACK_W/2+COL_W/2+i*COL_W;
-    spawnCube(cx,CUBE_SZ/2+0.05,startRowZ,startVals[i],{mergeCooldown:0.4});
-    addScore(startVals[i]);
+    // FIX: isNewRow=true so they settle cleanly, mergeCooldown prevents instant merges
+    spawnCube(cx,CUBE_SZ/2+0.05,startRowZ,startVals[i],{isNewRow:true,mergeCooldown:1.2});
   }
 
-  drawNextHUD();
-  drawTargetHUD();
-  audio.init();
+  drawNextHUD();drawTargetHUD();audio.init();
 }
 
-/* ---------- MINI CUBE DRAWING ---------- */
-const nextCnv=document.getElementById('next-cnv'), nextCtx=nextCnv.getContext('2d');
-const targetCnv=document.getElementById('target-cnv'), targetCtx=targetCnv.getContext('2d');
-
+/* ─── MINI CUBE HUD ─────────────────────────────────────────── */
+const nextCnv=document.getElementById('next-cnv'),nextCtx=nextCnv.getContext('2d');
+const targetCnv=document.getElementById('target-cnv'),targetCtx=targetCnv.getContext('2d');
 function drawMiniCube(mc,cx,cy,sz,val){
   const pal=gp(val),d=sz*.22;
-  mc.fillStyle='#'+pal.glow.toString(16).padStart(6,'0');mc.beginPath();
-  mc.moveTo(cx-sz/2,cy);mc.lineTo(cx-sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2,cy);
-  mc.closePath();mc.fill();mc.fillStyle='rgba(0,0,0,.4)';mc.beginPath();
-  mc.moveTo(cx+sz/2,cy);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy+sz-d);mc.lineTo(cx+sz/2,cy+sz);
-  mc.closePath();mc.fill();mc.fillStyle='#'+pal.hex.toString(16).padStart(6,'0');mc.beginPath();
-  mc.roundRect(cx-sz/2,cy,sz,sz,sz*.12);mc.fill();mc.fillStyle='#fff';
-  mc.font=`800 ${Math.max(8,sz*(val>=100?.32:.46))}px Arial`;mc.textAlign='center';mc.textBaseline='middle';
-  mc.fillText(val,cx,cy+sz/2)
+  mc.fillStyle='#'+pal.glow.toString(16).padStart(6,'0');mc.beginPath();mc.moveTo(cx-sz/2,cy);mc.lineTo(cx-sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2,cy);mc.closePath();mc.fill();
+  mc.fillStyle='rgba(0,0,0,.4)';mc.beginPath();mc.moveTo(cx+sz/2,cy);mc.lineTo(cx+sz/2+d,cy-d);mc.lineTo(cx+sz/2+d,cy+sz-d);mc.lineTo(cx+sz/2,cy+sz);mc.closePath();mc.fill();
+  mc.fillStyle='#'+pal.hex.toString(16).padStart(6,'0');mc.beginPath();mc.roundRect(cx-sz/2,cy,sz,sz,sz*.12);mc.fill();
+  mc.fillStyle='#fff';mc.font=`800 ${Math.max(8,sz*(val>=100?.32:.46))}px Arial`;mc.textAlign='center';mc.textBaseline='middle';mc.fillText(val,cx,cy+sz/2);
 }
 function drawNextHUD(){nextCtx.clearRect(0,0,40,40);drawMiniCube(nextCtx,20,8,24,nxtVal);}
 function drawTargetHUD(){targetCtx.clearRect(0,0,40,40);drawMiniCube(targetCtx,20,8,24,targetVal);}
@@ -1173,53 +1138,46 @@ function shooterPool(){
   if(maxReached>=512)pool=[32,64,64,128,128,256];
   return pool;
 }
-function rndStart(){const p=shooterPool();return p[Math.floor(Math.random()*p.length)]}
+function rndStart(){const p=shooterPool();return p[Math.floor(Math.random()*p.length)];}
 
+/* ─── SHOOTER SETUP ─────────────────────────────────────────── */
 function makeShooter(){
-  if(shooterGlow) {
-    scene.remove(shooterGlow);
-    shooterGlow = null;
-  }
-  if(aimLine) {
-    scene.remove(aimLine);
-    aimLine = null;
-  }
-  const glow = new THREE.Mesh(new THREE.RingGeometry(.4,1.0,32), new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.4,side:THREE.DoubleSide}));
-  glow.rotation.x = -Math.PI/2;
-  glow.position.set(aimX, trackY + 0.03, SHOOTER_Z);
-  scene.add(glow);
-  shooterGlow = glow;
-  const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.4,SHOOTER_Z), new THREE.Vector3(0,.4,-TRACK_L/2+2)]);
-  aimLine = new THREE.Line(lg, new THREE.LineDashedMaterial({color:0xffffff,dashSize:.3,gapSize:.3,opacity:.5,transparent:true}));
-  aimLine.computeLineDistances();
-  scene.add(aimLine);
+  if(shooterGlow){scene.remove(shooterGlow);shooterGlow=null;}
+  if(aimLine){scene.remove(aimLine);aimLine=null;}
+  const glow=new THREE.Mesh(new THREE.RingGeometry(.4,1.0,32),new THREE.MeshBasicMaterial({color:0x8855ff,transparent:true,opacity:.4,side:THREE.DoubleSide}));
+  glow.rotation.x=-Math.PI/2;glow.position.set(aimX,trackY+0.03,SHOOTER_Z);scene.add(glow);shooterGlow=glow;
+  const lg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.4,SHOOTER_Z),new THREE.Vector3(0,.4,-TRACK_L/2+2)]);
+  aimLine=new THREE.Line(lg,new THREE.LineDashedMaterial({color:0xffffff,dashSize:.3,gapSize:.3,opacity:.5,transparent:true}));
+  aimLine.computeLineDistances();scene.add(aimLine);
   createReadyCube(curVal);
 }
 
 function updateShooter(){
-  if(readyCube){
-    readyCube.mesh.position.copy(readyCube.body.position);
-    readyCube.mesh.rotation.y += 0.01;
-    const mats = rainbowArmed ? getRainbowMats() : getMats(readyCube.value);
-    readyCube.mesh.material = mats;
-    if(shooterGlow){
-      shooterGlow.position.x = readyCube.body.position.x;
-      shooterGlow.position.y = trackY + 0.03;
-      shooterGlow.position.z = SHOOTER_Z;
-    }
-    updateAimLine();
+  if(!readyCube)return;
+  // Sync mesh to kinematic body position
+  readyCube.mesh.position.copy(readyCube.body.position);
+  readyCube.mesh.rotation.y+=0.015;
+  // Update material only when rainbowArmed state actually changed
+  const wantMat=rainbowArmed?getRainbowMats():getMats(readyCube.value);
+  if(readyCube.mesh.material!==wantMat[0]){
+    readyCube.mesh.material=wantMat;
   }
+  if(shooterGlow){
+    shooterGlow.position.x=readyCube.body.position.x;
+    shooterGlow.position.y=trackY+0.03;
+    shooterGlow.position.z=SHOOTER_Z;
+  }
+  updateAimLine();
 }
 
 function updateAimLine(){
   if(aimLine){
-    const pts = [new THREE.Vector3(aimX, .4, SHOOTER_Z), new THREE.Vector3(aimX, .4, -TRACK_L/2+2)];
-    aimLine.geometry.setFromPoints(pts);
-    aimLine.computeLineDistances();
+    const pts=[new THREE.Vector3(aimX,.4,SHOOTER_Z),new THREE.Vector3(aimX,.4,-TRACK_L/2+2)];
+    aimLine.geometry.setFromPoints(pts);aimLine.computeLineDistances();
   }
 }
 
-/* ---------- INPUT ---------- */
+/* ─── INPUT ─────────────────────────────────────────────────── */
 const raycaster=new THREE.Raycaster();const mouse=new THREE.Vector2();
 const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),-trackY);
 let dragging=false;
@@ -1230,44 +1188,43 @@ function updateAim(cx,cy){
   const target=new THREE.Vector3();
   raycaster.ray.intersectPlane(groundPlane,target);
   if(target)aimX=Math.max(-X_LIMIT,Math.min(X_LIMIT,target.x));
-  if(readyCube){
-    readyCube.body.position.x = aimX;
-    readyCube.mesh.position.x = aimX;
-  }
+  if(readyCube){readyCube.body.position.x=aimX;readyCube.mesh.position.x=aimX;}
 }
-canvas.addEventListener('mousedown',e=>{dragging=true;updateAim(e.clientX,e.clientY)});
-canvas.addEventListener('mousemove',e=>{if(dragging&&gameOn&&!paused)updateAim(e.clientX,e.clientY)});
-canvas.addEventListener('mouseup',()=>{if(dragging){shoot();dragging=false}});
-canvas.addEventListener('touchstart',e=>{dragging=true;updateAim(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
-canvas.addEventListener('touchmove',e=>{e.preventDefault();if(gameOn&&!paused)updateAim(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
-canvas.addEventListener('touchend',e=>{e.preventDefault();shoot();dragging=false},{passive:false});
+canvas.addEventListener('mousedown',e=>{dragging=true;updateAim(e.clientX,e.clientY);});
+canvas.addEventListener('mousemove',e=>{if(dragging&&gameOn&&!paused)updateAim(e.clientX,e.clientY);});
+canvas.addEventListener('mouseup',()=>{if(dragging){shoot();dragging=false;}});
+canvas.addEventListener('touchstart',e=>{dragging=true;updateAim(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();if(gameOn&&!paused)updateAim(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+canvas.addEventListener('touchend',e=>{e.preventDefault();shoot();dragging=false;},{passive:false});
 
-/* ---------- BOOSTER BUTTONS ---------- */
+/* ─── BOOSTER BUTTONS ───────────────────────────────────────── */
 document.getElementById('boost-bomb').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeBomb>0){freeBomb--;updateBoosterBadges();useBomb();}
-  else if(coins >= BOMB_COST){coins -= BOMB_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useBomb();}
+  else if(coins>=BOMB_COST){coins-=BOMB_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useBomb();}
   else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeBomb++;updateBoosterBadges();useBomb();});}else alert('Ad not available');}
 });
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
-  else if(coins >= RAINBOW_COST){coins -= RAINBOW_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useRainbow();}
+  else if(coins>=RAINBOW_COST){coins-=RAINBOW_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useRainbow();}
   else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267==='function'){show_11108267().then(()=>startGame());}else startGame();
 });
-document.getElementById('btn-pause').addEventListener('click',()=>{if(!gameOn)return;paused=!paused;
-  document.getElementById('btn-pause').textContent=paused?'▶':'⏸'});
-document.getElementById('btn-sound').addEventListener('click',()=>{const m=audio.toggleMute();
-  document.getElementById('btn-sound').textContent=m?'🔇':'🔊'});
+document.getElementById('btn-pause').addEventListener('click',()=>{
+  if(!gameOn)return;paused=!paused;document.getElementById('btn-pause').textContent=paused?'▶':'⏸';
+});
+document.getElementById('btn-sound').addEventListener('click',()=>{
+  const m=audio.toggleMute();document.getElementById('btn-sound').textContent=m?'🔇':'🔊';
+});
 
-function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);
-  composer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
+/* ─── RESIZE ────────────────────────────────────────────────── */
+function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);composer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
 window.addEventListener('resize',resize);resize();
 
-// Initial state
+/* ─── BOOT ──────────────────────────────────────────────────── */
 refreshAllProgressionUI();
 showInitialOverlay();
 update();
