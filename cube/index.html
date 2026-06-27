@@ -50,9 +50,6 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .boost-name{color:#999;font-size:9px;font-weight:700;letter-spacing:.5px}
 #btn-newgames .boost-circle{background:radial-gradient(circle at 35% 32%,#e05800,#7a2200);border:2px solid #ff6622;box-shadow:0 0 20px rgba(255,100,20,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
 #btn-newgames .boost-name{color:#ff8844}
-#boost-jump .boost-circle{background:radial-gradient(circle at 35% 32%,#1a6b3a,#0a3520);border:2px solid #22dd66;box-shadow:0 0 20px rgba(34,220,100,.55),inset 0 2px 0 rgba(255,255,255,.15);font-size:26px}
-#boost-jump .boost-name{color:#44ff88}
-#boost-jump.ready .boost-circle{border-color:#44ff88;box-shadow:0 0 22px rgba(68,255,136,.8),inset 0 2px 0 rgba(255,255,255,.15)}
 #btn-rank .boost-circle{background:radial-gradient(circle at 35% 32%,#b8860b,#6b4e00);border:2px solid #ffaa33;box-shadow:0 0 20px rgba(255,170,51,.6),inset 0 2px 0 rgba(255,255,255,.15);font-size:22px}
 #btn-rank .boost-name{color:#ffaa33}
 #btn-rank .rank-score{color:#FFD700;font-size:8px;font-weight:700;margin-top:-2px}
@@ -123,10 +120,6 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
     <div class="boost-circle"><span>🌈</span><span class="ad-badge" id="badge-rainbow">▶ AD</span></div>
     <div class="boost-name">RAINBOW</div>
   </div>
-  <div class="boost-btn locked" id="boost-jump">
-    <div class="boost-circle"><span>⬆️</span><span class="ad-badge" id="badge-jump">🪙 150</span></div>
-    <div class="boost-name">JUMP</div>
-  </div>
   <div class="boost-btn" id="btn-newgames">
     <div class="boost-circle"><span>🆕</span></div>
     <div class="boost-name">NEW GAMES</div>
@@ -184,9 +177,9 @@ function gp(v){return PAL[v]||{hex:0xcc44ff,glow:0xff88ff}}
 function nextVal(v){const i=SEQ.indexOf(v);return i>=0&&i+1<SEQ.length?SEQ[i+1]:v*2}
 
 const COLS=5;
-const CUBE_SZ=2.2;          // μεγαλύτεροι κύβοι (από 1.6)
-const COL_W=CUBE_SZ+0.4;   // spacing μεταξύ στηλών
-const TRACK_W=COLS*COL_W+1.0;  // φαρδύτερος διάδρομος (~13.5)
+const CUBE_SZ=2.2;
+const COL_W=CUBE_SZ+0.4;
+const TRACK_W=COLS*COL_W+1.0;
 const TRACK_L=36;
 const DANGER_Z=13.5;
 const SHOOTER_Z=16.0;
@@ -200,10 +193,6 @@ const RAMP_PUSH_Z = SPAWN_Z + CUBE_SZ + 1.0;
 const RAMP_SPEED  = 9.0;
 
 /* ─── Collision filter groups ───────────────────────────────── */
-// 1 = settled track cubes
-// 2 = shot cube (player)
-// 4 = ramp / walls
-// 8 = newly spawned row cubes (ghost phase – no cube-cube collision)
 const GRP_TRACK  = 1;
 const GRP_SHOT   = 2;
 const GRP_WALL   = 4;
@@ -286,7 +275,6 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x080614);
 scene.fog=new THREE.Fog(0x080614,46,92);
 
-
 const camera=new THREE.PerspectiveCamera(64,1,0.1,250);
 const trackY=3;
 
@@ -320,12 +308,10 @@ addNebula(-30,9,-46,0x5522aa,56,0.16);addNebula(34,15,-52,0xaa2266,62,0.13);addN
 function buildTrack(){
   const g=new THREE.Group();
   const W=TRACK_W,L=TRACK_L,wallT=0.5,wallH=1.7;
-  // FIX: renamed local var to avoid shadowing cannon floorMat
   const trackFloorMat=new THREE.MeshStandardMaterial({color:0x221c55,roughness:0.5,metalness:0.2});
   const floor=new THREE.Mesh(new THREE.PlaneGeometry(W,L),trackFloorMat);
   floor.rotation.x=-Math.PI/2;floor.position.y=0.01;floor.receiveShadow=true;g.add(floor);
   const lineMat=new THREE.LineBasicMaterial({color:0x6655aa,transparent:true,opacity:0.35});
-  // Γραμμές στηλών — βάσει COL_W για σωστή ευθυγράμμιση με τους κύβους
   for(let i=0;i<=COLS;i++){
     const x=-TRACK_W/2+0.5+i*COL_W;
     const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0.02,-L/2),new THREE.Vector3(x,0.02,L/2)]);
@@ -359,15 +345,12 @@ const world=new CANNON.World({gravity:new CANNON.Vec3(0,-16,0)});
 world.broadphase=new CANNON.NaiveBroadphase();
 world.solver.iterations=16;
 
-// FIX: renamed to cannonFloorMat to avoid conflict with THREE trackFloorMat
 const cannonFloorMat=new CANNON.Material('floor');
 const cubeMat=new CANNON.Material('cube');
 const bouncyCubeMat=new CANNON.Material('bouncyCube');
-// FIX: separate material for new row cubes (zero restitution = no bounce)
 const newRowMat=new CANNON.Material('newRow');
 const wallPhysMat=new CANNON.Material('wall');
 
-// Contact materials
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cannonFloorMat,{friction:.5,restitution:0.3}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.4,restitution:0.2}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallPhysMat,{friction:.3,restitution:0.3}));
@@ -375,7 +358,6 @@ world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{frict
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cannonFloorMat,{friction:.6,restitution:0.05}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.5,restitution:0.05}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallPhysMat,{friction:.3,restitution:0.15}));
-// FIX: new row cubes — zero restitution (no bounce), high friction
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cannonFloorMat,{friction:.95,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,wallPhysMat,{friction:.8,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cubeMat,{friction:.7,restitution:0.0}));
@@ -400,7 +382,7 @@ addPhysWall(0,1.5,TRACK_L/2+0.25,TRACK_W/2+1,3,0.25);
 /* ─── MATERIALS / TEXTURES ──────────────────────────────────── */
 const cubeGeo=new THREE.BoxGeometry(CUBE_SZ,CUBE_SZ,CUBE_SZ);
 const matCache=new Map();
-let rainbowMatsCache=null; // FIX: cache rainbow materials, don't recreate per frame
+let rainbowMatsCache=null;
 
 function makeTexture(value,pal){
   const sz=256,cv=document.createElement('canvas');cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');
@@ -422,7 +404,6 @@ function getMats(value){
   const ms=[mn,mn,mn,mp,mn,mn];matCache.set(value,ms);return ms;
 }
 function getRainbowMats(){
-  // FIX: build once and cache
   if(rainbowMatsCache)return rainbowMatsCache;
   const sz=256,cv=document.createElement('canvas');cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');
   const g=ctx.createLinearGradient(0,0,sz,sz);
@@ -443,13 +424,11 @@ function spawnCube(x,y,z,value,opts={}){
   const mesh=new THREE.Mesh(cubeGeo,opts.rainbow?getRainbowMats():getMats(value));
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.position.set(x,y+trackY,z);scene.add(mesh);
 
-  // FIX: shot cube keeps bouncyCube material; new row cubes get newRowMat (zero bounce)
   let physMat;
   let linearDamping,angularDamping;
   if(opts.isShot){
     physMat=bouncyCubeMat;linearDamping=0.3;angularDamping=0.4;
   } else if(opts.isNewRow){
-    // FIX: new row cubes use newRowMat — no bounce, high damping
     physMat=newRowMat;linearDamping=0.88;angularDamping=0.95;
   } else if(opts.kinematic){
     physMat=cubeMat;linearDamping=0.5;angularDamping=0.6;
@@ -468,13 +447,11 @@ function spawnCube(x,y,z,value,opts={}){
   });
 
   if(opts.isShot){
-    // Shot cube: collides with track cubes and walls, not with other shot cubes
     body.collisionFilterGroup=GRP_SHOT;
     body.collisionFilterMask=GRP_TRACK|GRP_WALL;
   } else if(opts.isNewRow){
-    // FIX: new row cubes: collide with floor/walls, NOT with existing cubes (ghost phase)
     body.collisionFilterGroup=GRP_NEWROW;
-    body.collisionFilterMask=GRP_WALL; // only walls (and floor via plane is always hit)
+    body.collisionFilterMask=GRP_WALL;
   } else if(opts.kinematic){
     body.collisionFilterGroup=GRP_TRACK;
     body.collisionFilterMask=~0;
@@ -492,8 +469,8 @@ function spawnCube(x,y,z,value,opts={}){
     flash:0,
     mergeActive:true,
     mergeCooldown:opts.mergeCooldown||0,
-    isNewRow:!!opts.isNewRow,   // FIX: track ghost phase
-    newRowTimer:opts.isNewRow?1.5:0, // FIX: seconds until we activate collision
+    isNewRow:!!opts.isNewRow,
+    newRowTimer:opts.isNewRow?1.5:0,
     settled:false
   };
 
@@ -503,23 +480,18 @@ function spawnCube(x,y,z,value,opts={}){
 
 function removeCube(c){scene.remove(c.mesh);world.removeBody(c.body);const i=cubes.indexOf(c);if(i>=0)cubes.splice(i,1);}
 
-/* ─── FIX: Activate new row cubes after they have settled ───── */
 function activateNewRowCube(c){
   c.isNewRow=false;
   c.newRowTimer=0;
-  // Switch to track group — now they participate in merge detection
   c.body.collisionFilterGroup=GRP_TRACK;
   c.body.collisionFilterMask=~0;
 }
 
-/* ─── FIX: Clear spawn zone before new row ──────────────────── */
 function clearSpawnZone(){
-  // Push any track cubes that are in the back zone forward so new row can spawn cleanly
   const clearZ=Z_BACK+CUBE_SZ*1.8;
   for(const c of cubes){
     if(c.isShot||c.isNewRow)continue;
     if(c.body.position.z<clearZ){
-      // Snap them forward
       c.body.position.z=clearZ;
       if(c.body.velocity.z<0)c.body.velocity.z=0;
       c.body.velocity.x*=0.5;
@@ -529,13 +501,12 @@ function clearSpawnZone(){
 }
 
 function spawnRow(z){
-  // FIX: clear spawn zone first
   clearSpawnZone();
   const vals=[[2,4,2,8,4],[4,2,8,2,4],[2,8,4,4,2],[4,2,4,8,2],[2,4,8,2,4]][Math.floor(Math.random()*5)];
   for(let i=0;i<COLS;i++){
     spawnCube(
       -TRACK_W/2+COL_W/2+i*COL_W,
-      CUBE_SZ/2+0.02, // just above floor
+      CUBE_SZ/2+0.02,
       z,
       vals[i],
       {isNewRow:true, mergeCooldown:1.0}
@@ -611,26 +582,35 @@ let gameOn=false,paused=false,gameStarted=false;
 let score=0,mult=1;
 let curVal=2,nxtVal=2,aimX=0,maxReached=2;
 let rowTimer=0;
-let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false,jumpArmed=false;
+let seenMS=new Set(),shakeAmt=0,isOverlayVisible=true,shotCube=null,rainbowArmed=false;
 let rampBody=null,rampMesh=null,rampState='idle';
 let targetVal=4;
-let readyCube=null; // legacy ref kept for safety
+let readyCube=null;
 let shooterGlow=null;
 let aimLine=null;
-let freeBomb=0,freeRainbow=0,freeJump=0;
+let freeBomb=0,freeRainbow=0;
 
 const BOMB_COST=200;
 const RAINBOW_COST=300;
-const JUMP_COST=150;
 
 /* ─── DAILY GIFTS ───────────────────────────────────────────── */
 function applyDailyGift(){
   const today=new Date().toISOString().slice(0,10);
   const lastDate=localStorage.getItem(GIFT_DATE_KEY);
-  if(lastDate!==today){freeBomb=2;freeRainbow=2;freeJump=3;localStorage.setItem(GIFT_DATE_KEY,today);localStorage.setItem(FREE_BOMB_KEY,'2');localStorage.setItem(FREE_RAINBOW_KEY,'2');localStorage.setItem('mergeCubes3D_freeJump','3');}
-  else{freeBomb=parseInt(localStorage.getItem(FREE_BOMB_KEY)||'0',10);freeRainbow=parseInt(localStorage.getItem(FREE_RAINBOW_KEY)||'0',10);freeJump=parseInt(localStorage.getItem('mergeCubes3D_freeJump')||'0',10);}
+  if(lastDate!==today){
+    freeBomb=2;freeRainbow=2;
+    localStorage.setItem(GIFT_DATE_KEY,today);
+    localStorage.setItem(FREE_BOMB_KEY,'2');
+    localStorage.setItem(FREE_RAINBOW_KEY,'2');
+  } else {
+    freeBomb=parseInt(localStorage.getItem(FREE_BOMB_KEY)||'0',10);
+    freeRainbow=parseInt(localStorage.getItem(FREE_RAINBOW_KEY)||'0',10);
+  }
 }
-function saveFreeItems(){localStorage.setItem(FREE_BOMB_KEY,freeBomb.toString());localStorage.setItem(FREE_RAINBOW_KEY,freeRainbow.toString());localStorage.setItem('mergeCubes3D_freeJump',freeJump.toString());}
+function saveFreeItems(){
+  localStorage.setItem(FREE_BOMB_KEY,freeBomb.toString());
+  localStorage.setItem(FREE_RAINBOW_KEY,freeRainbow.toString());
+}
 
 function updateBoosterBadges(){
   const bb=document.getElementById('badge-bomb'),rb=document.getElementById('badge-rainbow');
@@ -642,11 +622,6 @@ function updateBoosterBadges(){
   };
   setBadge(bb,bWrap,freeBomb,BOMB_COST);
   setBadge(rb,rWrap,freeRainbow,RAINBOW_COST);
-  // Jump button
-  const jb=document.getElementById('badge-jump'),jWrap=document.getElementById('boost-jump');
-  if(freeJump>0){jb.textContent='🎁 ×'+freeJump;jb.className='ad-badge free';jWrap.classList.remove('locked');jWrap.classList.add('ready');}
-  else if(coins>=JUMP_COST){jb.textContent='🪙 '+JUMP_COST;jb.className='ad-badge coin';jWrap.classList.remove('locked','ready');}
-  else{jb.textContent='🪙 '+JUMP_COST;jb.className='ad-badge';jWrap.classList.add('locked');jWrap.classList.remove('ready');}
   saveFreeItems();
 }
 
@@ -674,18 +649,6 @@ function useBomb(){
   floatText(0,trackY+2.5,DANGER_Z-2,'BOOM!','points-mega');
 }
 function useRainbow(){rainbowArmed=true;floatText(aimX,trackY+2,SHOOTER_Z-1,'RAINBOW READY!','points-big');}
-
-function useJump(){
-  if(!gameOn||paused||!readyCubeMesh)return;
-  // The next shot will launch with a strong upward arc — lands inside the track
-  jumpArmed=true;
-  floatText(aimX,trackY+2,SHOOTER_Z-1,'JUMP SHOT! 🏀','points-big');
-  // Visual cue: pulse the ready cube
-  if(readyCubeMesh){
-    readyCubeMesh.scale.set(1.3,1.3,1.3);
-    setTimeout(()=>{if(readyCubeMesh)readyCubeMesh.scale.set(1,1,1);},300);
-  }
-}
 
 function tryMerge(a,b){
   const nv=nextVal(a.value);
@@ -725,7 +688,6 @@ function sweepMerges(){
       const a=cubes[i],b=cubes[j];
       if(a.value!==b.value)continue;
       if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
-      // FIX: don't merge cubes still in ghost/new-row phase
       if(a.isNewRow||b.isNewRow)continue;
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
@@ -741,12 +703,10 @@ function addScore(p){
 }
 
 /* ─── READY CUBE (visual only — no physics until shot) ──────── */
-// readyCube is just a THREE.Mesh + value, no CANNON.Body
 let readyCubeMesh = null;
 let readyCubeValue = 2;
 
 function createReadyCube(value){
-  // Remove old visual
   if(readyCubeMesh){ scene.remove(readyCubeMesh); readyCubeMesh=null; }
   readyCubeValue = value;
   const mats = getMats(value);
@@ -768,9 +728,9 @@ function shoot(){
   if(!gameOn||paused) return;
   if(!readyCubeMesh) return;
 
-  // Διαγράφουμε τον προηγούμενο βλήμα, αν υπάρχει, χωρίς να το αφήνουμε στη σκηνή
+  // Αφαιρούμε τελείως τον προηγούμενο κύβο-βλήμα
   if(shotCube){
-    removeCube(shotCube);   // εντελώς αφαίρεση, όχι απλή αλλαγή ομάδας
+    removeCube(shotCube);
     shotCube = null;
   }
 
@@ -795,12 +755,8 @@ function shoot(){
   nc.body.updateMassProperties();
   nc.body.wakeUp();
 
-  if(jumpArmed){
-    nc.body.velocity.set(0, 16, -28);
-    jumpArmed = false;
-  } else {
-    nc.body.velocity.set(0, 0, -34);
-  }
+  // Πάντα η κίνηση που είχε το jump – φυσιολογική καμπύλη σε όλο το διάδρομο
+  nc.body.velocity.set(0, 16, -28);
   nc.body.angularVelocity.set(0, 0, 0);
 
   nc.isShot = true;
@@ -840,19 +796,15 @@ function update(){
   const now=performance.now(),dt=Math.min(.05,(now-lastT)/1000);lastT=now;
   spaceStars.rotation.y+=dt*0.008;
 
-  // Physics runs whenever game is on — gameStarted only gates row spawning
   if(gameOn&&!paused){
 
-    // Tick cooldowns
     for(const c of cubes){if(c.mergeCooldown>0)c.mergeCooldown-=dt;}
 
-    // FIX: tick new-row ghost timer and activate when ready
     for(const c of cubes){
       if(c.isNewRow){
         c.newRowTimer-=dt;
         if(c.newRowTimer<=0){
           activateNewRowCube(c);
-          // Check merge now that it's active
         }
       }
     }
@@ -874,7 +826,6 @@ function update(){
         if(rampBody.position.z<=RAMP_HOME_Z){
           rampBody.position.set(0,0.55+trackY,RAMP_HOME_Z);rampBody.velocity.set(0,0,0);rampState='idle';
           if(rampMesh)rampMesh.visible=false;
-          // FIX: push any cubes that slipped too far back
           const minZ=RAMP_PUSH_Z+1.2;
           cubes.forEach(c=>{if(c.isShot||c.isNewRow)return;if(c.body.position.z<minZ){c.body.position.z=minZ;c.body.velocity.z=0;}});
           spawnRow(Z_BACK);
@@ -889,12 +840,10 @@ function update(){
     for(const c of cubes){
       if(c.flash>0)c.flash--;
 
-      // Boundary clamp X
       if(c.body.position.x>X_LIMIT){c.body.position.x=X_LIMIT;if(c.body.velocity.x>0)c.body.velocity.x*=-0.5;}
       else if(c.body.position.x<-X_LIMIT){c.body.position.x=-X_LIMIT;if(c.body.velocity.x<0)c.body.velocity.x*=-0.5;}
       if(c.body.position.z<Z_BACK){c.body.position.z=Z_BACK;if(c.body.velocity.z<0)c.body.velocity.z*=-0.5;}
 
-      // FIX: new row cubes — kill bounce entirely on first frame contact with floor
       if(c.isNewRow){
         if(c.body.position.y<trackY+CUBE_SZ/2+0.1){
           c.body.position.y=trackY+CUBE_SZ/2+0.02;
@@ -902,11 +851,10 @@ function update(){
           c.body.velocity.x*=0.7;
           c.body.velocity.z*=0.7;
           c.body.angularVelocity.set(0,0,0);
-          c.body.quaternion.set(0,0,0,1); // keep flat
+          c.body.quaternion.set(0,0,0,1);
         }
       }
 
-      // Column snap for settled cubes
       if(settling&&!c.isShot&&!c.isNewRow&&Math.abs(c.body.velocity.z)<0.6&&Math.abs(c.body.velocity.x)<0.6){
         let col=Math.round((c.body.position.x+TRACK_W/2-COL_W/2)/COL_W);
         col=Math.max(0,Math.min(COLS-1,col));
@@ -921,10 +869,6 @@ function update(){
       mats.forEach(m=>{if(m&&m.emissiveIntensity!==undefined)m.emissiveIntensity=ei;});
     }
 
-    // FIX: removed conveyor buffer — was causing jitter near shooter
-    // Instead, the clearSpawnZone() handles this on new row spawn
-
-    // Trail for shot cube
     if(shotCube&&!shotCube._rainbow){
       const s=shotCube.body;
       const worldPos=new THREE.Vector3(s.position.x,s.position.y,s.position.z);
@@ -932,7 +876,6 @@ function update(){
       for(let i=0;i<3;i++){spawnTrailParticle(worldPos,new THREE.Vector3(s.velocity.x,s.velocity.y,s.velocity.z),quat);}
     }
 
-    // Rainbow collision check
     if(shotCube&&shotCube._rainbow){
       for(const c of cubes){if(c===shotCube||c.isShot)continue;
         const dx=c.body.position.x-shotCube.body.position.x,dz=c.body.position.z-shotCube.body.position.z;
@@ -942,9 +885,7 @@ function update(){
       sweepMerges();
       if(shotCube&&!cubes.includes(shotCube))shotCube=null;
 
-      // Όσο ο κύβος είναι εν πτήσει, εφαρμόζουμε επιβράδυνση ΜΟΝΟ αφού μπει βαθιά
       if(shotCube){
-        // Αν δεν έχει launchZ (π.χ. προέκυψε από merge), δεν είναι «εν πτήσει» — settle άμεσα
         if(shotCube.launchZ===undefined){
           shotCube.isShot=false;
           shotCube.body.collisionFilterGroup=GRP_TRACK;
@@ -952,12 +893,10 @@ function update(){
           shotCube.mergeCooldown=0.3;
           shotCube=null;
         } else {
-          const traveled = shotCube.launchZ - shotCube.body.position.z; // πόσο προχώρησε
-          // Αρχίζει να επιβραδύνει μόνο αφού περάσει τη γραμμή κινδύνου κατά πολύ
+          const traveled = shotCube.launchZ - shotCube.body.position.z;
           if(shotCube.body.position.z < DANGER_Z - 4){
             shotCube.body.linearDamping = 0.55;
           }
-          // Settle ΜΟΝΟ αν: (α) έχει διανύσει αρκετή απόσταση ΚΑΙ (β) έχει σχεδόν σταματήσει
           const MIN_TRAVEL = 8.0;
           if(traveled > MIN_TRAVEL
              && Math.abs(shotCube.body.velocity.z) < 0.5
@@ -972,34 +911,29 @@ function update(){
           }
         }
       }
-      // Out of bounds (went past back wall)
       if(shotCube&&shotCube.body.position.z<Z_BACK-1)shotCube=null;
     }
 
-    // Camera shake
     if(shakeAmt>0){
       camera.position.x=0+(Math.random()-.5)*shakeAmt*2;
       camera.position.y=32+(Math.random()-.5)*shakeAmt;
       shakeAmt*=.86;if(shakeAmt<.005){shakeAmt=0;camera.position.set(0,32,28);camera.lookAt(0,trackY,1);}
     }
 
-    // Danger zone check — only when ramp is idle and game has started
     if(gameStarted&&rampState==='idle'){
       for(const c of cubes){
-        if(c.isShot||c.isNewRow)continue; // FIX: ghost cubes don't trigger game over
+        if(c.isShot||c.isNewRow)continue;
         if(c.body.position.z>DANGER_Z&&Math.abs(c.body.velocity.z)<1.2){triggerGameOver();return;}
       }
     }
   }
 
-  // Flash spheres
   for(let i=flashSpheres.length-1;i>=0;i--){
     const fs=flashSpheres[i];fs.life-=dt;fs.mesh.scale.setScalar(fs.mesh.scale.x+fs.scaleSpeed*dt);
     fs.mat.opacity=Math.max(0,fs.life*1.8);
     if(fs.life<=0){scene.remove(fs.mesh);fs.mat.dispose();flashSpheres.splice(i,1);}
   }
 
-  // Trail particles
   for(let i=trailParticles.length-1;i>=0;i--){
     const p=trailParticles[i];
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;
@@ -1007,7 +941,6 @@ function update(){
     if(p.life<=0){scene.remove(p.mesh);p.mat.dispose();trailParticles.splice(i,1);}
   }
 
-  // Regular particles
   for(let i=particles.length-1;i>=0;i--){const p=particles[i];
     p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;p.vy-=12*dt;p.life-=p.decay;
     if(p.shard){p.mesh.rotation.x+=p.rx*p.vrot*dt;p.mesh.rotation.y+=p.ry*p.vrot*dt;p.mesh.rotation.z+=p.rz*p.vrot*dt;
@@ -1040,7 +973,7 @@ function showInitialOverlay(){
   const scGoal=playerLevel*2500,cuGoal=SEQ[cubeIdx];
   buildOverlay(`
     <h1>MERGE CUBES 3D</h1>
-    <p>Drag to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
+    <p>Tap to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
       Don't let cubes cross the <b style="color:#ff4444">red line</b>!</p>
     <div class="goals-panel">
       <h3>🎯 ACTIVE GOALS</h3>
@@ -1099,7 +1032,7 @@ function startGame(){
   document.getElementById('overlay').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
   document.getElementById('boosters').classList.add('active');
-  score=0;mult=1;paused=false;rainbowArmed=false;jumpArmed=false;maxReached=2;
+  score=0;mult=1;paused=false;rainbowArmed=false;maxReached=2;
   rowTimer=0;seenMS=new Set();shakeAmt=0;isOverlayVisible=false;gameStarted=false;
   roundScoreGoal=playerLevel*2500;
   const cubeIdx=Math.min(SEQ.length-1,3+Math.floor(playerLevel/3));
@@ -1108,11 +1041,9 @@ function startGame(){
   applyDailyGift();updateBoosterBadges();refreshAllProgressionUI();updateRankScoreDisplay(0);updateTarget();
   document.getElementById('highscore-val').textContent=highScore.toLocaleString();
   camera.position.set(0,32,28); camera.lookAt(0,trackY,1);
-  // CRITICAL: set curVal/nxtVal BEFORE makeShooter so ready cube has correct value
   curVal=rndStart();nxtVal=rndStart();aimX=0;gameOn=true;
   makeShooter();
 
-  // Ramp physics body
   const rampWidth=TRACK_W+0.6;
   rampBody=new CANNON.Body({type:CANNON.Body.KINEMATIC,material:wallPhysMat,shape:new CANNON.Box(new CANNON.Vec3(rampWidth/2,0.55,0.24))});
   rampBody.position.set(0,0.55+trackY,RAMP_HOME_Z);rampBody.velocity.set(0,0,0);
@@ -1122,7 +1053,6 @@ function startGame(){
   rampMesh=new THREE.Mesh(new THREE.BoxGeometry(rampWidth,0.45,0.48),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92}));
   rampMesh.position.set(0,trackY+0.32,RAMP_HOME_Z);rampMesh.visible=false;scene.add(rampMesh);
 
-  // Start cubes — original positions
   const startVals=[2,4,8,16,4];
   const startRowZ=Z_BACK+CUBE_SZ*0.6;
   for(let i=0;i<COLS;i++){
@@ -1172,7 +1102,6 @@ function makeShooter(){
     new THREE.Vector3(0, 0.05, SHOOTER_Z),
     new THREE.Vector3(0, 0.05, Z_BACK+1)
   ]);
-  // Λεπτή μωβ γραμμή — όχι λευκή, για να μην υπάρχει visual glitch
   aimLine=new THREE.Line(lg, new THREE.LineBasicMaterial({
     color:0x9966ff, transparent:true, opacity:0.28, depthWrite:false
   }));
@@ -1182,10 +1111,8 @@ function makeShooter(){
 
 function updateShooter(){
   if(!readyCubeMesh) return;
-  // Κύβος σταθερός, χωρίς περιστροφή
   readyCubeMesh.position.set(aimX, trackY + CUBE_SZ/2 + 0.15, SHOOTER_Z);
   readyCubeMesh.rotation.set(0, 0, 0);
-  // Switch to rainbow material if armed
   readyCubeMesh.material = rainbowArmed ? getRainbowMats() : getMats(readyCubeValue);
   if(shooterGlow){
     shooterGlow.position.x = aimX;
@@ -1225,7 +1152,6 @@ function getAimX(clientX, clientY){
   updateAimLine();
 }
 
-// ── MOUSE ──
 canvas.addEventListener('mousedown', e=>{
   if(!gameOn||paused) return;
   getAimX(e.clientX, e.clientY);
@@ -1240,7 +1166,6 @@ canvas.addEventListener('mouseup', e=>{
   shoot();
 });
 
-// ── TOUCH — απλό tap: aim στο touchstart, shoot στο touchend ──
 let touchId=null;
 canvas.addEventListener('touchstart', e=>{
   e.preventDefault();
@@ -1287,12 +1212,6 @@ document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
   else if(coins>=RAINBOW_COST){coins-=RAINBOW_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useRainbow();}
   else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
-});
-document.getElementById('boost-jump').addEventListener('click',()=>{
-  if(!gameOn||paused)return;
-  if(freeJump>0){freeJump--;updateBoosterBadges();useJump();}
-  else if(coins>=JUMP_COST){coins-=JUMP_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useJump();}
-  else{alert('Not enough coins for JUMP! Need '+JUMP_COST+' 🪙');}
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267==='function'){show_11108267().then(()=>startGame());}else startGame();
