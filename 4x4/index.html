@@ -52,6 +52,7 @@
         .res-btn:active { transform: scale(0.95); }
         .res-btn.daily-btn { border-color: #fbbf24; color: #fbbf24; }
         .res-btn.shop-btn { border-color: #84cc16; color: #84cc16; }
+        .res-btn.ad-btn { border-color: #e81cff; color: #e81cff; }
         .res-btn.boost-active { border-color: #e81cff; color: #e81cff; animation: boostPulse 1.5s infinite; }
         @keyframes boostPulse { 0%,100% { box-shadow: 0 0 5px rgba(232,28,255,0.4); } 50% { box-shadow: 0 0 12px rgba(232,28,255,0.8); } }
 
@@ -148,6 +149,7 @@
         .modal-action-btn.lose-btn { background: linear-gradient(135deg, #f87171, #b91c1c); color: #fff; box-shadow: 0 4px 0 #7f1d1d; }
         .modal-action-btn.draw-btn { background: linear-gradient(135deg, #fbbf24, #d97706); color: #fff; box-shadow: 0 4px 0 #92400e; }
         .modal-action-btn:active { transform: translateY(3px); }
+        .modal-action-btn:disabled { opacity: 0.6; pointer-events: none; }
 
         .score-modal-box { background: #0e1027; border: 2px solid rgba(132,204,22,0.4); border-radius: 20px; padding: 20px 16px; width: 92%; max-width: 400px; max-height: 80vh; overflow-y: auto; box-shadow: 0 0 40px rgba(132,204,22,0.15); }
         .modal-title { color: #84cc16; font-size: 1.2rem; font-weight: 800; letter-spacing: 2px; text-align: center; margin-bottom: 14px; text-shadow: 0 0 12px rgba(132,204,22,0.5); }
@@ -166,6 +168,10 @@
 
         .modal-back-btn { display: block; width: 100%; margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #84cc16, #65a30d); border: none; border-radius: 30px; color: #fff; font-size: 0.9rem; font-weight: 800; font-family: inherit; cursor: pointer; box-shadow: 0 4px 0 #4d7c0f; transition: all 0.2s; letter-spacing: 1px; }
         .modal-back-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #4d7c0f; }
+
+        .shop-ad-btn { display: block; width: 100%; margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #e81cff, #7b1fa2); border: none; border-radius: 30px; color: #fff; font-size: 0.9rem; font-weight: 800; font-family: inherit; cursor: pointer; box-shadow: 0 4px 0 #38006b; transition: all 0.2s; letter-spacing: 1px; }
+        .shop-ad-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #38006b; }
+        .shop-ad-btn:disabled { opacity: 0.6; pointer-events: none; }
 
         @media (max-width: 600px) {
             .game-container { max-width: 100%; padding: 8px 6px; }
@@ -197,6 +203,7 @@
                 <div class="hud-btns">
                     <button class="res-btn daily-btn" id="dailyBtn">🎁 Daily</button>
                     <button class="res-btn shop-btn" id="shopBtn">🛒 Shop</button>
+                    <button class="res-btn ad-btn" id="adPointsBtn">🎬 +5pts</button>
                 </div>
             </div>
 
@@ -249,7 +256,7 @@
                 <div class="stat-row"><span class="stat-label">Duration</span><span class="stat-value" id="statTime">0s</span></div>
                 <div class="stat-row"><span class="stat-label">First to Move</span><span class="stat-value" id="statFirst">You</span></div>
             </div>
-            <button class="modal-action-btn win-btn" id="endActionBtn">Next Mission →</button>
+            <button class="modal-action-btn win-btn" id="endActionBtn">▶ Watch Ad to Continue</button>
         </div>
     </div>
 
@@ -270,6 +277,7 @@
             <div class="modal-title">🛒 Galactic Shop</div>
             <div id="shopContent">
                 <p style="color:rgba(255,255,255,0.6);font-size:0.7rem;text-align:center;margin-bottom:10px;">🪙 You have <span id="shopCoins">0</span> coins</p>
+                <button class="shop-ad-btn" id="shopWatchAdBtn">🎬 Watch Ad for +5 Points</button>
                 <div id="shopContainer"></div>
             </div>
             <button class="modal-back-btn" id="closeShopBtn">← Close Shop</button>
@@ -279,7 +287,7 @@
     <script>
     (function() {
         // ============================================================
-        // STARFIELD (ανέπαφο)
+        // STARFIELD
         // ============================================================
         const canvas = document.getElementById('starCanvas');
         const ctx = canvas.getContext('2d');
@@ -351,7 +359,7 @@
         window.addEventListener('resize', () => { resizeCanvas(); createStars(200); });
 
         // ============================================================
-        // AUDIO (ανέπαφο)
+        // AUDIO
         // ============================================================
         class GameAudio {
             constructor() { this.audioCtx = null; this.initialized = false; this._muted = false; this._paused = false; }
@@ -413,16 +421,16 @@
 
         function loadSave() {
             try {
-                const d = JSON.parse(localStorage.getItem('cf_galactic_save_v2'));
+                const d = JSON.parse(localStorage.getItem('cf_galactic_save_v3'));
                 return d ? { ...DEFAULT_SAVE, ...d } : DEFAULT_SAVE;
             } catch { return DEFAULT_SAVE; }
         }
         function writeSave(s) {
-            try { localStorage.setItem('cf_galactic_save_v2', JSON.stringify(s)); } catch(e) {}
+            try { localStorage.setItem('cf_galactic_save_v3', JSON.stringify(s)); } catch(e) {}
         }
 
         // ============================================================
-        // SHOP ITEMS (ανέπαφο)
+        // SHOP ITEMS
         // ============================================================
         const SHOP_ITEMS = [
             { id: 'default_disc', category: 'pions', name: 'Classic', price: 0, css: 'classic' },
@@ -454,7 +462,7 @@
         };
 
         // ============================================================
-        // LEVEL SYSTEM (ΝΕΟ ΣΥΣΤΗΜΑ ΠΟΝΤΩΝ)
+        // LEVEL SYSTEM
         // ============================================================
         const POINTS_PER_LEVEL = 100;
         const OPENING_BOOK = [3, 2, 4, 1, 5, 0, 6];
@@ -471,7 +479,6 @@
         function getZoneForLevel(lvl) {
             if (lvl >= ENDLESS_LEVEL) return { name:'🌌 Endless Deep Space', diff:'unbeatable', tier:5 };
             for (const z of ZONE_DEFS) if (lvl >= z.min && lvl <= z.max) return z;
-            // Αν είναι πάνω από 15 αλλά κάτω από ENDLESS_LEVEL (δε θα συμβεί με το νέο σύστημα)
             if (lvl > 15) return { name:'💀 Cosmic Destroyer', diff:'unbeatable', tier:5 };
             return ZONE_DEFS[0];
         }
@@ -520,11 +527,11 @@
         }
 
         function loadLevel() {
-            try { return parseInt(localStorage.getItem('gal_level_v2') || '1', 10) || 1; } catch(e) { return 1; }
+            try { return parseInt(localStorage.getItem('gal_level_v3') || '1', 10) || 1; } catch(e) { return 1; }
         }
-        function saveLevel(l) { try { localStorage.setItem('gal_level_v2', String(l)); } catch(e) {} }
-        function loadEndlessRecord() { try { return parseInt(localStorage.getItem('gal_endless_v2') || '0', 10) || 0; } catch(e) { return 0; } }
-        function saveEndlessRecord(n) { try { localStorage.setItem('gal_endless_v2', String(n)); } catch(e) {} }
+        function saveLevel(l) { try { localStorage.setItem('gal_level_v3', String(l)); } catch(e) {} }
+        function loadEndlessRecord() { try { return parseInt(localStorage.getItem('gal_endless_v3') || '0', 10) || 0; } catch(e) { return 0; } }
+        function saveEndlessRecord(n) { try { localStorage.setItem('gal_endless_v3', String(n)); } catch(e) {} }
 
         // ============================================================
         // CONNECT FOUR GAME CLASS
@@ -537,6 +544,7 @@
                 this.scores = {1:0, 2:0};
                 this.matchScores = {1:0, 2:0};
                 this.audio = new GameAudio(); this.aiFirst = false;
+                this._pendingAdCallback = null;
 
                 this.gameData = loadSave();
                 const extLevel = loadLevel();
@@ -544,9 +552,7 @@
                     this.gameData.level = extLevel;
                 }
 
-                // Συμβατότητα: μετάπτωση από παλιό XP σύστημα σε points
                 if (typeof this.gameData.xp !== 'undefined' && this.gameData.points === 0) {
-                    // Αν υπάρχει παλιό xp αλλά όχι points, υπολογίζουμε points από level
                     this.gameData.points = (this.gameData.level - 1) * POINTS_PER_LEVEL;
                     delete this.gameData.xp;
                 }
@@ -575,7 +581,6 @@
                 this.renderScoreboard();
             }
 
-            // Υπολογισμός level από points
             get level() {
                 return Math.floor(this.gameData.points / POINTS_PER_LEVEL) + 1;
             }
@@ -673,7 +678,7 @@
             }
 
             claimDailyReward() {
-                this.triggerAdAndReward(() => {
+                this.showAdAndExecute(() => {
                     const streak = this.checkDailyReward();
                     if (streak === null) { alert('Already claimed today!'); return; }
                     const coins = 10 * streak;
@@ -689,7 +694,7 @@
                     alert('Double points boost is already active!');
                     return;
                 }
-                this.triggerAdAndReward(() => {
+                this.showAdAndExecute(() => {
                     this.gameData.xpBoostActive = true;
                     this.gameData.xpBoostGames = 2;
                     writeSave(this.gameData);
@@ -698,17 +703,32 @@
                 });
             }
 
-            triggerAdAndReward(callback) {
+            // Μέθοδος που δείχνει διαφήμιση και εκτελεί callback
+            showAdAndExecute(callback) {
                 if (typeof show_11108267 === 'function') {
                     show_11108267()
-                        .then(() => { if (callback) callback(); })
+                        .then(() => {
+                            if (callback) callback();
+                        })
                         .catch((err) => {
-                            console.warn('Ad blocked:', err);
-                            alert('Ad blocked! Try again later.');
+                            console.warn('Ad blocked or failed:', err);
+                            alert('Ad could not be shown. Please try again or disable ad-blocker.');
                         });
                 } else {
+                    // Fallback αν δεν είναι διαθέσιμο το SDK
                     if (callback) callback();
                 }
+            }
+
+            // Προσθήκη πόντων μέσω διαφήμισης (από το Shop ή το κουμπί +5pts)
+            watchAdForPoints() {
+                this.showAdAndExecute(() => {
+                    this.gameData.points += 5;
+                    writeSave(this.gameData);
+                    saveLevel(this.level);
+                    this.updateHUD();
+                    alert('🎉 +5 Points added!');
+                });
             }
 
             renderShop() {
@@ -808,6 +828,7 @@
                     container.appendChild(catDiv);
                 }
 
+                // Προσθήκη κουμπιού για διπλασιασμό πόντων (ήδη υπάρχει από παλιά)
                 let boostBtn = document.getElementById('shopBoostBtn');
                 if (!boostBtn) {
                     const div = document.createElement('div');
@@ -938,7 +959,6 @@
                 if (won) { this.scores[1]++; } else { this.scores[2]++; }
                 this.updateScores();
 
-                // ΝΕΟ ΣΥΣΤΗΜΑ ΠΟΝΤΩΝ: +10 για νίκη, -10 για ήττα
                 const oldLevel = this.level;
                 if (won) {
                     let pointsGain = 10;
@@ -949,7 +969,6 @@
                     }
                     this.gameData.points += pointsGain;
 
-                    // Έλεγχος για endless streak
                     if (this.isEndless) {
                         this.endlessStreak++;
                         if (this.endlessStreak > loadEndlessRecord()) saveEndlessRecord(this.endlessStreak);
@@ -959,13 +978,6 @@
                     if (this.isEndless) this.endlessStreak = 0;
                 }
 
-                // Ανέβηκε level;
-                const newLevel = this.level;
-                if (newLevel > oldLevel && won) {
-                    // Μόλις ανέβηκε level!
-                }
-
-                // Αποθήκευση
                 saveLevel(this.level);
                 writeSave(this.gameData);
 
@@ -1043,35 +1055,44 @@
                 document.getElementById('statTime').textContent  = sec < 60 ? `${sec}s` : `${Math.floor(sec/60)}m ${sec%60}s`;
                 document.getElementById('statFirst').textContent = this.aiFirst ? 'AI' : 'You';
 
+                // Ρύθμιση κουμπιού – θα ζητά διαφήμιση
+                btnEl.textContent = '▶ Watch Ad to Continue';
+                btnEl.disabled = false;
                 if (result === 'win') {
-                    btnEl.textContent = this.isEndless ? `🌌 Next Battle (Streak: ${this.endlessStreak})` : `🚀 Next Mission (Level ${this.level})`;
                     btnEl.className = 'modal-action-btn win-btn';
                 } else if (result === 'lose') {
-                    btnEl.textContent = '🔄 Try Again';
                     btnEl.className = 'modal-action-btn lose-btn';
                 } else {
-                    btnEl.textContent = '⚡ Play Again';
                     btnEl.className = 'modal-action-btn draw-btn';
                 }
 
+                // Αποθηκεύουμε το αποτέλεσμα για να ξέρουμε τι θα κάνει το callback
+                this._pendingEndResult = result;
                 document.getElementById('endModal').classList.add('open');
             }
 
-            // ===== INIT =====
+            // ===== INIT DOM EVENTS =====
             initDOMEvents() {
                 this.restartBtn.addEventListener('click',     () => this.restartGame());
                 this.newGameBtn.addEventListener('click',     () => this.newGame());
                 this.toggleFirstBtn.addEventListener('click', () => this.toggleFirstPlayer());
 
+                // END MODAL BUTTON – ΠΑΙΖΕΙ ΔΙΑΦΗΜΙΣΗ ΚΑΙ ΜΕΤΑ ΣΥΝΕΧΙΖΕΙ
                 const modalBtn = document.getElementById('endActionBtn');
                 modalBtn.addEventListener('click', () => {
                     if (this.gameInProgress) return;
-                    document.getElementById('endModal').classList.remove('open');
-                    this.newGame();
+                    modalBtn.disabled = true;
+                    modalBtn.textContent = '⏳ Loading Ad...';
+                    this.showAdAndExecute(() => {
+                        document.getElementById('endModal').classList.remove('open');
+                        this.newGame();
+                        modalBtn.disabled = false;
+                    });
                 });
 
                 document.getElementById('dailyBtn').addEventListener('click', () => this.claimDailyReward());
 
+                // SHOP BUTTONS
                 document.getElementById('shopBtn').addEventListener('click', () => {
                     this.renderShop();
                     document.getElementById('shopModal').classList.add('open');
@@ -1082,6 +1103,12 @@
                 document.getElementById('shopModal').addEventListener('click', (e) => {
                     if (e.target === e.currentTarget) document.getElementById('shopModal').classList.remove('open');
                 });
+
+                // ΚΟΥΜΠΙ +5 ΠΟΝΤΟΙ (ΕΞΩΤΕΡΙΚΟ)
+                document.getElementById('adPointsBtn').addEventListener('click', () => this.watchAdForPoints());
+
+                // ΚΟΥΜΠΙ +5 ΠΟΝΤΟΙ ΜΕΣΑ ΣΤΟ SHOP MODAL
+                document.getElementById('shopWatchAdBtn').addEventListener('click', () => this.watchAdForPoints());
             }
 
             initScoreboardEvents() {
@@ -1247,12 +1274,12 @@
         // HELPER FUNCTIONS
         // ============================================================
         function getTodayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
-        function loadAll()   { try { return JSON.parse(localStorage.getItem('cf_allscores_v2') || '{}'); } catch(e) { return {}; } }
-        function saveAll(a)  { try { localStorage.setItem('cf_allscores_v2', JSON.stringify(a)); } catch(e) {} }
-        function loadToday() { try { return JSON.parse(localStorage.getItem('cf_todayscores_v2') || '{}'); } catch(e) { return {}; } }
-        function saveToday(t){ try { localStorage.setItem('cf_todayscores_v2', JSON.stringify(t)); } catch(e) {} }
+        function loadAll()   { try { return JSON.parse(localStorage.getItem('cf_allscores_v3') || '{}'); } catch(e) { return {}; } }
+        function saveAll(a)  { try { localStorage.setItem('cf_allscores_v3', JSON.stringify(a)); } catch(e) {} }
+        function loadToday() { try { return JSON.parse(localStorage.getItem('cf_todayscores_v3') || '{}'); } catch(e) { return {}; } }
+        function saveToday(t){ try { localStorage.setItem('cf_todayscores_v3', JSON.stringify(t)); } catch(e) {} }
         function checkDayReset() {
-            const last  = (function(){ try { return localStorage.getItem('cf_lastday_v2'); } catch(e) { return ''; } })() || '';
+            const last  = (function(){ try { return localStorage.getItem('cf_lastday_v3'); } catch(e) { return ''; } })() || '';
             const today = getTodayKey();
             if (last && last !== today) {
                 const all = loadAll(), saved = loadToday();
@@ -1261,9 +1288,9 @@
                     const keys = Object.keys(all).sort().slice(-14);
                     const trimmed = {}; keys.forEach(k => { trimmed[k] = all[k]; }); saveAll(trimmed);
                 }
-                try { localStorage.removeItem('cf_todayscores_v2'); } catch(e) {}
+                try { localStorage.removeItem('cf_todayscores_v3'); } catch(e) {}
             }
-            try { localStorage.setItem('cf_lastday_v2', today); } catch(e) {}
+            try { localStorage.setItem('cf_lastday_v3', today); } catch(e) {}
         }
 
         // ============================================================
