@@ -1,298 +1,84 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-import json
 import os
-import random
-from datetime import date, timedelta
-import logging
+import json
+from flask import Flask, send_from_directory, request, jsonify
+from flask_cors import CORS
+import asgiref.wsgi
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("gamified_hub")
+app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Σέρβιρε την κεντρική σελίδα
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
 
-API_KEY = os.environ.get("API_KEY", "m0n3t4g_s3cur3_k3y_2026")
-USERS_FILE = "users.json"
-POINTS_PER_LEVEL = 500
+# Σέρβιρε τα static αρχεία
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
 
-# ---------- DAILY MISSIONS ----------
-DAILY_MISSIONS = [
-    {"id": "daily_chess", "description": "Play 3 matches of Chess", "target": 3, "game": "Chess", "reward_type": "points", "reward_value": 20, "reward_label": "+20 Points", "link": "https://t.me/Franklygames_bot/chess"},
-    {"id": "daily_sudoku", "description": "Play 3 grids of Sudoku", "target": 3, "game": "Sudoku", "reward_type": "stars", "reward_value": 10, "reward_label": "+10 Stars", "link": "https://t.me/Franklygames_bot/sudoku"},
-    {"id": "daily_connect4", "description": "Play 3 matches of Connect 4", "target": 3, "game": "Connect 4", "reward_type": "free_spin", "reward_value": 2, "reward_label": "+2 Free Spins", "link": "https://t.me/Franklygames_bot/connectfour"},
-    {"id": "daily_animalwhack", "description": "Play 3 rounds of Animal Whack", "target": 3, "game": "Animal Whack", "reward_type": "points", "reward_value": 30, "reward_label": "+30 Points", "link": "https://t.me/Franklygames_bot/animals"},
-]
+# ==========================================
+# DATABASE (Προσομοίωση - μπορείς να το συνδέσεις με SQLite αργότερα)
+# ==========================================
+user_data = {}
 
-WHEEL_SEGMENTS = [
-    {"type": "points", "value": 5},
-    {"type": "points", "value": 10},
-    {"type": "free_spin", "value": 1},
-    {"type": "zonk", "value": 0},
-    {"type": "free_spin", "value": 2},
-    {"type": "zonk", "value": 0},
-    {"type": "points", "value": 5},
-    {"type": "points", "value": 10},
-    {"type": "free_spin", "value": 1},
-    {"type": "free_spin", "value": 2},
-]
+def get_user_data(user_id):
+    if user_id not in user_data:
+        user_data[user_id] = {'points': 0, 'wins_c4': 0, 'c4_claimed': False}
+    return user_data[user_id]
 
-# ---------- JSON helpers ----------
-def read_json(filename):
-    if not os.path.exists(filename):
-        return {} if filename == USERS_FILE else []
-    try:
-        with open(filename, "r") as f:
-            return json.load(f)
-    except:
-        return {} if filename == USERS_FILE else []
+@app.route('/board', methods=['GET'])
+def get_board():
+    user_id = request.args.get('userId')
+    data = get_user_data(user_id)
+    return jsonify({'points': data['points'], 'level': 1, 'free_spins': 0})
 
-def write_json(filename, data):
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=2)
+@app.route('/add-points', methods=['POST'])
+def add_points():
+    data = request.json
+    user_id = data.get('userId')
+    points = data.get('points', 0)
+    user = get_user_data(user_id)
+    user['points'] += points
+    return jsonify({'added': points, 'total': user['points']})
 
-def get_user(user_id: str) -> dict:
-    users = read_json(USERS_FILE)
-    if user_id not in users:
-        users[user_id] = {
-            "total_points": 0,
-            "stars": 0,
-            "level": 1,
-            "display_name": user_id[:12],
-            "free_spins": 5,
-            "free_rolls": 0,
-            "daily_missions": {},
-            "last_daily_reset": None,
-        }
-    u = users[user_id]
-    today = date.today().isoformat()
-    if u.get("last_daily_reset") != today:
-        u["daily_missions"] = {m["id"]: {"progress": 0, "claimed": False} for m in DAILY_MISSIONS}
-        u["last_daily_reset"] = today
-    u["level"] = max(1, (u.get("total_points", 0) // POINTS_PER_LEVEL) + 1)
-    write_json(USERS_FILE, users)
-    return u
+# ΝΕΟ ENDPOINT: Το παιχνίδι Connect 4 στέλνει νίκη εδώ
+@app.route('/record-win', methods=['POST'])
+def record_win():
+    data = request.json
+    user_id = data.get('userId')
+    game = data.get('game', 'connect4')
+    if user_id:
+        user = get_user_data(user_id)
+        if game == 'connect4':
+            user['wins_c4'] += 1
+            return jsonify({'wins': user['wins_c4']})
+    return jsonify({'error': 'Invalid data'}), 400
 
-def save_user(user_id: str, data: dict):
-    users = read_json(USERS_FILE)
-    users[user_id] = data
-    write_json(USERS_FILE, users)
+# Διαβάζει την πρόοδο για το Daily Reward
+@app.route('/missions', methods=['GET'])
+def get_missions():
+    user_id = request.args.get('userId')
+    user = get_user_data(user_id)
+    return jsonify({'connect4': {'wins': user['wins_c4'], 'claimed': user['c4_claimed']}})
 
-def check_auth(request: Request):
-    key = request.headers.get("X-API-Key")
-    if not key or key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+# Εξαργύρωση του Daily Reward
+@app.route('/missions/claim', methods=['POST'])
+def claim_mission():
+    data = request.json
+    user_id = data.get('userId')
+    if user_id:
+        user = get_user_data(user_id)
+        if user['wins_c4'] >= 3 and not user['c4_claimed']:
+            user['c4_claimed'] = True
+            user['points'] += 150
+            return jsonify({'status': 'claimed', 'points_added': 150})
+    return jsonify({'status': 'failed'}), 400
 
-# ---------- ENDPOINTS ----------
-@app.get("/board")
-async def get_board(request: Request, userId: str):
-    check_auth(request)
-    u = get_user(userId)
-    return {
-        "total_points": u["total_points"],
-        "stars": u.get("stars", 0),
-        "level": u["level"],
-        "free_spins": u.get("free_spins", 0),
-        "free_rolls": u.get("free_rolls", 0),
-        "next_level_points": u["level"] * POINTS_PER_LEVEL,
-    }
+# ==========================================
+# ΣΗΜΑΝΤΙΚΟ: Διόρθωση για το Uvicorn του Hugging Face!
+# ==========================================
+app = asgiref.wsgi.WsgiToAsgi(app)
 
-@app.get("/missions")
-async def get_missions(request: Request, userId: str):
-    check_auth(request)
-    u = get_user(userId)
-    result = []
-    for m in DAILY_MISSIONS:
-        md = u.get("daily_missions", {}).get(m["id"], {"progress": 0, "claimed": False})
-        result.append({
-            "id": m["id"],
-            "description": m["description"],
-            "target": m["target"],
-            "reward_type": m["reward_type"],
-            "reward_value": m["reward_value"],
-            "reward_label": m["reward_label"],
-            "link": m["link"],
-            "progress": md.get("progress", 0),
-            "claimed": md.get("claimed", False),
-            "completed": md.get("progress", 0) >= m["target"],
-        })
-    return {"missions": result}
-
-@app.post("/missions/update")
-async def update_mission_progress(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game = data.get("game", "")
-    played = data.get("played", False)
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Missing userId")
-    u = get_user(user_id)
-    for m in DAILY_MISSIONS:
-        mid = m["id"]
-        if mid not in u["daily_missions"]:
-            u["daily_missions"][mid] = {"progress": 0, "claimed": False}
-        if m["game"] == game and played:
-            u["daily_missions"][mid]["progress"] = min(m["target"], u["daily_missions"][mid].get("progress", 0) + 1)
-    save_user(user_id, u)
-    return {"status": "ok"}
-
-@app.post("/missions/claim")
-async def claim_mission(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    mission_id = data.get("missionId")
-    if not user_id or not mission_id:
-        raise HTTPException(status_code=400, detail="Missing params")
-    u = get_user(user_id)
-    md = u["daily_missions"].get(mission_id)
-    if not md:
-        raise HTTPException(status_code=404, detail="Mission not found")
-    mdef = next((m for m in DAILY_MISSIONS if m["id"] == mission_id), None)
-    if not mdef or md.get("progress", 0) < mdef["target"] or md.get("claimed"):
-        raise HTTPException(status_code=400, detail="Not completable")
-    md["claimed"] = True
-    if mdef["reward_type"] == "points":
-        u["total_points"] = u.get("total_points", 0) + mdef["reward_value"]
-        u["level"] = max(1, (u["total_points"] // POINTS_PER_LEVEL) + 1)
-    elif mdef["reward_type"] == "stars":
-        u["stars"] = u.get("stars", 0) + mdef["reward_value"]
-    elif mdef["reward_type"] == "free_spin":
-        u["free_spins"] = u.get("free_spins", 0) + mdef["reward_value"]
-    save_user(user_id, u)
-    return {"status": "ok", "reward": mdef["reward_value"]}
-
-@app.get("/game-stats")
-async def get_game_stats(request: Request, userId: str):
-    check_auth(request)
-    u = get_user(userId)
-    daily = u.get("daily_missions", {})
-    return {
-        "chess_played_today": daily.get("daily_chess", {}).get("progress", 0),
-        "sudoku_played_today": daily.get("daily_sudoku", {}).get("progress", 0),
-        "connect4_played_today": daily.get("daily_connect4", {}).get("progress", 0),
-        "animalwhack_played_today": daily.get("daily_animalwhack", {}).get("progress", 0),
-    }
-
-@app.post("/add-points")
-async def add_points(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    points = data.get("points", 0)
-    u = get_user(user_id)
-    u["total_points"] = u.get("total_points", 0) + points
-    u["level"] = max(1, (u["total_points"] // POINTS_PER_LEVEL) + 1)
-    save_user(user_id, u)
-    return {"status": "ok", "added": points}
-
-@app.post("/add-stars")
-async def add_stars(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    stars = data.get("stars", 0)
-    u = get_user(user_id)
-    u["stars"] = u.get("stars", 0) + stars
-    save_user(user_id, u)
-    return {"status": "ok", "stars": u["stars"]}
-
-@app.post("/add-free-spins")
-async def add_free_spins(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    spins = data.get("spins", 0)
-    u = get_user(user_id)
-    u["free_spins"] = u.get("free_spins", 0) + spins
-    save_user(user_id, u)
-    return {"status": "ok", "free_spins": u["free_spins"]}
-
-@app.post("/add-free-rolls")
-async def add_free_rolls(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    rolls = data.get("rolls", 0)
-    u = get_user(user_id)
-    u["free_rolls"] = u.get("free_rolls", 0) + rolls
-    save_user(user_id, u)
-    return {"status": "ok", "rolls": u["free_rolls"]}
-
-@app.post("/use-free-roll")
-async def use_free_roll(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    u = get_user(user_id)
-    if u.get("free_rolls", 0) <= 0:
-        raise HTTPException(status_code=400, detail="No free rolls left")
-    u["free_rolls"] -= 1
-    save_user(user_id, u)
-    return {"status": "ok", "free_rolls": u["free_rolls"]}
-
-@app.get("/ad-status")
-async def ad_status(request: Request, userId: str):
-    check_auth(request)
-    u = get_user(userId)
-    return {"free_spins": u.get("free_spins", 0), "free_rolls": u.get("free_rolls", 0)}
-
-@app.post("/wheel/spin")
-async def spin_wheel(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    u = get_user(user_id)
-    if u.get("free_spins", 0) < 1:
-        raise HTTPException(status_code=400, detail="Not enough free spins")
-    u["free_spins"] -= 1
-    prize_index = random.randint(0, len(WHEEL_SEGMENTS) - 1)
-    segment = WHEEL_SEGMENTS[prize_index]
-    if segment["type"] == "points":
-        u["total_points"] = u.get("total_points", 0) + segment["value"]
-        u["level"] = max(1, (u["total_points"] // POINTS_PER_LEVEL) + 1)
-    elif segment["type"] == "free_spin":
-        u["free_spins"] = u.get("free_spins", 0) + segment["value"]
-    save_user(user_id, u)
-    return {"status": "ok", "prizeIndex": prize_index, "segment": segment}
-
-@app.post("/log")
-async def log_game(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    game = data.get("game", "unknown")
-    logger.info(f"User {user_id} played {game}")
-    return {"status": "ok"}
-
-@app.get("/leaderboard")
-async def get_leaderboard(request: Request, limit: int = 20):
-    check_auth(request)
-    users = read_json(USERS_FILE)
-    lb = []
-    for uid, data in users.items():
-        lb.append({
-            "userId": uid,
-            "nickname": data.get("display_name", uid[:12]),
-            "points": data.get("total_points", 0),
-            "stars": data.get("stars", 0),
-        })
-    lb.sort(key=lambda x: (-x["points"], -x["stars"]))
-    return {"leaderboard": lb[:limit]}
-
-@app.post("/set-display-name")
-async def set_display_name(request: Request):
-    check_auth(request)
-    data = await request.json()
-    user_id = data.get("userId")
-    display_name = data.get("display_name", "").strip()
-    u = get_user(user_id)
-    u["display_name"] = display_name
-    save_user(user_id, u)
-    return {"status": "ok", "display_name": display_name}
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 7860)))
