@@ -193,9 +193,9 @@
         }
     </style>
 
-    <!-- ========================================================= -->
-    <!-- MONETAG SDK (Ήδη ενσωματωμένο όπως το έστειλες)             -->
-    <!-- ========================================================= -->
+    <!-- =================================================== -->
+    <!-- MONETAG SDK (Ήδη ενσωματωμένο όπως το έστειλες)      -->
+    <!-- =================================================== -->
     <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
 
 </head>
@@ -511,49 +511,41 @@
             }
 
             // ============================================
-            //  ΕΔΩ ΕΙΝΑΙ Η ΣΥΝΔΕΣΗ ΜΕ ΤΟ MONETAG POPUP
+            //  ΕΔΩ ΕΙΝΑΙ Η ΣΥΝΔΕΣΗ ΜΕ ΤΟ MONETAG IN-APP
             // ============================================
             initDOMEvents() {
                 this.restartBtn.addEventListener('click',     () => this.restartGame());
                 this.newGameBtn.addEventListener('click',     () => this.newGame());
                 this.toggleFirstBtn.addEventListener('click', () => this.toggleFirstPlayer());
                 
-                // Αντικαθιστούμε την άμεση κλήση newGame με λογική διαφήμισης
                 const modalBtn = document.getElementById('endActionBtn');
                 modalBtn.addEventListener('click', () => {
-                    // Αν το παιχνίδι ΔΕΝ έχει τελειώσει, μην κάνεις τίποτα
                     if (this.gameInProgress) return;
 
-                    // 1. Μπλοκάρουμε το κουμπί για να μην γίνουν πολλαπλά κλικ
-                    modalBtn.textContent = '⏳ Opening Ad...';
+                    modalBtn.textContent = '⏳ Loading Ad...';
                     modalBtn.disabled = true;
 
-                    // 2. Ελέγχουμε αν το SDK της Monetag έχει φορτώσει
                     if (typeof show_11108267 === 'function') {
-                        // Καλούμε το popup με άμεση ενέργεια χρήστη (ακριβώς όπως στα docs)
-                        show_11108267('pop')
+                        // Χρησιμοποιούμε 'inApp'. Το κουμπί "X" θα βγει από το SDK σε ~3 δευτερόλεπτα.
+                        show_11108267('inApp')
                             .then(() => {
-                                // ΕΠΙΤΥΧΙΑ: Το popup άνοιξε.
-                                console.log('Monetag popup triggered successfully!');
+                                console.log('Interstitial finished.');
                                 modalBtn.textContent = 'Next Mission →';
                                 modalBtn.disabled = false;
                                 document.getElementById('endModal').classList.remove('open');
-                                this.newGame(); // Ξεκινά το παιχνίδι
+                                this.newGame();
                             })
                             .catch((err) => {
-                                // ΑΠΟΤΥΧΙΑ: Το popup μπλοκαρίστηκε (π.χ. AdBlocker ή σφάλμα)
-                                console.warn('Monetag popup blocked or error:', err);
+                                console.warn('Interstitial blocked:', err);
                                 modalBtn.textContent = '⚠️ Play Anyway';
                                 modalBtn.disabled = false;
-                                // Δίνουμε μια 2η ευκαιρία. Αν πατήσει, ξεκινάει χωρίς διαφήμιση.
                                 modalBtn.onclick = () => {
                                     document.getElementById('endModal').classList.remove('open');
                                     this.newGame();
                                 };
                             });
                     } else {
-                        // Αν το SDK ΔΕΝ έχει φορτώσει ακόμα
-                        console.warn('Monetag SDK not found. Skipping ad.');
+                        console.warn('Monetag SDK not found.');
                         document.getElementById('endModal').classList.remove('open');
                         this.newGame();
                     }
@@ -730,7 +722,7 @@
 
                 document.getElementById('statMoves').textContent = this.playerMoves;
                 const sec = Math.round((Date.now() - this.gameStartTime) / 1000);
-                document.getElementById('statTime').textContent  = sec < 60 ? `${sec}s` : `${Math.floor(sec/60)}m ${sec%60}s`;
+                document.getElementById('statTime').textContent  = sec < 60 ? `${sec}s` : ${Math.floor(sec/60)}m ${sec%60}s;
                 document.getElementById('statFirst').textContent = this.aiFirst ? 'AI' : 'You';
 
                 if (result === 'win') {
