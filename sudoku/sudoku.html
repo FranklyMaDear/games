@@ -1,1591 +1,1096 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sudoku Pro - Single Player</title>
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="sudoku.png">
-    <link rel="apple-touch-icon" href="sudoku.png">
-    <link rel="apple-touch-icon-precomposed" href="sudoku.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Sudoku - Galactic Edition</title>
+    <meta name="theme-color" content="#0a0e27">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="sudoku.png">
+
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html, body { overflow: hidden; height: 100%; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
-            line-height: 1.6;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #6a89cc, #4a69bd);
-            transition: background 0.5s ease;
-            overflow-x: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh; display: flex; justify-content: center; align-items: center;
+            background: var(--bg-skin, #000010);
+            position: relative; touch-action: manipulation;
+            transition: background 0.4s ease;
         }
-        
-        /* Game Mode Selector */
-        .game-mode-selector {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 11000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            color: white;
-            text-align: center;
+        #starCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        .shooting-star { position: fixed; width: 3px; height: 80px; background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0)); border-radius: 50%; z-index: 1; pointer-events: none; animation: shoot linear forwards; transform-origin: top center; }
+        @keyframes shoot { 0% { opacity: 1; transform: translate(0,0) rotate(-35deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-400px,600px) rotate(-35deg); } }
+        .nebula-particle { position: fixed; border-radius: 50%; z-index: 0; pointer-events: none; animation: nebulaFloat linear infinite; filter: blur(2px); }
+        @keyframes nebulaFloat { 0% { transform: translate(0,0) scale(1); opacity: 0.6; } 50% { transform: translate(30px,-40px) scale(1.5); opacity: 0.2; } 100% { transform: translate(-20px,20px) scale(1); opacity: 0.6; } }
+
+        .game-wrapper {
+            display: flex; width: 100%; height: 100vh; height: 100dvh;
+            justify-content: center; align-items: center;
+            padding: 4px; position: relative; z-index: 50; overflow: hidden;
         }
-        
-        .mode-container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 40px;
-            border-radius: 20px;
-            max-width: 500px;
-            width: 90%;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+        .game-container {
+            text-align: center; background: rgba(14,16,39,0.92);
+            border-radius: 22px; padding: 8px 10px 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            width: 100%; max-width: 440px;
+            max-height: calc(100vh - 8px); max-height: calc(100dvh - 8px);
+            overflow-y: auto; overflow-x: hidden;
+            border: 2px solid rgba(132,204,22,0.3); backdrop-filter: blur(10px);
         }
-        
-        .mode-container h1 {
-            color: #ffeb3b;
-            margin-bottom: 30px;
-            font-size: 28px;
+
+        /* ---- Top resources ---- */
+        .hud-resources { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 10px; padding: 4px 8px; border: 1px solid rgba(132,204,22,0.1); flex-wrap: wrap; }
+        .hud-coins { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 700; color: #fbbf24; }
+        .hud-solved { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 700; color: #84cc16; }
+        .hud-btns { display: flex; gap: 4px; }
+        .res-btn { font-size: 0.6rem; font-weight: 700; color: white; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 3px 8px; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+        .res-btn:active { transform: scale(0.95); }
+        .res-btn.daily-btn { border-color: #fbbf24; color: #fbbf24; }
+        .res-btn.coin-btn { border-color: #e81cff; color: #e81cff; }
+
+        /* ---- Level HUD ---- */
+        .hud-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 4px; flex-wrap: wrap; }
+        .hud-level { font-size: 0.65rem; font-weight: 800; color: #84cc16; text-shadow: 0 0 10px rgba(132,204,22,0.6); background: rgba(132,204,22,0.1); border: 1px solid rgba(132,204,22,0.3); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+        .hud-zone { font-size: 0.6rem; font-weight: 700; color: rgba(255,255,255,0.55); flex: 1; text-align: center; }
+        .hud-puzzles { font-size: 0.6rem; font-weight: 800; color: #e8e8ed; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+
+        /* level progress line */
+        .level-progress-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 20px; overflow: hidden; margin: 2px 0 6px; border: 1px solid rgba(132,204,22,0.15); }
+        .level-progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #65a30d, #a3e635); border-radius: 20px; transition: width 0.5s cubic-bezier(0.22,1,0.36,1); }
+
+        h1 { color: #84cc16; margin-bottom: 4px; font-size: 1.35rem; font-weight: 800; letter-spacing: 2px; text-shadow: 0 0 20px rgba(132,204,22,0.5); }
+
+        /* ---- Game bar ---- */
+        .game-bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.72rem; font-weight: 700; }
+        .bar-chip { background: rgba(255,255,255,0.05); border: 1px solid rgba(132,204,22,0.2); border-radius: 8px; padding: 4px 8px; color: #e8e8ed; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .bar-chip .lbl { color: rgba(255,255,255,0.45); font-weight: 600; }
+        #mistakeChip.warn { color: #f87171; border-color: rgba(248,113,113,0.5); }
+        #statusText { flex: 1; text-align: center; color: #a3e635; font-weight: 700; min-width: 60px; }
+
+        /* ---- Board ---- */
+        .board-wrap { position: relative; width: 100%; margin: 0 auto; }
+        .sudoku-board {
+            display: grid; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr);
+            aspect-ratio: 1 / 1; width: 100%; max-width: 420px; margin: 0 auto;
+            background: rgba(0,0,20,0.55); border: 3px solid #84cc16; border-radius: 10px;
+            overflow: hidden; box-shadow: 0 0 22px rgba(132,204,22,0.25), inset 0 0 30px rgba(0,0,0,0.5);
         }
-        
-        .mode-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            margin-top: 30px;
-        }
-        
-        .mode-btn {
-            padding: 20px 30px;
-            border: none;
-            border-radius: 15px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-        }
-        
-        .mode-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        
-        .mode-btn.single {
-            background: linear-gradient(45deg, #4CAF50, #8BC34A);
-            color: white;
-        }
-        
-        .mode-icon {
-            font-size: 24px;
-        }
-        
-        .container {
-            width: 100%;
-            max-width: 450px;
-            margin-top: 10px;
-        }
-        
-        .app-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-            padding: 15px;
-            position: relative;
-            z-index: 100;
-        }
-        
-        .player-info {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-        
-        .player-turn {
-            background: rgba(255, 235, 59, 0.3);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-weight: bold;
-        }
-        
-        .header-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        h1 {
-            color: #3e2723;
-            font-size: 22px;
-            font-weight: 600;
-        }
-        
-        #timer {
-            font-weight: bold;
-            color: #4e342e;
-            font-size: 16px;
-        }
-        
-        .language-selector {
-            margin-bottom: 10px;
-        }
-        
-        #language {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            background: white;
-            font-size: 14px;
-        }
-        
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
-            padding: 8px 0;
-            border-top: 1px solid #eee;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 13px;
-        }
-        
-        .stat-value {
-            font-weight: bold;
-            font-size: 16px;
-            margin-top: 2px;
-        }
-        
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 12px;
-            justify-content: center;
-        }
-        
-        select {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            background: white;
-            font-size: 14px;
-            flex-grow: 1;
-        }
-        
-        .board-wrap {
-            display: flex;
-            justify-content: center;
-            margin: 10px 0 15px;
-        }
-        
-        #sudoku-board {
-            display: grid;
-            border: 2px solid #3e2723;
-            background: white;
-        }
-        
         .cell {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            background: white;
-            position: relative;
-            border: 1px solid #888;
-            font-size: 18px;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            display: flex; align-items: center; justify-content: center; position: relative;
+            border: 1px solid rgba(132,204,22,0.13);
+            cursor: pointer; user-select: none; overflow: hidden;
+            transition: background 0.12s ease;
         }
-        
-        .prefilled {
-            background-color: #f7f6f3;
-            color: #3e2723;
+        .cell.box-right  { border-right: 2px solid rgba(132,204,22,0.55); }
+        .cell.box-bottom { border-bottom: 2px solid rgba(132,204,22,0.55); }
+        .cell-val { font-size: clamp(0.9rem, 5vw, 1.5rem); font-weight: 700; line-height: 1; }
+        .cell.given .cell-val { color: #ffffff; font-weight: 800; text-shadow: 0 0 6px rgba(200,220,255,0.3); }
+        .cell.user  .cell-val { color: #a3e635; }
+        .cell.hintc .cell-val { color: #22d3ee; }
+        .cell.error .cell-val { color: #fca5a5; }
+        .cell.error { background: rgba(248,113,113,0.16) !important; }
+        .cell.related { background: rgba(132,204,22,0.07); }
+        .cell.same { background: rgba(34,211,238,0.16); }
+        .cell.selected { background: rgba(132,204,22,0.30) !important; box-shadow: inset 0 0 0 2px rgba(163,230,53,0.7); }
+        .cell-notes { display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); width: 100%; height: 100%; padding: 1px; }
+        .cell-notes span { display: flex; align-items: center; justify-content: center; font-size: clamp(0.4rem, 2vw, 0.55rem); color: rgba(200,230,255,0.55); line-height: 1; }
+
+        .board-loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 8px; background: rgba(10,14,39,0.82); border-radius: 10px; z-index: 5; }
+        .board-loading.show { display: flex; }
+        .spinner { width: 34px; height: 34px; border: 3px solid rgba(132,204,22,0.25); border-top-color: #84cc16; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .board-loading span { font-size: 0.75rem; color: #84cc16; font-weight: 700; letter-spacing: 1px; }
+
+        /* ---- Number pad ---- */
+        .num-pad { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; margin: 8px 0 4px; }
+        .num-btn {
+            aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; position: relative;
+            background: linear-gradient(135deg, rgba(132,204,22,0.18), rgba(101,163,13,0.12));
+            border: 1.5px solid rgba(132,204,22,0.4); border-radius: 8px;
+            color: #e8e8ed; font-size: clamp(0.85rem, 4.5vw, 1.25rem); font-weight: 800;
+            cursor: pointer; transition: all 0.12s; font-family: inherit;
         }
-        
-        .user-filled {
-            color: #4a69bd;
+        .num-btn:active { transform: scale(0.92); background: rgba(132,204,22,0.35); }
+        .num-btn.done { opacity: 0.28; pointer-events: none; }
+        .num-btn .remain { position: absolute; bottom: 1px; right: 3px; font-size: 0.5rem; color: rgba(255,255,255,0.5); font-weight: 600; }
+
+        /* ---- Tools ---- */
+        .tool-row { display: flex; gap: 5px; margin-top: 2px; }
+        .tool-btn {
+            flex: 1; padding: 8px 4px; border-radius: 10px; cursor: pointer; font-family: inherit;
+            background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.15);
+            color: #e8e8ed; font-size: 0.62rem; font-weight: 700; transition: all 0.15s;
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
         }
-        
-        .selected {
-            background-color: rgba(255, 235, 59, 0.5);
+        .tool-btn:active { transform: scale(0.94); }
+        .tool-btn .ico { font-size: 1rem; }
+        .tool-btn.active { border-color: #a3e635; color: #a3e635; background: rgba(132,204,22,0.18); box-shadow: 0 0 10px rgba(132,204,22,0.4); }
+        .tool-btn .badge { font-size: 0.5rem; color: #fbbf24; }
+
+        /* ---- Bottom buttons ---- */
+        .game-buttons { display: flex; justify-content: center; align-items: stretch; gap: 5px; margin-top: 8px; }
+        .game-btn { border: none; color: white; padding: 9px 6px; font-size: 0.72rem; border-radius: 24px; cursor: pointer; transition: all 0.2s; font-family: inherit; font-weight: 800; flex: 1; letter-spacing: 0.5px; }
+        .game-btn:active { transform: translateY(3px); }
+        .game-btn.restart { background: linear-gradient(135deg, #f39c12, #d35400); border: 2px solid #f1c40f; box-shadow: 0 4px 0 #b9770e; }
+        .game-btn.newp    { background: linear-gradient(135deg, #84cc16, #65a30d); border: 2px solid #a3e635; box-shadow: 0 4px 0 #4d7c0f; }
+        .game-btn.scores  { background: linear-gradient(135deg, #7b1fa2, #4a148c); border: 2px solid #ce93d8; box-shadow: 0 4px 0 #38006b; }
+        .game-btn:active.restart { box-shadow: 0 1px 0 #b9770e; }
+        .game-btn:active.newp    { box-shadow: 0 1px 0 #4d7c0f; }
+        .game-btn:active.scores  { box-shadow: 0 1px 0 #38006b; }
+
+        /* ---- Confetti ---- */
+        @keyframes confettiFall { 0% { transform: translateY(-10px) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+        .confetti { position: fixed; width: 7px; height: 7px; top: -10px; animation: confettiFall 3s linear forwards; z-index: 700; border-radius: 2px; }
+
+        /* ---- Modals ---- */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 600; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #0b0e26; border: 2px solid rgba(132,204,22,0.4); border-radius: 22px; padding: 20px; width: 92%; max-width: 380px; max-height: 88vh; overflow-y: auto; position: relative; box-shadow: 0 0 50px rgba(132,204,22,0.15); animation: modalIn 0.3s ease; }
+        @keyframes modalIn { from { transform: scale(0.85) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+        .modal-galaxy-title { font-size: 1.3rem; font-weight: 800; letter-spacing: 1px; text-align: center; margin-bottom: 6px; text-shadow: 0 0 14px currentColor; }
+        .modal-galaxy-title.win { color: #84cc16; }
+        .modal-sub { text-align: center; font-size: 0.72rem; color: rgba(255,255,255,0.55); margin-bottom: 8px; }
+
+        .levelup-banner { display: none; text-align: center; margin: 10px 0; padding: 10px; border-radius: 14px; background: linear-gradient(135deg, rgba(232,28,255,0.18), rgba(132,204,22,0.18)); border: 1px solid rgba(206,147,216,0.5); }
+        .levelup-banner.show { display: block; animation: pop 0.5s ease; }
+        @keyframes pop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+        .levelup-banner .big { font-size: 1rem; font-weight: 800; color: #f0abfc; letter-spacing: 1px; }
+        .levelup-banner .small { font-size: 0.7rem; color: #a3e635; margin-top: 3px; font-weight: 700; }
+
+        .progress-wrap { margin: 12px 0 8px; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-bottom: 5px; font-weight: 700; }
+        .progress-track { background: rgba(255,255,255,0.08); border-radius: 20px; height: 14px; overflow: hidden; border: 1px solid rgba(132,204,22,0.2); }
+        .progress-bar { height: 100%; border-radius: 20px; background: linear-gradient(90deg, #65a30d, #a3e635); width: 0%; transition: width 0.9s cubic-bezier(0.22,1,0.36,1); }
+
+        .battle-stats { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; margin: 12px 0; text-align: left; }
+        .battle-stats-title { font-size: 0.62rem; letter-spacing: 2px; color: rgba(255,255,255,0.4); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.78rem; }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: rgba(255,255,255,0.45); font-weight: 600; }
+        .stat-value { color: #e8e8ed; font-weight: 700; }
+        .stat-value.gold { color: #fbbf24; }
+
+        .modal-action-btn { display: block; width: 100%; margin-top: 8px; padding: 13px; border-radius: 30px; border: none; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 800; letter-spacing: 1px; transition: all 0.2s; background: linear-gradient(135deg, #84cc16, #65a30d); color: #fff; box-shadow: 0 4px 0 #4d7c0f; }
+        .modal-action-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #4d7c0f; }
+        .modal-action-btn:disabled { opacity: 0.6; pointer-events: none; }
+
+        .score-modal-box { background: #0e1027; border: 2px solid rgba(132,204,22,0.4); border-radius: 20px; padding: 20px 16px; width: 92%; max-width: 400px; max-height: 82vh; overflow-y: auto; box-shadow: 0 0 40px rgba(132,204,22,0.15); }
+        .modal-title { color: #84cc16; font-size: 1.2rem; font-weight: 800; letter-spacing: 2px; text-align: center; margin-bottom: 14px; text-shadow: 0 0 12px rgba(132,204,22,0.5); }
+        .score-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+        .score-table th { color: rgba(255,255,255,0.5); font-weight: 700; padding: 6px 4px; border-bottom: 1px solid rgba(132,204,22,0.25); text-align: center; }
+        .score-table td { padding: 6px 4px; text-align: center; color: #e8e8ed; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .score-table td.win { color: #84cc16; font-weight: 700; }
+        .score-table tr.today-row td { background: rgba(132,204,22,0.08); font-weight: 700; }
+        .no-history { color: rgba(255,255,255,0.4); text-align: center; padding: 20px; font-size: 0.8rem; }
+        .record-box { margin-top: 14px; text-align: center; background: rgba(132,204,22,0.08); border: 1px solid rgba(132,204,22,0.25); border-radius: 12px; padding: 10px; }
+        .record-label { font-size: 0.68rem; color: rgba(255,255,255,0.5); font-weight: 700; }
+        .record-val { font-size: 1.5rem; font-weight: 800; color: #a3e635; text-shadow: 0 0 12px rgba(132,204,22,0.5); }
+
+        .modal-back-btn { display: block; width: 100%; margin-top: 14px; padding: 12px; background: linear-gradient(135deg, #84cc16, #65a30d); border: none; border-radius: 30px; color: #fff; font-size: 0.9rem; font-weight: 800; font-family: inherit; cursor: pointer; box-shadow: 0 4px 0 #4d7c0f; transition: all 0.2s; letter-spacing: 1px; }
+        .modal-back-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #4d7c0f; }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.15rem; }
+            .res-btn { font-size: 0.55rem; padding: 2px 6px; }
+            .tool-btn { font-size: 0.56rem; }
         }
-        
-        .related {
-            background-color: rgba(200, 230, 255, 0.3);
-        }
-        
-        .error {
-            background-color: rgba(255, 205, 210, 0.7);
-            color: #c62828;
-        }
-        
-        .buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-        
-        .app-btn {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 8px;
-            background: #8d6e63;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            flex-grow: 1;
-            font-size: 14px;
-        }
-        
-        .app-btn:hover {
-            background: #6d4c41;
-        }
-        
-        .number-pad {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 8px;
-            margin-top: 15px;
-        }
-        
-        .number-btn {
-            padding: 10px 0;
-            border: none;
-            border-radius: 8px;
-            background: #8d6e63;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 16px;
-        }
-        
-        .number-btn:hover {
-            background: #6d4c41;
-        }
-        
-        .clear-btn {
-            background: #bf360c;
-        }
-        
-        .clear-btn:hover {
-            background: #8d0000;
-        }
-        
-        .theme-selector {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        
-        .theme-btn {
-            width: 25px;
-            height: 25px;
-            border-radius: 50%;
-            border: 2px solid transparent;
-            cursor: pointer;
-        }
-        
-        .theme-btn.active {
-            border-color: #3e2723;
-        }
-        
-        .theme-classic {
-            background: linear-gradient(45deg, #8d6e63, #4a69bd);
-        }
-        
-        .theme-dark {
-            background: linear-gradient(45deg, #2c3e50, #34495e);
-        }
-        
-        .theme-nature {
-            background: linear-gradient(45deg, #27ae60, #2ecc71);
-        }
-        
-        .theme-sunset {
-            background: linear-gradient(45deg, #e74c3c, #f39c12);
-        }
-        
-        /* Celebration Effects */
-        .confetti {
-            position: fixed;
-            width: 10px;
-            height: 10px;
-            background-color: #f44336;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 9999;
-        }
-        
-        .firework {
-            position: fixed;
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-        }
-        
-        @keyframes confettiFall {
-            0% {
-                opacity: 1;
-                transform: translateY(-100px) rotate(0deg);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(100vh) rotate(360deg);
-            }
-        }
-        
-        @keyframes firework {
-            0% {
-                transform: translate(var(--x), var(--y)) scale(0);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(var(--x), var(--y)) scale(1);
-                opacity: 0;
-            }
-        }
-        
-        /* Victory Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            max-width: 350px;
-            width: 90%;
-            text-align: center;
-        }
-        
-        .modal h2 {
-            margin-bottom: 10px;
-            color: #3e2723;
-            font-size: 20px;
-        }
-        
-        .modal button {
-            margin-top: 15px;
-            background: #8d6e63;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        /* Level Transition Screen */
-        .level-transition {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 4000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            color: white;
-            font-size: 24px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
-        
-        .level-transition.active {
-            opacity: 1;
-        }
-        
-        .level-transition h2 {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .level-transition .countdown {
-            font-size: 48px;
-            color: #ffeb3b;
-            margin: 20px 0;
-        }
-        
-        /* Celebration Screen */
-        .celebration-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 6000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            color: white;
-            font-size: 24px;
-            text-align: center;
-            padding: 20px;
-            animation: fadeIn 0.5s ease;
-        }
-        
-        .celebration-content {
-            background: linear-gradient(45deg, rgba(255, 87, 34, 0.9), rgba(255, 152, 0, 0.9));
-            padding: 40px 30px;
-            border-radius: 20px;
-            max-width: 500px;
-            width: 90%;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-            border: 3px solid #ffeb3b;
-            animation: pulse 2s infinite;
-        }
-        
-        .celebration-content h2 {
-            color: #ffeb3b;
-            font-size: 36px;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .celebration-content h3 {
-            color: white;
-            font-size: 28px;
-            margin: 15px 0;
-        }
-        
-        .celebration-content .score-display {
-            font-size: 42px;
-            font-weight: bold;
-            color: #4CAF50;
-            margin: 20px 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .celebration-content .time-bonus {
-            color: #FFEB3B;
-            font-size: 20px;
-            margin: 10px 0;
-        }
-        
-        .celebration-content .continue-btn {
-            margin-top: 30px;
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        
-        .celebration-content .continue-btn:hover {
-            background: #1976D2;
-            transform: scale(1.05);
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-        
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-            40% {transform: translateY(-30px);}
-            60% {transform: translateY(-15px);}
-        }
-        
-        @media (max-width: 500px) {
-            .container {
-                max-width: 380px;
-            }
-            
-            .app-card {
-                padding: 12px;
-            }
-            
-            h1 {
-                font-size: 20px;
-            }
-            
-            #timer {
-                font-size: 14px;
-            }
-            
-            .app-btn {
-                padding: 8px 12px;
-                font-size: 13px;
-            }
-            
-            .number-btn {
-                padding: 8px 0;
-                font-size: 15px;
-            }
-            
-            .celebration-content h2 {
-                font-size: 28px;
-            }
-            
-            .celebration-content h3 {
-                font-size: 22px;
-            }
-            
-            .celebration-content .score-display {
-                font-size: 32px;
-            }
-            
-            .mode-container {
-                padding: 20px;
-            }
-            
-            .mode-btn {
-                padding: 15px 20px;
-                font-size: 18px;
-            }
+        @media (max-width: 380px) {
+            .hud-zone { font-size: 0.55rem; }
+            .game-bar { font-size: 0.65rem; }
         }
     </style>
+
+    <!-- Monetag ad SDK (ίδιος κωδικός με το παιχνίδι Connect Four που έστειλες) -->
+    <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
 </head>
 <body>
-    <!-- Game Mode Selector -->
-    <div class="game-mode-selector" id="gameModeSelector">
-        <div class="mode-container">
-            <h1>🎮 SUDOKU PRO 🎮</h1>
-            <p style="margin-bottom: 20px; font-size: 18px; color: #ccc;">Click to start:</p>
-            
-            <div class="mode-buttons">
-                <button class="mode-btn single" id="singlePlayerBtn">
-                    <span class="mode-icon">👤</span>
-                    <span>PLAY NOW<br><small>Click to start</small></span>
-                </button>
-            </div>
-            
-            <p style="margin-top: 30px; color: #ffeb3b; font-size: 16px;">
-                🏆 Test your skills! ⏱️
-            </p>
-        </div>
-    </div>
-    
-    <!-- Main Game Container -->
-    <div class="container" id="gameContainer" style="display: none;">
-        <div class="app-card">
-            <div class="player-info">
-                <div id="player1-info" class="player-turn">Sudoku Pro</div>
-            </div>
-            
-            <div class="header-row">
-                <h1 id="game-title">Sudoku Pro</h1>
-                <div id="timer">00:00</div>
-            </div>
-            
-            <div class="language-selector">
-                <select id="language">
-                    <option value="en" selected>English</option>
-                    <option value="el">Ελληνικά</option>
-                    <option value="es">Español</option>
-                    <option value="de">Deutsch</option>
-                </select>
-            </div>
-            
-            <div class="stats">
-                <div class="stat-item">
-                    <span id="errors-label">Errors</span>
-                    <div class="stat-value" id="error-count">0</div>
-                </div>
-                <div class="stat-item">
-                    <span id="undo-label">Undo</span>
-                    <div class="stat-value" id="undo-count">∞</div>
-                </div>
-                <div class="stat-item">
-                    <span id="level-label">Level</span>
-                    <div class="stat-value" id="current-level">1</div>
+    <canvas id="starCanvas"></canvas>
+    <div class="game-wrapper">
+        <div class="game-container">
+
+            <div class="hud-resources">
+                <div class="hud-solved">🧩 <span id="solvedDisplay">0</span> λυμένα</div>
+                <div class="hud-coins">🪙 <span id="coinDisplay">0</span></div>
+                <div class="hud-btns">
+                    <button class="res-btn daily-btn" id="dailyBtn">🎁 Δώρο</button>
+                    <button class="res-btn coin-btn" id="adCoinBtn">🎬 +Νομίσματα</button>
                 </div>
             </div>
-            
-            <div class="controls">
-                <select id="size">
-                    <option value="4">4x4</option>
-                    <option value="6" selected>6x6</option>
-                    <option value="8">8x8</option>
-                    <option value="9">9x9</option>
-                </select>
-                
-                <select id="level">
-                    <option value="easy" id="easy-label" selected>Easy</option>
-                    <option value="medium" id="medium-label">Medium</option>
-                    <option value="hard" id="hard-label">Hard</option>
-                </select>
+
+            <div class="hud-top">
+                <div class="hud-level" id="hudLevel">LEVEL 1</div>
+                <div class="hud-zone" id="hudZone">🌱 Πολύ Εύκολο</div>
+                <div class="hud-puzzles" id="hudPuzzles">Παζλ 1/10</div>
             </div>
-            
+            <div class="level-progress-track"><div class="level-progress-bar" id="levelProgressBar"></div></div>
+
+            <h1>🪐 SUDOKU</h1>
+
+            <div class="game-bar">
+                <div class="bar-chip"><span class="lbl">⏱</span><span id="timeDisplay">0:00</span></div>
+                <div id="statusText">Η σειρά σου</div>
+                <div class="bar-chip" id="mistakeChip"><span class="lbl">❌</span><span id="mistakeDisplay">0</span></div>
+            </div>
+
             <div class="board-wrap">
-                <div id="sudoku-board"></div>
+                <div class="sudoku-board" id="sudokuBoard"></div>
+                <div class="board-loading" id="boardLoading"><div class="spinner"></div><span>Δημιουργία παζλ…</span></div>
             </div>
-            
-            <div class="number-pad" id="number-pad"></div>
-            
-            <div class="buttons">
-                <button class="app-btn" id="new-game">New</button>
-                <button class="app-btn" id="check-solution">Check</button>
-                <button class="app-btn" id="undo-btn">Undo</button>
-                <button class="app-btn" id="change-mode">Change Mode</button>
+
+            <div class="num-pad" id="numPad"></div>
+
+            <div class="tool-row">
+                <button class="tool-btn" id="undoBtn"><span class="ico">↶</span>Αναίρεση</button>
+                <button class="tool-btn" id="eraseBtn"><span class="ico">⌫</span>Σβήσιμο</button>
+                <button class="tool-btn" id="notesBtn"><span class="ico">✏️</span>Σημ/σεις</button>
+                <button class="tool-btn" id="hintBtn"><span class="ico">💡</span>Βοήθεια<span class="badge" id="hintBadge">3</span></button>
             </div>
-            
-            <div class="theme-selector">
-                <div class="theme-btn theme-classic active" data-theme="classic"></div>
-                <div class="theme-btn theme-dark" data-theme="dark"></div>
-                <div class="theme-btn theme-nature" data-theme="nature"></div>
-                <div class="theme-btn theme-sunset" data-theme="sunset"></div>
+
+            <div class="game-buttons">
+                <button class="game-btn restart" id="restartBtn">↺ Επανεκκίνηση</button>
+                <button class="game-btn newp" id="newPuzzleBtn">✨ Νέο Παζλ</button>
+                <button class="game-btn scores" id="openScoreboardBtn">🏆 Σκορ</button>
             </div>
-        </div>
-    </div>
-    
-    <!-- Celebration Screen -->
-    <div class="celebration-screen" id="celebrationScreen" style="display: none;">
-        <div class="celebration-content">
-            <h2>🎉 CONGRATULATIONS! 🎉</h2>
-            <h3 id="celebration-title">SUCCESSFUL COMPLETION!</h3>
-            
-            <div id="celebration-details">
-                <!-- Will be filled dynamically -->
-            </div>
-            
-            <div class="score-display" id="total-score">0</div>
-            
-            <div id="time-bonus-info" class="time-bonus"></div>
-            
-            <button class="continue-btn" id="celebration-continue">Continue</button>
         </div>
     </div>
 
-    <!-- Sound Effects -->
-    <audio id="complete-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" preload="auto"></audio>
-    <audio id="click-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-select-click-1109.mp3" preload="auto"></audio>
-    <audio id="error-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-fail-notification-946.mp3" preload="auto"></audio>
-    <audio id="level-up-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" preload="auto"></audio>
-    <audio id="celebration-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-winning-trumpet-2018.mp3" preload="auto"></audio>
+    <!-- WIN MODAL -->
+    <div class="modal-overlay" id="endModal">
+        <div class="modal-box">
+            <div class="modal-galaxy-title win" id="endTitle">🎉 Παζλ Λυμένο!</div>
+            <div class="modal-sub" id="endSub"></div>
+
+            <div class="levelup-banner" id="levelupBanner">
+                <div class="big" id="levelupBig">🚀 LEVEL UP!</div>
+                <div class="small" id="levelupSmall"></div>
+            </div>
+
+            <div class="progress-wrap">
+                <div class="progress-label">
+                    <span id="progressLabelLeft">Πρόοδος Level</span>
+                    <span id="progressLabelRight"></span>
+                </div>
+                <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+            </div>
+
+            <div class="battle-stats">
+                <div class="battle-stats-title">📊 Στατιστικά</div>
+                <div class="stat-row"><span class="stat-label">Χρόνος</span><span class="stat-value" id="statTime">0s</span></div>
+                <div class="stat-row"><span class="stat-label">Λάθη</span><span class="stat-value" id="statMistakes">0</span></div>
+                <div class="stat-row"><span class="stat-label">Βοήθειες</span><span class="stat-value" id="statHints">0</span></div>
+                <div class="stat-row"><span class="stat-label">Νομίσματα</span><span class="stat-value gold" id="statCoins">+0</span></div>
+            </div>
+
+            <button class="modal-action-btn" id="endActionBtn">▶ Επόμενο Παζλ</button>
+        </div>
+    </div>
+
+    <!-- SCORE MODAL -->
+    <div class="modal-overlay" id="scoreModal">
+        <div class="score-modal-box">
+            <div class="modal-title">🏆 Ιστορικό</div>
+            <div id="scoreboardContent"></div>
+            <div class="record-box">
+                <div class="record-label">🌌 Ρεκόρ – Υψηλότερο Level</div>
+                <div class="record-val" id="recordDisplay">1</div>
+            </div>
+            <button class="modal-back-btn" id="closeScoreboardBtn">← Πίσω στο παιχνίδι</button>
+        </div>
+    </div>
 
     <script>
-        // ========== API CONFIG (HUB BACKEND) ==========
-        const API_ENDPOINT = "https://franklymadear-games.hf.space";
-        const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+    (function() {
+        // ============================================================
+        // STARFIELD BACKGROUND
+        // ============================================================
+        const canvas = document.getElementById('starCanvas');
+        const ctx = canvas.getContext('2d');
+        let stars = [], _bgPaused = false, _rafId = null, _shootTimer = null;
 
-        // ========== USER ID MANAGEMENT ==========
-        let userId = localStorage.getItem('franklymadear_userId');
-        console.log('🔢 Sudoku initial userId from localStorage:', userId);
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        function createStars(count) {
+            stars = [];
+            for (let i = 0; i < count; i++) stars.push({
+                x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+                radius: Math.random()*2.5+0.5, baseBrightness: Math.random()*0.7+0.3,
+                twinkleSpeed: Math.random()*0.02+0.005, twinkleOffset: Math.random()*Math.PI*2,
+                driftX: (Math.random()-0.5)*0.3, driftY: (Math.random()-0.5)*0.3
+            });
+        }
+        function drawStars(timestamp) {
+            if (_bgPaused) { _rafId = null; return; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            stars.forEach(star => {
+                const twinkle = Math.sin(timestamp * star.twinkleSpeed + star.twinkleOffset) * 0.3 + 0.7;
+                const alpha = star.baseBrightness * twinkle;
+                ctx.beginPath(); ctx.arc(star.x, star.y, star.radius, 0, Math.PI*2); ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
+                if (star.radius > 1.5) { ctx.beginPath(); ctx.arc(star.x, star.y, star.radius*2.5, 0, Math.PI*2); ctx.fillStyle = `rgba(180,200,255,${alpha*0.3})`; ctx.fill(); }
+                star.x += star.driftX; star.y += star.driftY;
+                if (star.x < 0) star.x = canvas.width; if (star.x > canvas.width) star.x = 0;
+                if (star.y < 0) star.y = canvas.height; if (star.y > canvas.height) star.y = 0;
+            });
+            _rafId = requestAnimationFrame(drawStars);
+        }
+        function createShootingStar() {
+            const s = document.createElement('div'); s.classList.add('shooting-star');
+            s.style.left = Math.random()*80+'%'; s.style.top = Math.random()*40+'%';
+            s.style.animationDuration = (Math.random()*1.5+1.5)+'s';
+            document.body.appendChild(s); s.addEventListener('animationend', () => s.remove());
+        }
+        function scheduleShootingStar() {
+            _shootTimer = setTimeout(() => { if (_bgPaused) { _shootTimer = null; return; } createShootingStar(); scheduleShootingStar(); }, Math.random()*5000+3000);
+        }
+        function createNebulaParticles(count) {
+            const colors = ['rgba(132,204,22,0.15)','rgba(25,118,210,0.15)','rgba(255,64,129,0.1)','rgba(156,39,176,0.12)','rgba(34,211,238,0.1)'];
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement('div'); p.classList.add('nebula-particle');
+                const size = Math.random()*120+60; p.style.width = size+'px'; p.style.height = size+'px';
+                p.style.left = Math.random()*100+'%'; p.style.top = Math.random()*100+'%';
+                p.style.background = colors[Math.floor(Math.random()*colors.length)];
+                p.style.animationDuration = (Math.random()*12+8)+'s'; p.style.animationDelay = Math.random()*5+'s';
+                document.body.appendChild(p);
+            }
+        }
+        function initBackgroundEffects() {
+            resizeCanvas(); createStars(200); _rafId = requestAnimationFrame(drawStars);
+            createNebulaParticles(15); scheduleShootingStar(); setTimeout(createShootingStar, 600);
+        }
+        window.addEventListener('resize', () => { resizeCanvas(); createStars(200); });
 
-        if (!userId && window.Telegram && window.Telegram.WebApp) {
-            const initData = window.Telegram.WebApp.initDataUnsafe;
-            if (initData && initData.user) {
-                userId = 'tg_' + initData.user.id;
-                localStorage.setItem('franklymadear_userId', userId);
-                console.log('🔢 Created userId from Telegram:', userId);
+        // ============================================================
+        // AUDIO
+        // ============================================================
+        class GameAudio {
+            constructor() { this.audioCtx = null; this.initialized = false; }
+            init() { if (this.initialized) return; try { this.audioCtx = new (window.AudioContext||window.webkitAudioContext)(); this.initialized = true; } catch(e) {} }
+            _run() { this.init(); if (this.audioCtx && this.audioCtx.state === 'suspended') { try { this.audioCtx.resume(); } catch(e) {} } }
+            tick(freq) {
+                this._run(); if (!this.audioCtx) return;
+                try {
+                    const now = this.audioCtx.currentTime;
+                    const o = this.audioCtx.createOscillator(); const g = this.audioCtx.createGain();
+                    o.connect(g); g.connect(this.audioCtx.destination); o.type = 'sine';
+                    o.frequency.setValueAtTime(freq, now);
+                    g.gain.setValueAtTime(0.18, now); g.gain.exponentialRampToValueAtTime(0.01, now+0.09);
+                    o.start(now); o.stop(now+0.1);
+                } catch(e) {}
+            }
+            place() { this.tick(440); }
+            wrong() {
+                this._run(); if (!this.audioCtx) return;
+                try {
+                    const now = this.audioCtx.currentTime;
+                    const o = this.audioCtx.createOscillator(); const g = this.audioCtx.createGain();
+                    o.connect(g); g.connect(this.audioCtx.destination); o.type = 'square';
+                    o.frequency.setValueAtTime(160, now); o.frequency.exponentialRampToValueAtTime(80, now+0.15);
+                    g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.01, now+0.18);
+                    o.start(now); o.stop(now+0.18);
+                } catch(e) {}
+            }
+            victory() {
+                this._run(); if (!this.audioCtx) return;
+                try {
+                    const now = this.audioCtx.currentTime;
+                    [{f:523.25,t:0},{f:659.25,t:0.13},{f:783.99,t:0.26},{f:1046.50,t:0.39,d:0.4}].forEach(n => {
+                        const o = this.audioCtx.createOscillator(); const g = this.audioCtx.createGain();
+                        o.connect(g); g.connect(this.audioCtx.destination); o.type = 'sine';
+                        o.frequency.setValueAtTime(n.f, now+n.t);
+                        g.gain.setValueAtTime(0.2, now+n.t); g.gain.exponentialRampToValueAtTime(0.01, now+n.t+(n.d||0.2));
+                        o.start(now+n.t); o.stop(now+n.t+(n.d||0.2));
+                    });
+                } catch(e) {}
             }
         }
 
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'setUserId') {
-                userId = event.data.userId;
-                localStorage.setItem('franklymadear_userId', userId);
-                console.log('🔢 Received userId via postMessage:', userId);
-            }
-        });
+        // ============================================================
+        // SUDOKU ENGINE
+        // ============================================================
+        const BIT_TO_NUM = {};
+        for (let i = 1; i <= 9; i++) BIT_TO_NUM[1 << i] = i;
+        const FULL_MASK = 0x3FE; // bits 1..9
 
-        // ========== SEND SCORE DIRECTLY TO BACKEND ==========
-        async function sendScoreToBackend(score) {
-            console.log('🔢 Sending score to backend:', { score, userId });
-            if (!userId) { console.log('🔢 No userId available'); return; }
-            try {
-                const pointsRes = await fetch(API_ENDPOINT + '/add-points', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-                    body: JSON.stringify({ userId: userId, game: 'Sudoku', points: score })
-                });
-                const pointsData = await pointsRes.json();
-                console.log('🔢 Points added:', pointsData);
+        function boxIndex(r, c) { return ((r/3)|0)*3 + ((c/3)|0); }
+        function popcount(x) { let n = 0; while (x) { x &= x-1; n++; } return n; }
+        function shuffle(a) { for (let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];} return a; }
 
-                const missionRes = await fetch(API_ENDPOINT + '/missions/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-                    body: JSON.stringify({ userId: userId, game: 'Sudoku', score: score, playtime: 1, words: 0 })
-                });
-                const missionData = await missionRes.json();
-                console.log('🔢 Missions updated:', missionData);
-
-                if (window.opener) {
-                    window.opener.postMessage({ type: 'gameScore', score: score, game: 'Sudoku' }, '*');
-                }
-            } catch(e) { console.log('🔢 Error sending score:', e); }
+        function isValidPlacement(grid, r, c, num) {
+            for (let i=0;i<9;i++){ if(grid[r][i]===num||grid[i][c]===num) return false; }
+            const br=((r/3)|0)*3, bc=((c/3)|0)*3;
+            for(let i=0;i<3;i++)for(let j=0;j<3;j++) if(grid[br+i][bc+j]===num) return false;
+            return true;
         }
 
-        // Game Configuration
-        const CONFIG = {
-            BASE_POINTS: 1000,
-            TIME_BONUS_MULTIPLIER: 10,
-            ERROR_PENALTY: 50,
-            LEVEL_MULTIPLIER: 2,
-            SINGLE_PLAYER_BONUS: 500
-        };
-
-        // Translations
-        const translations = {
-            en: {
-                title: "Sudoku Pro",
-                errors: "Errors",
-                undo: "Undo",
-                easy: "Easy",
-                medium: "Medium",
-                hard: "Hard",
-                newGame: "New",
-                check: "Check",
-                clear: "Clear",
-                congrats: "🎉 Congratulations! 🎉",
-                completed: "You completed the Sudoku!",
-                time: "Time",
-                newGameBtn: "New Game",
-                selectEmpty: "Please select an empty cell first!",
-                notComplete: "The board is not complete. Fill all empty cells first!",
-                incorrect: "Some cells are incorrect. Keep going!",
-                level: "Level",
-                success: "Success!",
-                nextLevel: "Moving to the next level!",
-                player1: "Player 1",
-                singlePlayer: "Sudoku Pro",
-                changeMode: "Change Mode",
-                celebrationTitle: "SUCCESSFUL COMPLETION!",
-                timeBonus: "Time Bonus",
-                totalScore: "TOTAL SCORE",
-                continue: "Continue"
-            },
-            el: {
-                title: "Sudoku Pro",
-                errors: "Σφάλματα",
-                undo: "Undo",
-                easy: "Εύκολο",
-                medium: "Μεσαίο",
-                hard: "Δύσκολο",
-                newGame: "Νέο",
-                check: "Έλεγχος",
-                clear: "Clear",
-                congrats: "🎉 Συγχαρητήρια! 🎉",
-                completed: "Ολοκλήρωσες το Sudoku!",
-                time: "Χρόνος",
-                newGameBtn: "Νέο Παιχνίδι",
-                selectEmpty: "Παρακαλώ διάλεξε ένα κενό κελί πρώτα!",
-                notComplete: "Ο πίνακας δεν είναι πλήρης. Συμπλήρωσε όλα τα κενά κελιά πρώτα!",
-                incorrect: "Κάποια κελιά είναι λάθος. Συνέχισε!",
-                level: "Επίπεδο",
-                success: "Επιτυχία!",
-                nextLevel: "Προχωράς στο επόμενο επίπεδο!",
-                player1: "Sudoku Pro",
-                singlePlayer: "Sudoku Pro",
-                changeMode: "Αλλαγή Τρόπου",
-                celebrationTitle: "ΕΠΙΤΥΧΗΣ ΟΛΟΚΛΗΡΩΣΗ!",
-                timeBonus: "Χρονικό Μπόνους",
-                totalScore: "ΣΥΝΟΛΙΚΟΙ ΠΟΝΤΟΙ",
-                continue: "Συνέχεια"
-            },
-            es: {
-                title: "Sudoku Pro",
-                errors: "Errores",
-                undo: "Deshacer",
-                easy: "Fácil",
-                medium: "Medio",
-                hard: "Difícil",
-                newGame: "Nuevo",
-                check: "Verificar",
-                clear: "Limpiar",
-                congrats: "🎉 ¡Felicitaciones! 🎉",
-                completed: "¡Completaste el Sudoku!",
-                time: "Tiempo",
-                newGameBtn: "Nuevo Juego",
-                selectEmpty: "¡Por favor selecciona una celda vacía primero!",
-                notComplete: "El tablero no está completo. ¡Llena todas las celdas vacías primero!",
-                incorrect: "Algunas celdas son incorrectas. ¡Sigue adelante!",
-                level: "Nivel",
-                success: "¡Éxito!",
-                nextLevel: "¡Pasando al siguiente nivel!",
-                player1: "Jugador 1",
-                singlePlayer: "Sudoku Pro",
-                changeMode: "Cambiar Modo",
-                celebrationTitle: "¡COMPLETADO CON ÉXITO!",
-                timeBonus: "Bono de Tiempo",
-                totalScore: "PUNTUACIÓN TOTAL",
-                continue: "Continuar"
-            },
-            de: {
-                title: "Sudoku Pro",
-                errors: "Fehler",
-                undo: "Rückgängig",
-                easy: "Einfach",
-                medium: "Mittel",
-                hard: "Schwer",
-                newGame: "Neu",
-                check: "Prüfen",
-                clear: "Löschen",
-                congrats: "🎉 Glückwunsch! 🎉",
-                completed: "Du hast das Sudoku gelöst!",
-                time: "Zeit",
-                newGameBtn: "Neues Spiel",
-                selectEmpty: "Bitte wähle zuerst eine leere Zelle aus!",
-                notComplete: "Das Brett ist nicht vollständig. Fülle zuerst alle leeren Zellen aus!",
-                incorrect: "Einige Zellen sind falsch. Weiter so!",
-                level: "Stufe",
-                success: "Erfolg!",
-                nextLevel: "Weiter zur nächsten Stufe!",
-                player1: "Spieler 1",
-                singlePlayer: "Sudoku Pro",
-                changeMode: "Modus Ändern",
-                celebrationTitle: "ERFOLGREICH ABGESCHLOSSEN!",
-                timeBonus: "Zeitbonus",
-                totalScore: "GESAMTPUNKTZAHL",
-                continue: "Fortsetzen"
-            }
-        };
-
-        // SudokuGame Class
-        class SudokuGame {
-            constructor(size, level, gameMode) {
-                this.size = size;
-                this.level = level;
-                this.gameMode = 'single';
-                this.board = [];
-                this.solution = [];
-                this.selectedCell = null;
-                this.gameTime = 0;
-                this.timerInterval = null;
-                this.errors = 0;
-                this.moveHistory = [];
-                this.redoHistory = [];
-                this.currentLanguage = 'en';
-                this.currentLevel = 1;
-                this.completedLevels = 0;
-                
-                // Player data
-                this.currentPlayer = 1;
-                this.player1Score = 0;
-                
-                this.initializeGame();
-            }
-            
-            initializeGame() {
-                this.generateSudoku();
-            }
-            
-            generateSudoku() {
-                const solutionTemplates = {
-                    4: [
-                        [1, 2, 3, 4],
-                        [3, 4, 1, 2],
-                        [2, 1, 4, 3],
-                        [4, 3, 2, 1]
-                    ],
-                    6: [
-                        [1, 2, 3, 4, 5, 6],
-                        [4, 5, 6, 1, 2, 3],
-                        [2, 3, 1, 5, 6, 4],
-                        [5, 6, 4, 2, 3, 1],
-                        [3, 1, 2, 6, 4, 5],
-                        [6, 4, 5, 3, 1, 2]
-                    ],
-                    8: [
-                        [1, 2, 3, 4, 5, 6, 7, 8],
-                        [5, 6, 7, 8, 1, 2, 3, 4],
-                        [2, 3, 4, 1, 6, 5, 8, 7],
-                        [6, 7, 8, 5, 2, 1, 4, 3],
-                        [3, 4, 1, 2, 7, 8, 5, 6],
-                        [7, 8, 5, 6, 3, 4, 1, 2],
-                        [4, 1, 2, 3, 8, 7, 6, 5],
-                        [8, 5, 6, 7, 4, 3, 2, 1]
-                    ],
-                    9: [
-                        [5, 3, 4, 6, 7, 8, 9, 1, 2],
-                        [6, 7, 2, 1, 9, 5, 3, 4, 8],
-                        [1, 9, 8, 3, 4, 2, 5, 6, 7],
-                        [8, 5, 9, 7, 6, 1, 4, 2, 3],
-                        [4, 2, 6, 8, 5, 3, 7, 9, 1],
-                        [7, 1, 3, 9, 2, 4, 8, 5, 6],
-                        [9, 6, 1, 5, 3, 7, 2, 8, 4],
-                        [2, 8, 7, 4, 1, 9, 6, 3, 5],
-                        [3, 4, 5, 2, 8, 6, 1, 7, 9]
-                    ]
-                };
-                
-                this.solution = JSON.parse(JSON.stringify(solutionTemplates[this.size]));
-                
-                let cellsToShow = Math.floor(this.size * this.size * 0.5);
-                if (this.level === 'medium') cellsToShow = Math.floor(this.size * this.size * 0.4);
-                if (this.level === 'hard') cellsToShow = Math.floor(this.size * this.size * 0.3);
-                
-                this.board = Array(this.size).fill().map(() => Array(this.size).fill(''));
-                
-                let cellsFilled = 0;
-                while (cellsFilled < cellsToShow) {
-                    const row = Math.floor(Math.random() * this.size);
-                    const col = Math.floor(Math.random() * this.size);
-                    
-                    if (this.board[row][col] === '') {
-                        this.board[row][col] = this.solution[row][col];
-                        cellsFilled++;
+        function fillGrid(grid) {
+            for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+                if (grid[r][c]===0) {
+                    const nums = shuffle([1,2,3,4,5,6,7,8,9]);
+                    for (const n of nums) {
+                        if (isValidPlacement(grid,r,c,n)) {
+                            grid[r][c]=n;
+                            if (fillGrid(grid)) return true;
+                            grid[r][c]=0;
+                        }
                     }
-                }
-            }
-            
-            isValidMove(row, col, num) {
-                for (let i = 0; i < this.size; i++) {
-                    if (this.board[row][i] === num && i !== col) return false;
-                }
-                
-                for (let i = 0; i < this.size; i++) {
-                    if (this.board[i][col] === num && i !== row) return false;
-                }
-                
-                const subSize = Math.sqrt(this.size);
-                const startRow = Math.floor(row / subSize) * subSize;
-                const startCol = Math.floor(col / subSize) * subSize;
-                
-                for (let i = startRow; i < startRow + subSize; i++) {
-                    for (let j = startCol; j < startCol + subSize; j++) {
-                        if (this.board[i][j] === num && i !== row && j !== col) return false;
-                    }
-                }
-                
-                return true;
-            }
-            
-            placeNumber(row, col, num) {
-                if (this.board[row][col] !== '') return false;
-                
-                const isValid = this.isValidMove(row, col, num);
-                
-                if (isValid) {
-                    this.moveHistory.push({row, col, previousValue: this.board[row][col], player: this.currentPlayer});
-                    this.board[row][col] = num;
-                    this.redoHistory = [];
-                    return true;
-                } else {
-                    this.errors++;
                     return false;
                 }
             }
-            
-            clearCell(row, col) {
-                if (this.board[row][col] !== '') {
-                    this.moveHistory.push({row, col, previousValue: this.board[row][col], player: this.currentPlayer});
-                    this.board[row][col] = '';
-                    this.redoHistory = [];
-                    return true;
-                }
-                return false;
-            }
-            
-            undo() {
-                if (this.moveHistory.length > 0) {
-                    const lastMove = this.moveHistory.pop();
-                    this.redoHistory.push({row: lastMove.row, col: lastMove.col, previousValue: this.board[lastMove.row][lastMove.col]});
-                    this.board[lastMove.row][lastMove.col] = lastMove.previousValue;
-                    this.selectedCell = {row: lastMove.row, col: lastMove.col};
-                    return true;
-                }
-                return false;
-            }
-            
-            isComplete() {
-                for (let row = 0; row < this.size; row++) {
-                    for (let col = 0; col < this.size; col++) {
-                        if (this.board[row][col] === '') return false;
-                        if (this.board[row][col] !== this.solution[row][col]) return false;
-                    }
-                }
-                return true;
-            }
-            
-            isBoardFull() {
-                for (let row = 0; row < this.size; row++) {
-                    for (let col = 0; col < this.size; col++) {
-                        if (this.board[row][col] === '') return false;
-                    }
-                }
-                return true;
-            }
-            
-            calculateScore(time) {
-                const basePoints = CONFIG.BASE_POINTS;
-                
-                // Time bonus
-                const maxTime = 600;
-                const timeRatio = Math.max(0, (maxTime - time) / maxTime);
-                const timeBonus = Math.round(timeRatio * 1000);
-                
-                // Error penalty
-                const errorPenalty = this.errors * CONFIG.ERROR_PENALTY;
-                
-                // Level multiplier
-                const levelMultiplier = this.currentLevel * CONFIG.LEVEL_MULTIPLIER;
-                
-                // Single player bonus
-                const singlePlayerBonus = CONFIG.SINGLE_PLAYER_BONUS;
-                
-                // Final score
-                const score = Math.max(0, (basePoints + timeBonus + singlePlayerBonus - errorPenalty) * levelMultiplier);
-                
-                return {
-                    total: Math.round(score),
-                    base: basePoints,
-                    timeBonus: timeBonus,
-                    errorPenalty: errorPenalty,
-                    levelMultiplier: levelMultiplier,
-                    singlePlayerBonus: singlePlayerBonus
-                };
-            }
-            
-            updatePlayerInfo() {
-                const player1Info = document.getElementById('player1-info');
-                player1Info.textContent = `${translations[this.currentLanguage].singlePlayer} (${this.player1Score})`;
-            }
-            
-            playerCompleted() {
-                this.player1Time = this.gameTime;
-            }
+            return true;
         }
 
-        // Main Application Class
-        class SudokuApp {
+        function generateSolution() {
+            const grid = Array.from({length:9},()=>new Array(9).fill(0));
+            fillGrid(grid);
+            return grid;
+        }
+
+        // Counts solutions up to `limit`, using MRV heuristic. Restores grid on exit.
+        function countSolutions(grid, limit) {
+            const rows=new Array(9).fill(0), cols=new Array(9).fill(0), boxes=new Array(9).fill(0);
+            for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+                const v=grid[r][c];
+                if(v){const bit=1<<v; rows[r]|=bit; cols[c]|=bit; boxes[boxIndex(r,c)]|=bit;}
+            }
+            let count=0;
+            function rec(){
+                let bR=-1,bC=-1,bMask=0,bCnt=99;
+                outer:
+                for(let r=0;r<9;r++){
+                    for(let c=0;c<9;c++){
+                        if(grid[r][c]===0){
+                            const used=rows[r]|cols[c]|boxes[boxIndex(r,c)];
+                            const avail=FULL_MASK & ~used;
+                            const cnt=popcount(avail);
+                            if(cnt===0)return;
+                            if(cnt<bCnt){bCnt=cnt;bR=r;bC=c;bMask=avail;if(cnt===1)break outer;}
+                        }
+                    }
+                }
+                if(bR===-1){count++;return;}
+                let m=bMask;
+                while(m){
+                    const bit=m&(-m); m^=bit;
+                    const num=BIT_TO_NUM[bit];
+                    grid[bR][bC]=num; rows[bR]|=bit; cols[bC]|=bit; boxes[boxIndex(bR,bC)]|=bit;
+                    rec();
+                    grid[bR][bC]=0; rows[bR]^=bit; cols[bC]^=bit; boxes[boxIndex(bR,bC)]^=bit;
+                    if(count>=limit)return;
+                }
+            }
+            rec();
+            return count;
+        }
+
+        // Remove cells while keeping a unique solution, aiming for `targetClues` givens.
+        function makePuzzle(solution, targetClues) {
+            const puzzle = solution.map(row=>[...row]);
+            const cells = [];
+            for(let r=0;r<9;r++)for(let c=0;c<9;c++)cells.push([r,c]);
+            shuffle(cells);
+            let clues=81;
+            for(const [r,c] of cells){
+                if(clues<=targetClues)break;
+                const backup=puzzle[r][c];
+                puzzle[r][c]=0;
+                if(countSolutions(puzzle,2)!==1){
+                    puzzle[r][c]=backup;   // removing this cell breaks uniqueness → keep it
+                } else {
+                    clues--;
+                }
+            }
+            return { puzzle, clues };
+        }
+
+        // ============================================================
+        // LEVEL / DIFFICULTY SYSTEM
+        // ============================================================
+        const PUZZLES_PER_LEVEL = 10;
+        const HINTS_FREE = 3;
+
+        // Fewer clues = harder. Difficulty climbs as the level rises.
+        const ZONES = [
+            { min:1,  max:2,   label:'Πολύ Εύκολο',  clues:50, emoji:'🌱', tier:1 },
+            { min:3,  max:4,   label:'Εύκολο',        clues:44, emoji:'🚀', tier:2 },
+            { min:5,  max:6,   label:'Μέτριο',        clues:38, emoji:'🛸', tier:3 },
+            { min:7,  max:8,   label:'Πιο Μέτριο',    clues:34, emoji:'⭐', tier:4 },
+            { min:9,  max:10,  label:'Δυσκολότερο',   clues:31, emoji:'⚔️', tier:5 },
+            { min:11, max:12,  label:'Δύσκολο',       clues:29, emoji:'👑', tier:6 },
+            { min:13, max:9999,label:'Πολύ Δύσκολο',  clues:27, emoji:'💀', tier:7 },
+        ];
+        function getZone(level) {
+            for (const z of ZONES) if (level >= z.min && level <= z.max) return z;
+            return ZONES[ZONES.length - 1];
+        }
+
+        // ---- persistence ----
+        const SAVE_KEY = 'sudoku_galactic_v1';
+        const DEFAULT_SAVE = { level:1, puzzlesInLevel:0, coins:0, totalSolved:0, maxLevel:1, lastLogin:null, streak:0 };
+        function loadSave() {
+            try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); return d ? { ...DEFAULT_SAVE, ...d } : { ...DEFAULT_SAVE }; }
+            catch { return { ...DEFAULT_SAVE }; }
+        }
+        function writeSave(s) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch(e) {} }
+
+        function getTodayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
+        function loadAll()   { try { return JSON.parse(localStorage.getItem('sudoku_allscores_v1') || '{}'); } catch(e) { return {}; } }
+        function saveAll(a)  { try { localStorage.setItem('sudoku_allscores_v1', JSON.stringify(a)); } catch(e) {} }
+        function loadToday() { try { return JSON.parse(localStorage.getItem('sudoku_todayscores_v1') || '{}'); } catch(e) { return {}; } }
+        function saveToday(t){ try { localStorage.setItem('sudoku_todayscores_v1', JSON.stringify(t)); } catch(e) {} }
+        function checkDayReset() {
+            const last = (function(){ try { return localStorage.getItem('sudoku_lastday_v1'); } catch(e) { return ''; } })() || '';
+            const today = getTodayKey();
+            if (last && last !== today) {
+                const all = loadAll(), saved = loadToday();
+                if (Object.keys(saved).length > 0) {
+                    all[last] = saved;
+                    const keys = Object.keys(all).sort().slice(-14);
+                    const trimmed = {}; keys.forEach(k => { trimmed[k] = all[k]; }); saveAll(trimmed);
+                }
+                try { localStorage.removeItem('sudoku_todayscores_v1'); } catch(e) {}
+            }
+            try { localStorage.setItem('sudoku_lastday_v1', today); } catch(e) {}
+        }
+
+        // ============================================================
+        // SUDOKU GAME
+        // ============================================================
+        class SudokuGame {
             constructor() {
-                this.game = null;
-                this.confettiElements = [];
-                
-                this.initializeElements();
-                this.initializeEventListeners();
-                this.showGameModeSelector();
+                this.gameData = loadSave();
+                this.audio = new GameAudio(); this.audio.init();
+
+                this.solution = null; this.puzzleGivens = null;
+                this.grid = null; this.given = null; this.notes = null;
+                this.selected = null; this.notesMode = false;
+                this.mistakes = 0; this.hintsUsed = 0; this.hintCells = new Set();
+                this.undoStack = []; this._won = false;
+                this.startTime = 0; this._timer = null;
+
+                this.buildCells();
+                this.buildNumPad();
+                this.bindEvents();
+
+                checkDayReset();
+                this.startNewPuzzle();
+                this.renderScoreboard();
             }
-            
-            initializeElements() {
-                this.elements = {
-                    // Mode selector
-                    gameModeSelector: document.getElementById('gameModeSelector'),
-                    singlePlayerBtn: document.getElementById('singlePlayerBtn'),
-                    
-                    // Game container
-                    gameContainer: document.getElementById('gameContainer'),
-                    changeModeBtn: document.getElementById('change-mode'),
-                    
-                    // Game elements
-                    sudokuBoard: document.getElementById('sudoku-board'),
-                    numberPad: document.getElementById('number-pad'),
-                    timerElement: document.getElementById('timer'),
-                    errorCountElement: document.getElementById('error-count'),
-                    undoCountElement: document.getElementById('undo-count'),
-                    currentLevelElement: document.getElementById('current-level'),
-                    sizeSelect: document.getElementById('size'),
-                    levelSelect: document.getElementById('level'),
-                    languageSelect: document.getElementById('language'),
-                    newGameButton: document.getElementById('new-game'),
-                    checkSolutionButton: document.getElementById('check-solution'),
-                    undoButton: document.getElementById('undo-btn'),
-                    
-                    // Celebration screen
-                    celebrationScreen: document.getElementById('celebrationScreen'),
-                    celebrationTitle: document.getElementById('celebration-title'),
-                    celebrationDetails: document.getElementById('celebration-details'),
-                    totalScore: document.getElementById('total-score'),
-                    timeBonusInfo: document.getElementById('time-bonus-info'),
-                    celebrationContinue: document.getElementById('celebration-continue'),
-                    
-                    // Player info
-                    player1Info: document.getElementById('player1-info')
-                };
-            }
-            
-            initializeEventListeners() {
-                // Mode selection
-                this.elements.singlePlayerBtn.addEventListener('click', () => this.startGame());
-                
-                // Change mode button
-                this.elements.changeModeBtn.addEventListener('click', () => this.showGameModeSelector());
-                
-                // Game controls
-                this.elements.newGameButton.addEventListener('click', () => this.startNewGame());
-                this.elements.checkSolutionButton.addEventListener('click', () => this.checkSolution());
-                this.elements.undoButton.addEventListener('click', () => this.undoMove());
-                this.elements.sizeSelect.addEventListener('change', () => this.startNewGame());
-                this.elements.levelSelect.addEventListener('change', () => this.startNewGame());
-                this.elements.languageSelect.addEventListener('change', (e) => this.updateTranslations(e.target.value));
-                
-                // Celebration screen
-                this.elements.celebrationContinue.addEventListener('click', () => this.continueFromCelebration());
-                
-                // Theme buttons
-                document.querySelectorAll('.theme-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => this.applyTheme(e.target.dataset.theme));
-                });
-            }
-            
-            showGameModeSelector() {
-                this.elements.gameModeSelector.style.display = 'flex';
-                this.elements.gameContainer.style.display = 'none';
-                this.clearIntervals();
-            }
-            
-            startGame() {
-                this.elements.gameModeSelector.style.display = 'none';
-                this.elements.gameContainer.style.display = 'block';
-                this.startNewGame();
-            }
-            
-            startNewGame() {
-                const size = parseInt(this.elements.sizeSelect.value);
-                const level = this.elements.levelSelect.value;
-                
-                this.game = new SudokuGame(size, level, 'single');
-                this.game.currentLanguage = this.elements.languageSelect.value;
-                
-                this.initializeGame();
-                this.applyTheme('classic');
-            }
-            
-            initializeGame() {
-                this.renderBoard();
-                this.updateNumberPad();
-                this.startTimer();
-                this.updateUI();
-                this.game.updatePlayerInfo();
-            }
-            
-            renderBoard() {
-                this.elements.sudokuBoard.innerHTML = '';
-                this.elements.sudokuBoard.style.gridTemplateColumns = `repeat(${this.game.size}, 1fr)`;
-                this.elements.sudokuBoard.style.gridTemplateRows = `repeat(${this.game.size}, 1fr)`;
-                
-                const cellSize = Math.min(400 / this.game.size, 50);
-                this.elements.sudokuBoard.style.width = `${cellSize * this.game.size}px`;
-                this.elements.sudokuBoard.style.height = `${cellSize * this.game.size}px`;
-                
-                for (let row = 0; row < this.game.size; row++) {
-                    for (let col = 0; col < this.game.size; col++) {
+
+            get level() { return this.gameData.level; }
+            get zone()  { return getZone(this.level); }
+
+            // ---------- build DOM ----------
+            buildCells() {
+                const board = document.getElementById('sudokuBoard');
+                board.innerHTML = '';
+                this.cells = [];
+                for (let r=0;r<9;r++) {
+                    this.cells[r] = [];
+                    for (let c=0;c<9;c++) {
                         const cell = document.createElement('div');
                         cell.className = 'cell';
-                        
-                        const subSize = Math.sqrt(this.game.size);
-                        if (row % subSize === 0) cell.classList.add('top-border');
-                        if (col % subSize === 0) cell.classList.add('left-border');
-                        
-                        if (this.game.board[row][col] !== '') {
-                            cell.textContent = this.game.board[row][col];
-                            cell.classList.add('prefilled');
-                        }
-                        
-                        cell.dataset.row = row;
-                        cell.dataset.col = col;
-                        
-                        cell.addEventListener('click', () => this.selectCell(row, col));
-                        
-                        this.elements.sudokuBoard.appendChild(cell);
+                        if (c===2||c===5) cell.classList.add('box-right');
+                        if (r===2||r===5) cell.classList.add('box-bottom');
+                        cell.dataset.r = r; cell.dataset.c = c;
+                        const notesEl = document.createElement('div'); notesEl.className = 'cell-notes';
+                        const valEl = document.createElement('div'); valEl.className = 'cell-val';
+                        cell.appendChild(notesEl); cell.appendChild(valEl);
+                        board.appendChild(cell);
+                        this.cells[r][c] = cell;
                     }
                 }
-            }
-            
-            updateNumberPad() {
-                this.elements.numberPad.innerHTML = '';
-                const maxColumns = Math.min(this.game.size, 6);
-                this.elements.numberPad.style.gridTemplateColumns = `repeat(${maxColumns}, 1fr)`;
-                
-                for (let i = 1; i <= this.game.size; i++) {
-                    const button = document.createElement('button');
-                    button.className = 'number-btn';
-                    button.textContent = i;
-                    button.addEventListener('click', () => this.placeNumber(i));
-                    this.elements.numberPad.appendChild(button);
-                }
-                
-                const clearButton = document.createElement('button');
-                clearButton.className = 'number-btn clear-btn';
-                clearButton.textContent = 'C';
-                clearButton.addEventListener('click', () => this.clearSelectedCell());
-                this.elements.numberPad.appendChild(clearButton);
-            }
-            
-            selectCell(row, col) {
-                document.querySelectorAll('.cell').forEach(cell => {
-                    cell.classList.remove('selected', 'related', 'error');
+                board.addEventListener('click', (e) => {
+                    const cell = e.target.closest('.cell');
+                    if (!cell) return;
+                    this.audio._run();
+                    this.selectCell(+cell.dataset.r, +cell.dataset.c);
                 });
-                
-                const selectedCell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                if (selectedCell) {
-                    selectedCell.classList.add('selected');
-                    this.highlightRelatedCells(row, col);
-                    this.game.selectedCell = { row, col };
-                    this.playSound('click');
+            }
+
+            buildNumPad() {
+                const pad = document.getElementById('numPad');
+                pad.innerHTML = '';
+                this.numBtns = {};
+                for (let n=1;n<=9;n++) {
+                    const b = document.createElement('button');
+                    b.className = 'num-btn'; b.dataset.n = n;
+                    b.innerHTML = `${n}<span class="remain"></span>`;
+                    b.addEventListener('click', () => { this.audio._run(); this.inputNumber(n); });
+                    pad.appendChild(b);
+                    this.numBtns[n] = b;
                 }
             }
-            
-            highlightRelatedCells(row, col) {
-                const subSize = Math.sqrt(this.game.size);
-                const startRow = Math.floor(row / subSize) * subSize;
-                const startCol = Math.floor(col / subSize) * subSize;
-                
-                for (let i = 0; i < this.game.size; i++) {
-                    const rowCell = document.querySelector(`.cell[data-row="${row}"][data-col="${i}"]`);
-                    if (rowCell && !rowCell.classList.contains('selected')) {
-                        rowCell.classList.add('related');
+
+            bindEvents() {
+                document.getElementById('undoBtn').addEventListener('click', () => this.undo());
+                document.getElementById('eraseBtn').addEventListener('click', () => this.erase());
+                document.getElementById('notesBtn').addEventListener('click', () => this.toggleNotes());
+                document.getElementById('hintBtn').addEventListener('click', () => this.useHint());
+
+                document.getElementById('restartBtn').addEventListener('click', () => this.restartPuzzle());
+                document.getElementById('newPuzzleBtn').addEventListener('click', () => this.startNewPuzzle());
+
+                document.getElementById('dailyBtn').addEventListener('click', () => this.claimDailyReward());
+                document.getElementById('adCoinBtn').addEventListener('click', () => this.watchAdForCoins());
+
+                // WIN modal → play ad, then next puzzle
+                const endBtn = document.getElementById('endActionBtn');
+                endBtn.addEventListener('click', () => {
+                    endBtn.disabled = true;
+                    endBtn.textContent = '⏳ Φόρτωση διαφήμισης…';
+                    this.showAdAndExecute(() => {
+                        document.getElementById('endModal').classList.remove('open');
+                        endBtn.disabled = false;
+                        endBtn.textContent = '▶ Επόμενο Παζλ';
+                        this.startNewPuzzle();
+                    });
+                });
+
+                // Scoreboard
+                const sModal = document.getElementById('scoreModal');
+                document.getElementById('openScoreboardBtn').addEventListener('click', () => { this.renderScoreboard(); sModal.classList.add('open'); });
+                document.getElementById('closeScoreboardBtn').addEventListener('click', () => sModal.classList.remove('open'));
+                sModal.addEventListener('click', e => { if (e.target === sModal) sModal.classList.remove('open'); });
+
+                // Keyboard (desktop)
+                document.addEventListener('keydown', (e) => {
+                    if (document.getElementById('endModal').classList.contains('open')) return;
+                    if (e.key >= '1' && e.key <= '9') { this.inputNumber(+e.key); }
+                    else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { this.erase(); }
+                    else if (e.key === 'n' || e.key === 'N') { this.toggleNotes(); }
+                    else if (this.selected && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+                        let {r,c} = this.selected;
+                        if (e.key==='ArrowUp') r=Math.max(0,r-1);
+                        if (e.key==='ArrowDown') r=Math.min(8,r+1);
+                        if (e.key==='ArrowLeft') c=Math.max(0,c-1);
+                        if (e.key==='ArrowRight') c=Math.min(8,c+1);
+                        this.selectCell(r,c); e.preventDefault();
                     }
-                    
-                    const colCell = document.querySelector(`.cell[data-row="${i}"][data-col="${col}"]`);
-                    if (colCell && !colCell.classList.contains('selected')) {
-                        colCell.classList.add('related');
-                    }
-                }
-                
-                for (let i = startRow; i < startRow + subSize; i++) {
-                    for (let j = startCol; j < startCol + subSize; j++) {
-                        const subCell = document.querySelector(`.cell[data-row="${i}"][data-col="${j}"]`);
-                        if (subCell && !subCell.classList.contains('selected')) {
-                            subCell.classList.add('related');
-                        }
-                    }
-                }
+                });
             }
-            
-            placeNumber(num) {
-                if (!this.game.selectedCell) {
-                    alert(translations[this.game.currentLanguage].selectEmpty);
-                    return;
-                }
-                
-                const { row, col } = this.game.selectedCell;
-                const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                
-                if (cellElement.classList.contains('prefilled')) {
-                    return;
-                }
-                
-                const isValid = this.game.placeNumber(row, col, num);
-                cellElement.textContent = num;
-                cellElement.classList.add('user-filled');
-                
-                if (!isValid) {
-                    cellElement.classList.add('error');
-                    this.playSound('error');
+
+            // ---------- Monetag ad ----------
+            showAdAndExecute(callback) {
+                if (typeof show_11108267 === 'function') {
+                    show_11108267()
+                        .then(() => { if (callback) callback(); })
+                        .catch((err) => {
+                            console.warn('Ad blocked or failed:', err);
+                            if (callback) callback(); // μην μπλοκάρεις το παιχνίδι αν αποτύχει η διαφήμιση
+                        });
                 } else {
-                    this.playSound('click');
-                }
-                
-                this.updateUI();
-                
-                if (this.game.isComplete()) {
-                    this.handleGameCompletion();
+                    if (callback) callback(); // fallback αν δεν φορτώθηκε το SDK
                 }
             }
-            
-            clearSelectedCell() {
-                if (!this.game.selectedCell) return;
-                
-                const { row, col } = this.game.selectedCell;
-                const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-                
-                if (cellElement.classList.contains('prefilled')) {
-                    return;
-                }
-                
-                const cleared = this.game.clearCell(row, col);
-                
-                if (cleared) {
-                    cellElement.textContent = '';
-                    cellElement.classList.remove('user-filled', 'error');
-                    this.playSound('click');
-                    this.updateUI();
-                }
-            }
-            
-            undoMove() {
-                if (this.game.undo()) {
-                    this.renderBoard();
-                    this.updateUI();
-                    this.playSound('click');
-                }
-            }
-            
-            checkSolution() {
-                if (!this.game.isBoardFull()) {
-                    alert(translations[this.game.currentLanguage].notComplete);
-                    return;
-                }
-                
-                if (this.game.isComplete()) {
-                    this.handleGameCompletion();
-                } else {
-                    alert(translations[this.game.currentLanguage].incorrect);
-                }
-            }
-            
-            updateUI() {
-                this.elements.errorCountElement.textContent = this.game.errors;
-                this.elements.undoCountElement.textContent = this.game.moveHistory.length;
-                this.elements.currentLevelElement.textContent = this.game.currentLevel;
-                this.game.updatePlayerInfo();
-            }
-            
-            startTimer() {
-                clearInterval(this.game.timerInterval);
-                this.game.gameTime = 0;
-                this.updateTimer();
-                
-                this.game.timerInterval = setInterval(() => {
-                    this.game.gameTime++;
-                    this.updateTimer();
-                }, 1000);
-            }
-            
-            updateTimer() {
-                const minutes = Math.floor(this.game.gameTime / 60);
-                const seconds = this.game.gameTime % 60;
-                this.elements.timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
-            
-            handleGameCompletion() {
-                clearInterval(this.game.timerInterval);
-                
-                this.game.playerCompleted();
-                
-                const scoreDetails = this.game.calculateScore(this.game.gameTime);
-                
-                this.game.player1Score += scoreDetails.total;
-                
-                // ===== ΑΠΟΣΤΟΛΗ ΣΚΟΡ ΣΤΟ BACKEND =====
-                sendScoreToBackend(scoreDetails.total);
-                
-                this.showCelebrationScreen(scoreDetails);
-            }
-            
-            showCelebrationScreen(scoreDetails) {
-                this.playSound('celebration');
-                this.createCelebrationEffects();
-                
-                const totalScore = this.game.player1Score;
-                
-                const detailsHTML = `
-                    <div style="margin: 20px 0;">
-                        <div style="font-size: 20px; margin: 10px 0;">
-                            Time: <span style="color: #FFEB3B">${this.formatTime(this.game.gameTime)}</span>
-                        </div>
-                        <div style="font-size: 20px; margin: 10px 0;">
-                            Errors: <span style="color: #FFEB3B">${this.game.errors}</span>
-                        </div>
-                        <div style="font-size: 20px; margin: 10px 0;">
-                            Level: <span style="color: #FFEB3B">${this.game.currentLevel}</span>
-                        </div>
-                    </div>
-                `;
-                
-                this.elements.celebrationDetails.innerHTML = detailsHTML;
-                this.elements.totalScore.textContent = totalScore;
-                
-                this.elements.timeBonusInfo.innerHTML = `
-                    ⏱️ Time Bonus: +${scoreDetails.timeBonus} points<br>
-                    📈 Level Multiplier: x${scoreDetails.levelMultiplier}<br>
-                    🎯 Single Player Bonus: +${scoreDetails.singlePlayerBonus} points
-                `;
-                
-                this.elements.celebrationScreen.style.display = 'flex';
-            }
-            
-            continueFromCelebration() {
-                this.elements.celebrationScreen.style.display = 'none';
-                this.clearCelebrationEffects();
-                
-                this.game.currentLevel++;
-                this.game.completedLevels++;
-                
-                this.startNewGame();
-            }
-            
-            createCelebrationEffects() {
-                // Confetti
-                for (let i = 0; i < 200; i++) {
-                    setTimeout(() => {
-                        const confetti = document.createElement('div');
-                        confetti.className = 'confetti';
-                        confetti.style.left = `${Math.random() * 100}%`;
-                        confetti.style.top = `-10px`;
-                        confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-                        confetti.style.animation = `confettiFall ${Math.random() * 3 + 2}s linear forwards`;
-                        confetti.style.animationDelay = `${Math.random() * 2}s`;
-                        
-                        document.body.appendChild(confetti);
-                        this.confettiElements.push(confetti);
-                        
-                        setTimeout(() => {
-                            if (confetti.parentNode) {
-                                confetti.remove();
-                            }
-                        }, 5000);
-                    }, i * 20);
-                }
-                
-                // Fireworks
-                for (let i = 0; i < 10; i++) {
-                    setTimeout(() => {
-                        this.createFirework();
-                    }, i * 300);
-                }
-            }
-            
-            createFirework() {
-                const firework = document.createElement('div');
-                firework.className = 'firework';
-                
-                const x = Math.random() * 80 + 10;
-                const y = Math.random() * 80 + 10;
-                
-                firework.style.setProperty('--x', `${x}vw`);
-                firework.style.setProperty('--y', `${y}vh`);
-                firework.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-                firework.style.animation = `firework 1s ease-out forwards`;
-                
-                document.body.appendChild(firework);
-                this.confettiElements.push(firework);
-                
+
+            // ---------- new / restart puzzle ----------
+            startNewPuzzle() {
+                this._won = false; this.selected = null; this.notesMode = false;
+                this.mistakes = 0; this.hintsUsed = 0; this.hintCells = new Set(); this.undoStack = [];
+                this.stopTimer();
+                this.setLoading(true);
+                // small delay so the loading spinner paints before the (fast) generation
                 setTimeout(() => {
-                    if (firework.parentNode) {
-                        firework.remove();
-                    }
-                }, 1000);
+                    try {
+                        const sol = generateSolution();
+                        const { puzzle } = makePuzzle(sol, this.zone.clues);
+                        this.solution = sol;
+                        this.puzzleGivens = puzzle.map(row => [...row]);
+                        this.grid = puzzle.map(row => [...row]);
+                        this.given = puzzle.map(row => row.map(v => v !== 0));
+                        this.notes = Array.from({length:9}, () => new Array(9).fill(0));
+                    } catch(e) { console.error('generation failed', e); }
+                    this.setLoading(false);
+                    this.refresh(); this.updateNumPad(); this.updateHUD();
+                    this.updateToolButtons(); this.setStatus('Η σειρά σου');
+                    this.startTimer();
+                }, 40);
             }
-            
-            clearCelebrationEffects() {
-                this.confettiElements.forEach(el => {
-                    if (el.parentNode) {
-                        el.parentNode.removeChild(el);
-                    }
+
+            restartPuzzle() {
+                if (!this.puzzleGivens) return;
+                this._won = false; this.selected = null; this.notesMode = false;
+                this.mistakes = 0; this.hintsUsed = 0; this.hintCells = new Set(); this.undoStack = [];
+                this.grid = this.puzzleGivens.map(row => [...row]);
+                this.notes = Array.from({length:9}, () => new Array(9).fill(0));
+                this.refresh(); this.updateNumPad(); this.updateToolButtons();
+                this.setStatus('Η σειρά σου'); this.updateMistakes();
+                this.startTimer();
+            }
+
+            setLoading(on) { document.getElementById('boardLoading').classList.toggle('show', on); }
+
+            // ---------- selection & input ----------
+            selectCell(r, c) { this.selected = { r, c }; this.refresh(); }
+
+            pushUndo() {
+                this.undoStack.push({
+                    grid: this.grid.map(row => [...row]),
+                    notes: this.notes.map(row => [...row]),
+                    mistakes: this.mistakes,
+                    hintCells: new Set(this.hintCells)
                 });
-                this.confettiElements = [];
+                if (this.undoStack.length > 200) this.undoStack.shift();
             }
-            
-            clearIntervals() {
-                if (this.game && this.game.timerInterval) clearInterval(this.game.timerInterval);
+
+            undo() {
+                if (this._won || !this.undoStack.length) return;
+                const s = this.undoStack.pop();
+                this.grid = s.grid; this.notes = s.notes; this.mistakes = s.mistakes; this.hintCells = s.hintCells;
+                this.refresh(); this.updateNumPad(); this.updateMistakes();
             }
-            
-            formatTime(seconds) {
-                const minutes = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            inputNumber(n) {
+                if (this._won || !this.selected) return;
+                const { r, c } = this.selected;
+                if (this.given[r][c]) return;
+
+                if (this.notesMode) {
+                    if (this.grid[r][c] !== 0) return;
+                    this.pushUndo();
+                    this.notes[r][c] ^= (1 << n);
+                    this.audio.tick(660);
+                    this.refresh();
+                    return;
+                }
+
+                this.pushUndo();
+                this.grid[r][c] = n;
+                this.notes[r][c] = 0;
+                if (n !== this.solution[r][c]) {
+                    this.mistakes++;
+                    this.audio.wrong();
+                    this.updateMistakes();
+                } else {
+                    this.hintCells.delete(r*9+c);
+                    this.clearPeerNotes(r, c, n);
+                    this.audio.place();
+                }
+                this.refresh(); this.updateNumPad();
+                if (this.isComplete()) this.onWin();
             }
-            
-            playSound(type) {
-                const sound = document.getElementById(`${type}-sound`);
-                if (sound) {
-                    sound.currentTime = 0;
-                    sound.play().catch(e => console.log("Unable to play sound:", e));
+
+            erase() {
+                if (this._won || !this.selected) return;
+                const { r, c } = this.selected;
+                if (this.given[r][c]) return;
+                if (this.grid[r][c] === 0 && this.notes[r][c] === 0) return;
+                this.pushUndo();
+                if (this.grid[r][c] !== 0) { this.grid[r][c] = 0; this.hintCells.delete(r*9+c); }
+                else { this.notes[r][c] = 0; }
+                this.refresh(); this.updateNumPad();
+            }
+
+            toggleNotes() {
+                this.notesMode = !this.notesMode;
+                this.updateToolButtons();
+            }
+
+            clearPeerNotes(r, c, n) {
+                const bit = 1 << n;
+                for (let i=0;i<9;i++) { this.notes[r][i] &= ~bit; this.notes[i][c] &= ~bit; }
+                const br=((r/3)|0)*3, bc=((c/3)|0)*3;
+                for (let i=0;i<3;i++) for (let j=0;j<3;j++) this.notes[br+i][bc+j] &= ~bit;
+            }
+
+            useHint() {
+                if (this._won) return;
+                if (this.hintsUsed < HINTS_FREE) {
+                    this.hintsUsed++;
+                    this.doHint();
+                    this.updateToolButtons();
+                } else {
+                    // δωρεάν βοήθειες τελείωσαν → διαφήμιση για έξτρα βοήθεια
+                    this.showAdAndExecute(() => { this.doHint(); this.updateToolButtons(); });
                 }
             }
-            
-            applyTheme(theme) {
-                document.body.className = '';
-                
-                switch(theme) {
-                    case 'dark':
-                        document.body.style.background = 'linear-gradient(135deg, #2c3e50, #34495e)';
-                        break;
-                    case 'nature':
-                        document.body.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
-                        break;
-                    case 'sunset':
-                        document.body.style.background = 'linear-gradient(135deg, #e74c3c, #f39c12)';
-                        break;
-                    default:
-                        document.body.style.background = 'linear-gradient(135deg, #6a89cc, #4a69bd)';
+
+            doHint() {
+                const candidates = [];
+                for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+                    if (!this.given[r][c] && this.grid[r][c] !== this.solution[r][c]) candidates.push([r,c]);
                 }
-                
-                document.querySelectorAll('.theme-btn').forEach(btn => {
-                    btn.classList.remove('active');
+                if (!candidates.length) return;
+                let target = null;
+                if (this.selected && !this.given[this.selected.r][this.selected.c] &&
+                    this.grid[this.selected.r][this.selected.c] !== this.solution[this.selected.r][this.selected.c]) {
+                    target = [this.selected.r, this.selected.c];
+                } else {
+                    target = candidates[(Math.random()*candidates.length)|0];
+                }
+                const [r,c] = target;
+                this.pushUndo();
+                this.grid[r][c] = this.solution[r][c];
+                this.notes[r][c] = 0;
+                this.hintCells.add(r*9+c);
+                this.clearPeerNotes(r, c, this.solution[r][c]);
+                this.audio.place();
+                this.refresh(); this.updateNumPad();
+                if (this.isComplete()) this.onWin();
+            }
+
+            isComplete() {
+                for (let r=0;r<9;r++) for (let c=0;c<9;c++)
+                    if (this.grid[r][c] !== this.solution[r][c]) return false;
+                return true;
+            }
+
+            // ---------- rendering ----------
+            refresh() {
+                let selNum = 0;
+                if (this.selected) selNum = this.grid[this.selected.r][this.selected.c];
+                const sr = this.selected ? this.selected.r : -1;
+                const sc = this.selected ? this.selected.c : -1;
+                const sBox = this.selected ? boxIndex(sr, sc) : -1;
+
+                for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+                    const cell = this.cells[r][c];
+                    const valEl = cell.children[1];
+                    const notesEl = cell.children[0];
+                    const v = this.grid[r][c];
+
+                    cell.classList.remove('given','user','error','selected','related','same','hintc');
+
+                    if (v !== 0) {
+                        notesEl.style.display = 'none';
+                        valEl.style.display = '';
+                        valEl.textContent = v;
+                        if (this.given[r][c]) cell.classList.add('given');
+                        else {
+                            if (v !== this.solution[r][c]) cell.classList.add('error');
+                            else if (this.hintCells.has(r*9+c)) cell.classList.add('hintc');
+                            else cell.classList.add('user');
+                        }
+                    } else {
+                        valEl.style.display = 'none';
+                        valEl.textContent = '';
+                        const nm = this.notes[r][c];
+                        if (nm) {
+                            notesEl.style.display = '';
+                            let html = '';
+                            for (let n=1;n<=9;n++) html += `<span>${(nm & (1<<n)) ? n : ''}</span>`;
+                            notesEl.innerHTML = html;
+                        } else {
+                            notesEl.style.display = 'none';
+                            notesEl.innerHTML = '';
+                        }
+                    }
+
+                    if (this.selected) {
+                        if (r===sr && c===sc) cell.classList.add('selected');
+                        else if (r===sr || c===sc || boxIndex(r,c)===sBox) cell.classList.add('related');
+                        if (selNum !== 0 && v === selNum && !(r===sr && c===sc)) cell.classList.add('same');
+                    }
+                }
+            }
+
+            updateNumPad() {
+                const counts = new Array(10).fill(0);
+                for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+                    const v = this.grid[r][c];
+                    if (v && v === this.solution[r][c]) counts[v]++;
+                }
+                for (let n=1;n<=9;n++) {
+                    const remain = 9 - counts[n];
+                    const b = this.numBtns[n];
+                    b.querySelector('.remain').textContent = remain > 0 ? remain : '';
+                    b.classList.toggle('done', remain <= 0);
+                }
+            }
+
+            updateToolButtons() {
+                document.getElementById('notesBtn').classList.toggle('active', this.notesMode);
+                const left = Math.max(0, HINTS_FREE - this.hintsUsed);
+                document.getElementById('hintBadge').textContent = left > 0 ? left : '🎬';
+            }
+
+            setStatus(txt) { document.getElementById('statusText').textContent = txt; }
+            updateMistakes() {
+                document.getElementById('mistakeDisplay').textContent = this.mistakes;
+                document.getElementById('mistakeChip').classList.toggle('warn', this.mistakes > 0);
+            }
+
+            updateHUD() {
+                const z = this.zone;
+                document.getElementById('hudLevel').textContent = `LEVEL ${this.level}`;
+                document.getElementById('hudZone').textContent = `${z.emoji} ${z.label}`;
+                const p = this.gameData.puzzlesInLevel;
+                document.getElementById('hudPuzzles').textContent = `Παζλ ${Math.min(p+1, PUZZLES_PER_LEVEL)}/${PUZZLES_PER_LEVEL}`;
+                document.getElementById('levelProgressBar').style.width = (p / PUZZLES_PER_LEVEL * 100) + '%';
+                document.getElementById('coinDisplay').textContent = this.gameData.coins;
+                document.getElementById('solvedDisplay').textContent = this.gameData.totalSolved;
+                this.updateMistakes();
+            }
+
+            // ---------- timer ----------
+            startTimer() { this.startTime = Date.now(); this.stopTimer(); this._timer = setInterval(() => this.updateTimer(), 500); this.updateTimer(); }
+            stopTimer() { if (this._timer) { clearInterval(this._timer); this._timer = null; } }
+            updateTimer() {
+                const s = Math.floor((Date.now() - this.startTime) / 1000);
+                document.getElementById('timeDisplay').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+            }
+
+            // ---------- win ----------
+            onWin() {
+                if (this._won) return;
+                this._won = true;
+                this.stopTimer();
+
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const tierBonus = this.zone.tier * 2;
+                const accBonus = Math.max(0, 10 - this.mistakes * 2);
+                const coinsEarned = 10 + tierBonus + accBonus;
+
+                this.gameData.coins += coinsEarned;
+                this.gameData.totalSolved++;
+                this.gameData.puzzlesInLevel++;
+
+                let leveledUp = false;
+                if (this.gameData.puzzlesInLevel >= PUZZLES_PER_LEVEL) {
+                    this.gameData.level++;
+                    this.gameData.puzzlesInLevel = 0;
+                    leveledUp = true;
+                }
+                this.gameData.maxLevel = Math.max(this.gameData.maxLevel || 1, this.gameData.level);
+                writeSave(this.gameData);
+
+                // score history
+                const today = loadToday();
+                today.solved = (today.solved || 0) + 1;
+                today.maxLevel = Math.max(today.maxLevel || 1, this.gameData.level);
+                saveToday(today);
+                this.renderScoreboard();
+
+                this.updateHUD();
+                this.audio.victory();
+                this.triggerConfetti();
+                this.setStatus('Λύθηκε! 🎉');
+
+                this.showWinModal(leveledUp, coinsEarned, elapsed);
+            }
+
+            showWinModal(leveledUp, coinsEarned, elapsed) {
+                document.getElementById('endTitle').textContent = '🎉 Παζλ Λυμένο!';
+                document.getElementById('endSub').textContent = `${this.zone.emoji} ${this.zone.label}`;
+
+                // level-up banner
+                const banner = document.getElementById('levelupBanner');
+                if (leveledUp) {
+                    banner.classList.add('show');
+                    const nz = this.zone; // already advanced
+                    document.getElementById('levelupBig').textContent = `🚀 LEVEL ${this.level}!`;
+                    document.getElementById('levelupSmall').textContent = `Νέα δυσκολία: ${nz.emoji} ${nz.label}`;
+                } else {
+                    banner.classList.remove('show');
+                }
+
+                // progress bar (puzzles within current level)
+                const p = this.gameData.puzzlesInLevel;
+                const pct = leveledUp ? 100 : (p / PUZZLES_PER_LEVEL * 100);
+                document.getElementById('progressLabelLeft').textContent = leveledUp ? 'Level Ολοκληρώθηκε!' : `Πρόοδος Level ${this.level}`;
+                document.getElementById('progressLabelRight').textContent = leveledUp ? `${PUZZLES_PER_LEVEL}/${PUZZLES_PER_LEVEL}` : `${p}/${PUZZLES_PER_LEVEL} παζλ`;
+                const bar = document.getElementById('progressBar');
+                bar.style.width = '0%';
+                setTimeout(() => { bar.style.width = pct + '%'; }, 100);
+
+                // stats
+                document.getElementById('statTime').textContent = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed/60)}m ${elapsed%60}s`;
+                document.getElementById('statMistakes').textContent = this.mistakes;
+                document.getElementById('statHints').textContent = this.hintsUsed;
+                document.getElementById('statCoins').textContent = `+${coinsEarned}`;
+
+                const btn = document.getElementById('endActionBtn');
+                btn.disabled = false;
+                btn.textContent = '▶ Επόμενο Παζλ';
+
+                document.getElementById('endModal').classList.add('open');
+            }
+
+            triggerConfetti() {
+                const colors = ['#84cc16','#a3e635','#22d3ee','#fbbf24','#e81cff','#f472b6'];
+                for (let i=0;i<70;i++) {
+                    const c = document.createElement('div');
+                    c.classList.add('confetti');
+                    c.style.left = Math.random()*100+'vw';
+                    c.style.animationDelay = Math.random()*0.5+'s';
+                    c.style.animationDuration = (Math.random()*2+2)+'s';
+                    c.style.background = colors[(Math.random()*colors.length)|0];
+                    document.body.appendChild(c);
+                    setTimeout(() => c.remove(), 3500);
+                }
+            }
+
+            // ---------- daily reward / ad coins ----------
+            checkDailyReward() {
+                const today = new Date().toDateString();
+                if (this.gameData.lastLogin !== today) {
+                    const prev = this.gameData.lastLogin ? new Date(this.gameData.lastLogin) : null;
+                    let streak = 1;
+                    if (prev) {
+                        const diff = (new Date(today) - prev) / (1000*60*60*24);
+                        streak = diff <= 1.5 ? (this.gameData.streak + 1) : 1;
+                    }
+                    this.gameData.lastLogin = today;
+                    this.gameData.streak = streak;
+                    writeSave(this.gameData);
+                    return streak;
+                }
+                return null;
+            }
+
+            claimDailyReward() {
+                this.showAdAndExecute(() => {
+                    const streak = this.checkDailyReward();
+                    if (streak === null) { alert('Το δώρο το πήρες ήδη σήμερα! Έλα ξανά αύριο.'); return; }
+                    const coins = 10 * streak;
+                    this.gameData.coins += coins;
+                    writeSave(this.gameData);
+                    this.updateHUD();
+                    alert(`🎁 Ημερήσιο δώρο!\nΣερί: ${streak}x\n+${coins} νομίσματα!`);
                 });
-                document.querySelector(`.theme-btn[data-theme="${theme}"]`).classList.add('active');
             }
-            
-            updateTranslations(language) {
-                const t = translations[language];
-                
-                document.getElementById('game-title').textContent = t.title;
-                document.getElementById('errors-label').textContent = t.errors;
-                document.getElementById('undo-label').textContent = t.undo;
-                document.getElementById('level-label').textContent = t.level;
-                document.getElementById('easy-label').textContent = t.easy;
-                document.getElementById('medium-label').textContent = t.medium;
-                document.getElementById('hard-label').textContent = t.hard;
-                document.getElementById('new-game').textContent = t.newGame;
-                document.getElementById('check-solution').textContent = t.check;
-                document.getElementById('change-mode').textContent = t.changeMode;
-                
-                if (this.game) {
-                    this.game.currentLanguage = language;
-                    this.game.updatePlayerInfo();
+
+            watchAdForCoins() {
+                this.showAdAndExecute(() => {
+                    this.gameData.coins += 25;
+                    writeSave(this.gameData);
+                    this.updateHUD();
+                    alert('🎉 +25 νομίσματα!');
+                });
+            }
+
+            // ---------- scoreboard ----------
+            renderScoreboard() {
+                const content = document.getElementById('scoreboardContent');
+                if (!content) return;
+                const todayKey = getTodayKey();
+                const todayData = loadToday();
+                const all = loadAll();
+                const combined = Object.assign({}, all);
+                if (Object.keys(todayData).length > 0) combined[todayKey] = todayData;
+                const rows = Object.keys(combined).sort().reverse();
+                if (!rows.length) {
+                    content.innerHTML = '<div class="no-history">Δεν υπάρχει ιστορικό ακόμα. Λύσε το πρώτο σου παζλ!</div>';
+                } else {
+                    let html = '<table class="score-table"><thead><tr><th>📅 Ημέρα</th><th>Μεγ. Level</th><th class="win">🧩 Λυμένα</th></tr></thead><tbody>';
+                    rows.forEach(date => {
+                        const d = combined[date] || {};
+                        const cls = date === todayKey ? 'today-row' : '';
+                        const lbl = date === todayKey ? '🟢 Σήμερα' : date;
+                        html += `<tr class="${cls}"><td>${lbl}</td><td>${d.maxLevel||1}</td><td class="win">${d.solved||0}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    content.innerHTML = html;
                 }
+                document.getElementById('recordDisplay').textContent = this.gameData.maxLevel || 1;
             }
         }
 
-        let app;
-        
-        window.addEventListener('DOMContentLoaded', () => {
-            app = new SudokuApp();
-        });
-        
-        window.addEventListener('beforeunload', () => {
-            if (app) {
-                app.clearIntervals();
-            }
-        });
+        // ============================================================
+        // START
+        // ============================================================
+        try { initBackgroundEffects(); } catch(e) {}
+        try { window._sudoku = new SudokuGame(); } catch(e) { console.error(e); }
+    })();
     </script>
 </body>
 </html>
