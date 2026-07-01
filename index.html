@@ -396,9 +396,7 @@
     </nav>
 
     <script>
-        // ==================== CONFIG ====================
-        const API_ENDPOINT = window.location.origin; 
-        const API_KEY = "m0n3t4g_s3cur3_k3y_2026";
+        // ==================== CONFIG (ΑΥΤΟΝΟΜΟ LOCALSTORAGE) ====================
         let userId = localStorage.getItem('franklymadear_userId');
         if (!userId) { userId = 'user_' + Math.random().toString(36).substr(2,9) + '_' + Date.now(); localStorage.setItem('franklymadear_userId', userId); }
         let displayName = localStorage.getItem('franklymadear_displayName');
@@ -424,12 +422,56 @@
             });
         }
 
+        // ΠΡΟΣΟΜΟΙΩΣΗ API (Δουλεύει 100% τοπικά χωρίς server)
         async function apiCall(method, path, body = null) {
-            const url = API_ENDPOINT.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '');
-            const headers = { 'Content-Type': 'application/json' };
-            const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : null });
-            if (!res.ok) throw new Error((await res.json()).detail || 'Request failed');
-            return res.json();
+            return new Promise((resolve) => {
+                // Προσομοίωση καθυστέρησης για να φαίνεται ρεαλιστικό
+                setTimeout(() => {
+                    if (path.includes('board')) {
+                        let data = {
+                            points: parseInt(localStorage.getItem('points') || '0'),
+                            level: 1,
+                            free_spins: parseInt(localStorage.getItem('free_spins') || '0')
+                        };
+                        resolve(data);
+                    } 
+                    else if (path.includes('add-points')) {
+                        let pts = body.points || 0;
+                        let current = parseInt(localStorage.getItem('points') || '0');
+                        current += pts;
+                        localStorage.setItem('points', current.toString());
+                        resolve({ added: pts, total: current });
+                    }
+                    else if (path.includes('add-free-spins')) {
+                        let spins = body.spins || 0;
+                        let current = parseInt(localStorage.getItem('free_spins') || '0');
+                        current += spins;
+                        localStorage.setItem('free_spins', current.toString());
+                        resolve({ free_spins: current });
+                    }
+                    else if (path.includes('missions')) {
+                        let c4x4Wins = parseInt(localStorage.getItem('FRANKLY_4X4_WINS') || '0');
+                        let c4x4Claimed = localStorage.getItem('FRANKLY_4X4_CLAIMED') === 'true';
+                        resolve({ connect4x4: { wins: c4x4Wins, claimed: c4x4Claimed } });
+                    }
+                    else if (path.includes('wheel/spin')) {
+                        let freeSpins = parseInt(localStorage.getItem('free_spins') || '0');
+                        if (freeSpins <= 0) { resolve({ prizeIndex: 0, error: 'No spins' }); return; }
+                        freeSpins--;
+                        localStorage.setItem('free_spins', freeSpins.toString());
+                        let prizeIndex = Math.floor(Math.random() * 10);
+                        resolve({ prizeIndex: prizeIndex });
+                    }
+                    else if (path.includes('leaderboard')) {
+                        // Προσομοίωση Top 1
+                        let fakeLB = [{ userId: userId, nickname: displayName, points: parseInt(localStorage.getItem('points') || '0') }];
+                        resolve({ leaderboard: fakeLB });
+                    }
+                    else {
+                        resolve({});
+                    }
+                }, 150);
+            });
         }
 
         function showToast(msg) {
@@ -478,7 +520,7 @@
         async function syncMissionProgress() {
             try {
                 const data = await apiCall('GET', `missions?userId=${userId}`);
-                if (data.connect4x4) { localStorage.setItem(C4X4_WINS_KEY, data.connect4x4.wins); localStorage.setItem(C4X4_CLAIMED_KEY, data.connect4x4.claimed ? 'true' : 'false'); }
+                if (data.connect4x4) { localStorage.setItem('FRANKLY_4X4_WINS', data.connect4x4.wins.toString()); localStorage.setItem('FRANKLY_4X4_CLAIMED', data.connect4x4.claimed ? 'true' : 'false'); }
                 updateMissionsUI();
             } catch (e) {}
         }
@@ -617,13 +659,11 @@
                 midnight.setHours(24, 0, 0, 0);
                 const diff = midnight - now;
                 
-                // If the timer hits 0, reset the missions
                 if (diff <= 0) {
                     setWins(C4X4_WINS_KEY, 0);
                     setClaimed(C4X4_CLAIMED_KEY, false);
                     localStorage.setItem('frankly_daily_reset', new Date().toDateString());
                     updateMissionsUI();
-                    // Re-run updateTimer to show the new day's timer
                     setTimeout(updateTimer, 1000);
                     return;
                 }
@@ -813,6 +853,7 @@
             initAudio(); 
             try { 
                 const result = await apiCall('POST','wheel/spin',{userId}); 
+                if(result.error) { showToast('Not enough Spins!'); return; }
                 let prizeIndex = result.prizeIndex; 
                 refreshUI(); 
                 runHighlightAnimation(prizeIndex); 
@@ -1009,7 +1050,6 @@
             } else if (reward.type.startsWith('energy')) {
                 boardState.energy += value;
                 boardUpdateEnergyUI();
-                apiCall('POST', 'add-free-rolls', { userId, rolls: value }).then(() => refreshUI());
                 showToast(`+${value} Rolls!`);
             }
             boardSaveProgress();
@@ -1036,7 +1076,6 @@
                 boardState.energy += 5;
                 boardUpdateEnergyUI();
                 showToast('+5 Rolls! 🎉');
-                apiCall('POST', 'add-free-rolls', { userId, rolls: 5 }).then(refreshUI);
                 boardSaveProgress();
             } catch (e) {
                 showToast('Ad not completed');
@@ -1400,7 +1439,7 @@
             refreshAll();
             boardInit();
             initWheel();
-            startMissionTimer(); // Start the 24h countdown for missions
+            startMissionTimer();
 
             (function initWelcomeSpace() {
                 const canvas = document.getElementById('welcomeSpaceCanvas');
