@@ -247,6 +247,8 @@
         .level-progress-btn:hover { border-color: var(--neon); }
         .level-progress-btn::marker { color: var(--neon); }
         .level-progress-content { padding: 10px 0; }
+        
+        .mission-timer { text-align: center; color: #ffd700; font-weight: 700; font-size: 1rem; margin-bottom: 10px; }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -312,6 +314,7 @@
         <div class="section" id="section-missions">
             <div style="padding: 15px; overflow-y: auto; height: 100%;">
                 <h2 class="section-title">📋 Daily Missions</h2>
+                <div id="missionsTimer" class="mission-timer">⏳ Resets in: 23h 59m 59s</div>
                 <p style="text-align:center; color: var(--text-secondary); margin-bottom: 15px;">Complete missions to earn XP and Coins!</p>
                 <div class="mission-game-grid" id="missionsGameGrid">
                     <div class="mission-game-item" onclick="playGame('https://games.franklymadear.com/4x4/index.html', '4x4 Connect')">
@@ -326,7 +329,7 @@
         <!-- LIST SECTION -->
         <div class="section" id="section-list">
             <div class="list-title-text">
-                🏆 <strong>Weekly Contest Leaderboard</strong> - Play games, earn points, and enter our weekly contest! The top 10 players at the end of the week win exclusive rewards!
+                🏆 <strong>Weekly Contest Leaderboard</strong> - Play games, earn points, and enter our weekly contest! Every 500 points you earn, you will be prompted to enter the weekly contest in a popup window.
             </div>
             <div style="background:var(--bg-tertiary); border:1px solid var(--border-default); border-radius:var(--radius-md); padding:12px; margin-bottom:10px; display:flex; justify-content:space-around;">
                 <div style="text-align:center;"><span style="color:var(--text-secondary);">Total XP</span><br><span id="listTotalPoints" style="color:var(--neon);font-weight:700;">0</span></div>
@@ -604,6 +607,35 @@
                 else if (c4x4Wins >= C4X4_THRESHOLD) { c4x4Btn.className = 'reward-btn active'; c4x4Btn.textContent = '🎁 Claim 200'; }
                 else { c4x4Btn.className = 'reward-btn'; c4x4Btn.textContent = '🔒 Claim 200'; }
             }
+        }
+
+        // Timer for Missions Reset (24 Hours)
+        function startMissionTimer() {
+            function updateTimer() {
+                const now = new Date();
+                const midnight = new Date(now);
+                midnight.setHours(24, 0, 0, 0);
+                const diff = midnight - now;
+                
+                // If the timer hits 0, reset the missions
+                if (diff <= 0) {
+                    setWins(C4X4_WINS_KEY, 0);
+                    setClaimed(C4X4_CLAIMED_KEY, false);
+                    localStorage.setItem('frankly_daily_reset', new Date().toDateString());
+                    updateMissionsUI();
+                    // Re-run updateTimer to show the new day's timer
+                    setTimeout(updateTimer, 1000);
+                    return;
+                }
+                
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                const timerEl = document.getElementById('missionsTimer');
+                if (timerEl) timerEl.textContent = `⏳ Resets in: ${h}h ${m}m ${s}s`;
+            }
+            updateTimer();
+            setInterval(updateTimer, 1000);
         }
 
         async function claim4x4Reward() {
@@ -1368,6 +1400,7 @@
             refreshAll();
             boardInit();
             initWheel();
+            startMissionTimer(); // Start the 24h countdown for missions
 
             (function initWelcomeSpace() {
                 const canvas = document.getElementById('welcomeSpaceCanvas');
