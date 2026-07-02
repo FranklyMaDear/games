@@ -202,7 +202,7 @@ const TRACK_W=COLS*COL_W+1.0;
 const TRACK_L=36;
 const DANGER_Z=13.5;
 const SHOOTER_Z=16.0;
-const X_LIMIT=TRACK_W/2-CUBE_SZ/2-0.05; /* full track width minus half cube */
+const X_LIMIT=TRACK_W/2-CUBE_SZ/2-0.05;
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const RAMP_HOME_Z = -TRACK_L/2 + 0.3;
@@ -378,20 +378,18 @@ const bouncyCubeMat=new CANNON.Material('bouncyCube');
 const newRowMat=new CANNON.Material('newRow');
 const wallPhysMat=new CANNON.Material('wall');
 
-/* MODIFIED: Higher restitution for natural bouncing */
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cannonFloorMat,{friction:.5,restitution:0.15}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.3,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallPhysMat,{friction:.2,restitution:0.1}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.3,restitution:0.25})); /* MORE BOUNCE */
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.3,restitution:0.25}));
 world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,newRowMat,{friction:.3,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cannonFloorMat,{friction:.6,restitution:0.05}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.4,restitution:0.2})); /* MORE BOUNCE */
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.4,restitution:0.2}));
 world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallPhysMat,{friction:.3,restitution:0.15}));
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cannonFloorMat,{friction:.95,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,wallPhysMat,{friction:.8,restitution:0.0}));
 world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cubeMat,{friction:.7,restitution:0.0}));
 
-/* MODIFIED: Radial/random push for the shot cube collision instead of only Z */
 const pushedThisShot=new Set();
 world.addEventListener('beginContact',(e)=>{
   if(!shotCube)return;
@@ -405,7 +403,6 @@ world.addEventListener('beginContact',(e)=>{
   if(tc.value===shotCube.value)return;
   if(pushedThisShot.has(tc.id))return;
   pushedThisShot.add(tc.id);
-  /* Random direction push in XZ + slight bias towards player (Z) */
   const shotSpd=Math.abs(shotCube.body.velocity.z);
   const fmag=Math.min(shotSpd*0.4+3, 12);
   const angle=Math.random()*Math.PI*2;
@@ -478,7 +475,6 @@ function spawnCube(x,y,z,value,opts={}){
 
   let physMat;
   let linearDamping,angularDamping;
-  /* MODIFIED: Lower damping for natural slide and momentum */
   if(opts.isShot){
     physMat=bouncyCubeMat;linearDamping=0.05;angularDamping=0.4;
   } else if(opts.isNewRow){
@@ -499,7 +495,7 @@ function spawnCube(x,y,z,value,opts={}){
 
   if(opts.isShot){
     body.collisionFilterGroup=GRP_SHOT;
-    body.collisionFilterMask=GRP_WALL; /* only walls during flight - track cubes enabled after passedDanger */
+    body.collisionFilterMask=GRP_WALL;
   } else if(opts.isNewRow){
     body.collisionFilterGroup=GRP_NEWROW;
     body.collisionFilterMask=GRP_WALL;
@@ -583,7 +579,7 @@ function shoot(){
 
   nc.body.type    = CANNON.Body.DYNAMIC;
   nc.body.mass    = 2;
-  nc.body.linearDamping  = 0.0;   /* zero drag during flight */
+  nc.body.linearDamping  = 0.0;
   nc.body.angularDamping = 1.0;
   nc.body.fixedRotation  = true;
   nc.body.updateMassProperties();
@@ -628,7 +624,6 @@ function tryMerge(a,b){
   nc.flash=12;nc.mergeActive=true;nc.mergeCooldown=0.5;
   nc.body.velocity.set(0, 0.8, 0);
   nc.body.angularVelocity.set(0,0,0);
-  /* blast: push nearby cubes radially (XZ) + upward */
   for(const c2 of cubes){if(c2.id===nc.id)continue;
     const dx=c2.body.position.x-px; const dz=c2.body.position.z-pz;
     const dist=Math.sqrt(dx*dx+dz*dz)+0.5;
@@ -664,7 +659,6 @@ function sweepMerges(){
       if(a.value!==b.value)continue;
       if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
       if(a.isNewRow||b.isNewRow)continue;
-      /* Allow merge if at least one is shot cube */
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
         if(a.isShot){a.isShot=false;a.body.collisionFilterGroup=GRP_TRACK;a.body.collisionFilterMask=~0;if(shotCube===a)shotCube=null;}
@@ -888,7 +882,15 @@ function triggerGameOver(){
   if(roundScoreMet)bonus+=playerLevel*50;
   if(roundCubeMet)bonus+=playerLevel*100;
   if(bonus>0){coins+=bonus;roundCoins+=bonus;saveProgression();}
-  showLostModal();
+
+  // Εμφάνιση διαφήμισης και μετά το modal ήττας
+  if (typeof show_11108267 === 'function') {
+    show_11108267().then(() => {
+      showLostModal();
+    });
+  } else {
+    showLostModal();
+  }
 }
 
 /* ─── MAIN LOOP ─────────────────────────────────────────────── */
@@ -980,7 +982,6 @@ function update(){
         }
       }
 
-      /* MODIFIED: Much gentler snapping, only when almost completely still */
       if(settling && !c.isShot && !c.isNewRow
           && Math.abs(c.body.velocity.z) < 0.12
           && Math.abs(c.body.velocity.x) < 0.12
@@ -988,7 +989,7 @@ function update(){
         let col = Math.round((c.body.position.x + TRACK_W/2 - COL_W/2) / COL_W);
         col = Math.max(0, Math.min(COLS-1, col));
         const cx = -TRACK_W/2 + COL_W/2 + col*COL_W;
-        c.body.position.x += (cx - c.body.position.x) * 0.01; /* Very weak pull */
+        c.body.position.x += (cx - c.body.position.x) * 0.01;
         c.body.velocity.x *= 0.85;
       }
 
@@ -1045,7 +1046,7 @@ function update(){
           const totalVel = Math.abs(shotCube.body.velocity.z) + Math.abs(shotCube.body.velocity.x) + Math.abs(shotCube.body.velocity.y);
           if(distTraveled > 4.0 && totalVel < 0.35){
             const landZ = shotCube.body.position.z;
-            shotCube.isShot = false; shotCube.body.linearDamping = 0.25; /* matches normal cubes */
+            shotCube.isShot = false; shotCube.body.linearDamping = 0.25;
             shotCube.body.collisionFilterGroup = GRP_TRACK; shotCube.body.collisionFilterMask = ~0;
             shotCube.mergeCooldown = 0.3;
             triggerRowBreak(landZ);
@@ -1209,7 +1210,6 @@ function hideArcPreview(){
   if(arcImpactRingMesh)arcImpactRingMesh.visible=false;
 }
 
-/* MODIFIED: Row break pushes radially outward like an explosion */
 function triggerRowBreak(landZ){
   const BAND=CUBE_SZ*1.2;
   const victims=cubes.filter(c=>{
@@ -1258,9 +1258,7 @@ function updateShooter(){
   else hideArcPreview();
 }
 
-function updateAimLine(){
-  /* replaced by arc preview - no-op */
-}
+function updateAimLine(){}
 
 /* ─── INPUT ─────────────────────────────────────────────────── */
 const raycaster=new THREE.Raycaster();
