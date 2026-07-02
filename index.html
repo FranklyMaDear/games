@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -316,11 +316,43 @@
                 <h2 class="section-title">📋 Daily Missions</h2>
                 <div id="missionsTimer" class="mission-timer">⏳ Resets in: 23h 59m 59s</div>
                 <p style="text-align:center; color: var(--text-secondary); margin-bottom: 15px;">Complete missions to earn XP and Coins!</p>
+                
+                <!-- NEW CONNECT 4 MISSIONS STRUCTURE -->
                 <div class="mission-game-grid" id="missionsGameGrid">
-                    <div class="mission-game-item" onclick="playGame('https://t.me/Franklygames_bot/connectfour', 'Connect 4')">
-                        <div class="game-icon">🔴</div>
-                        <div class="mission-game-info"><h4>Connect 4 Daily</h4><p>Win 3 Games</p></div>
-                        <div class="mission-right"><div class="progress-wins" id="c4WinsDisplay">0 / 3</div><button id="claimC4Btn" class="reward-btn" onclick="event.stopPropagation(); claimC4Reward()">🔒 Claim 200</button></div>
+                    <div class="mission-game-item" style="flex-direction:column; align-items:stretch; padding:12px;">
+                        <div style="display:flex; align-items:center; margin-bottom:12px; gap:10px;">
+                            <div class="game-icon">🔴</div>
+                            <div class="mission-game-info" style="flex:1;">
+                                <h4>Connect 4 Daily</h4>
+                                <p>Win games to earn rewards!</p>
+                            </div>
+                        </div>
+
+                        <div class="mission-right" style="flex-direction:column; align-items:stretch; gap:6px; width:100%;">
+                            <!-- Level 1 -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">Level 1 (1 win)</span>
+                                <span class="progress-wins" id="c4L1Progress" style="font-size:0.75rem;">0/1</span>
+                                <button id="claimC4L1" class="reward-btn" onclick="claimC4Reward(1)">🔒 Claim 100</button>
+                            </div>
+                            <!-- Level 2 -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">Level 2 (2 wins)</span>
+                                <span class="progress-wins" id="c4L2Progress" style="font-size:0.75rem;">0/2</span>
+                                <button id="claimC4L2" class="reward-btn" onclick="claimC4Reward(2)">🔒 Claim 200</button>
+                            </div>
+                            <!-- Level 3 -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">Level 3 (3 wins)</span>
+                                <span class="progress-wins" id="c4L3Progress" style="font-size:0.75rem;">0/3</span>
+                                <button id="claimC4L3" class="reward-btn" onclick="claimC4Reward(3)">🔒 Claim 300</button>
+                            </div>
+
+                            <button class="modal-btn win" style="margin-top:8px; background:var(--bg-tertiary); border-color:var(--neon); width:100%;"
+                                    onclick="playGame('https://t.me/Franklygames_bot/connectfour', 'Connect 4')">
+                                🎮 Play Connect 4
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -520,7 +552,10 @@
         async function syncMissionProgress() {
             try {
                 const data = await apiCall('GET', `missions?userId=${userId}`);
-                if (data.connect4) { localStorage.setItem('FRANKLY_C4_WINS', data.connect4.wins.toString()); localStorage.setItem('FRANKLY_C4_CLAIMED', data.connect4.claimed ? 'true' : 'false'); }
+                // Δεν χρησιμοποιούμε πλέον το παλιό connect4.claimed, κρατάμε μόνο τα wins
+                if (data.connect4) { 
+                    localStorage.setItem('FRANKLY_C4_WINS', data.connect4.wins.toString()); 
+                }
                 updateMissionsUI();
             } catch (e) {}
         }
@@ -629,26 +664,57 @@
 
         function formatTime(seconds) { const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60; return `${h}h ${m}m ${s}s`; }
 
-        // ==================== MISSIONS ====================
-        const C4_WINS_KEY = 'FRANKLY_C4_WINS'; const C4_CLAIMED_KEY = 'FRANKLY_C4_CLAIMED';
-        const C4_THRESHOLD = 3; const C4_REWARD = 200;
-        
-        function getWins(key) { return parseInt(localStorage.getItem(key) || '0'); }
-        function setWins(key, val) { localStorage.setItem(key, val.toString()); }
-        function isClaimed(key) { return localStorage.getItem(key) === 'true'; }
-        function setClaimed(key, val) { localStorage.setItem(key, val ? 'true' : 'false'); }
+        // ==================== MISSIONS (NEW TIERS) ====================
+        const C4_WINS_KEY = 'FRANKLY_C4_WINS';
+        const C4_CLAIMED_KEYS = {
+            1: 'FRANKLY_C4_CLAIMED_L1',
+            2: 'FRANKLY_C4_CLAIMED_L2',
+            3: 'FRANKLY_C4_CLAIMED_L3'
+        };
+        const C4_REWARDS = { 1: 100, 2: 200, 3: 300 };
+
+        function getWins() { return parseInt(localStorage.getItem(C4_WINS_KEY) || '0'); }
+        function setWins(val) { localStorage.setItem(C4_WINS_KEY, val.toString()); }
+
+        function isClaimed(level) { return localStorage.getItem(C4_CLAIMED_KEYS[level]) === 'true'; }
+        function setClaimed(level, val) { localStorage.setItem(C4_CLAIMED_KEYS[level], val ? 'true' : 'false'); }
 
         function updateMissionsUI() {
-            const c4Wins = getWins(C4_WINS_KEY);
-            const c4Claimed = isClaimed(C4_CLAIMED_KEY);
-            const c4Display = document.getElementById('c4WinsDisplay');
-            const c4Btn = document.getElementById('claimC4Btn');
-            if (c4Display) c4Display.textContent = `${Math.min(c4Wins, C4_THRESHOLD)} / ${C4_THRESHOLD}`;
-            if (c4Btn) {
-                if (c4Claimed) { c4Btn.className = 'reward-btn claimed'; c4Btn.textContent = '✅ Claimed'; }
-                else if (c4Wins >= C4_THRESHOLD) { c4Btn.className = 'reward-btn active'; c4Btn.textContent = '🎁 Claim 200'; }
-                else { c4Btn.className = 'reward-btn'; c4Btn.textContent = '🔒 Claim 200'; }
+            const wins = getWins();
+            for (let lvl = 1; lvl <= 3; lvl++) {
+                const required = lvl;
+                const claimed = isClaimed(lvl);
+                const progressEl = document.getElementById(`c4L${lvl}Progress`);
+                const btnEl = document.getElementById(`claimC4L${lvl}`);
+                if (progressEl) progressEl.textContent = `${Math.min(wins, required)} / ${required}`;
+                if (btnEl) {
+                    if (claimed) {
+                        btnEl.className = 'reward-btn claimed';
+                        btnEl.textContent = '✅ Claimed';
+                    } else if (wins >= required) {
+                        btnEl.className = 'reward-btn active';
+                        btnEl.textContent = `🎁 Claim ${C4_REWARDS[lvl]}`;
+                    } else {
+                        btnEl.className = 'reward-btn';
+                        btnEl.textContent = `🔒 Claim ${C4_REWARDS[lvl]}`;
+                    }
+                }
             }
+        }
+
+        async function claimC4Reward(level) {
+            if (isClaimed(level)) return;
+            const wins = getWins();
+            if (wins < level) return;
+            try {
+                await apiCall('POST', 'add-points', { userId, game: `Connect 4 Daily L${level}`, points: C4_REWARDS[level] });
+                currentCoins += C4_REWARDS[level];
+                localStorage.setItem('frankly_coins', currentCoins.toString());
+                setClaimed(level, true);
+                updateMissionsUI();
+                showToast(`+${C4_REWARDS[level]} XP & +${C4_REWARDS[level]} Coins! 🔴`);
+                refreshUI();
+            } catch(e) { showToast('Error claiming reward.'); }
         }
 
         // Timer for Missions Reset (24 Hours)
@@ -660,8 +726,9 @@
                 const diff = midnight - now;
                 
                 if (diff <= 0) {
-                    setWins(C4_WINS_KEY, 0);
-                    setClaimed(C4_CLAIMED_KEY, false);
+                    // Reset daily
+                    setWins(0);
+                    for (let lvl = 1; lvl <= 3; lvl++) setClaimed(lvl, false);
                     localStorage.setItem('frankly_daily_reset', new Date().toDateString());
                     updateMissionsUI();
                     setTimeout(updateTimer, 1000);
@@ -676,20 +743,6 @@
             }
             updateTimer();
             setInterval(updateTimer, 1000);
-        }
-
-        async function claimC4Reward() {
-            if (isClaimed(C4_CLAIMED_KEY)) return;
-            const wins = getWins(C4_WINS_KEY); if (wins < C4_THRESHOLD) return;
-            try {
-                await apiCall('POST', 'add-points', { userId, game: 'Connect 4 Daily Reward', points: C4_REWARD });
-                
-                currentCoins += C4_REWARD;
-                localStorage.setItem('frankly_coins', currentCoins.toString());
-                
-                setClaimed(C4_CLAIMED_KEY, true); updateMissionsUI(); showToast(`+${C4_REWARD} XP & +${C4_REWARD} Coins! 🔴`);
-                refreshUI();
-            } catch(e) { showToast('Error claiming reward.'); }
         }
 
         // ==================== GAMES GRID ====================
@@ -1514,8 +1567,8 @@
             const lastReset = localStorage.getItem('frankly_daily_reset');
             const today = new Date().toDateString();
             if (lastReset !== today) {
-                setWins(C4_WINS_KEY, 0);
-                setClaimed(C4_CLAIMED_KEY, false);
+                setWins(0);
+                for (let lvl = 1; lvl <= 3; lvl++) setClaimed(lvl, false);
                 localStorage.setItem('frankly_daily_reset', today);
                 updateMissionsUI();
             }
