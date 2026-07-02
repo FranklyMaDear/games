@@ -383,6 +383,38 @@
                             <button class="modal-btn win" style="margin-top:8px; background:transparent; border-color:#fff; color:#fff; width:100%;" onclick="playGame('https://t.me/Franklygames_bot/chess', 'Chess')">🎮 Play Chess</button>
                         </div>
                     </div>
+
+                    <!-- SUDOKU DAILY MISSION -->
+                    <div class="mission-game-item" style="flex-direction:column; align-items:stretch; padding:12px; margin-top:10px;">
+                        <div style="display:flex; align-items:center; margin-bottom:12px; gap:10px;">
+                            <div class="game-icon">🔢</div>
+                            <div class="mission-game-info" style="flex:1;">
+                                <h4>Sudoku Daily</h4>
+                                <p>Win games to earn rewards!</p>
+                            </div>
+                        </div>
+                        <div class="mission-right" style="flex-direction:column; align-items:stretch; gap:6px; width:100%;">
+                            <!-- 10 wins -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">10 wins</span>
+                                <span class="progress-wins" id="sudokuL1Progress" style="font-size:0.75rem;">0/10</span>
+                                <button id="claimSudokuL1" class="reward-btn" onclick="claimSudokuReward(1)">🔒 Claim 50</button>
+                            </div>
+                            <!-- 15 wins -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">15 wins</span>
+                                <span class="progress-wins" id="sudokuL2Progress" style="font-size:0.75rem;">0/15</span>
+                                <button id="claimSudokuL2" class="reward-btn" onclick="claimSudokuReward(2)">🔒 Claim 150</button>
+                            </div>
+                            <!-- 20 wins -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-secondary);">20 wins</span>
+                                <span class="progress-wins" id="sudokuL3Progress" style="font-size:0.75rem;">0/20</span>
+                                <button id="claimSudokuL3" class="reward-btn" onclick="claimSudokuReward(3)">🔒 Claim 220</button>
+                            </div>
+                            <button class="modal-btn win" style="margin-top:8px; background:transparent; border-color:#fff; color:#fff; width:100%;" onclick="playGame('https://t.me/Franklygames_bot/sudoku', 'Sudoku')">🎮 Play Sudoku</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -816,10 +848,71 @@
             } catch(e) { showToast('Error claiming reward.'); }
         }
 
+        // ==================== MISSIONS (SUDOKU) ====================
+        const SUDOKU_WINS_KEY = 'FRANKLY_SUDOKU_WINS';
+        const SUDOKU_CLAIMED_KEYS = {
+            1: 'FRANKLY_SUDOKU_CLAIMED_L1',
+            2: 'FRANKLY_SUDOKU_CLAIMED_L2',
+            3: 'FRANKLY_SUDOKU_CLAIMED_L3'
+        };
+        const SUDOKU_REWARDS = { 1: 50, 2: 150, 3: 220 };
+        // Daily Sudoku levels are based purely on wins
+        const SUDOKU_REQUIRED = { 1: 10, 2: 15, 3: 20 };
+
+        function getSudokuWins() { return parseInt(localStorage.getItem(SUDOKU_WINS_KEY) || '0'); }
+        function setSudokuWins(val) { localStorage.setItem(SUDOKU_WINS_KEY, val.toString()); }
+
+        function isSudokuClaimed(level) { return localStorage.getItem(SUDOKU_CLAIMED_KEYS[level]) === 'true'; }
+        function setSudokuClaimed(level, val) { localStorage.setItem(SUDOKU_CLAIMED_KEYS[level], val ? 'true' : 'false'); }
+
+        function updateSudokuUI() {
+            const wins = getSudokuWins();
+            for (let lvl = 1; lvl <= 3; lvl++) {
+                const required = SUDOKU_REQUIRED[lvl];
+                const progress = wins;
+
+                const claimed = isSudokuClaimed(lvl);
+                const progressEl = document.getElementById(`sudokuL${lvl}Progress`);
+                const btnEl = document.getElementById(`claimSudokuL${lvl}`);
+                if (progressEl) progressEl.textContent = `${Math.min(progress, required)} / ${required}`;
+                if (btnEl) {
+                    if (claimed) {
+                        btnEl.className = 'reward-btn claimed';
+                        btnEl.textContent = '✅ Claimed';
+                    } else if (progress >= required) {
+                        btnEl.className = 'reward-btn active';
+                        btnEl.textContent = `🎁 Claim ${SUDOKU_REWARDS[lvl]}`;
+                    } else {
+                        btnEl.className = 'reward-btn';
+                        btnEl.textContent = `🔒 Claim ${SUDOKU_REWARDS[lvl]}`;
+                    }
+                }
+            }
+        }
+
+        async function claimSudokuReward(level) {
+            if (isSudokuClaimed(level)) return;
+            const wins = getSudokuWins();
+            const required = SUDOKU_REQUIRED[level];
+            const progress = wins;
+
+            if (progress < required) return;
+            try {
+                await apiCall('POST', 'add-points', { userId, game: `Sudoku Daily L${level}`, points: SUDOKU_REWARDS[level] });
+                currentCoins += SUDOKU_REWARDS[level];
+                localStorage.setItem('frankly_coins', currentCoins.toString());
+                setSudokuClaimed(level, true);
+                updateMissionsUI();
+                showToast(`+${SUDOKU_REWARDS[level]} XP & +${SUDOKU_REWARDS[level]} Coins! 🧩`);
+                refreshUI();
+            } catch(e) { showToast('Error claiming reward.'); }
+        }
+
         // ==================== MISSIONS MAIN UI ====================
         function updateMissionsUI() {
             updateC4UI();
             updateChessUI();
+            updateSudokuUI();
         }
 
         // Timer for Missions Reset (24 Hours)
@@ -839,6 +932,8 @@
                     setChessLvlWins(0);
                     for (let lvl = 1; lvl <= 3; lvl++) setChessClaimed(lvl, false);
                     
+                    setSudokuWins(0);
+                    for (let lvl = 1; lvl <= 3; lvl++) setSudokuClaimed(lvl, false);
                     localStorage.setItem('frankly_daily_reset', new Date().toDateString());
                     updateMissionsUI();
                     setTimeout(updateTimer, 1000);
@@ -1684,6 +1779,8 @@
                 setChessLvlWins(0);
                 for (let lvl = 1; lvl <= 3; lvl++) setChessClaimed(lvl, false);
                 
+                setSudokuWins(0);
+                for (let lvl = 1; lvl <= 3; lvl++) setSudokuClaimed(lvl, false);
                 localStorage.setItem('frankly_daily_reset', today);
                 updateMissionsUI();
             }
