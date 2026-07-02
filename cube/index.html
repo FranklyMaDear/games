@@ -202,7 +202,7 @@ const TRACK_W=COLS*COL_W+1.0;
 const TRACK_L=36;
 const DANGER_Z=13.5;
 const SHOOTER_Z=16.0;
-const X_LIMIT=TRACK_W/2-CUBE_SZ/2-0.05;
+const X_LIMIT=TRACK_W/2-CUBE_SZ/2-0.05; /* full track width minus half cube */
 const Z_BACK=-TRACK_L/2 + CUBE_SZ/2;
 
 const RAMP_HOME_Z = -TRACK_L/2 + 0.3;
@@ -378,20 +378,20 @@ const bouncyCubeMat=new CANNON.Material('bouncyCube');
 const newRowMat=new CANNON.Material('newRow');
 const wallPhysMat=new CANNON.Material('wall');
 
-/* ΒΕΛΤΙΩΣΗ: Προσθήκη ελαστικότητας (restitution) και μείωση τριβής (friction) */
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cannonFloorMat,{friction:.3,restitution:0.15}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.2,restitution:0.2}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallPhysMat,{friction:.1,restitution:0.15}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.2,restitution:0.35}));
-world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,newRowMat,{friction:.2,restitution:0.15}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cannonFloorMat,{friction:.3,restitution:0.15}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.15,restitution:0.25}));
-world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallPhysMat,{friction:.1,restitution:0.15}));
-world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cannonFloorMat,{friction:.6,restitution:0.0}));
-world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,wallPhysMat,{friction:.4,restitution:0.0}));
-world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cubeMat,{friction:.4,restitution:0.1}));
+/* MODIFIED: Higher restitution for natural bouncing */
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cannonFloorMat,{friction:.5,restitution:0.15}));
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,bouncyCubeMat,{friction:.3,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,wallPhysMat,{friction:.2,restitution:0.1}));
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,cubeMat,{friction:.3,restitution:0.25})); /* MORE BOUNCE */
+world.addContactMaterial(new CANNON.ContactMaterial(bouncyCubeMat,newRowMat,{friction:.3,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cannonFloorMat,{friction:.6,restitution:0.05}));
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,cubeMat,{friction:.4,restitution:0.2})); /* MORE BOUNCE */
+world.addContactMaterial(new CANNON.ContactMaterial(cubeMat,wallPhysMat,{friction:.3,restitution:0.15}));
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cannonFloorMat,{friction:.95,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,wallPhysMat,{friction:.8,restitution:0.0}));
+world.addContactMaterial(new CANNON.ContactMaterial(newRowMat,cubeMat,{friction:.7,restitution:0.0}));
 
-/* One-shot push: when shot cube first contacts a non-matching cube, push it away radially */
+/* MODIFIED: Radial/random push for the shot cube collision instead of only Z */
 const pushedThisShot=new Set();
 world.addEventListener('beginContact',(e)=>{
   if(!shotCube)return;
@@ -405,15 +405,13 @@ world.addEventListener('beginContact',(e)=>{
   if(tc.value===shotCube.value)return;
   if(pushedThisShot.has(tc.id))return;
   pushedThisShot.add(tc.id);
-  
-  /* ΒΕΛΤΙΩΣΗ: Ακτινική (Radial) Διάχυση Δύναμης Κρούσης αντί για γραμμική */
-  const dx = tc.body.position.x - shotCube.body.position.x;
-  const dz = tc.body.position.z - shotCube.body.position.z;
-  const dist = Math.sqrt(dx*dx + dz*dz) || 0.1;
-  const shotSpd = Math.abs(shotCube.body.velocity.z) + Math.abs(shotCube.body.velocity.x);
-  const fmag = shotSpd * 0.35 + 4;
-  
-  tc.body.applyImpulse(new CANNON.Vec3((dx/dist)*fmag, 0.3, (dz/dist)*fmag), new CANNON.Vec3(0,0,0));
+  /* Random direction push in XZ + slight bias towards player (Z) */
+  const shotSpd=Math.abs(shotCube.body.velocity.z);
+  const fmag=Math.min(shotSpd*0.4+3, 12);
+  const angle=Math.random()*Math.PI*2;
+  const pushX=Math.cos(angle)*fmag*0.35;
+  const pushZ=Math.sin(angle)*fmag*0.35 + 2.0;
+  tc.body.applyImpulse(new CANNON.Vec3(pushX, 0.4, pushZ), new CANNON.Vec3(0,0,0));
 });
 
 const floorBody=new CANNON.Body({mass:0,shape:new CANNON.Plane(),material:cannonFloorMat});
@@ -480,22 +478,17 @@ function spawnCube(x,y,z,value,opts={}){
 
   let physMat;
   let linearDamping,angularDamping;
-  
-  /* ΒΕΛΤΙΩΣΗ: Πιο απαλές τιμές Damping για φυσική ρευστότητα */
+  /* MODIFIED: Lower damping for natural slide and momentum */
   if(opts.isShot){
-    physMat=bouncyCubeMat;linearDamping=0.0;angularDamping=0.65;
+    physMat=bouncyCubeMat;linearDamping=0.05;angularDamping=0.4;
   } else if(opts.isNewRow){
-    physMat=newRowMat;linearDamping=0.88;angularDamping=0.95;
+    physMat=newRowMat;linearDamping=0.7;angularDamping=0.85;
   } else {
-    physMat=cubeMat;linearDamping=0.15;angularDamping=0.5;
+    physMat=cubeMat;linearDamping=0.25;angularDamping=0.35;
   }
 
-  /* ΒΕΛΤΙΩΣΗ: Δυναμική κλιμάκωση μάζας (Mass Scaling) */
-  let m = opts.isShot ? 2 : 1.2;
-  if(!opts.isShot && !opts.isNewRow && value) m = 1.0 + Math.log2(value) * 0.15;
-
   const body=new CANNON.Body({
-    mass: m,
+    mass: opts.isShot ? 2 : 1.2,
     type: CANNON.Body.DYNAMIC,
     shape: new CANNON.Box(new CANNON.Vec3(CUBE_SZ/2,CUBE_SZ/2,CUBE_SZ/2)),
     material: physMat,
@@ -506,7 +499,7 @@ function spawnCube(x,y,z,value,opts={}){
 
   if(opts.isShot){
     body.collisionFilterGroup=GRP_SHOT;
-    body.collisionFilterMask=GRP_WALL;
+    body.collisionFilterMask=GRP_WALL; /* only walls during flight - track cubes enabled after passedDanger */
   } else if(opts.isNewRow){
     body.collisionFilterGroup=GRP_NEWROW;
     body.collisionFilterMask=GRP_WALL;
@@ -590,9 +583,9 @@ function shoot(){
 
   nc.body.type    = CANNON.Body.DYNAMIC;
   nc.body.mass    = 2;
-  nc.body.linearDamping  = 0.0;
+  nc.body.linearDamping  = 0.0;   /* zero drag during flight */
   nc.body.angularDamping = 1.0;
-  nc.body.fixedRotation  = false; /* ΒΕΛΤΙΩΣΗ: Ελεύθερη Περιστροφή (όχι fixed) */
+  nc.body.fixedRotation  = true;
   nc.body.updateMassProperties();
   nc.body.wakeUp();
 
@@ -635,19 +628,16 @@ function tryMerge(a,b){
   nc.flash=12;nc.mergeActive=true;nc.mergeCooldown=0.5;
   nc.body.velocity.set(0, 0.8, 0);
   nc.body.angularVelocity.set(0,0,0);
-  
-  /* ΒΕΛΤΙΩΣΗ: Ακτινική ωστική δύναμη κατά τη συγχώνευση (Radial Explosion Push) */
-  for(const c2 of cubes){
-    if(c2.id===nc.id)continue;
-    const dx=c2.body.position.x-px; 
-    const dz=c2.body.position.z-pz; 
-    const dist=Math.sqrt(dx*dx+dz*dz)+0.1;
-    if(dist<4.5){
-      const f=6.0/dist;
-      c2.body.applyImpulse(new CANNON.Vec3((dx/dist)*f, 0.4, (dz/dist)*f), new CANNON.Vec3(0,0,0));
+  /* blast: push nearby cubes radially (XZ) + upward */
+  for(const c2 of cubes){if(c2.id===nc.id)continue;
+    const dx=c2.body.position.x-px; const dz=c2.body.position.z-pz;
+    const dist=Math.sqrt(dx*dx+dz*dz)+0.5;
+    if(dist<4.0){
+      const f=3.5/dist;
+      const ang=Math.atan2(dz,dx);
+      c2.body.applyImpulse(new CANNON.Vec3(Math.cos(ang)*f, 0.3, Math.sin(ang)*f), new CANNON.Vec3(0,0,0));
     }
   }
-
   const pal=gp(nv);
   spawnShards(px-trackY,py-trackY,pz,gp(a.value).hex,16);
   spawnParticles(px-trackY,py-trackY,pz,pal.glow,24,7);
@@ -674,6 +664,7 @@ function sweepMerges(){
       if(a.value!==b.value)continue;
       if(a.mergeCooldown>0||b.mergeCooldown>0)continue;
       if(a.isNewRow||b.isNewRow)continue;
+      /* Allow merge if at least one is shot cube */
       const dx=a.body.position.x-b.body.position.x,dy=a.body.position.y-b.body.position.y,dz=a.body.position.z-b.body.position.z;
       if(dx*dx+dy*dy+dz*dz<MERGE_THRESHOLD){
         if(a.isShot){a.isShot=false;a.body.collisionFilterGroup=GRP_TRACK;a.body.collisionFilterMask=~0;if(shotCube===a)shotCube=null;}
@@ -960,9 +951,22 @@ function update(){
         if(c.body.velocity.y > 0) c.body.velocity.y = 0;
       }
       if(!c.isShot && c.body.velocity.y > 4) c.body.velocity.y = 4;
+      if(!c.isShot && Math.abs(c.body.velocity.x) > 3){
+        c.body.velocity.x = Math.sign(c.body.velocity.x) * 3;
+      }
 
-      /* ΒΕΛΤΙΩΣΗ: Αφαίρεση του αυθαίρετου "φρεναρίσματος" και μηδενισμού περιστροφής - 
-         ο κινητήρας φυσικής διαχειρίζεται πλέον πλήρως την ελεύθερη κίνηση του κύβου. */
+      if(c.isShot && c===shotCube){
+        c.body.velocity.x *= 0.05;
+        c.body.angularVelocity.set(0,0,0);
+      }
+
+      if(c.body.position.x > X_LIMIT + 0.1){
+        c.body.position.x = X_LIMIT + 0.1;
+        if(c.body.velocity.x > 0) c.body.velocity.x *= -0.35;
+      } else if(c.body.position.x < -X_LIMIT - 0.1){
+        c.body.position.x = -X_LIMIT - 0.1;
+        if(c.body.velocity.x < 0) c.body.velocity.x *= -0.35;
+      }
 
       if(c.body.position.z < Z_BACK){c.body.position.z = Z_BACK; if(c.body.velocity.z<0)c.body.velocity.z*=-0.5;}
       if(c.isNewRow){
@@ -976,19 +980,16 @@ function update(){
         }
       }
 
-      /* ΒΕΛΤΙΩΣΗ: Ευθυγράμμιση (Column Snapping) μέσω PD Controller (Ελατήριο) αντί για Lerp 
-         Εφαρμόζεται δύναμη αντί για τηλεμεταφορά, αποτρέποντας τις αφύσικες συγκρούσεις */
-      if(settling && !c.isShot && !c.isNewRow){
+      /* MODIFIED: Much gentler snapping, only when almost completely still */
+      if(settling && !c.isShot && !c.isNewRow
+          && Math.abs(c.body.velocity.z) < 0.12
+          && Math.abs(c.body.velocity.x) < 0.12
+          && Math.abs(c.body.velocity.y) < 0.06){
         let col = Math.round((c.body.position.x + TRACK_W/2 - COL_W/2) / COL_W);
         col = Math.max(0, Math.min(COLS-1, col));
         const cx = -TRACK_W/2 + COL_W/2 + col*COL_W;
-        const errX = cx - c.body.position.x;
-        
-        if(Math.abs(c.body.velocity.z) < 1.0 && Math.abs(c.body.velocity.x) < 2.0 && Math.abs(c.body.velocity.y) < 0.2) {
-            const springForce = errX * 12.0;
-            const dampForce = -c.body.velocity.x * 2.0;
-            c.body.applyForce(new CANNON.Vec3(springForce + dampForce, 0, 0), c.body.position);
-        }
+        c.body.position.x += (cx - c.body.position.x) * 0.01; /* Very weak pull */
+        c.body.velocity.x *= 0.85;
       }
 
       c.mesh.position.copy(c.body.position);
@@ -1044,7 +1045,7 @@ function update(){
           const totalVel = Math.abs(shotCube.body.velocity.z) + Math.abs(shotCube.body.velocity.x) + Math.abs(shotCube.body.velocity.y);
           if(distTraveled > 4.0 && totalVel < 0.35){
             const landZ = shotCube.body.position.z;
-            shotCube.isShot = false; shotCube.body.linearDamping = 0.5;
+            shotCube.isShot = false; shotCube.body.linearDamping = 0.25; /* matches normal cubes */
             shotCube.body.collisionFilterGroup = GRP_TRACK; shotCube.body.collisionFilterMask = ~0;
             shotCube.mergeCooldown = 0.3;
             triggerRowBreak(landZ);
@@ -1161,7 +1162,6 @@ function removeArcVisuals(){
 
 function updateArcPreview(){
   if(!arcLineMesh||!gameOn||paused) return;
-
   const vz=-42, vy=5, grav=-16;
   const dt2=0.045;
   const pts=[];
@@ -1209,6 +1209,7 @@ function hideArcPreview(){
   if(arcImpactRingMesh)arcImpactRingMesh.visible=false;
 }
 
+/* MODIFIED: Row break pushes radially outward like an explosion */
 function triggerRowBreak(landZ){
   const BAND=CUBE_SZ*1.2;
   const victims=cubes.filter(c=>{
@@ -1217,7 +1218,11 @@ function triggerRowBreak(landZ){
   });
   if(victims.length===0)return;
   victims.forEach(c=>{
-    c.body.applyImpulse(new CANNON.Vec3(0, 0.5, 6), new CANNON.Vec3(0,0,0));
+    const dx = c.body.position.x - aimX;
+    const dz = c.body.position.z - landZ;
+    const dist = Math.sqrt(dx*dx + dz*dz) + 0.1;
+    const power = Math.min(6 / dist, 8);
+    c.body.applyImpulse(new CANNON.Vec3(dx * power * 0.3, 0.5, dz * power * 0.3 + 2), new CANNON.Vec3(0,0,0));
   });
   spawnParticles(aimX,trackY+1,landZ,0xff8800,20,8);
   shakeAmt=Math.max(shakeAmt,0.3);
@@ -1253,7 +1258,9 @@ function updateShooter(){
   else hideArcPreview();
 }
 
-function updateAimLine(){}
+function updateAimLine(){
+  /* replaced by arc preview - no-op */
+}
 
 /* ─── INPUT ─────────────────────────────────────────────────── */
 const raycaster=new THREE.Raycaster();
@@ -1306,7 +1313,7 @@ document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
   else if(coins>=RAINBOW_COST){coins-=RAINBOW_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useRainbow();}
-  else{if(typeof show_11108267==function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
+  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
   if(typeof show_11108267==='function'){show_11108267().then(()=>window.location.reload());}else window.location.reload();
