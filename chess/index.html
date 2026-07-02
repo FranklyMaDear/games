@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#1e3c72">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
     <style>
         :root {
             --board-size: min(88vw, 88vh, 680px);
@@ -156,7 +157,8 @@
         }
         .missions-btn,
         .daily-btn,
-        .shop-btn {
+        .shop-btn,
+        .ad-points-btn {
             background: linear-gradient(135deg, #ffcb2e, #ff9f00);
             color: #000;
             padding: 8px 14px;
@@ -181,9 +183,14 @@
             background: linear-gradient(135deg, #e040fb, #7c4dff);
             box-shadow: 0 3px 0 #4a148c, 0 5px 12px rgba(0, 0, 0, 0.35);
         }
+        .ad-points-btn {
+            background: linear-gradient(135deg, #2196F3, #0b4f79);
+            box-shadow: 0 3px 0 #0b4f79, 0 5px 12px rgba(0, 0, 0, 0.35);
+        }
         .missions-btn:active,
         .daily-btn:active,
-        .shop-btn:active {
+        .shop-btn:active,
+        .ad-points-btn:active {
             transform: translateY(2px);
         }
         .missions-btn .badge-dot,
@@ -1108,6 +1115,7 @@
                     <button class="daily-btn" id="dailyTopBtn" onclick="openDailyBonusModal()">🎁 Daily <span class="badge-dot" id="dailyBadgeDot" style="display:none;"></span></button>
                     <button class="missions-btn" id="missionsBtn" onclick="openMissionsModal()">📋 Missions <span class="badge-dot" id="missionsBadgeDot" style="display:none;"></span></button>
                     <button class="shop-btn" id="shopBtn" onclick="openShopModal()">🛒 Shop</button>
+                    <button class="ad-points-btn" id="adPointsBtn" onclick="watchAdForPoints()">📺 +10 Points (Ad)</button>
                 </div>
             </div>
             <div class="hud-progress"><div class="hud-progress-fill" id="hudProgressFill" style="width:0%;"></div></div>
@@ -1768,13 +1776,11 @@
                     0.06);
                 playTone(1400, 0.08, 'sine', 0.05); } else { playTone(600, 0.07); } }
 
-        // ===================== ΝΕΟΣ ΚΑΘΑΡΟΣ ΗΧΟΣ ΕΚΡΗΞΗΣ =====================
         function sfxCapture() {
             if (equippedSound === 'explosion') {
-                // Καθαρή, δυνατή έκρηξη (μπουμ) χωρίς τραχύ θόρυβο
-                playTone(300, 0.12, 'square', 0.25);   // Το δυνατό χτύπημα
-                setTimeout(() => playTone(100, 0.4, 'square', 0.18), 30);  // Το βαρύ μπουμ
-                setTimeout(() => playTone(40, 0.6, 'triangle', 0.15), 100); // Το ροχαλητό της έκρηξης
+                playTone(300, 0.12, 'square', 0.25);
+                setTimeout(() => playTone(100, 0.4, 'square', 0.18), 30);
+                setTimeout(() => playTone(40, 0.6, 'triangle', 0.15), 100);
             } else if (equippedSound === 'thunder') {
                 playTone(80, 0.4, 'sawtooth', 0.25);
                 playTone(50, 0.5, 'square', 0.3);
@@ -2325,8 +2331,27 @@
                 castling: castlingRights });
         }
 
+        // ===================== SHOW AD AT END OF GAME =====================
+        function showAdThenPostGame(winner, resultType) {
+            if (typeof show_11108267 === 'function') {
+                show_11108267()
+                    .then(() => {
+                        // Ad completed, show post game
+                        _showPostGame(winner, resultType);
+                    })
+                    .catch((err) => {
+                        console.warn('Ad failed or blocked:', err);
+                        // Even if ad fails, show post game
+                        _showPostGame(winner, resultType);
+                    });
+            } else {
+                // SDK not loaded, just show post game
+                _showPostGame(winner, resultType);
+            }
+        }
+
         // ===================== POST GAME =====================
-        function showPostGame(winner, resultType) {
+        function _showPostGame(winner, resultType) {
             gameActive = false;
             opponentThinking = false;
             promotionPending = null;
@@ -2339,6 +2364,10 @@
                 currentLevel++;
                 endlessStreak++;
                 saveLevel(currentLevel);
+                // IMPORTANT: Update the Daily Mission Level 3 counter for Chess
+                let chessLvlWins = parseInt(localStorage.getItem('FRANKLY_CHESS_LVL_WINS') || '0');
+                localStorage.setItem('FRANKLY_CHESS_LVL_WINS', (chessLvlWins + 1).toString());
+                
                 updateMissionProgress('win_games', 1);
                 updateMissionProgress('weekly_wins', 1); if (endlessStreak >= 3) updateMissionProgress('three_in_row',
                 1); } else if (resultType !== 'stalemate') { matchLosses++;
@@ -2378,6 +2407,11 @@
             postGameModal.style.display = 'flex';
         }
 
+        function showPostGame(winner, resultType) {
+            // Show ad first, then post game
+            showAdThenPostGame(winner, resultType);
+        }
+
         // ===================== HUD =====================
         function updateHUD() { const zone = getZoneForLevel(currentLevel);
             document.getElementById('hudLevel').textContent = `LEVEL ${currentLevel}`;
@@ -2403,6 +2437,29 @@
         function saveLevel(l) { try { localStorage.setItem('chess4gal_level', l); } catch (e) {} }
 
         function loadLevel() { return Math.max(1, parseInt(localStorage.getItem('chess4gal_level') || '1', 10)); }
+
+        // ===================== WATCH AD FOR POINTS =====================
+        function watchAdForPoints() {
+            if (typeof show_11108267 === 'function') {
+                show_11108267()
+                    .then(() => {
+                        galacticPoints += 10;
+                        saveGalacticPoints();
+                        updateHUD();
+                        alert('🎉 +10 Points!');
+                    })
+                    .catch((err) => {
+                        console.warn('Ad failed or blocked:', err);
+                        alert('Ad could not be shown. Please try again or disable ad-blocker.');
+                    });
+            } else {
+                // Fallback if SDK not loaded
+                galacticPoints += 10;
+                saveGalacticPoints();
+                updateHUD();
+                alert('🎉 +10 Points! (Ad skipped)');
+            }
+        }
 
         // ===================== EVENT LISTENERS =====================
         document.querySelectorAll('.color-btn').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll(
