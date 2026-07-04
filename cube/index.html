@@ -3,10 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<!-- Monetag Ad SDK -->
+<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 <title>Merge Cubes 3D – Progression</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
-body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;height:100dvh;overflow:hidden;user-select:none;color:#fff}
+html,body{height:100%;width:100%;overflow:hidden;position:fixed;top:0;left:0}
+body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;user-select:none;color:#fff}
+/* Game root: sized in px by JS — survives zero-height boot & any aspect ratio */
+#gameRoot{position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000;display:flex;flex-direction:column;align-items:center}
+.tap-ripple{position:fixed;width:22px;height:22px;border-radius:50%;background:rgba(160,120,255,.95);box-shadow:0 0 18px rgba(160,120,255,.9),0 0 36px rgba(120,220,255,.6);transform:translate(-50%,-50%) scale(.5);pointer-events:none;z-index:900;animation:tapRipple .9s ease-out forwards}
+@keyframes tapRipple{0%{opacity:.95;transform:translate(-50%,-50%) scale(.5)}100%{opacity:0;transform:translate(-50%,-50%) scale(4)}}
+#inputGlow{position:absolute;top:0;left:0;right:0;bottom:0;border:4px solid rgba(160,120,255,0);border-radius:6px;box-shadow:inset 0 0 0 0 rgba(160,120,255,0);pointer-events:none;z-index:850;transition:border-color .15s ease,box-shadow .15s ease}
+#gameRoot.input-active #inputGlow{border-color:rgba(160,120,255,.7);box-shadow:inset 0 0 24px rgba(160,120,255,.3)}
+#toast{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(20,15,45,.94);border:1px solid rgba(160,120,255,.5);color:#ffd700;font-weight:800;font-size:14px;padding:10px 18px;border-radius:14px;z-index:860;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+body.paused{pointer-events:none}
+body.paused #gameRoot{filter:brightness(.85)}
+body.paused *,body.paused *::before,body.paused *::after{animation-play-state:paused!important;caret-color:transparent!important;transition:none!important}
 #hud{width:100%;display:flex;flex-direction:column;align-items:stretch;padding:6px 10px 4px;background:linear-gradient(180deg,rgba(20,20,40,.96),rgba(15,15,30,.9));backdrop-filter:blur(10px);border-bottom:1px solid rgba(140,100,255,.25);flex-shrink:0;z-index:10;gap:4px;display:none !important}
 #hud.active{display:flex !important}
 .hud-row{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
@@ -64,12 +78,12 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 .score-big{color:#FFD700;font-size:54px;font-weight:900;text-shadow:0 0 30px rgba(255,200,0,.6);position:relative}
 .play-btn{position:relative;background:linear-gradient(135deg,#7b3fcc,#a855f7);color:#fff;border:none;border-radius:18px;padding:14px 50px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1.5px;box-shadow:0 6px 24px rgba(168,85,247,.5),inset 0 1px 0 rgba(255,255,255,.2)}
 .play-btn:active{transform:scale(.94)}
-#lost-modal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);flex-direction:column;gap:20px}
+#lost-modal{position:absolute;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);flex-direction:column;gap:20px}
 #lost-modal.active{display:flex}
 #lost-modal h1{font-size:56px;color:#ff3333;text-shadow:0 0 30px red;margin:0}
 #lost-modal .lost-score{font-size:22px;color:#FFD700}
 #lost-modal button{background:#ff4444;color:#fff;border:none;padding:12px 40px;border-radius:16px;font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 0 20px rgba(255,0,0,.6)}
-#rank-modal{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px}
+#rank-modal{position:absolute;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px}
 #rank-modal.active{display:flex}
 #rank-box{background:linear-gradient(145deg,#1a1a3a,#111122);border:2px solid #ffaa33;border-radius:24px;padding:24px 20px 20px;width:92%;max-width:380px;max-height:82vh;overflow-y:auto;box-shadow:0 0 40px rgba(255,170,51,.25),inset 0 1px 0 rgba(255,255,255,.05);scrollbar-width:thin;scrollbar-color:#ffaa33 #111}
 #rank-box h2{color:#ffaa33;text-align:center;font-size:20px;font-weight:800;letter-spacing:1px;margin-bottom:4px}
@@ -89,9 +103,9 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
 #rank-close-btn{display:block;margin:16px auto 0;background:linear-gradient(135deg,#ffaa33,#cc8800);color:#000;border:none;border-radius:12px;padding:10px 36px;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.5px;box-shadow:0 4px 16px rgba(255,170,51,.4)}
 #rank-close-btn:active{transform:scale(.94)}
 </style>
-<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
 <body>
+<div id="gameRoot">
 <div id="hud">
   <div class="hud-row">
     <div id="target-area">
@@ -127,7 +141,7 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   </div>
   <div class="boost-btn" id="btn-newgames">
     <div class="boost-circle"><span>🆕</span></div>
-    <div class="boost-name">NEW GAMES</div>
+    <div class="boost-name">NEW GAME</div>
   </div>
   <div class="boost-btn" id="btn-rank">
     <div class="boost-circle"><span>🏆</span></div>
@@ -159,6 +173,10 @@ body{background:#000;font-family:'Segoe UI',system-ui,sans-serif;display:flex;fl
   </div>
 </div>
 
+<div id="inputGlow"></div>
+<div id="toast"></div>
+</div><!-- /#gameRoot -->
+
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/","cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"}}</script>
 
 <script type="module">
@@ -168,6 +186,7 @@ import{EffectComposer}from'three/addons/postprocessing/EffectComposer.js';
 import{RenderPass}from'three/addons/postprocessing/RenderPass.js';
 import{UnrealBloomPass}from'three/addons/postprocessing/UnrealBloomPass.js';
 
+/* ================= BUILD STARFIELD ================= */
 function buildStarfield(){
   const sf=document.getElementById('starfield');if(!sf)return;sf.innerHTML='';
   function layer(count,size,dur,op){
@@ -837,7 +856,8 @@ function showLostModal(){
   document.getElementById('lost-modal').classList.add('active');
 }
 document.getElementById('lost-newgame-btn').addEventListener('click', ()=>{
-  window.location.reload();
+  document.getElementById('lost-modal').classList.remove('active');
+  startGame();
 });
 
 function buildOverlay(htmlContent){
@@ -1286,16 +1306,32 @@ document.getElementById('boost-bomb').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeBomb>0){freeBomb--;updateBoosterBadges();useBomb();}
   else if(coins>=BOMB_COST){coins-=BOMB_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useBomb();}
-  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeBomb++;updateBoosterBadges();useBomb();});}else alert('Ad not available');}
+  else{
+    if(typeof show_11108267==='function'){
+      show_11108267().then(()=>{freeBomb++;updateBoosterBadges();useBomb();});
+    } else {
+      showToast('Ad not available');
+    }
+  }
 });
 document.getElementById('boost-rainbow').addEventListener('click',()=>{
   if(!gameOn||paused)return;
   if(freeRainbow>0){freeRainbow--;updateBoosterBadges();useRainbow();}
   else if(coins>=RAINBOW_COST){coins-=RAINBOW_COST;saveProgression();updateCoinsDisplay();updateBoosterBadges();useRainbow();}
-  else{if(typeof show_11108267==='function'){show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});}else alert('Ad not available');}
+  else{
+    if(typeof show_11108267==='function'){
+      show_11108267().then(()=>{freeRainbow++;updateBoosterBadges();useRainbow();});
+    } else {
+      showToast('Ad not available');
+    }
+  }
 });
 document.getElementById('btn-newgames').addEventListener('click',()=>{
-  if(typeof show_11108267==='function'){show_11108267().then(()=>window.location.reload());}else window.location.reload();
+  if(typeof show_11108267==='function'){
+    show_11108267().then(()=>startGame());
+  } else {
+    startGame();
+  }
 });
 document.getElementById('btn-pause').addEventListener('click',()=>{
   if(!gameOn)return;paused=!paused;document.getElementById('btn-pause').textContent=paused?'▶':'⏸';
@@ -1303,15 +1339,26 @@ document.getElementById('btn-pause').addEventListener('click',()=>{
 document.getElementById('btn-sound').addEventListener('click',()=>{
   const m=audio.toggleMute();document.getElementById('btn-sound').textContent=m?'🔇':'🔊';
 });
+let _restartArm=0;
 document.getElementById('btn-restart').addEventListener('click',()=>{
-  if(!confirm('Restart from Level 1? Your level and XP will reset to the beginning.'))return;
+  const now=Date.now();
+  if(now-_restartArm>3000){_restartArm=now;showToast('⚠️ Tap 🔄 again to reset to Level 1');return;}
+  _restartArm=0;
   playerLevel=1;playerXP=0;
   saveProgression(); // also resets FRANKLY_CUBE_WINS to 1 for the app
-  window.location.reload();
+  refreshAllProgressionUI();
+  showToast('🔄 Progress reset to Level 1');
+  startGame();
 });
 
-function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);composer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
-window.addEventListener('resize',resize);resize();
+function resize(){
+  // Measure the FULL game root (not #canvas-wrap): this reproduces the original
+  // game's framing, where the camera was set up against the full viewport at load
+  // (menu open, HUD hidden) and kept that projection in-game. The render is then
+  // fitted into the canvas box, giving the track its intended big, wide look.
+  const w=gameRoot.clientWidth,h=gameRoot.clientHeight;if(w<=0||h<=0)return; // zero-size guard: keep last good projection
+  renderer.setSize(w,h,false);composer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
+resize();
 
 function startGame(){
   while(cubes.length)removeCube(cubes[0]);
