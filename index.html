@@ -1326,9 +1326,17 @@
         let boardIsRolling = false;
         let boardCurrentIdx = 0;
         let boardPendingReward = null;
-        const boardTileSize = window.innerWidth < 480 ? 75 : 100;
-        const boardGap = 20; 
-        const boardSpacing = (boardTileSize + boardGap) * 0.5; 
+
+        // --- ΔΙΟΡΘΩΣΗ 1: Αντικατάσταση των στατικών μεγεθών με CSS μεταβλητές ---
+        function getBoardTileSize() {
+            // Διαβάζουμε το --tile-size απευθείας από το CSS ώστε JS & CSS να συμφωνούν πάντα
+            const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tile-size'));
+            return isNaN(v) ? 100 : v;
+        }
+        const boardGap = 20;
+        let boardTileSize = getBoardTileSize();
+        let boardSpacing = (boardTileSize + boardGap) * 0.5;
+
         let boardPathPoints = [];
 
         function playBoardMoveSound() { playSound(600, 0.05, 0.08, 'sine'); }
@@ -1382,7 +1390,12 @@
             return { type: 'empty', icon: '', label: '', value: 0 };
         }
 
+        // --- ΔΙΟΡΘΩΣΗ 2 & 3: Ενημέρωση μεγέθους και τοποθέτηση παίκτη στο κέντρο (sp.x, sp.y) ---
         function boardRenderAllTiles() {
+            // Υπολογισμός εκ νέου του μεγέθους από το CSS
+            boardTileSize = getBoardTileSize();
+            boardSpacing = (boardTileSize + boardGap) * 0.5;
+
             const world = document.getElementById('world');
             const player = document.getElementById('player');
             const boardArea = document.getElementById('boardArea');
@@ -1421,15 +1434,12 @@
                 world.appendChild(tile);
             }
 
-            const activeTile = world.querySelector('.path-tile.active');
-            if (activeTile) {
-                const boardRect = boardArea.getBoundingClientRect();
-                const tileRect = activeTile.getBoundingClientRect();
-                const centerX = tileRect.left + tileRect.width / 2 - boardRect.left;
-                const centerY = tileRect.top + tileRect.height / 2 - boardRect.top;
-                player.style.left = centerX + 'px';
-                player.style.top = centerY + 'px';
-            }
+            // Αντικατάσταση του παλιού κώδικα τοποθέτησης με τον νέο.
+            // Το ενεργό tile τοποθετείται πάντα με κέντρο το (sp.x, sp.y).
+            // Αυτό το σημείο είναι το transform-origin του 3D rotation, άρα το κέντρο
+            // του λευκού κύκλου (snow-slice) προβάλλεται ΑΚΡΙΒΩΣ εκεί.
+            player.style.left = sp.x + 'px';
+            player.style.top = sp.y + 'px';
         }
 
         function boardMovePlayer(steps) {
