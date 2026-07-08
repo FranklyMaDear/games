@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <script src="https://www.youtube.com/game_api/v1"></script>
+    <!-- Monetag Ad SDK -->
+    <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
     <title>Merge Cubes 3D – Progression</title>
     <style>
         * {
@@ -103,7 +104,7 @@
         #mission-toast {
             position: absolute;
             left: 50%;
-            top: 150px; /* ΑΛΛΑΓΗ: από 80px σε 150px */
+            top: 150px;
             transform: translateX(-50%);
             background: rgba(20, 15, 45, .94);
             border: 1px solid #7cfc00;
@@ -382,38 +383,38 @@
             animation: fup 1.2s cubic-bezier(.2, .7, .3, 1) forwards
         }
         .float-text.milestone {
-            font-size: 16px; /* Μικρότερο (ήταν 24px) */
+            font-size: 16px;
             color: #FFD700;
             text-shadow: 0 0 20px rgba(255, 180, 0, .9);
             animation: msf 1.6s cubic-bezier(.2, .7, .3, 1) forwards
         }
         .float-text.points {
-            font-size: 12px; /* Ήταν 16px */
+            font-size: 12px;
             color: #FFD700;
             text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 0 12px rgba(255, 180, 0, .5)
         }
         .float-text.points-big {
-            font-size: 14px; /* Ήταν 22px */
+            font-size: 14px;
         }
         .float-text.points-mega {
-            font-size: 18px; /* Ήταν 28px */
+            font-size: 18px;
             color: #FFA500;
         }
         .float-text.gift {
-            font-size: 16px; /* Ήταν 22px */
+            font-size: 16px;
             color: #7CFC00;
             text-shadow: 0 0 18px rgba(120, 255, 80, .9);
         }
         @keyframes fup {
             0% { transform: translate(-50%, 0) scale(.7); opacity: 0; }
             12% { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
-            100% { transform: translate(-50%, -90px) scale(1); opacity: 0; } /* Πιο ψηλά */
+            100% { transform: translate(-50%, -90px) scale(1); opacity: 0; }
         }
         @keyframes msf {
             0% { transform: translate(-50%, 8px) scale(.5); opacity: 0; }
             20% { transform: translate(-50%, -10px) scale(1.3); opacity: 1; }
             80% { opacity: 1; }
-            100% { transform: translate(-50%, -90px); opacity: 0; } /* Πιο ψηλά */
+            100% { transform: translate(-50%, -90px); opacity: 0; }
         }
         #boosters {
             width: 100%;
@@ -799,7 +800,6 @@
         #rank-close-btn:active {
             transform: scale(.94)
         }
-        /* SHOP SCROLL FIX */
         #shop-modal {
             position: absolute;
             inset: 0;
@@ -943,7 +943,6 @@
             transform: scale(.94);
             background: #eeeeee;
         }
-        /* REVIVE MODAL FIX */
         #revive-modal {
             position: absolute;
             inset: 0;
@@ -1406,69 +1405,57 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        const YT = (typeof ytgame !== 'undefined' && ytgame !== null) ? ytgame : null;
-        let _ytReady = false;
-        let _sdkPaused = false;
-
-        const store = (() => {
-            let mem = {};
-            const useYT = !!(YT && YT.game && typeof YT.game.loadData === 'function');
-            let saveTimer = null;
-            async function hydrate() {
-                if (useYT) {
-                    try { const d = await YT.game.loadData(); if (d) mem = JSON.parse(d) || {}; } catch (e) { mem = {}; }
+        /* ================= MONETAG SDK WRAPPER ================= */
+        function showMonetagAd() {
+            return new Promise((resolve, reject) => {
+                // Suspend audio before showing ad
+                audio.suspend();
+                if (typeof window.show_11108267 === 'function') {
+                    window.show_11108267().then(() => {
+                        audio.resume();
+                        resolve();
+                    }).catch((err) => {
+                        audio.resume();
+                        reject(err);
+                    });
                 } else {
-                    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i);
-                            mem[k] = localStorage.getItem(k); } } catch (e) {}
+                    audio.resume();
+                    resolve(); // if SDK not available, just resolve
                 }
-            }
-            function persist() {
-                if (!useYT) return;
-                if (saveTimer) clearTimeout(saveTimer);
-                saveTimer = setTimeout(() => { try { YT.game.saveData(JSON.stringify(mem)); } catch (e) {} }, 400);
-            }
+            });
+        }
+
+        /* ---------- Simplified localStorage store ---------- */
+        const store = (() => {
             return {
-                hydrate,
-                get(k) { return (k in mem) ? mem[k] : null; },
-                set(k, v) { v = String(v);
-                    mem[k] = v; try { localStorage.setItem(k, v); } catch (e) {} persist(); },
+                hydrate() { /* nothing needed, just read on demand */ },
+                get(k) { return localStorage.getItem(k); },
+                set(k, v) { localStorage.setItem(k, String(v)); }
             };
         })();
         await store.hydrate();
 
         const gameRoot = document.getElementById('gameRoot');
-        let _lastW = 0,
-            _lastH = 0;
+        let _lastW = 0, _lastH = 0;
 
-        function measureViewport() { let w = 0,
-                h = 0; try { if (window.visualViewport) { w = window.visualViewport.width || 0;
-                    h = window.visualViewport.height || 0; } if (!w) w = window.innerWidth || 0; if (!h) h = window
-                    .innerHeight || 0; if (!w) w = document.documentElement.clientWidth || 0; if (!h) h = document
-                    .documentElement.clientHeight || 0; } catch (e) {} return { w: Math.round(w), h: Math.round(h) }; }
+        function measureViewport() { let w = 0, h = 0; try { if (window.visualViewport) { w = window.visualViewport.width || 0;
+                    h = window.visualViewport.height || 0; } if (!w) w = window.innerWidth || 0; if (!h) h = window.innerHeight || 0; if (!w) w = document.documentElement.clientWidth || 0; if (!h) h = document.documentElement.clientHeight || 0; } catch (e) {} return { w: Math.round(w), h: Math.round(h) }; }
 
-        function layoutRoot() { try { const v = measureViewport(); let w = v.w,
-                    h = v.h; if (w <= 0) w = _lastW > 0 ? _lastW : 390; if (h <= 0) h = _lastH > 0 ? _lastH : Math.round(w * (
-                        844 / 390));
+        function layoutRoot() { try { const v = measureViewport(); let w = v.w, h = v.h; if (w <= 0) w = _lastW > 0 ? _lastW : 390; if (h <= 0) h = _lastH > 0 ? _lastH : Math.round(w * (844 / 390));
                 _lastW = w;
                 _lastH = h;
                 gameRoot.style.width = w + 'px';
-                gameRoot.style.height = h + 'px'; if (typeof resize === 'function') { try { resize(); } catch (e) {} } } catch (
-            e) {} }
+                gameRoot.style.height = h + 'px'; if (typeof resize === 'function') { try { resize(); } catch (e) {} } } catch (e) {} }
         window.addEventListener('resize', layoutRoot);
-        window.addEventListener('orientationchange', layoutRoot); if (window.visualViewport) { try { window.visualViewport
-                    .addEventListener('resize', layoutRoot); } catch (e) {} }
+        window.addEventListener('orientationchange', layoutRoot); if (window.visualViewport) { try { window.visualViewport.addEventListener('resize', layoutRoot); } catch (e) {} }
         layoutRoot();
-        (function() { let n = 0; const t = setInterval(function() { layoutRoot(); if (++n >= 20) clearInterval(t); },
-            150); })();
+        (function() { let n = 0; const t = setInterval(function() { layoutRoot(); if (++n >= 20) clearInterval(t); }, 150); })();
 
         function buildStarfield() { const sf = document.getElementById('starfield'); if (!sf) return;
             sf.innerHTML = '';
             function layer(count, size, dur, op) { const cv = document.createElement('canvas');
                 cv.width = 600;
-                cv.height = 600; const ctx = cv.getContext('2d'); for (let i = 0; i < count; i++) { const x = Math.random() *
-                        600,
-                        y = Math.random() * 600,
-                        r = Math.random() * size + 0.3;
+                cv.height = 600; const ctx = cv.getContext('2d'); for (let i = 0; i < count; i++) { const x = Math.random() * 600, y = Math.random() * 600, r = Math.random() * size + 0.3;
                     ctx.beginPath();
                     ctx.arc(x, y, r, 0, Math.PI * 2);
                     ctx.fillStyle = `rgba(255,255,255,${0.4+Math.random()*0.6})`;
@@ -1485,15 +1472,8 @@
             layer(300, 0.6, 105, 0.5); }
 
         const SEQ = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384];
-        const PAL = { 2: { hex: 0x3ecf5a, glow: 0x2aff5a }, 4: { hex: 0x8b5cf6, glow: 0xa070ff }, 8: { hex: 0xf97316,
-                glow: 0xffaa44 }, 16: { hex: 0x14b8a6, glow: 0x44e0c8 }, 32: { hex: 0xf5b50a, glow: 0xffd24a },
-            64: { hex: 0x0ea5e9, glow: 0x44ccff }, 128: { hex: 0x3b82f6, glow: 0x77aaff }, 256: { hex: 0xe11d48,
-                glow: 0xff3366 }, 512: { hex: 0xec4899, glow: 0xff66bb }, 1024: { hex: 0x7c3aed, glow: 0xaa66ff },
-            2048: { hex: 0xFFD700, glow: 0xffee44 }, 4096: { hex: 0xff5500, glow: 0xff8844 }, 8192: { hex: 0x00ffff,
-                glow: 0x00ffff }, 16384: { hex: 0xff00ff, glow: 0xff00ff }, };
-
+        const PAL = { 2: { hex: 0x3ecf5a, glow: 0x2aff5a }, 4: { hex: 0x8b5cf6, glow: 0xa070ff }, 8: { hex: 0xf97316, glow: 0xffaa44 }, 16: { hex: 0x14b8a6, glow: 0x44e0c8 }, 32: { hex: 0xf5b50a, glow: 0xffd24a }, 64: { hex: 0x0ea5e9, glow: 0x44ccff }, 128: { hex: 0x3b82f6, glow: 0x77aaff }, 256: { hex: 0xe11d48, glow: 0xff3366 }, 512: { hex: 0xec4899, glow: 0xff66bb }, 1024: { hex: 0x7c3aed, glow: 0xaa66ff }, 2048: { hex: 0xFFD700, glow: 0xffee44 }, 4096: { hex: 0xff5500, glow: 0xff8844 }, 8192: { hex: 0x00ffff, glow: 0x00ffff }, 16384: { hex: 0xff00ff, glow: 0xff00ff }, };
         function gp(v) { return PAL[v] || { hex: 0xcc44ff, glow: 0xff88ff } }
-
         function nextVal(v) { const i = SEQ.indexOf(v); return i >= 0 && i + 1 < SEQ.length ? SEQ[i + 1] : v * 2 }
         const COLS = 5;
         const CUBE_SZ = 2.2;
@@ -1533,7 +1513,6 @@
         let playerXP = parseInt(store.get(LS_XP) || '0', 10);
         let coins = parseInt(store.get(LS_COINS) || '0', 10);
         let highScore = parseInt(store.get(LS_HIGHSCORE) || '0', 10);
-        store.set('FRANKLY_CUBE_WINS', playerLevel);
         let upgradeSlow = parseInt(store.get(UPGRADE_SLOW) || '0', 10);
         let upgradePower = parseInt(store.get(UPGRADE_POWER) || '0', 10);
         let upgradeLives = parseInt(store.get(UPGRADE_LIVES) || '0', 10);
@@ -1544,23 +1523,17 @@
         const PIGGY_RATE = 0.15;
 
         function xpForLevel(lv) { return Math.floor(1000 * Math.pow(lv, 2)); }
-
         function saveProgression() { store.set(LS_LEVEL, playerLevel);
             store.set(LS_XP, playerXP);
             store.set(LS_COINS, coins);
             store.set(LS_HIGHSCORE, highScore);
-            store.set('FRANKLY_CUBE_WINS', playerLevel);
             store.set(UPGRADE_SLOW, upgradeSlow);
             store.set(UPGRADE_POWER, upgradePower);
             store.set(UPGRADE_LIVES, upgradeLives);
             store.set(UPGRADE_COINS, upgradeCoins);
             store.set(UPGRADE_BOOSTER, upgradeBooster);
             store.set(PIGGY_KEY, piggyBank); }
-        let roundScoreGoal = 5000,
-            roundCubeGoal = 16,
-            roundScoreMet = false,
-            roundCubeMet = false,
-            roundCoins = 0;
+        let roundScoreGoal = 5000, roundCubeGoal = 16, roundScoreMet = false, roundCubeMet = false, roundCoins = 0;
         document.getElementById('highscore-val').textContent = highScore.toLocaleString();
 
         function updateLevelDisplay() { document.getElementById('level-box').textContent = `Lv.${playerLevel}`; }
@@ -1614,21 +1587,14 @@
         document.getElementById('piggy-bank-indicator').addEventListener('click', openPiggyModal);
         document.getElementById('piggy-close-btn').addEventListener('click', closePiggyModal);
         document.getElementById('piggy-modal').addEventListener('click', (e) => { if (e.target === document.getElementById('piggy-modal')) closePiggyModal(); });
-        document.getElementById('piggy-open-btn').addEventListener('click', () => { if (piggyBank <= 0) { showToast('🐷 Piggy bank is empty!'); return; } if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { YT.game.showRewardedAd().then(() => { const amt = piggyBank;
+        document.getElementById('piggy-open-btn').addEventListener('click', () => { if (piggyBank <= 0) { showToast('🐷 Piggy bank is empty!'); return; } showMonetagAd().then(() => { const amt = piggyBank;
                     piggyBank = 0;
                     coins += amt;
                     saveProgression();
                     updateCoinsDisplay();
                     updatePiggyIndicator();
                     closePiggyModal();
-                    showToast(`🐷 Piggy bank opened! +${amt} coins`); }).catch(() => { showToast('Ad failed or skipped.'); }); } else { const amt = piggyBank;
-                piggyBank = 0;
-                coins += amt;
-                saveProgression();
-                updateCoinsDisplay();
-                updatePiggyIndicator();
-                closePiggyModal();
-                showToast(`🐷 Piggy bank opened! +${amt} coins`); } });
+                    showToast(`🐷 Piggy bank opened! +${amt} coins`); }).catch(() => { showToast('Ad failed or skipped.'); }); });
 
         const wrap = document.getElementById('canvas-wrap');
         const canvas = document.getElementById('three-canvas');
@@ -1675,19 +1641,15 @@
         const starGeo = new THREE.BufferGeometry();
         const starN = 2600;
         const stp = new Float32Array(starN * 3);
-        for (let i = 0; i < starN; i++) { const r = 55 + Math.random() * 100,
-                th = Math.random() * Math.PI * 2,
-                ph = Math.acos(2 * Math.random() - 1);
+        for (let i = 0; i < starN; i++) { const r = 55 + Math.random() * 100, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
             stp[i * 3] = r * Math.sin(ph) * Math.cos(th);
             stp[i * 3 + 1] = r * Math.cos(ph) * 0.7 + 6;
             stp[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th); }
         starGeo.setAttribute('position', new THREE.BufferAttribute(stp, 3));
-        const spaceStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xddccff, size: 0.4,
-            sizeAttenuation: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, fog: false }));
+        const spaceStars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xddccff, size: 0.4, sizeAttenuation: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, fog: false }));
         scene.add(spaceStars);
 
-        function addNebula(x, y, z, color, size, op) { const m = new THREE.MeshBasicMaterial({ color, transparent: true,
-                opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), m);
+        function addNebula(x, y, z, color, size, op) { const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }); const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), m);
             mesh.position.set(x, y, z);
             mesh.lookAt(camera.position);
             scene.add(mesh); }
@@ -1695,17 +1657,12 @@
         addNebula(34, 15, -52, 0xaa2266, 62, 0.13);
         addNebula(0, 27, -64, 0x3344bb, 78, 0.11);
 
-        function buildTrack() { const g = new THREE.Group(); const W = TRACK_W,
-                L = TRACK_L,
-                wallT = 0.5,
-                wallH = 1.7; const trackFloorMat = new THREE.MeshStandardMaterial({ color: 0x221c55, roughness: 0.5,
-                metalness: 0.2 }); const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, L), trackFloorMat);
+        function buildTrack() { const g = new THREE.Group(); const W = TRACK_W, L = TRACK_L, wallT = 0.5, wallH = 1.7; const trackFloorMat = new THREE.MeshStandardMaterial({ color: 0x221c55, roughness: 0.5, metalness: 0.2 }); const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, L), trackFloorMat);
             floor.rotation.x = -Math.PI / 2;
             floor.position.y = 0.01;
             floor.receiveShadow = true;
             g.add(floor); const lineMat = new THREE.LineBasicMaterial({ color: 0x6655aa, transparent: true, opacity: 0.35 }); for (let i = 0; i <= COLS; i++) { const x = -TRACK_W / 2 + 0.5 + i * COL_W; const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, 0.02, -L / 2), new THREE.Vector3(x, 0.02, L / 2)]);
-                g.add(new THREE.Line(geo, lineMat)); } const frameMat = new THREE.MeshStandardMaterial({ color: 0x7d4bdd,
-                roughness: 0.25, metalness: 0.65, emissive: 0x4a25a8, emissiveIntensity: 1.2 }); const addWallMesh = (x, z, w, h, d) => { const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
+                g.add(new THREE.Line(geo, lineMat)); } const frameMat = new THREE.MeshStandardMaterial({ color: 0x7d4bdd, roughness: 0.25, metalness: 0.65, emissive: 0x4a25a8, emissiveIntensity: 1.2 }); const addWallMesh = (x, z, w, h, d) => { const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat);
                 wall.position.set(x, h / 2, z);
                 wall.castShadow = true;
                 g.add(wall); };
@@ -1753,8 +1710,7 @@
         world.addContactMaterial(new CANNON.ContactMaterial(newRowMat, wallPhysMat, { friction: .8, restitution: 0.0 }));
         world.addContactMaterial(new CANNON.ContactMaterial(newRowMat, cubeMat, { friction: .7, restitution: 0.0 }));
         const pushedThisShot = new Set();
-        world.addEventListener('beginContact', (e) => { if (!shotCube) return; const bodyA = e.bodyA,
-                bodyB = e.bodyB; let targetBody = null; if (bodyA === shotCube.body) targetBody = bodyB; else if (bodyB === shotCube.body) targetBody = bodyA; if (!targetBody) return; const tc = cubes.find(c => c.body === targetBody && !c.isShot && !c.isNewRow); if (!tc) return; const shotVel = shotCube.body.velocity; const angle = Math.random() * Math.PI * 2; const pushX = Math.cos(angle) * 4.5 + shotVel.x * 0.5; const pushY = Math.abs(shotVel.y) * 0.8 + 3.5; const pushZ = Math.sin(angle) * 4.5 + shotVel.z * 0.5 + 2.8;
+        world.addEventListener('beginContact', (e) => { if (!shotCube) return; const bodyA = e.bodyA, bodyB = e.bodyB; let targetBody = null; if (bodyA === shotCube.body) targetBody = bodyB; else if (bodyB === shotCube.body) targetBody = bodyA; if (!targetBody) return; const tc = cubes.find(c => c.body === targetBody && !c.isShot && !c.isNewRow); if (!tc) return; const shotVel = shotCube.body.velocity; const angle = Math.random() * Math.PI * 2; const pushX = Math.cos(angle) * 4.5 + shotVel.x * 0.5; const pushY = Math.abs(shotVel.y) * 0.8 + 3.5; const pushZ = Math.sin(angle) * 4.5 + shotVel.z * 0.5 + 2.8;
             tc.body.applyImpulse(new CANNON.Vec3(pushX, pushY, pushZ), new CANNON.Vec3(0, 0, 0)); });
         const floorBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: cannonFloorMat });
         floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
@@ -1774,8 +1730,7 @@
         const matCache = new Map();
         let rainbowMatsCache = null;
 
-        function makeTexture(value, pal) { const sz = 256,
-                cv = document.createElement('canvas');
+        function makeTexture(value, pal) { const sz = 256, cv = document.createElement('canvas');
             cv.width = sz;
             cv.height = sz; const ctx = cv.getContext('2d');
             ctx.fillStyle = '#' + pal.hex.toString(16).padStart(6, '0');
@@ -1797,12 +1752,10 @@
             ctx.fillText(value, sz / 2, sz / 2 + 8); const t = new THREE.CanvasTexture(cv);
             t.colorSpace = THREE.SRGBColorSpace; return t; }
 
-        function getMats(value) { if (matCache.has(value)) return matCache.get(value); const pal = gp(value),
-                tex = makeTexture(value, pal); const bp = { color: 0xffffff, roughness: .3, metalness: .2, emissive: pal.glow, emissiveIntensity: .28 }; const mn = new THREE.MeshStandardMaterial({ ...bp, map: tex }); const mp = new THREE.MeshStandardMaterial({ color: pal.hex, roughness: .3, metalness: .2, emissive: pal.glow, emissiveIntensity: .28 }); const ms = [mn, mn, mn, mp, mn, mn];
+        function getMats(value) { if (matCache.has(value)) return matCache.get(value); const pal = gp(value), tex = makeTexture(value, pal); const bp = { color: 0xffffff, roughness: .3, metalness: .2, emissive: pal.glow, emissiveIntensity: .28 }; const mn = new THREE.MeshStandardMaterial({ ...bp, map: tex }); const mp = new THREE.MeshStandardMaterial({ color: pal.hex, roughness: .3, metalness: .2, emissive: pal.glow, emissiveIntensity: .28 }); const ms = [mn, mn, mn, mp, mn, mn];
             matCache.set(value, ms); return ms; }
 
-        function getRainbowMats() { if (rainbowMatsCache) return rainbowMatsCache; const sz = 256,
-                cv = document.createElement('canvas');
+        function getRainbowMats() { if (rainbowMatsCache) return rainbowMatsCache; const sz = 256, cv = document.createElement('canvas');
             cv.width = sz;
             cv.height = sz; const ctx = cv.getContext('2d'); const g = ctx.createLinearGradient(0, 0, sz, sz);['#ff0040', '#ff8800', '#ffee00', '#33dd33', '#0099ff', '#8844ff'].forEach((c, i, a) => g.addColorStop(i / (a.length - 1), c));
             ctx.fillStyle = g;
@@ -1954,10 +1907,7 @@
             spawnParticles(px, py - trackY, pz, 0xffaa00, 30, 9); return nc; }
 
         function sweepMerges() { let iter = 0; const MERGE_THRESHOLD = (CUBE_SZ * 1.55) * (CUBE_SZ * 1.55); while (iter < 16) { iter++; let merged = false;
-            outer: for (let i = 0; i < cubes.length; i++) { for (let j = i + 1; j < cubes.length; j++) { const a = cubes[i],
-                            b = cubes[j]; if (a.value !== b.value) continue; if (a.mergeCooldown > 0 || b.mergeCooldown > 0) continue; if (a.isNewRow || b.isNewRow) continue; const dx = a.body.position.x - b.body.position.x,
-                            dy = a.body.position.y - b.body.position.y,
-                            dz = a.body.position.z - b.body.position.z; if (dx * dx + dy * dy + dz * dz < MERGE_THRESHOLD) { if (a.isShot) { a.isShot = false;
+            outer: for (let i = 0; i < cubes.length; i++) { for (let j = i + 1; j < cubes.length; j++) { const a = cubes[i], b = cubes[j]; if (a.value !== b.value) continue; if (a.mergeCooldown > 0 || b.mergeCooldown > 0) continue; if (a.isNewRow || b.isNewRow) continue; const dx = a.body.position.x - b.body.position.x, dy = a.body.position.y - b.body.position.y, dz = a.body.position.z - b.body.position.z; if (dx * dx + dy * dy + dz * dz < MERGE_THRESHOLD) { if (a.isShot) { a.isShot = false;
                                 a.body.collisionFilterGroup = GRP_TRACK;
                                 a.body.collisionFilterMask = ~0; if (shotCube === a) shotCube = null; } if (b.isShot) { b.isShot = false;
                                 b.body.collisionFilterGroup = GRP_TRACK;
@@ -1989,8 +1939,7 @@
                 rampMesh.visible = true; }
             rampState = 'pushing';
             audio.thud(); }
-        const particles = [],
-            trailParticles = [];
+        const particles = [], trailParticles = [];
         const pGeo = new THREE.SphereGeometry(.08, 6, 6);
         const shardGeo = new THREE.BoxGeometry(.26, .26, .26);
         const trailGeo = new THREE.SphereGeometry(0.15, 6, 6);
@@ -1998,15 +1947,13 @@
 
         function spawnParticles(x, y, z, color, count = 16, speed = 4) { for (let i = 0; i < count; i++) { const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 }); const mesh = new THREE.Mesh(pGeo, mat);
                 mesh.position.set(x, y + trackY, z);
-                scene.add(mesh); const a = Math.random() * Math.PI * 2,
-                    alt = (Math.random() - .3) * Math.PI; const s = speed * (.4 + Math.random());
+                scene.add(mesh); const a = Math.random() * Math.PI * 2, alt = (Math.random() - .3) * Math.PI; const s = speed * (.4 + Math.random());
                 particles.push({ mesh, mat, vx: Math.cos(a) * Math.cos(alt) * s, vy: Math.abs(Math.sin(alt)) * s + 1.5, vz: Math.sin(a) * Math.cos(alt) * s, life: 1, decay: .02 + Math.random() * .01, shard: false }); } }
 
         function spawnShards(x, y, z, color, count = 10) { for (let i = 0; i < count; i++) { const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .4, roughness: .4, metalness: .2, transparent: true, opacity: 1 }); const mesh = new THREE.Mesh(shardGeo, mat);
                 mesh.position.set(x, y + trackY, z);
                 mesh.scale.setScalar(0.5 + Math.random() * 0.8);
-                scene.add(mesh); const a = Math.random() * Math.PI * 2,
-                    alt = Math.random() * Math.PI * 0.6; const s = 4 + Math.random() * 4;
+                scene.add(mesh); const a = Math.random() * Math.PI * 2, alt = Math.random() * Math.PI * 0.6; const s = 4 + Math.random() * 4;
                 particles.push({ mesh, mat, vx: Math.cos(a) * Math.cos(alt) * s, vy: Math.sin(alt) * s + 3, vz: Math.sin(a) * Math.cos(alt) * s, life: 1, decay: .018 + Math.random() * .008, shard: true, vrot: (Math.random() - .5) * 12, rx: Math.random(), ry: Math.random(), rz: Math.random() }); } }
 
         function spawnFlashSphere(x, y, z, color) { const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }); const mesh = new THREE.Mesh(flashGeo, mat);
@@ -2023,7 +1970,6 @@
         const fxLayer = document.getElementById('fx-layer');
 
         function project3D(p) { const v = p.clone().project(camera); return { x: (v.x * .5 + .5) * canvas.clientWidth, y: (-v.y * .5 + .5) * canvas.clientHeight }; }
-
         function floatText(x, y, z, label, type = 'points') { const v = project3D(new THREE.Vector3(x, y + trackY, z)); const el = document.createElement('div');
             el.className = 'float-text ' + type;
             el.textContent = label;
@@ -2031,9 +1977,7 @@
             el.style.top = v.y + 'px';
             fxLayer.appendChild(el);
             setTimeout(() => el.remove(), type === 'milestone' || type === 'gift' ? 1600 : 1200); }
-        const audio = (() => { let ctx = null,
-                mg = null,
-                muted = false;
+        const audio = (() => { let ctx = null, mg = null, muted = false;
             function init() { if (ctx) return;
                 ctx = new(window.AudioContext || window.webkitAudioContext)();
                 mg = ctx.createGain();
@@ -2044,9 +1988,7 @@
                 g.gain.exponentialRampToValueAtTime(pk, t + a);
                 g.gain.exponentialRampToValueAtTime(Math.max(.0001, pk * s), t + a + d);
                 g.gain.exponentialRampToValueAtTime(.0001, t + dur); }
-            function noise(dur, vol, freq, type = 'lowpass') { const n = ctx.createBufferSource(),
-                    buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate),
-                    d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+            function noise(dur, vol, freq, type = 'lowpass') { const n = ctx.createBufferSource(), buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
                 n.buffer = buf; const fi = ctx.createBiquadFilter();
                 fi.type = type;
                 fi.frequency.value = freq; const g = ctx.createGain();
@@ -2054,16 +1996,14 @@
                 n.connect(fi).connect(g).connect(mg);
                 n.start(); return n; }
             function launch() { if (muted) return;
-                init(); const o = ctx.createOscillator(),
-                    g = ctx.createGain();
+                init(); const o = ctx.createOscillator(), g = ctx.createGain();
                 o.type = 'sawtooth';
                 o.frequency.setValueAtTime(150, ctx.currentTime);
                 o.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.12);
                 o.connect(g).connect(mg);
                 env(g, .18, .005, .02, .2, .16);
                 o.start();
-                o.stop(ctx.currentTime + .18); const o2 = ctx.createOscillator(),
-                    g2 = ctx.createGain();
+                o.stop(ctx.currentTime + .18); const o2 = ctx.createOscillator(), g2 = ctx.createGain();
                 o2.type = 'triangle';
                 o2.frequency.setValueAtTime(80, ctx.currentTime);
                 o2.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
@@ -2074,8 +2014,7 @@
                 noise(.14, .28, 800, 'bandpass'); }
             function boom() { if (muted) return;
                 init();
-                noise(.5, .55, 320, 'lowpass'); const o = ctx.createOscillator(),
-                    g = ctx.createGain();
+                noise(.5, .55, 320, 'lowpass'); const o = ctx.createOscillator(), g = ctx.createGain();
                 o.type = 'sine';
                 o.frequency.setValueAtTime(130, ctx.currentTime);
                 o.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + .4);
@@ -2086,8 +2025,7 @@
                 noise(.18, .35, 2600, 'bandpass'); }
             function mergeBoom() { if (muted) return;
                 init();
-                noise(.45, .65, 180, 'lowpass'); const o = ctx.createOscillator(),
-                    g = ctx.createGain();
+                noise(.45, .65, 180, 'lowpass'); const o = ctx.createOscillator(), g = ctx.createGain();
                 o.type = 'sine';
                 o.frequency.setValueAtTime(90, ctx.currentTime);
                 o.frequency.exponentialRampToValueAtTime(18, ctx.currentTime + 0.35);
@@ -2095,8 +2033,7 @@
                 env(g, 0.9, 0.005, 0.08, 0.3, 0.55);
                 o.start();
                 o.stop(ctx.currentTime + 0.6);
-                noise(0.35, 0.6, 350, 'bandpass'); const o2 = ctx.createOscillator(),
-                    g2 = ctx.createGain();
+                noise(0.35, 0.6, 350, 'bandpass'); const o2 = ctx.createOscillator(), g2 = ctx.createGain();
                 o2.type = 'square';
                 o2.frequency.setValueAtTime(55, ctx.currentTime);
                 o2.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.3);
@@ -2107,8 +2044,7 @@
                 noise(0.15, 0.4, 2800, 'highpass'); }
             function thud() { if (muted) return;
                 init();
-                noise(.2, .32, 160, 'lowpass'); const o = ctx.createOscillator(),
-                    g = ctx.createGain();
+                noise(.2, .32, 160, 'lowpass'); const o = ctx.createOscillator(), g = ctx.createGain();
                 o.type = 'sine';
                 o.frequency.setValueAtTime(80, ctx.currentTime);
                 o.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + .16);
@@ -2117,8 +2053,7 @@
                 o.start();
                 o.stop(ctx.currentTime + .22); }
             function blip(f, dur = .12, type = 'sine', vol = .4) { if (muted) return;
-                init(); const o = ctx.createOscillator(),
-                    g = ctx.createGain();
+                init(); const o = ctx.createOscillator(), g = ctx.createGain();
                 o.type = type;
                 o.frequency.value = f;
                 o.connect(g).connect(mg);
@@ -2132,29 +2067,16 @@
             function setEnabled(en) { if (!en) { muted = true; if (mg) mg.gain.value = 0; if (ctx && ctx.state === 'running') ctx.suspend(); } else { muted = false; if (mg) mg.gain.value = .45; if (ctx && ctx.state === 'suspended') ctx.resume(); } }
             function suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); }
             function resume() { if (!muted && ctx && ctx.state === 'suspended') ctx.resume(); } return { launch, boom, thud, mergeBoom, milestone, gift, gameOver, toggleMute, init, setEnabled, suspend, resume }; })();
-        let gameOn = false,
-            paused = false,
-            gameStarted = false;
-        let score = 0,
-            mult = 1;
-        let curVal = 2,
-            nxtVal = 2,
-            aimX = 0,
-            maxReached = 2;
+        let gameOn = false, paused = false, gameStarted = false;
+        let score = 0, mult = 1;
+        let curVal = 2, nxtVal = 2, aimX = 0, maxReached = 2;
         let rowTimer = 0;
-        let seenMS = new Set(),
-            shakeAmt = 0,
-            isOverlayVisible = true,
-            shotCube = null,
-            rainbowArmed = false;
-        let rampBody = null,
-            rampMesh = null,
-            rampState = 'idle';
+        let seenMS = new Set(), shakeAmt = 0, isOverlayVisible = true, shotCube = null, rainbowArmed = false;
+        let rampBody = null, rampMesh = null, rampState = 'idle';
         let targetVal = 4;
         let shooterGlow = null;
         let aimLine = null;
-        let freeBomb = 0,
-            freeRainbow = 0;
+        let freeBomb = 0, freeRainbow = 0;
         const BOMB_COST = 200;
         const RAINBOW_COST = 300;
         const BOOSTER_BUY_COST = 100;
@@ -2166,35 +2088,17 @@
         let tutorialActive = true;
         let doubleCoinsPending = false;
 
-        function applyDailyGift() {
-            const today = new Date().toISOString().slice(0, 10);
-            const lastDate = store.get(GIFT_DATE_KEY);
-            if (lastDate !== today) {
-                freeBomb = 1;
+        function applyDailyGift() { const today = new Date().toISOString().slice(0, 10); const lastDate = store.get(GIFT_DATE_KEY); if (lastDate !== today) { freeBomb = 1;
                 freeRainbow = 1;
                 store.set(GIFT_DATE_KEY, today);
                 store.set(FREE_BOMB_KEY, '1');
-                store.set(FREE_RAINBOW_KEY, '1');
-            } else {
-                freeBomb = parseInt(store.get(FREE_BOMB_KEY) || '0', 10);
-                freeRainbow = parseInt(store.get(FREE_RAINBOW_KEY) || '0', 10);
-            }
-        }
-
-        function checkFirstTimeGift() {
-            const hasGift = store.get(FIRST_TIME_KEY);
-            if (!hasGift) {
-                store.set(FIRST_TIME_KEY, '1');
-                showToast('🎁 Welcome gift: +1 Bomb & +1 Rainbow available daily!');
-            }
-        }
-
+                store.set(FREE_RAINBOW_KEY, '1'); } else { freeBomb = parseInt(store.get(FREE_BOMB_KEY) || '0', 10);
+                freeRainbow = parseInt(store.get(FREE_RAINBOW_KEY) || '0', 10); } }
+        function checkFirstTimeGift() { const hasGift = store.get(FIRST_TIME_KEY); if (!hasGift) { store.set(FIRST_TIME_KEY, '1');
+                showToast('🎁 Welcome gift: +1 Bomb & +1 Rainbow available daily!'); } }
         function saveFreeItems() { store.set(FREE_BOMB_KEY, freeBomb.toString());
             store.set(FREE_RAINBOW_KEY, freeRainbow.toString()); }
-
-        function updateBoosterBadges() { const bb = document.getElementById('badge-bomb'),
-                rb = document.getElementById('badge-rainbow'); const bWrap = document.getElementById('boost-bomb'),
-                rWrap = document.getElementById('boost-rainbow'); const setBadge = (badge, btn, freeCount, cost) => { if (freeCount > 0) { badge.textContent = '🎁 ×' + freeCount;
+        function updateBoosterBadges() { const bb = document.getElementById('badge-bomb'), rb = document.getElementById('badge-rainbow'); const bWrap = document.getElementById('boost-bomb'), rWrap = document.getElementById('boost-rainbow'); const setBadge = (badge, btn, freeCount, cost) => { if (freeCount > 0) { badge.textContent = '🎁 ×' + freeCount;
                     badge.className = 'cost-badge free';
                     btn.classList.remove('locked');
                     btn.classList.add('ready'); } else if (coins >= cost) { badge.textContent = '🪙 ' + cost;
@@ -2206,7 +2110,6 @@
             setBadge(bb, bWrap, freeBomb, BOMB_COST);
             setBadge(rb, rWrap, freeRainbow, RAINBOW_COST);
             saveFreeItems(); }
-
         function addXP(amount) { if (!gameOn) return;
             playerXP += amount; while (playerXP >= xpForLevel(playerLevel)) { playerXP -= xpForLevel(playerLevel);
                 playerLevel++;
@@ -2214,22 +2117,18 @@
                 audio.milestone(); }
             refreshAllProgressionUI();
             saveProgression(); }
-
         function addCoins(amount) { if (!gameOn) return; const boost = 1 + upgradeCoins; const finalAmount = Math.floor(amount * boost);
             roundCoins += finalAmount;
             coins += finalAmount;
             addToPiggy(finalAmount);
             saveProgression();
             updateCoinsDisplay(); }
-
         function checkScoreGoal() { if (!roundScoreMet && score >= roundScoreGoal) { roundScoreMet = true;
                 floatText(0, trackY + 5, 0, '🎯 SCORE GOAL MET!', 'gift');
                 updateGoalsUI(); } }
-
         function checkCubeGoal(val) { if (!roundCubeMet && val >= roundCubeGoal) { roundCubeMet = true;
                 floatText(0, trackY + 4.5, 0, '🎯 CUBE GOAL MET!', 'gift');
                 updateGoalsUI(); } }
-
         function showLostModal() { document.getElementById('lost-final-score').textContent = 'Score: ' + score.toLocaleString();
             document.getElementById('lost-final-coins').textContent = 'Coins earned: ' + roundCoins.toLocaleString();
             document.getElementById('lost-double-btn').style.display = roundCoins > 0 ? 'inline-block' : 'none';
@@ -2239,34 +2138,22 @@
             doubleCoinsPending = false;
             startGame(); });
         document.getElementById('lost-double-btn').addEventListener('click', () => { if (!doubleCoinsPending || roundCoins <= 0) return;
-            doubleCoinsPending = false; if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { YT.game.showRewardedAd().then(() => { coins += roundCoins;
+            doubleCoinsPending = false; showMonetagAd().then(() => { coins += roundCoins;
                     saveProgression();
                     updateCoinsDisplay();
                     document.getElementById('lost-double-btn').style.display = 'none';
-                    showToast(`🎬 Coins doubled! +${roundCoins} extra coins`); }).catch(() => { showToast('Ad failed or skipped.'); }); } else { coins += roundCoins;
-                saveProgression();
-                updateCoinsDisplay();
-                document.getElementById('lost-double-btn').style.display = 'none';
-                showToast(`🎬 Coins doubled! +${roundCoins} extra coins`); } });
-
+                    showToast(`🎬 Coins doubled! +${roundCoins} extra coins`); }).catch(() => { showToast('Ad failed or skipped.'); }); });
         function buildOverlay(htmlContent) { const ov = document.getElementById('overlay');
             ov.innerHTML = `<div id="space-bg"></div><div id="starfield"></div>${htmlContent}`;
             buildStarfield(); }
-
-        function showInitialOverlay() { buildOverlay(`
-    <h1>MERGE CUBES 3D</h1>
-    <p>Tap to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>
-      Don't let cubes cross the <b style="color:#ff4444">red line</b>!</p>
-    <button class="play-btn" id="startBtn">PLAY</button>
-  `);
+        function showInitialOverlay() { buildOverlay(`<h1>MERGE CUBES 3D</h1><p>Tap to aim, release to launch!<br>Match numbers to <b style="color:#f0a030">merge</b><br>Don't let cubes cross the <b style="color:#ff4444">red line</b>!</p><button class="play-btn" id="startBtn">PLAY</button>`);
             document.getElementById('startBtn').addEventListener('click', startGame); }
         let pendingBoosterType = null;
-
         function openBoosterModal(type) { pendingBoosterType = type; const title = document.getElementById('booster-title'); const desc = document.getElementById('booster-desc'); if (type === 'bomb') { title.textContent = '💣 Get Bomb';
                 desc.textContent = 'Watch an ad or spend 100 coins to use a Bomb.'; } else { title.textContent = '🌈 Get Rainbow';
                 desc.textContent = 'Watch an ad or spend 100 coins to use a Rainbow.'; }
             document.getElementById('booster-modal').classList.add('active'); }
-        document.getElementById('booster-ad-btn').addEventListener('click', () => { document.getElementById('booster-modal').classList.remove('active'); if (pendingBoosterType === 'bomb') { if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { YT.game.showRewardedAd().then(() => { useBomb(); }).catch(() => { showToast('Ad failed or skipped.'); }); } else { useBomb(); } } else if (pendingBoosterType === 'rainbow') { if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { YT.game.showRewardedAd().then(() => { useRainbow(); }).catch(() => { showToast('Ad failed or skipped.'); }); } else { useRainbow(); } }
+        document.getElementById('booster-ad-btn').addEventListener('click', () => { document.getElementById('booster-modal').classList.remove('active'); if (pendingBoosterType === 'bomb') { showMonetagAd().then(() => { useBomb(); }).catch(() => { showToast('Ad failed or skipped.'); }); } else if (pendingBoosterType === 'rainbow') { showMonetagAd().then(() => { useRainbow(); }).catch(() => { showToast('Ad failed or skipped.'); }); }
             pendingBoosterType = null; });
         document.getElementById('booster-coin-btn').addEventListener('click', () => { if (coins < BOOSTER_BUY_COST) { showToast('🪙 Not enough coins! Need 100.');
                 document.getElementById('booster-modal').classList.remove('active');
@@ -2279,34 +2166,24 @@
         document.getElementById('booster-close-btn').addEventListener('click', () => { document.getElementById('booster-modal').classList.remove('active');
             pendingBoosterType = null; });
 
-        // ========== REVIVE SYSTEM (MEGA BOMB + SHOCKWAVE) ==========
         function handleDeath(crossedCube) {
-            if (gentleShield > 0) {
-                gentleShield--;
+            if (gentleShield > 0) { gentleShield--;
                 crossedCube.body.position.z = Z_BACK + 2;
                 crossedCube.body.position.y += 2;
                 crossedCube.body.velocity.z = 0;
                 crossedCube.body.velocity.y = -1;
                 crossedCube.body.velocity.x *= 0.5;
                 floatText(0, trackY + 2, DANGER_Z - 2, '🛡️ OOPS! Shield used! (-10 pts)', 'points');
-                addScore(-10);
-                return;
-            }
-            if (extraLives > 0) {
-                extraLives--;
+                addScore(-10); return; }
+            if (extraLives > 0) { extraLives--;
                 removeCube(crossedCube);
-                floatText(0, trackY + 2, DANGER_Z - 2, '💔 Extra Life Used!', 'points');
-                return;
-            }
-            if (reviveCount < MAX_REVIVES) {
-                badCubeToRemove = crossedCube;
+                floatText(0, trackY + 2, DANGER_Z - 2, '💔 Extra Life Used!', 'points'); return; }
+            if (reviveCount < MAX_REVIVES) { badCubeToRemove = crossedCube;
                 paused = true;
                 document.body.classList.add('paused');
                 document.getElementById('revive-current-score').textContent = 'Score: ' + score.toLocaleString();
                 document.getElementById('revive-remaining').textContent = (MAX_REVIVES - reviveCount);
-                document.getElementById('revive-modal').classList.add('active');
-                return;
-            }
+                document.getElementById('revive-modal').classList.add('active'); return; }
             triggerGameOver();
         }
 
@@ -2314,40 +2191,23 @@
             document.getElementById('revive-modal').classList.remove('active');
             document.body.classList.remove('paused');
             
-            if (badCubeToRemove) {
-                removeCube(badCubeToRemove);
-                badCubeToRemove = null;
-            }
+            if (badCubeToRemove) { removeCube(badCubeToRemove);
+                badCubeToRemove = null; }
 
-            // --- ΕΙΔΙΚΗ ΒΟΜΒΑ REVIVE & ΩΣΤΙΚΟ ΚΥΜΑ ---
             const DANGER_RADIUS_BACK = 6.0; 
             const DANGER_RADIUS_FRONT = 2.0; 
             const explosionZ = DANGER_Z - 1.5;
 
-            const victims = cubes.filter(c => {
-                if (c.isShot || c.isNewRow) return false;
-                const dz = c.body.position.z - DANGER_Z;
-                return dz > -DANGER_RADIUS_BACK && dz < DANGER_RADIUS_FRONT;
-            });
+            const victims = cubes.filter(c => { if (c.isShot || c.isNewRow) return false; const dz = c.body.position.z - DANGER_Z; return dz > -DANGER_RADIUS_BACK && dz < DANGER_RADIUS_FRONT; });
 
             if (victims.length > 0) {
-                victims.forEach(c => {
-                    spawnShards(c.body.position.x, c.body.position.y - trackY, c.body.position.z, gp(c.value).hex, 14);
+                victims.forEach(c => { spawnShards(c.body.position.x, c.body.position.y - trackY, c.body.position.z, gp(c.value).hex, 14);
                     addScore(c.value);
                     addXP(c.value);
-                    removeCube(c);
-                });
+                    removeCube(c); });
 
-                cubes.forEach(c => {
-                    if (c.isShot || c.isNewRow) return;
-                    const dx = c.body.position.x;
-                    const dz = c.body.position.z - explosionZ;
-                    const dist = Math.sqrt(dx * dx + dz * dz);
-                    if (dist < 12.0) {
-                        const power = 18 / (dist + 1);
-                        c.body.applyImpulse(new CANNON.Vec3(dx * power * 0.3, 3, dz * power * 0.6), new CANNON.Vec3(0, 0, 0));
-                    }
-                });
+                cubes.forEach(c => { if (c.isShot || c.isNewRow) return; const dx = c.body.position.x; const dz = c.body.position.z - explosionZ; const dist = Math.sqrt(dx * dx + dz * dz); if (dist < 12.0) { const power = 20 / (dist + 1);
+                        c.body.applyImpulse(new CANNON.Vec3(dx * power * 0.4, 4, dz * power * 0.7), new CANNON.Vec3(0, 0, 0)); } });
 
                 spawnParticles(0, trackY + 1.2, explosionZ, 0xff3300, 50, 20);
                 spawnFlashSphere(0, trackY + 1.2, explosionZ, 0xff8800);
@@ -2355,13 +2215,14 @@
                 audio.boom();
                 shakeAmt = 1.0; 
             }
-            // ------------------------------------------
 
             reviveCount++;
             paused = false;
             gameOn = true;
             lastT = performance.now();
-            if (_rafU === null) _rafU = requestAnimationFrame(update);
+            
+            if (_rafU !== null) { cancelAnimationFrame(_rafU); }
+            _rafU = requestAnimationFrame(update);
             
             document.getElementById('hud').classList.add('active');
             document.getElementById('boosters').classList.add('active');
@@ -2370,22 +2231,12 @@
             showToast(`⚡ Revived! (${reviveCount}/${MAX_REVIVES}) - Zone cleared!`);
         }
 
-        document.getElementById('revive-ad-btn').addEventListener('click', () => { 
-            if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { 
-                YT.game.showRewardedAd().then(() => { reviveGame(); }).catch(() => { 
-                    document.getElementById('revive-modal').classList.remove('active');
+        document.getElementById('revive-ad-btn').addEventListener('click', () => { showMonetagAd().then(() => { reviveGame(); }).catch(() => { document.getElementById('revive-modal').classList.remove('active');
                     document.body.classList.remove('paused');
-                    triggerGameOver(); 
-                }); 
-            } else { 
-                reviveGame(); 
-            } 
-        });
-        document.getElementById('revive-skip-btn').addEventListener('click', () => { 
-            document.getElementById('revive-modal').classList.remove('active');
+                    triggerGameOver(); }); });
+        document.getElementById('revive-skip-btn').addEventListener('click', () => { document.getElementById('revive-modal').classList.remove('active');
             document.body.classList.remove('paused');
-            triggerGameOver(); 
-        });
+            triggerGameOver(); });
 
         function triggerGameOver() { gameOn = false;
             gameStarted = false; if (shotCube) { shotCube.isShot = false;
@@ -2401,22 +2252,21 @@
             document.getElementById('hud').classList.remove('active');
             document.getElementById('red-vignette').classList.remove('active'); let bonus = 0; if (roundScoreMet) bonus += playerLevel * 50; if (roundCubeMet) bonus += playerLevel * 100; if (bonus > 0) { coins += bonus;
                 roundCoins += bonus;
-                saveProgression(); } if (_ytReady && YT && YT.game && typeof YT.game.sendScore === 'function') { try { YT.game.sendScore(Math.max(0, Math.round(score))); } catch (e) {} }
+                saveProgression(); }
             missionProgress('play_game', 1);
             checkAllMissionsComplete();
-            showLostModal(); }
+            // Show interstital ad before losing modal
+            showMonetagAd().then(showLostModal).catch(showLostModal);
+        }
 
         let lastT = performance.now();
         let _rafU = null;
 
-        function update() { if (_sdkPaused) { _rafU = null; return; } if (isOverlayVisible) { _rafU = requestAnimationFrame(update); return; } const now = performance.now(),
-                dt = Math.min(.05, (now - lastT) / 1000);
+        function update() { if (isOverlayVisible) { _rafU = requestAnimationFrame(update); return; } const now = performance.now(), dt = Math.min(.05, (now - lastT) / 1000);
             lastT = now;
             spaceStars.rotation.y += dt * 0.008; 
-            
             if (gameOn && !paused) {
                 world.step(1 / 60, dt, 3);
-
                 for (const c of cubes) { if (c.mergeCooldown > 0) c.mergeCooldown -= dt; }
                 for (const c of cubes) { if (c.isNewRow) { c.newRowTimer -= dt; if (c.newRowTimer <= 0) activateNewRowCube(c); } }
                 if (shotCube && !shotCube.passedDanger) { shotCube.passedDanger = true;
@@ -2424,8 +2274,7 @@
                 if (gameStarted && rampState === 'idle') { rowTimer += dt; let baseInterval = 4.2 - (playerLevel - 1) * 0.12;
                     baseInterval = Math.max(2.0, baseInterval); const slowFactor = 1 - upgradeSlow * 0.10; const interval = Math.max(2.0, baseInterval * slowFactor); const liveCubes = cubes.filter(c => !c.isShot).length; if (rowTimer >= interval || liveCubes <= 2) { rowTimer = 0;
                         triggerRampSpawn(); } }
-                if (rampBody) {
-                    if (rampState === 'pushing') { rampBody.velocity.set(0, 0, RAMP_SPEED); if (rampBody.position.z >= RAMP_PUSH_Z) { rampBody.position.z = RAMP_PUSH_Z;
+                if (rampBody) { if (rampState === 'pushing') { rampBody.velocity.set(0, 0, RAMP_SPEED); if (rampBody.position.z >= RAMP_PUSH_Z) { rampBody.position.z = RAMP_PUSH_Z;
                             rampBody.velocity.set(0, 0, -RAMP_SPEED * 2);
                             rampState = 'retracting'; } } else if (rampState === 'retracting') { if (rampBody.position.z <= RAMP_HOME_Z) { rampBody.position.set(0, 0.55 + trackY, RAMP_HOME_Z);
                             rampBody.velocity.set(0, 0, 0);
@@ -2451,9 +2300,7 @@
                 if (shotCube) { shotLight.position.copy(shotCube.body.position);
                     shotLight.intensity = 10; } else { shotLight.intensity = 0; }
                 if (shotCube && !shotCube.rainbow) { const s = shotCube.body; const worldPos = new THREE.Vector3(s.position.x, s.position.y, s.position.z); const quat = new THREE.Quaternion(s.quaternion.x, s.quaternion.y, s.quaternion.z, s.quaternion.w); for (let i = 0; i < 8; i++) spawnTrailParticle(worldPos, new THREE.Vector3(s.velocity.x, s.velocity.y, s.velocity.z), quat); }
-                if (shotCube && shotCube.rainbow) { let rbHit = false; for (const c of cubes) { if (c === shotCube || c.isShot) continue; const rbdx = c.body.position.x - shotCube.body.position.x,
-                            rbdz = c.body.position.z - shotCube.body.position.z; if (rbdx * rbdx + rbdz * rbdz < (CUBE_SZ * 1.3) * (CUBE_SZ * 1.3)) { const hitX = c.body.position.x,
-                                hitZ = c.body.position.z; const toRemove = cubes.filter(x => !x.isShot && Math.abs(x.body.position.x - hitX) < COL_W * 0.6);
+                if (shotCube && shotCube.rainbow) { let rbHit = false; for (const c of cubes) { if (c === shotCube || c.isShot) continue; const rbdx = c.body.position.x - shotCube.body.position.x, rbdz = c.body.position.z - shotCube.body.position.z; if (rbdx * rbdx + rbdz * rbdz < (CUBE_SZ * 1.3) * (CUBE_SZ * 1.3)) { const hitX = c.body.position.x, hitZ = c.body.position.z; const toRemove = cubes.filter(x => !x.isShot && Math.abs(x.body.position.x - hitX) < COL_W * 0.6);
                             toRemove.forEach(x => { spawnShards(x.body.position.x, x.body.position.y - trackY, x.body.position.z, gp(x.value).hex, 8);
                                 addScore(x.value);
                                 addXP(x.value); });
@@ -2483,31 +2330,11 @@
                         camera.position.set(0, 32, 28);
                         camera.lookAt(0, trackY, 1); } }
                 let nearMissDetected = false;
-                if (gameStarted && rampState === 'idle') {
-                    for (const c of cubes) {
-                        if (c.isShot || c.isNewRow) continue;
-                        const settled = Math.abs(c.body.velocity.z) < 0.8 && Math.abs(c.body.velocity.x) < 0.8 && c.body.position.y < trackY + CUBE_SZ + 0.5;
-                        if (c.body.position.z >= DANGER_Z - 0.05 && settled) {
-                            handleDeath(c);
-                            if (paused || !gameOn) return;
-                            continue;
-                        }
-                        if (c.body.position.z > DANGER_Z - 2.8 && c.body.position.z <= DANGER_Z && settled) {
-                            nearMissDetected = true;
-                        }
-                    }
-                }
-                const vignette = document.getElementById('red-vignette');
-                if (nearMissDetected && gameOn && !paused) {
-                    vignette.classList.add('active');
-                    if (shakeAmt < 0.3) shakeAmt = 0.3;
-                } else {
-                    vignette.classList.remove('active');
-                }
+                if (gameStarted && rampState === 'idle') { for (const c of cubes) { if (c.isShot || c.isNewRow) continue; const settled = Math.abs(c.body.velocity.z) < 0.8 && Math.abs(c.body.velocity.x) < 0.8 && c.body.position.y < trackY + CUBE_SZ + 0.5; if (c.body.position.z >= DANGER_Z - 0.05 && settled) { handleDeath(c); if (paused || !gameOn) return; continue; } if (c.body.position.z > DANGER_Z - 2.8 && c.body.position.z <= DANGER_Z && settled) { nearMissDetected = true; } } }
+                const vignette = document.getElementById('red-vignette'); if (nearMissDetected && gameOn && !paused) { vignette.classList.add('active'); if (shakeAmt < 0.3) shakeAmt = 0.3; } else { vignette.classList.remove('active'); }
                 if (gameStarted && gameOn && !paused) { surviveSeconds += dt;
                     missionProgress('survive', Math.floor(surviveSeconds)); }
             }
-
             for (let i = flashSpheres.length - 1; i >= 0; i--) { const fs = flashSpheres[i];
                 fs.life -= dt;
                 fs.mesh.scale.setScalar(fs.mesh.scale.x + fs.scaleSpeed * dt);
@@ -2549,11 +2376,8 @@
             updateGoalsUI();
             updateXPBar();
             updateCoinsDisplay(); }
-        const targetCnv = document.getElementById('target-cnv'),
-            targetCtx = targetCnv.getContext('2d');
-
-        function drawMiniCube(mc, cx, cy, sz, val) { const pal = gp(val),
-                d = sz * .22;
+        const targetCnv = document.getElementById('target-cnv'), targetCtx = targetCnv.getContext('2d');
+        function drawMiniCube(mc, cx, cy, sz, val) { const pal = gp(val), d = sz * .22;
             mc.fillStyle = '#' + pal.glow.toString(16).padStart(6, '0');
             mc.beginPath();
             mc.moveTo(cx - sz / 2, cy);
@@ -2579,18 +2403,12 @@
             mc.textAlign = 'center';
             mc.textBaseline = 'middle';
             mc.fillText(val, cx, cy + sz / 2); }
-
         function drawTargetHUD() { targetCtx.clearRect(0, 0, 40, 40);
             drawMiniCube(targetCtx, 20, 8, 24, targetVal); }
-
         function shooterPool() { let pool = [2, 2, 2, 4, 4, 8]; if (maxReached >= 32) pool = [2, 4, 4, 8, 8, 16]; if (maxReached >= 64) pool = [4, 8, 8, 16, 16, 32]; if (maxReached >= 128) pool = [8, 16, 16, 32, 32, 64]; if (maxReached >= 256) pool = [16, 32, 32, 64, 64, 128]; if (maxReached >= 512) pool = [32, 64, 64, 128, 128, 256]; return pool; }
-
         function rndStart() { if (upgradePower >= 2) return 8; if (upgradePower >= 1) return 4; const p = shooterPool(); return p[Math.floor(Math.random() * p.length)]; }
         
-        let arcLineMesh = null;
-        let arcImpactMesh = null;
-        let arcImpactRingMesh = null;
-
+        let arcLineMesh = null, arcImpactMesh = null, arcImpactRingMesh = null;
         function buildArcVisuals() { const arcMat = new THREE.LineBasicMaterial({ color: 0xaa77ff, transparent: true, opacity: 0.0, depthWrite: false });
             arcLineMesh = new THREE.Line(new THREE.BufferGeometry(), arcMat);
             scene.add(arcLineMesh); const impGeo = new THREE.RingGeometry(0.3, 0.7, 32); const impMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthWrite: false });
@@ -2602,18 +2420,11 @@
             arcImpactRingMesh.rotation.x = -Math.PI / 2;
             arcImpactRingMesh.visible = false;
             scene.add(arcImpactRingMesh); }
-
         function removeArcVisuals() { if (arcLineMesh) { scene.remove(arcLineMesh);
                 arcLineMesh = null; } if (arcImpactMesh) { scene.remove(arcImpactMesh);
                 arcImpactMesh = null; } if (arcImpactRingMesh) { scene.remove(arcImpactRingMesh);
                 arcImpactRingMesh = null; } }
-
-        function updateArcPreview() { if (!arcLineMesh || !gameOn || paused) return; const vz = -42,
-                vy = 5,
-                grav = -16; const dt2 = 0.045; const pts = []; let px = aimX,
-                py = trackY + CUBE_SZ / 2 + 0.15,
-                pz = SHOOTER_Z; let vvy = vy; let impactX = aimX,
-                impactZ = Z_BACK + 1; let hitSomething = false; for (let s = 0; s < 80; s++) { px += 0 * dt2;
+        function updateArcPreview() { if (!arcLineMesh || !gameOn || paused) return; const vz = -42, vy = 5, grav = -16; const dt2 = 0.045; const pts = []; let px = aimX, py = trackY + CUBE_SZ / 2 + 0.15, pz = SHOOTER_Z; let vvy = vy; let impactX = aimX, impactZ = Z_BACK + 1; let hitSomething = false; for (let s = 0; s < 80; s++) { px += 0 * dt2;
                 py += vvy * dt2;
                 pz += vz * dt2;
                 vvy += grav * dt2; const cx = Math.max(-X_LIMIT, Math.min(X_LIMIT, px)); if (py < trackY + CUBE_SZ / 2) { py = trackY + CUBE_SZ / 2;
@@ -2621,9 +2432,7 @@
                     impactZ = pz;
                     hitSomething = true; break; } if (pz < Z_BACK + CUBE_SZ / 2) { impactX = cx;
                     impactZ = Z_BACK + CUBE_SZ / 2;
-                    hitSomething = true; break; } let blocked = false; for (const c of cubes) { if (c.isShot) continue; const dx = c.body.position.x - cx,
-                        dz2 = c.body.position.z - pz,
-                        dy = c.body.position.y - py; if (Math.abs(dx) < CUBE_SZ && Math.abs(dz2) < CUBE_SZ * 0.9 && Math.abs(dy) < CUBE_SZ) { impactX = cx;
+                    hitSomething = true; break; } let blocked = false; for (const c of cubes) { if (c.isShot) continue; const dx = c.body.position.x - cx, dz2 = c.body.position.z - pz, dy = c.body.position.y - py; if (Math.abs(dx) < CUBE_SZ && Math.abs(dz2) < CUBE_SZ * 0.9 && Math.abs(dy) < CUBE_SZ) { impactX = cx;
                         impactZ = pz;
                         hitSomething = true;
                         blocked = true; break; } } if (blocked) break;
@@ -2632,15 +2441,12 @@
                 arcLineMesh.visible = true; } else { arcLineMesh.visible = false; } if (arcImpactMesh) { arcImpactMesh.position.set(impactX, trackY + 0.06, impactZ);
                 arcImpactMesh.visible = true; } if (arcImpactRingMesh) { arcImpactRingMesh.position.set(impactX, trackY + 0.07, impactZ);
                 arcImpactRingMesh.visible = true; } }
-
         function hideArcPreview() { if (arcLineMesh) arcLineMesh.visible = false; if (arcImpactMesh) arcImpactMesh.visible = false; if (arcImpactRingMesh) arcImpactRingMesh.visible = false; }
-
         function triggerRowBreak(landZ) { const BAND = CUBE_SZ * 1.2; const victims = cubes.filter(c => { if (c.isShot || c.isNewRow) return false; return Math.abs(c.body.position.z - landZ) < BAND; }); if (victims.length === 0) return;
             victims.forEach(c => { const dx = c.body.position.x - aimX; const dz = c.body.position.z - landZ; const dist = Math.sqrt(dx * dx + dz * dz) + 0.1; const power = Math.min(8 / dist, 10);
                 c.body.applyImpulse(new CANNON.Vec3(dx * power * 0.3, 0.5, dz * power * 0.3 + 3), new CANNON.Vec3(0, 0, 0)); });
             spawnParticles(aimX, trackY + 1, landZ, 0xff8800, 20, 8);
             shakeAmt = Math.max(shakeAmt, 0.3); }
-
         function makeShooter() { if (shooterGlow) { scene.remove(shooterGlow);
                 shooterGlow = null; } if (aimLine) { scene.remove(aimLine);
                 aimLine = null; } if (readyCubeMesh) { scene.remove(readyCubeMesh);
@@ -2652,7 +2458,6 @@
             scene.add(glow);
             shooterGlow = glow;
             createReadyCube(curVal); }
-
         function updateShooter() { if (!readyCubeMesh) return;
             readyCubeMesh.scale.setScalar(1 + 0.1 * Math.sin(Date.now() / 150));
             readyCubeMesh.position.set(aimX, trackY + CUBE_SZ / 2 + 0.15, SHOOTER_Z);
@@ -2660,26 +2465,13 @@
             readyCubeMesh.material = rainbowArmed ? getRainbowMats() : getMats(readyCubeValue); if (shooterGlow) { shooterGlow.position.x = aimX;
                 shooterGlow.position.y = trackY + 0.03;
                 shooterGlow.position.z = SHOOTER_Z; } if (!shotCube) updateArcPreview(); else hideArcPreview(); }
-
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const targetPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -SHOOTER_Z);
-
-        function getAimX(clientX, clientY) { 
-            const rect = canvas.getBoundingClientRect();
+        function getAimX(clientX, clientY) { const rect = canvas.getBoundingClientRect();
             mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera); 
-            const target = new THREE.Vector3();
-            if (raycaster.ray.intersectPlane(targetPlane, target) && isFinite(target.x)) { 
-                aimX = Math.max(-X_LIMIT, Math.min(X_LIMIT, target.x)); 
-            } else {
-                aimX = mouse.x * X_LIMIT; 
-            }
-            if (readyCubeMesh) readyCubeMesh.position.x = aimX; 
-            if (shooterGlow) shooterGlow.position.x = aimX; 
-        }
-
+            raycaster.setFromCamera(mouse, camera); const target = new THREE.Vector3(); if (raycaster.ray.intersectPlane(targetPlane, target) && isFinite(target.x)) { aimX = Math.max(-X_LIMIT, Math.min(X_LIMIT, target.x)); } else { aimX = mouse.x * X_LIMIT; } if (readyCubeMesh) readyCubeMesh.position.x = aimX; if (shooterGlow) shooterGlow.position.x = aimX; }
         canvas.addEventListener('mousedown', e => { if (!gameOn || paused) return;
             getAimX(e.clientX, e.clientY); });
         canvas.addEventListener('mousemove', e => { if (!gameOn || paused || e.buttons === 0) return;
@@ -2711,22 +2503,16 @@
                 updateCoinsDisplay();
                 updateBoosterBadges();
                 useRainbow(); } else { openBoosterModal('rainbow'); } });
-        document.getElementById('btn-newgames').addEventListener('click', () => { if (_sdkPaused) return;
-            startGame(); });
+        document.getElementById('btn-newgames').addEventListener('click', () => { showMonetagAd().then(() => { startGame(); }).catch(() => { startGame(); }); });
         document.getElementById('btn-pause').addEventListener('click', () => { if (!gameOn) return;
             paused = !paused;
             document.getElementById('btn-pause').textContent = paused ? '▶' : '⏸'; });
         document.getElementById('btn-sound').addEventListener('click', () => { const m = audio.toggleMute();
             document.getElementById('btn-sound').textContent = m ? '🔇' : '🔊'; });
-        
-        document.getElementById('btn-restart').addEventListener('click', () => { 
-            if (_sdkPaused) return;
-            startGame();
-            showToast('🔄 Game restarted! Coins & XP kept.');
-        });
+        document.getElementById('btn-restart').addEventListener('click', () => { startGame();
+            showToast('🔄 Game restarted! Coins & XP kept.'); });
 
-        function resize() { const w = gameRoot.clientWidth,
-                h = gameRoot.clientHeight; if (w <= 0 || h <= 0) return;
+        function resize() { const w = gameRoot.clientWidth, h = gameRoot.clientHeight; if (w <= 0 || h <= 0) return;
             renderer.setSize(w, h, false);
             composer.setSize(w, h);
             camera.aspect = w / h;
@@ -2736,7 +2522,6 @@
         function startGame() { 
             freeBomb = 0;
             freeRainbow = 0;
-            
             while (cubes.length) removeCube(cubes[0]);
             shotCube = null; if (readyCubeMesh) { scene.remove(readyCubeMesh);
                 readyCubeMesh = null; } for (let i = particles.length - 1; i >= 0; i--) { scene.remove(particles[i].mesh);
@@ -2773,7 +2558,6 @@
             maxComboThisRound = 0;
             surviveSeconds = 0;
             doubleCoinsPending = false;
-            
             applyDailyGift();
             checkFirstTimeGift();
             updateStreak();
@@ -2821,16 +2605,7 @@
 
         function updateShopUI() { const coinsDisplay = document.getElementById('shop-coins-val'); if (coinsDisplay) coinsDisplay.textContent = coins.toLocaleString(); const list = document.getElementById('shop-items-list'); if (!list) return; let html = '';
             shopItems.forEach(item => { const curLv = item.getLv(); const maxLv = item.maxLv; const isMaxed = curLv >= maxLv; const nextCost = isMaxed ? null : item.costs[curLv]; const canAfford = !isMaxed && coins >= nextCost; let btnText = isMaxed ? 'MAX' : `Buy (🪙${nextCost})`; let btnDisabled = isMaxed || !canAfford; let btnClass = isMaxed ? 'shop-btn maxed' : 'shop-btn'; let levelText = isMaxed ? '' : ` (${curLv}/${maxLv})`; if (!isMaxed && curLv === 0) levelText = '';
-                html += `
-      <div class="shop-item">
-        <span class="item-icon">${item.icon}</span>
-        <div class="item-info">
-          <div class="item-name">${item.name}${levelText}</div>
-          <div class="item-desc">${item.desc}</div>
-        </div>
-        <button class="${btnClass}" data-id="${item.id}" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>
-      </div>
-    `; });
+                html += `<div class="shop-item"><span class="item-icon">${item.icon}</span><div class="item-info"><div class="item-name">${item.name}${levelText}</div><div class="item-desc">${item.desc}</div></div><button class="${btnClass}" data-id="${item.id}" ${btnDisabled ? 'disabled' : ''}>${btnText}</button></div>`; });
             list.innerHTML = html;
             list.querySelectorAll('.shop-btn:not(:disabled)').forEach(btn => { btn.addEventListener('click', (e) => { const id = btn.dataset.id; const item = shopItems.find(i => i.id === id); if (!item) return; const curLv = item.getLv(); const cost = item.costs[curLv]; if (coins < cost) { showToast('🪙 Not enough coins!'); return; }
                     coins -= cost;
@@ -2842,7 +2617,6 @@
 
         function openShopModal() { document.getElementById('shop-modal').classList.add('active');
             updateShopUI(); }
-
         function closeShopModal() { document.getElementById('shop-modal').classList.remove('active'); }
         document.getElementById('btn-shop').addEventListener('click', openShopModal);
         document.getElementById('shop-close-btn').addEventListener('click', closeShopModal);
@@ -2887,7 +2661,7 @@
             toast._timeout = setTimeout(() => toast.classList.remove('show'), 2500); }
         function checkAllMissionsComplete() { const allDone = dailyMissions.every(m => m.progress >= m.target); const unlockBtn = document.getElementById('missions-unlock-btn'); if (allDone && !missionsUnlockedExtra && dailyMissions.length === 10) { unlockBtn.style.display = 'block';
                 unlockBtn.disabled = false; } else { unlockBtn.style.display = 'none'; } }
-        function unlockExtraMissions() { if (missionsUnlockedExtra || dailyMissions.length > 10) return; if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') { YT.game.showRewardedAd().then(() => { doUnlockExtra(); }).catch(() => { showToast('Ad failed or skipped.'); }); } else { doUnlockExtra(); } }
+        function unlockExtraMissions() { if (missionsUnlockedExtra || dailyMissions.length > 10) return; showMonetagAd().then(() => { doUnlockExtra(); }).catch(() => { showToast('Ad failed or skipped.'); }); }
         function doUnlockExtra() { const extraMissions = [
                 { id: 'mx1', icon: '💎', name: 'Mega Score', desc: 'Earn 15000 points', target: 15000, reward: '🪙 200', type: 'score' },
                 { id: 'mx2', icon: '🌟', name: 'Cube Legend', desc: 'Reach cube 256', target: 256, reward: '🪙 180', type: 'reach_cube' },
@@ -2905,27 +2679,14 @@
             store.set(STREAK_KEY, JSON.stringify(streakDays)); }
             window._currentStreak = streakDays.length; }
         window._currentStreak = 1;
-
         function getStreakMultiplier() { const s = window._currentStreak || 1; if (s >= 4) return 2.5; if (s >= 3) return 2.0; if (s >= 2) return 1.5; return 1.0; }
-
         function updateMissionsUI() { const list = document.getElementById('missions-list'); if (!list) return; const mult = getStreakMultiplier();
             document.getElementById('streak-info-text').textContent = `🔥 Streak: ${window._currentStreak||1} day(s) | ${mult}x rewards`;
             let html = '';
             dailyMissions.forEach(m => { const done = m.progress >= m.target; const rewardMatch = m.reward.match(/\d+/); let rewardCoins = rewardMatch ? parseInt(rewardMatch[0]) : 0; const boostedReward = Math.floor(rewardCoins * mult); const displayReward = mult > 1 ? `🪙 ${boostedReward} (${mult}x)` : m.reward;
-                html += `
-        <div class="mission-row${done && m.claimed ? ' completed' : ''}">
-          <span class="m-icon">${m.icon}</span>
-          <div class="m-info">
-            <div>${m.name}</div>
-            <div style="font-size:10px;color:#aaa">${m.desc}</div>
-          </div>
-          <span class="m-progress">${Math.min(m.progress,m.target)}/${m.target}</span>
-          <span class="m-reward">${displayReward}</span>
-          ${done && !m.claimed ? `<button class="m-claim" data-mid="${m.id}">CLAIM</button>` : (m.claimed ? '<span style="color:#7cfc00;font-size:16px">✅</span>' : '')}
-        </div>
-      `; });
+                html += `<div class="mission-row${done && m.claimed ? ' completed' : ''}"><span class="m-icon">${m.icon}</span><div class="m-info"><div>${m.name}</div><div style="font-size:10px;color:#aaa">${m.desc}</div></div><span class="m-progress">${Math.min(m.progress,m.target)}/${m.target}</span><span class="m-reward">${displayReward}</span>${done && !m.claimed ? `<button class="m-claim" data-mid="${m.id}">CLAIM</button>` : (m.claimed ? '<span style="color:#7cfc00;font-size:16px">✅</span>' : '')}</div>`; });
             list.innerHTML = html;
-            list.querySelectorAll('.m-claim').forEach(btn => { btn.addEventListener('click', (e) => { const mid = btn.dataset.mid; const mission = dailyMissions.find(m => m.id === mid); if (!mission || mission.claimed || mission.progress < mission.target) return; const rewardMatch = mission.reward.match(/\d+/); let rewardCoins = rewardMatch ? parseInt(rewardMatch[0]) : 0;
+            list.querySelectorAll('.m-claim').forEach(btn => { btn.addEventListener('click', (e) => { const mid = btn.dataset.id; const mission = dailyMissions.find(m => m.id === mid); if (!mission || mission.claimed || mission.progress < mission.target) return; const rewardMatch = mission.reward.match(/\d+/); let rewardCoins = rewardMatch ? parseInt(rewardMatch[0]) : 0;
                     rewardCoins = Math.floor(rewardCoins * getStreakMultiplier());
                     mission.claimed = true;
                     coins += rewardCoins;
@@ -2935,7 +2696,6 @@
                     updateMissionsUI();
                     showToast(`✅ Mission complete! +${rewardCoins} coins`); }); });
             checkAllMissionsComplete(); }
-
         function openMissionsModal() { document.getElementById('missions-modal').classList.add('active');
             refreshMissionsIfNeeded();
             updateMissionsUI(); }
@@ -2948,29 +2708,15 @@
         loadMissions();
         updateStreak();
         showInitialOverlay();
-        
         let _toastTimer = null;
         function showToast(msg) { try { const t = document.getElementById('toast');
                 t.textContent = msg;
                 t.classList.add('show'); if (_toastTimer) clearTimeout(_toastTimer);
                 _toastTimer = setTimeout(() => t.classList.remove('show'), 2200); } catch (e) {} }
-
-        function handlePause() { _sdkPaused = true;
-            document.body.classList.add('paused'); if (_rafU !== null) { cancelAnimationFrame(_rafU);
-                _rafU = null; }
-            clearInputFeedback(); try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
-            audio.suspend(); }
-        function handleResume() { _sdkPaused = false;
-            document.body.classList.remove('paused');
-            layoutRoot();
-            audio.resume();
-            lastT = performance.now(); if (_rafU === null) _rafU = requestAnimationFrame(update); }['click', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchmove', 'pointermove', 'keydown', 'keyup', 'keypress', 'input'].forEach(function(type) { document.addEventListener(type, function(e) { if (_sdkPaused) { e.stopPropagation(); if (type.indexOf('key') === 0 || type === 'input') { try { e.preventDefault(); } catch (err) {} } } }, true); });
-        let _lastRipple = 0,
-            _glowTimer = null;
         function clearInputFeedback() { try { gameRoot.classList.remove('input-active'); if (_glowTimer) { clearTimeout(_glowTimer);
                     _glowTimer = null; }
                 document.querySelectorAll('.tap-ripple').forEach(el => { if (el.parentNode) el.parentNode.removeChild(el); }); } catch (e) {} }
-        function showInputFeedback(x, y) { if (_sdkPaused) return; try { gameRoot.classList.add('input-active'); if (_glowTimer) clearTimeout(_glowTimer);
+        function showInputFeedback(x, y) { try { gameRoot.classList.add('input-active'); if (_glowTimer) clearTimeout(_glowTimer);
                 _glowTimer = setTimeout(() => gameRoot.classList.remove('input-active'), 2500); } catch (e) {} const now = Date.now(); if (now - _lastRipple < 80) return;
             _lastRipple = now; if (typeof x !== 'number' || typeof y !== 'number' || (x === 0 && y === 0)) { x = _lastW / 2;
                 y = _lastH / 2; } try { const r = document.createElement('div');
@@ -2985,21 +2731,10 @@
         document.addEventListener('touchstart', e => { const t = e.touches && e.touches[0];
             showInputFeedback(t ? t.clientX : null, t ? t.clientY : null); }, { passive: true });
         document.addEventListener('keydown', () => showInputFeedback(null, null));
-        document.addEventListener('keydown', e => { if (_sdkPaused) return; if ((e.key === 'Enter' || e.key === ' ') && isOverlayVisible && !document.getElementById('overlay').classList.contains('hidden')) { const btn = document.getElementById('startBtn'); if (btn) { e.preventDefault();
+        document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && isOverlayVisible && !document.getElementById('overlay').classList.contains('hidden')) { const btn = document.getElementById('startBtn'); if (btn) { e.preventDefault();
                     startGame(); } } });
 
-        function initSystemHandlers() { if (!YT || !YT.system) return; try { if (typeof YT.system.onPause === 'function') YT.system.onPause(() => handlePause()); } catch (e) {} try { if (typeof YT.system.onResume === 'function') YT.system.onResume(() => handleResume()); } catch (e) {} try { if (typeof YT.system.onAudioEnabledChange === 'function') { YT.system.onAudioEnabledChange(en => { audio.setEnabled(!!en); try { document.getElementById('btn-sound').textContent = en ? '🔊' : '🔇'; } catch (err) {} }); } } catch (e) {} try { if (typeof YT.system.isAudioEnabled === 'function' && !YT.system.isAudioEnabled()) { audio.setEnabled(false); try { document.getElementById('btn-sound').textContent = '🔇'; } catch (err) {} } } catch (e) {} }
-
-        function waitFrames(n) { return new Promise(resolve => { let done = false;
-                function finish() { if (!done) { done = true;
-                        resolve(); } }
-                function step() { if (done) return; if (--n <= 0) finish(); else requestAnimationFrame(step); }
-                requestAnimationFrame(step);
-                setTimeout(finish, 400); }); }
-        async function bootSequence() { layoutRoot(); try { composer.render(); } catch (e) {} await waitFrames(2); if (YT && YT.game && typeof YT.game.firstFrameReady === 'function') { try { YT.game.firstFrameReady(); } catch (e) {} }
-            initSystemHandlers();
-            layoutRoot(); await waitFrames(2); if (YT && YT.game && typeof YT.game.gameReady === 'function') { try { YT.game.gameReady();
-                    _ytReady = true; } catch (e) {} } }
+        function bootSequence() { layoutRoot(); try { composer.render(); } catch (e) {} layoutRoot(); }
         _rafU = requestAnimationFrame(update);
         bootSequence();
     </script>
