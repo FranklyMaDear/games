@@ -1,0 +1,2580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Drop 5096 · Aziram</title>
+    <style>
+        :root {
+            --bg: #87CEEB;
+            --panel: #8C6A4F;
+            --panel-deep: #4A3423;
+            --cream: #F7EFDC;
+            --ink: #2F1B0D;
+            --accent: #F2A03D;
+            --good: #7FA653;
+            --coin: #F5C542;
+            --red: #C2542F;
+            --blue: #4A7DBF;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: "Baloo 2", system-ui, sans-serif;
+            color: var(--ink);
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
+        #game {
+            position: fixed;
+            inset: 0;
+            display: block;
+            z-index: 0;
+        }
+
+        /* ===== ROLL-UP BANNERS (SHOP top, HELP right) ===== */
+        .rollup-tab {
+            position: fixed;
+            z-index: 20;
+            background: var(--panel-deep);
+            color: var(--cream);
+            font-weight: 800;
+            font-size: 16px;
+            padding: 10px 18px;
+            border-radius: 0 0 18px 18px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+            pointer-events: auto;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.5px;
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            background: rgba(74, 52, 35, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        .rollup-tab:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+        }
+
+        /* TOP SHOP BANNER */
+        #shopRollup {
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 0 0 24px 24px;
+            padding: 12px 28px;
+            font-size: 18px;
+            min-width: 140px;
+            justify-content: center;
+        }
+        #shopRollup .mini-score {
+            font-size: 13px;
+            opacity: 0.85;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 2px 10px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
+        /* EXPANDED SHOP PANEL (drops down from top) */
+        .shop-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 18;
+            background: rgba(255, 255, 255, 0.45);
+            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+            border-bottom: 3px solid rgba(255, 255, 255, 0.6);
+            padding: 12px 10px 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            transform: translateY(-110%);
+            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+            pointer-events: auto;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        }
+        .shop-panel.open {
+            transform: translateY(0);
+        }
+        .shop-panel .chip {
+            background: var(--panel-deep);
+            color: var(--cream);
+            border-radius: 14px;
+            padding: 8px 16px;
+            font-weight: 800;
+            font-size: 18px;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, .3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            line-height: 1.2;
+        }
+        .shop-panel .chip small {
+            font-weight: 600;
+            opacity: .8;
+            font-size: 12px;
+            display: block;
+            line-height: 1;
+        }
+        .shop-panel .chip .big {
+            font-size: 22px;
+            line-height: 1.1;
+        }
+        .shop-panel .chip.score-chip {
+            padding: 10px 22px;
+            border-radius: 20px;
+            font-size: 28px;
+        }
+        .shop-panel .chip.score-chip small {
+            font-size: 14px;
+        }
+        .shop-panel .chip.score-chip .big {
+            font-size: 30px;
+        }
+        .shop-panel .hud-btn {
+            background: var(--accent);
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            border-radius: 14px;
+            padding: 10px 18px;
+            font-weight: 800;
+            font-size: 18px;
+            box-shadow: 0 4px 0 #b8742a;
+            pointer-events: auto;
+            transition: transform .08s;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            line-height: 1.3;
+        }
+        .shop-panel .hud-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #b8742a;
+        }
+        .shop-panel .hud-btn.icon-btn {
+            background: var(--blue);
+            box-shadow: 0 4px 0 #2d5a7a;
+            padding: 10px 16px;
+        }
+
+        /* RIGHT HELP BANNER */
+        #helpRollup {
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%) translateX(8px);
+            border-radius: 20px 0 0 20px;
+            padding: 14px 12px;
+            font-size: 17px;
+            writing-mode: horizontal-tb;
+            flex-direction: column;
+            gap: 2px;
+            box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s, right 0.3s;
+        }
+        #helpRollup.open {
+            right: 170px;
+        }
+
+        /* EXPANDED HELP PANEL (slides from right) */
+        .help-panel {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%) translateX(110%);
+            z-index: 17;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.4);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            border-radius: 20px 0 0 20px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+            pointer-events: auto;
+            box-shadow: -6px 4px 20px rgba(0, 0, 0, 0.25);
+        }
+        .help-panel.open {
+            transform: translateY(-50%) translateX(0);
+        }
+        .help-panel .pbtn {
+            pointer-events: auto;
+            border: none;
+            cursor: pointer;
+            width: 120px;
+            height: 120px;
+            border-radius: 28px;
+            background: var(--good);
+            box-shadow: 0 6px 0 #5c7a3a;
+            color: #fff;
+            font-size: 48px;
+            line-height: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            font-family: inherit;
+            transition: transform .08s;
+        }
+        .help-panel .pbtn:active {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #5c7a3a;
+        }
+        .help-panel .pbtn .cost {
+            font-size: 14px;
+            font-weight: 800;
+            background: rgba(0, 0, 0, .25);
+            border-radius: 8px;
+            padding: 2px 10px;
+            margin-top: 0px;
+        }
+        .help-panel .pbtn.armed {
+            outline: 4px solid var(--accent);
+            background: var(--red);
+            box-shadow: 0 6px 0 #8f3c20;
+        }
+        .help-panel .pbtn.listening {
+            outline: 4px solid #ff5555;
+            background: var(--red);
+            box-shadow: 0 6px 0 #8f3c20;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%,
+            100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.08);
+            }
+        }
+        .spacer {
+            flex: 1;
+        }
+
+        /* ===== TOAST ===== */
+        #toast {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            pointer-events: none;
+            background: var(--panel-deep);
+            color: var(--cream);
+            font-weight: 700;
+            font-size: 15px;
+            border-radius: 16px;
+            padding: 10px 22px;
+            opacity: 0;
+            transition: opacity .25s;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+        }
+
+        /* ===== SPEECH BUBBLE ===== */
+        #speech {
+            position: fixed;
+            z-index: 22;
+            pointer-events: none;
+            font-weight: 800;
+            font-size: 18px;
+            background: #ffffff;
+            color: #333;
+            padding: 8px 18px;
+            border-radius: 20px;
+            border: 3px solid var(--panel-deep);
+            box-shadow: 0 4px 0 var(--panel-deep);
+            transform: translate(-50%, -120%);
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+            max-width: 65vw;
+            white-space: normal;
+            text-align: center;
+        }
+        #speech.visible {
+            opacity: 1;
+            transform: translate(-50%, -140%);
+        }
+        #speech::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -10px;
+            border-width: 12px;
+            border-style: solid;
+            border-color: #ffffff transparent transparent transparent;
+            filter: drop-shadow(0 4px 0 var(--panel-deep));
+        }
+
+        /* ===== SHOP MODAL (FULL SCREEN) ===== */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(11, 12, 16, .85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+        }
+        .card {
+            background: var(--cream);
+            border: 4px solid var(--panel-deep);
+            border-radius: 26px;
+            padding: 20px 18px;
+            width: min(400px, 92vw);
+            max-height: 92vh;
+            text-align: center;
+            box-shadow: 0 10px 0 rgba(0, 0, 0, .4);
+            animation: pop .25s cubic-bezier(.34, 1.56, .64, 1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #shopModal .card {
+            width: 100vw;
+            height: 100vh;
+            max-height: 100vh;
+            max-width: 100vw;
+            border: none;
+            border-radius: 0;
+            padding-top: calc(14px + env(safe-area-inset-top));
+            padding-bottom: calc(14px + env(safe-area-inset-bottom));
+        }
+        @keyframes pop {
+            from {
+                transform: scale(.7);
+                opacity: 0;
+            }
+        }
+        .card h2 {
+            font-size: 22px;
+            margin-bottom: 6px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .shop-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid rgba(0, 0, 0, 0.08);
+            padding-bottom: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            flex-shrink: 0;
+            flex-wrap: nowrap;
+        }
+        .shop-tab {
+            flex: 0 0 auto;
+            padding: 6px 10px;
+            font-weight: 800;
+            font-size: 12px;
+            border-radius: 10px;
+            background: #E4D7BC;
+            color: #8C6A4F;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: .1s;
+        }
+        .shop-tab.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 3px 0 #b8742a;
+            transform: translateY(-2px);
+        }
+        .pet-subtabs {
+            display: none;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 8px;
+            background: #f0e5d1;
+            padding: 6px 8px;
+            border-radius: 10px;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .pet-subtabs.active {
+            display: flex;
+        }
+        .pet-subtab {
+            padding: 4px 10px;
+            font-weight: 800;
+            font-size: 11px;
+            border-radius: 8px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: .1s;
+        }
+        .pet-subtab.active {
+            background: #5c7a3a;
+            box-shadow: 0 2px 0 #3a4d25;
+            transform: translateY(-1px);
+        }
+        .shop-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            grid-auto-rows: max-content;
+            align-content: start;
+            gap: 8px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-right: 4px;
+            flex: 1;
+            min-height: 0;
+        }
+        .shop-items::-webkit-scrollbar {
+            width: 4px;
+        }
+        .shop-items::-webkit-scrollbar-thumb {
+            background: var(--panel-deep);
+            border-radius: 4px;
+        }
+        .shop-item {
+            background: #E4D7BC;
+            border: 3px solid #8C6A4F;
+            border-radius: 14px;
+            padding: 8px 6px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            text-align: center;
+            height: fit-content;
+        }
+        .shop-item:active {
+            transform: scale(0.95);
+        }
+        .shop-item h3 {
+            font-size: 13px;
+            margin-bottom: 3px;
+            color: var(--ink);
+            line-height: 1.2;
+        }
+        .shop-item .price {
+            font-weight: 800;
+            color: #b8742a;
+            font-size: 12px;
+        }
+        .shop-item.owned .price {
+            color: var(--good);
+        }
+        .shop-item.equipped {
+            border-color: var(--accent);
+            background: #FFF5E1;
+            box-shadow: 0 0 10px rgba(242, 160, 61, 0.4);
+        }
+        .btn {
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 16px;
+            color: #fff;
+            background: var(--accent);
+            border-radius: 16px;
+            padding: 10px 24px;
+            box-shadow: 0 4px 0 #b8742a;
+            transition: transform .08s;
+            margin-top: 10px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #b8742a;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .win-lose-overlay {
+            z-index: 35;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 480px) {
+            .rollup-tab {
+                font-size: 14px;
+                padding: 8px 14px;
+            }
+            #shopRollup {
+                font-size: 15px;
+                padding: 10px 20px;
+                border-radius: 0 0 20px 20px;
+            }
+            #shopRollup .mini-score {
+                font-size: 11px;
+            }
+            .shop-panel {
+                padding: 8px 6px 6px;
+                gap: 5px;
+            }
+            .shop-panel .chip {
+                font-size: 14px;
+                padding: 6px 10px;
+                border-radius: 10px;
+            }
+            .shop-panel .chip .big {
+                font-size: 18px;
+            }
+            .shop-panel .chip.score-chip {
+                font-size: 22px;
+                padding: 6px 14px;
+            }
+            .shop-panel .chip.score-chip .big {
+                font-size: 24px;
+            }
+            .shop-panel .hud-btn {
+                font-size: 14px;
+                padding: 8px 12px;
+                border-radius: 10px;
+            }
+            .help-panel .pbtn {
+                width: 90px;
+                height: 90px;
+                font-size: 36px;
+                border-radius: 22px;
+            }
+            .help-panel .pbtn .cost {
+                font-size: 11px;
+            }
+            #helpRollup {
+                font-size: 14px;
+                padding: 10px 8px;
+            }
+            #helpRollup.open {
+                right: 120px;
+            }
+            .help-panel {
+                padding: 8px;
+                gap: 6px;
+            }
+            #speech {
+                font-size: 15px;
+                padding: 6px 14px;
+                border-radius: 16px;
+            }
+            #toast {
+                font-size: 12px;
+                padding: 6px 14px;
+                bottom: 80px;
+            }
+            .shop-items {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 5px;
+            }
+            .shop-item h3 {
+                font-size: 11px;
+            }
+        }
+        @media (max-width: 380px) {
+            .shop-panel .chip {
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+            .shop-panel .chip .big {
+                font-size: 15px;
+            }
+            .shop-panel .chip.score-chip {
+                font-size: 18px;
+                padding: 5px 10px;
+            }
+            .shop-panel .chip.score-chip .big {
+                font-size: 20px;
+            }
+            .shop-panel .hud-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            .help-panel .pbtn {
+                width: 72px;
+                height: 72px;
+                font-size: 30px;
+            }
+            #helpRollup.open {
+                right: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+
+    <!-- ===== ROLL-UP SHOP BANNER (TOP) ===== -->
+    <div class="rollup-tab" id="shopRollup">
+        🛒 SHOP <span class="mini-score" id="miniScore">0</span>
+    </div>
+
+    <!-- ===== EXPANDED SHOP PANEL ===== -->
+    <div class="shop-panel" id="shopPanel">
+        <div class="chip"><div><small id="lblLevel">LEVEL</small><span class="big" id="hudLevel">1</span></div></div>
+        <div class="chip score-chip"><div><small id="lblScore">SCORE</small><span class="big" id="hudScore">0</span></div></div>
+        <div class="chip">🪙 <span class="big" id="hudCoins">0</span></div>
+        <button class="hud-btn icon-btn" id="btnSound">🔊</button>
+        <button class="hud-btn icon-btn" id="btnLang">EN</button>
+        <button class="hud-btn" id="btnShop">🛒</button>
+    </div>
+
+    <!-- ===== ROLL-UP HELP BANNER (RIGHT) ===== -->
+    <div class="rollup-tab" id="helpRollup">
+        ❓<br>HELP
+    </div>
+
+    <!-- ===== EXPANDED HELP PANEL (POWERUPS) ===== -->
+    <div class="help-panel" id="helpPanel">
+        <button class="pbtn" id="btnMagnet">🧲<span class="cost lbl-free">Free</span></button>
+        <button class="pbtn" id="btnHammer">🔨<span class="cost lbl-free">Free</span></button>
+        <button class="pbtn" id="btnShuffle">🔄<span class="cost lbl-free">Free</span></button>
+        <button class="pbtn" id="btnMic">🎤<span class="cost" id="micCost">Talk</span></button>
+    </div>
+
+    <!-- ===== SPEECH BUBBLE ===== -->
+    <div id="speech"><span id="speechText">WOW!</span></div>
+
+    <!-- ===== TOAST ===== -->
+    <div id="toast"></div>
+
+    <!-- ===== SHOP MODAL (FULL SCREEN) ===== -->
+    <div class="overlay hidden" id="shopModal">
+        <div class="card">
+            <h2 style="margin-bottom:10px;" id="shopTitle">🛍️ Customize</h2>
+            <div class="shop-tabs" id="mainTabs">
+                <button class="shop-tab active" data-maintab="cubes">Cubes</button>
+                <button class="shop-tab" data-maintab="boards">Boards</button>
+                <button class="shop-tab" data-maintab="effects">Effects</button>
+                <button class="shop-tab" data-maintab="sounds">Sounds</button>
+                <button class="shop-tab" data-maintab="music">Music</button>
+                <button class="shop-tab" data-maintab="pets">Aziram</button>
+            </div>
+            <div class="pet-subtabs" id="petSubTabs">
+                <button class="pet-subtab active" data-subtab="pet_hair">💇 Hair</button>
+                <button class="pet-subtab" data-subtab="pet_clothes">👗 Clothes</button>
+                <button class="pet-subtab" data-subtab="pet_props">🎈 Item</button>
+            </div>
+            <div class="shop-items" id="shopContainer"></div>
+            <button class="btn" id="btnCloseShop">Close</button>
+        </div>
+    </div>
+
+    <!-- ===== WIN / LOSE MODALS ===== -->
+    <div class="overlay hidden win-lose-overlay" id="winModal">
+        <div class="card">
+            <div style="font-size:40px; margin-bottom:6px;">🎉</div>
+            <h2 id="winTitle">Level Complete!</h2>
+            <p id="winText"></p>
+            <button class="btn" id="btnNext">Continue ➜</button>
+        </div>
+    </div>
+    <div class="overlay hidden win-lose-overlay" id="loseModal">
+        <div class="card">
+            <div style="font-size:40px; margin-bottom:6px;">😵</div>
+            <h2 id="loseTitle">The board is full!</h2>
+            <p id="loseText"></p>
+            <button class="btn" id="btnRetry">Try again</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+    </script>
+    <script>
+        // ============================================================
+        //  DROP 2048 — Aziram edition
+        //  - English by default, Greek as second language (🌐 button)
+        //  - Endless missions: 64, 128, 256, 512, 1024, 2048, 4096, ...
+        //  - 3 selectable songs + sound (mute) button
+        //  - Missions announced by Aziram in TEXT ONLY (no sound)
+        //  - SFX when angry, tickled, walking
+        //  - Hair fully independent from the face
+        //  - Roll-up banners: SHOP (top), HELP (right)
+        // ============================================================
+        (function() {
+            'use strict';
+
+            const COLS = 5,
+                ROWS = 6,
+                CELL = 1.0,
+                GAP = 0.12;
+            const BOARD_W = COLS * (CELL + GAP) - GAP;
+            const BOARD_H = ROWS * (CELL + GAP) - GAP;
+            const launchY = -BOARD_H / 2 - 0.4;
+
+            // ---- Endless missions: 64 * 2^level ----
+            function levelTarget(l) { return 64 * Math.pow(2, l); }
+
+            function levelPreset(l) { return l === 0 ? 0 : Math.min(14, 2 + l * 2); }
+
+            // ============================================================
+            //  LANGUAGES (English default, Greek second)
+            // ============================================================
+            const I18N = {
+                en: {
+                    level: 'LEVEL',
+                    score: 'SCORE',
+                    shop: '🛒',
+                    free: 'Free',
+                    talk: 'Talk',
+                    selected: 'SELECTED',
+                    select: 'SELECT',
+                    close: 'Close',
+                    customize: '🛍️ Customize',
+                    tab_cubes: 'Cubes',
+                    tab_boards: 'Boards',
+                    tab_effects: 'Effects',
+                    tab_sounds: 'Sounds',
+                    tab_music: 'Music',
+                    tab_pets: 'Aziram',
+                    sub_hair: '💇 Hair',
+                    sub_clothes: '👗 Clothes',
+                    sub_props: '🎈 Item',
+                    win_title: 'Level Complete!',
+                    win_btn: 'Continue ➜',
+                    lose_title: 'The board is full!',
+                    lose_btn: 'Try again',
+                    win_text: function(t) { return 'You made ' + t + '!<br>+25 🪙<br>The game continues!'; },
+                    lose_text: function(s) { return 'Score: <b>' + s + '</b>'; },
+                    mission: function(t) { return '🎯 Mission: make a ' + t + ' cube!'; },
+                    hammer_toast: '🔨 Pick a cube',
+                    no_pairs: 'No pairs!',
+                    not_enough: 'Not enough coins!',
+                    bought: function(n) { return 'You bought ' + n + '!'; },
+                    picked: function(n) { return 'Selected: ' + n; },
+                    cube_changed: 'Cube look changed!',
+                    effect_changed: 'Effect changed!',
+                    sound_changed: 'Sound changed!',
+                    music_changed: 'Music changed!',
+                    mic_unsupported: '🎤 is not supported here',
+                    mic_ask: '🎤 Ask me something...',
+                    mic_fail: "I didn't hear you 😅 Try again",
+                    mic_noopen: "Couldn't open the 🎤",
+                    muted: '🔇 Sound off',
+                    unmuted: '🔊 Sound on',
+                    greetings: ['Hi there! 😊', 'Hee hee! 😄', 'Wanna play? 🎮', "I'm Aziram! 💖"],
+                    angry: 'The board is filling up! 😠',
+                    panic: 'PANIC!! 😱',
+                    bored: 'So bored... 🥱',
+                    wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
+                    win_speech: 'We did it! 🎉',
+                    win_say: 'Hooray! We did it!',
+                    lose_speech: 'Oh no! 😭',
+                    lose_say: 'Oh no! The board is full!'
+                },
+                el: {
+                    level: 'ΕΠΙΠΕΔΟ',
+                    score: 'ΣΚΟΡ',
+                    shop: '🛒',
+                    free: 'Δωρεάν',
+                    talk: 'Μίλα',
+                    selected: 'ΕΠΙΛΕΓΜΕΝΟ',
+                    select: 'ΕΠΙΛΟΓΗ',
+                    close: 'Κλείσιμο',
+                    customize: '🛍️ Εξατομίκευση',
+                    tab_cubes: 'Κύβοι',
+                    tab_boards: 'Ταμπλό',
+                    tab_effects: 'Εφέ',
+                    tab_sounds: 'Ήχοι',
+                    tab_music: 'Μουσική',
+                    tab_pets: 'Aziram',
+                    sub_hair: '💇 Μαλλιά',
+                    sub_clothes: '👗 Ρούχα',
+                    sub_props: '🎈 Αντικείμενο',
+                    win_title: 'Επίπεδο Ολοκληρώθηκε!',
+                    win_btn: 'Συνέχεια ➜',
+                    lose_title: 'Γέμισε το ταμπλό!',
+                    lose_btn: 'Ξαναπροσπάθησε',
+                    win_text: function(t) { return 'Έφτιαξες ' + t + '!<br>+25 🪙<br>Το παιχνίδι συνεχίζεται!'; },
+                    lose_text: function(s) { return 'Σκορ: <b>' + s + '</b>'; },
+                    mission: function(t) { return '🎯 Αποστολή: φτιάξε κύβο ' + t + '!'; },
+                    hammer_toast: '🔨 Επίλεξε κύβο',
+                    no_pairs: 'Κανένα ζευγάρι!',
+                    not_enough: 'Δεν έχεις αρκετά νομίσματα!',
+                    bought: function(n) { return 'Αγόρασες το ' + n + '!'; },
+                    picked: function(n) { return 'Επιλέχθηκε: ' + n; },
+                    cube_changed: 'Η εμφάνιση κύβου άλλαξε!',
+                    effect_changed: 'Το εφέ άλλαξε!',
+                    sound_changed: 'Ο ήχος άλλαξε!',
+                    music_changed: 'Η μουσική άλλαξε!',
+                    mic_unsupported: 'Το 🎤 δεν υποστηρίζεται εδώ',
+                    mic_ask: '🎤 Ρώτα με κάτι...',
+                    mic_fail: 'Δεν σε άκουσα 😅 Ξαναδοκίμασε',
+                    mic_noopen: 'Δεν άνοιξε το 🎤',
+                    muted: '🔇 Ήχος κλειστός',
+                    unmuted: '🔊 Ήχος ανοιχτός',
+                    greetings: ['Γεια σου! 😊', 'Χι χι! 😄', 'Παίζουμε; 🎮', 'Είμαι η Aziram! 💖'],
+                    angry: 'Γεμίζει το ταμπλό! 😠',
+                    panic: 'ΠΑΝΙΚΟΣ!! 😱',
+                    bored: 'Βαριέμαι... 🥱',
+                    wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
+                    win_speech: 'Τα καταφέραμε! 🎉',
+                    win_say: 'Μπράβο! Τα καταφέραμε!',
+                    lose_speech: 'Ωχ όχι! 😭',
+                    lose_say: 'Ωχ όχι! Γέμισε το ταμπλό!'
+                }
+            };
+            let lang = 'en';
+
+            function TT() { return I18N[lang]; }
+
+            function itemName(item) { return lang === 'en' ? item.en : item.el; }
+
+            // ---- Shop data (bilingual names, no shoes) ----
+            const SHOP = {
+                cubes: [
+                    { id: 'wood', en: 'Wood', el: 'Ξύλο', price: 0, icon: '🪵' },
+                    { id: 'whitered', en: 'White-Red', el: 'Άσπρο-Κόκκινο', price: 0, icon: '🍬' },
+                    { id: 'whitegreen', en: 'White-Green', el: 'Άσπρο-Πράσινο', price: 0, icon: '🍵' },
+                    { id: 'zebra', en: 'Zebra', el: 'Ζέβρα', price: 0, icon: '🦓' },
+                    { id: 'neon', en: 'Cyber Neon', el: 'Cyber Neon', price: 0, icon: '⚡' },
+                    { id: 'rainbow', en: 'Rainbow', el: 'Ουράνιο Τόξο', price: 0, icon: '🌈' },
+                    { id: 'gold', en: 'Pure Gold', el: 'Καθαρός Χρυσός', price: 0, icon: '🏆' },
+                    { id: 'galaxy', en: 'Galaxy', el: 'Γαλαξίας', price: 0, icon: '🌌' },
+                    { id: 'ice', en: 'Frozen', el: 'Παγωμένος', price: 0, icon: '🧊' },
+                    { id: 'lava', en: 'Lava', el: 'Λάβα', price: 0, icon: '🌋' }
+                ],
+                boards: [
+                    { id: 'board_wood', en: 'Wooden', el: 'Ξύλινο', price: 0, icon: '🟫', back: '#4A3423',
+                        cell: '#2F1B0D' },
+                    { id: 'board_space', en: 'Deep Space', el: 'Βαθύ Διάστημα', price: 0, icon: '🟦', back: '#0B132B',
+                        cell: '#4A5A8A' },
+                    { id: 'board_crimson', en: 'Crimson', el: 'Πορφυρό', price: 0, icon: '🟥', back: '#3A0CA3',
+                        cell: '#A47CFF' },
+                    { id: 'board_emerald', en: 'Emerald', el: 'Σμαράγδι', price: 0, icon: '🟩', back: '#004B23',
+                        cell: '#7BDF4B' },
+                    { id: 'board_neon', en: 'Neon Dark', el: 'Νέον Σκοτάδι', price: 0, icon: '🟪', back: '#0A0A0A',
+                        cell: '#FF00FF' },
+                    { id: 'board_candy', en: 'Candy', el: 'Ζαχαρωτό', price: 100, icon: '🍭', back: '#D95F8A',
+                        cell: '#8E2F55' },
+                    { id: 'board_ocean', en: 'Ocean', el: 'Ωκεανός', price: 120, icon: '🌊', back: '#0E5E6F',
+                        cell: '#063846' },
+                    { id: 'board_forest', en: 'Forest', el: 'Δάσος', price: 120, icon: '🌲', back: '#2E5A1C',
+                        cell: '#16300A' },
+                    { id: 'board_sunset', en: 'Sunset', el: 'Ηλιοβασίλεμα', price: 150, icon: '🌅', back: '#C2542F',
+                        cell: '#6E2410' },
+                    { id: 'board_royal', en: 'Royal', el: 'Βασιλικό', price: 200, icon: '👑', back: '#3B2A6E',
+                        cell: '#221545' }
+                ],
+                effects: [
+                    { id: 'eff_none', en: 'No effect', el: 'Χωρίς Εφέ', price: 0, icon: '✖️' },
+                    { id: 'eff_flame', en: 'Flame', el: 'Φλόγα', price: 0, icon: '🔥' },
+                    { id: 'eff_sparkle', en: 'Stardust', el: 'Αστερόσκονη', price: 0, icon: '✨' },
+                    { id: 'eff_smoke', en: 'Smoke', el: 'Καπνός', price: 0, icon: '💨' },
+                    { id: 'eff_explode', en: 'Explosion', el: 'Έκρηξη', price: 0, icon: '💥' },
+                    { id: 'eff_confetti', en: 'Confetti', el: 'Κομφετί', price: 0, icon: '🎊' }
+                ],
+                sounds: [
+                    { id: 'snd_default', en: 'Default', el: 'Default', price: 0, icon: '🔊' },
+                    { id: 'snd_bass', en: 'Bass Drop', el: 'Bass Drop', price: 0, icon: '🎛️' },
+                    { id: 'snd_bell', en: 'Bell', el: 'Καμπάνα', price: 0, icon: '🔔' },
+                    { id: 'snd_echo', en: 'Echo', el: 'Echo', price: 0, icon: '🌌' },
+                    { id: 'snd_retro', en: 'Retro 8-bit', el: 'Retro 8-bit', price: 100, icon: '👾' },
+                    { id: 'snd_pop', en: 'Bubble Pop', el: 'Bubble Pop', price: 100, icon: '🫧' },
+                    { id: 'snd_laser', en: 'Laser', el: 'Laser', price: 150, icon: '🔫' },
+                    { id: 'snd_magic', en: 'Magic', el: 'Μαγικό', price: 200, icon: '✨' }
+                ],
+                music: [
+                    { id: 'music_1', en: 'Sunny Day', el: 'Ηλιόλουστη Μέρα', price: 0, icon: '☀️' },
+                    { id: 'music_2', en: 'Sweet Lullaby', el: 'Γλυκό Νανούρισμα', price: 0, icon: '🌙' },
+                    { id: 'music_3', en: 'Big Adventure', el: 'Μεγάλη Περιπέτεια', price: 0, icon: '🗺️' }
+                ],
+                pet_hair: [
+                    { id: 'hair_pigtails', en: 'Blonde Pigtails', el: 'Ξανθά Κοτσιδάκια', price: 0, icon: '👧' },
+                    { id: 'hair_ponytail', en: 'Ponytail', el: 'Αλογοουρά', price: 60, icon: '🎀' },
+                    { id: 'hair_buns', en: 'Space Buns', el: 'Κοκοράκια', price: 80, icon: '🥟' },
+                    { id: 'hair_long', en: 'Long Hair', el: 'Μακριά Μαλλιά', price: 100, icon: '💁‍♀️' },
+                    { id: 'hair_bob', en: 'Bob Cut', el: 'Καρέ', price: 90, icon: '💇‍♀️' },
+                    { id: 'hair_braids', en: 'Braids', el: 'Πλεξούδες', price: 120, icon: '🧶' },
+                    { id: 'hair_curly', en: 'Curly', el: 'Σγουρά', price: 140, icon: '➰' },
+                    { id: 'hair_rainbow', en: 'Rainbow', el: 'Ουράνιο Τόξο', price: 250, icon: '🌈' },
+                    { id: 'hair_star', en: 'Star Clips', el: 'Αστεράκια', price: 180, icon: '⭐' },
+                    { id: 'hair_princess', en: 'Princess', el: 'Πριγκίπισσα', price: 300, icon: '👸' }
+                ],
+                pet_clothes: [
+                    { id: 'cl_none', en: 'Pink Dress', el: 'Ροζ Φόρεμα', price: 0, icon: '👗' },
+                    { id: 'cl_dress_red', en: 'Red Dress', el: 'Κόκκινο Φόρεμα', price: 80, icon: '❤️' },
+                    { id: 'cl_dress_blue', en: 'Blue Dress', el: 'Μπλε Φόρεμα', price: 80, icon: '💙' },
+                    { id: 'cl_dress_yellow', en: 'Yellow Dress', el: 'Κίτρινο Φόρεμα', price: 80, icon: '💛' },
+                    { id: 'cl_hat', en: 'Cap', el: 'Καπελάκι', price: 60, icon: '🧢' },
+                    { id: 'cl_glasses', en: 'Glasses', el: 'Γυαλάκια', price: 60, icon: '👓' },
+                    { id: 'cl_scarf', en: 'Scarf', el: 'Κασκόλ', price: 70, icon: '🧣' },
+                    { id: 'cl_bow', en: 'Bow', el: 'Φιογκάκι', price: 50, icon: '🎀' },
+                    { id: 'cl_crown', en: 'Crown', el: 'Στέμμα', price: 250, icon: '👑' }
+                ],
+                pet_props: [
+                    { id: 'prop_none', en: 'Nothing', el: 'Τίποτα', price: 0, icon: '🚫' },
+                    { id: 'prop_lollipop', en: 'Lollipop', el: 'Γλειφιτζούρι', price: 0, icon: '🍭' },
+                    { id: 'prop_icecream', en: 'Ice Cream', el: 'Παγωτό', price: 0, icon: '🍦' },
+                    { id: 'prop_balloon', en: 'Balloon', el: 'Μπαλόνι', price: 100, icon: '🎈' },
+                    { id: 'prop_wand', en: 'Magic Wand', el: 'Μαγικό Ραβδί', price: 150, icon: '🪄' },
+                    { id: 'prop_flower', en: 'Flower', el: 'Λουλούδι', price: 40, icon: '🌼' }
+                ]
+            };
+
+            let currentMainTab = 'cubes';
+            let currentPetSubTab = 'pet_hair';
+
+            const DEFAULT_SAVE = {
+                coins: 5000,
+                level: 0,
+                best: 0,
+                score: 0,
+                lang: 'en',
+                muted: false,
+                ownedCubes: ['wood'],
+                equippedCube: 'wood',
+                ownedBoards: ['board_wood'],
+                equippedBoard: 'board_wood',
+                ownedEffects: ['eff_none'],
+                equippedEffect: 'eff_none',
+                ownedSounds: ['snd_default'],
+                equippedSound: 'snd_default',
+                ownedMusic: ['music_1', 'music_2', 'music_3'],
+                equippedMusic: 'music_1',
+                ownedHair: ['hair_pigtails'],
+                equippedHair: 'hair_pigtails',
+                ownedClothes: ['cl_none'],
+                equippedClothes: 'cl_none',
+                ownedProps: ['prop_none'],
+                equippedProps: 'prop_none'
+            };
+
+            let save = Object.assign({}, DEFAULT_SAVE);
+
+            function loadSave() {
+                try {
+                    const r = localStorage.getItem("drop2048-frankly-v10");
+                    if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
+                } catch (e) { console.warn('Load save error', e); }
+            }
+
+            function persist() {
+                try { localStorage.setItem("drop2048-frankly-v10", JSON.stringify(save)); } catch (e) {}
+            }
+
+            let coins = 0,
+                level = 0,
+                score = 0,
+                best = 0,
+                muted = false;
+            let shopPanelOpen = false,
+                helpPanelOpen = false;
+
+            // ============================================================
+            //  AUDIO
+            // ============================================================
+            const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+
+            function tone(freq0, freq1, dur, wave, vol, delay) {
+                if (muted) return;
+                try {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = wave;
+                    const t0 = audioCtx.currentTime + (delay || 0);
+                    o.frequency.setValueAtTime(freq0, t0);
+                    if (freq1) o.frequency.exponentialRampToValueAtTime(freq1, t0 + dur);
+                    g.gain.setValueAtTime(vol, t0);
+                    g.gain.exponentialRampToValueAtTime(0.01, t0 + dur);
+                    o.start(t0);
+                    o.stop(t0 + dur + 0.05);
+                } catch (e) {}
+            }
+
+            function playSound(type) {
+                if (muted) return;
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                if (type === 'win') { playWinSound(); return; }
+                const s = save.equippedSound || 'snd_default';
+                if (s === 'snd_default') {
+                    if (type === 'drop') tone(800, 400, 0.1, 'sine', 0.2);
+                    else tone(300, 800, 0.2, 'sine', 0.3);
+                } else if (s === 'snd_bass') {
+                    if (type === 'drop') tone(150, 60, 0.18, 'sawtooth', 0.3);
+                    else { tone(70, 200, 0.3, 'sawtooth', 0.35);
+                        tone(140, 400, 0.3, 'sine', 0.2); }
+                } else if (s === 'snd_bell') {
+                    if (type === 'drop') { tone(880, null, 0.35, 'sine', 0.15);
+                        tone(1760, null, 0.25, 'sine', 0.06); } else { tone(1046, null, 0.55, 'sine', 0.2);
+                        tone(2093, null, 0.4, 'sine', 0.08);
+                        tone(1568, null, 0.45, 'sine', 0.06, 0.05); }
+                } else if (s === 'snd_echo') {
+                    const f = type === 'drop' ? 600 : 900;
+                    for (let i = 0; i < 3; i++) tone(f, f * 0.8, 0.12, 'sine', 0.22 / (i + 1), i * 0.13);
+                } else if (s === 'snd_retro') {
+                    if (type === 'drop') tone(440, 220, 0.08, 'square', 0.12);
+                    else { tone(523, null, 0.07, 'square', 0.12);
+                        tone(659, null, 0.07, 'square', 0.12, 0.07);
+                        tone(784, null, 0.1, 'square', 0.12, 0.14); }
+                } else if (s === 'snd_pop') {
+                    if (type === 'drop') tone(1200, 300, 0.06, 'sine', 0.3);
+                    else { tone(400, 1600, 0.09, 'sine', 0.32);
+                        tone(600, 2000, 0.08, 'sine', 0.15, 0.06); }
+                } else if (s === 'snd_laser') {
+                    if (type === 'drop') tone(1800, 200, 0.15, 'sawtooth', 0.13);
+                    else tone(200, 2200, 0.2, 'sawtooth', 0.17);
+                } else if (s === 'snd_magic') {
+                    const base = type === 'drop' ? 700 : 950;
+                    for (let i = 0; i < 4; i++) tone(base + i * 180, null, 0.16, 'triangle', 0.11, i * 0.05);
+                }
+            }
+
+            function playWinSound() {
+                for (let i = 0; i < 4; i++) tone(600 + i * 250, null, 0.2, 'sine', 0.15, i * 0.1);
+            }
+
+            function angrySFX() { tone(150, 75, 0.35, 'sawtooth', 0.12);
+                tone(110, 65, 0.3, 'square', 0.06, 0.1); }
+
+            function panicSFX() { tone(700, 1100, 0.12, 'sine', 0.12);
+                tone(1100, 700, 0.12, 'sine', 0.12, 0.13);
+                tone(700, 1100, 0.12, 'sine', 0.12, 0.26); }
+
+            function giggleSFX() { tone(900, null, 0.07, 'triangle', 0.14);
+                tone(1150, null, 0.07, 'triangle', 0.14, 0.09);
+                tone(1350, null, 0.09, 'triangle', 0.14, 0.18);
+                tone(1150, null, 0.07, 'triangle', 0.1, 0.3); }
+
+            function stepSFX() { tone(220, 140, 0.05, 'sine', 0.05); }
+
+            const SONGS = {
+                music_1: { tempo: 380, wave: 'triangle', vol: 0.045, mel: [523, 659, 784, 659, 587, 784, 659,
+                        523, 587, 698, 880, 698, 659, 523, 587, 392
+                    ], bass: [262, 262, 196, 196, 233, 233, 175, 196] },
+                music_2: { tempo: 560, wave: 'sine', vol: 0.05, mel: [392, 440, 523, 440, 392, 330, 349, 392,
+                        440, 523, 587, 523, 440, 392, 330, 262
+                    ], bass: [196, 165, 175, 196] },
+                music_3: { tempo: 300, wave: 'square', vol: 0.028, mel: [330, 392, 494, 587, 494, 392, 440, 330,
+                        349, 440, 523, 698, 523, 440, 392, 330
+                    ], bass: [165, 165, 220, 220, 175, 175, 196, 196] }
+            };
+            let musicStarted = false,
+                musicTimer = null,
+                musicStep = 0;
+
+            function scheduleMusicLoop() {
+                if (musicTimer) clearInterval(musicTimer);
+                const song = SONGS[save.equippedMusic] || SONGS.music_1;
+                musicStep = 0;
+                musicTimer = setInterval(function() {
+                    if (muted) return;
+                    try {
+                        const m = song.mel[musicStep % song.mel.length];
+                        tone(m, null, song.tempo / 1000 * 0.9, song.wave, song.vol);
+                        if (musicStep % 2 === 0) {
+                            const b = song.bass[(musicStep / 2) % song.bass.length];
+                            tone(b, null, song.tempo / 1000 * 1.6, 'sine', 0.05);
+                        }
+                        musicStep++;
+                    } catch (e) {}
+                }, song.tempo);
+            }
+
+            function startMusic() {
+                if (musicStarted) return;
+                musicStarted = true;
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                scheduleMusicLoop();
+            }
+
+            // ============================================================
+            //  SPEECH (TTS) & MIC
+            // ============================================================
+            let isTalking = false;
+
+            function speak(text) {
+                if (muted) return;
+                try {
+                    if (!('speechSynthesis' in window)) return;
+                    speechSynthesis.cancel();
+                    const u = new SpeechSynthesisUtterance(text);
+                    u.lang = lang === 'en' ? 'en-US' : 'el-GR';
+                    const voices = speechSynthesis.getVoices();
+                    const pref = lang === 'en' ? 'en' : 'el';
+                    const v = voices.find(function(vv) { return vv.lang && vv.lang.toLowerCase().indexOf(
+                            pref) === 0; });
+                    if (v) u.voice = v;
+                    u.rate = 1.05;
+                    u.pitch = 1.6;
+                    u.onstart = function() { isTalking = true; };
+                    u.onend = function() { isTalking = false; };
+                    u.onerror = function() { isTalking = false; };
+                    speechSynthesis.speak(u);
+                } catch (e) { isTalking = false; }
+            }
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices();
+                speechSynthesis.onvoiceschanged = function() { speechSynthesis.getVoices(); };
+            }
+
+            function stripAccents(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+            function answerQuestion(raw) {
+                const q = stripAccents(raw.toLowerCase());
+                const has = function() { for (var i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) !== -
+                        1) return true; return false; };
+                if (lang === 'en') {
+                    if (has('your name', 'who are you', 'what are you'))
+                        return "My name is Aziram and I'm your little friend!";
+                    if (has('how are you', 'are you ok', 'are you okay')) return "I'm great! Ready for cubes!";
+                    if (has('score', 'points')) return "Your score is " + score + " points! Keep going!";
+                    if (has('level', 'stage')) return "We're on level " + (level + 1) + "!";
+                    if (has('coins', 'money')) return "You have " + coins + " coins! Shall we go shopping?";
+                    if (has('mission', 'goal', 'what should')) return "Our mission: make a " + levelTarget(level) +
+                        " cube!";
+                    if (has('joke', 'funny')) {
+                        const jokes = ["Why did the cube go to school? To become a square brain!",
+                            "What does 2 say to 2? Let's become a 4!",
+                            "My pigtails dance when I jump!",
+                            "My favourite food? Sugar cubes, of course!"
+                        ];
+                        return jokes[Math.floor(Math.random() * jokes.length)];
+                    }
+                    if (has('help', 'how to play', 'advice', 'tip'))
+                        return "Match the same numbers! And keep the big cubes at the edges!";
+                    if (has('love you', 'like you')) return "I love you too, so much!";
+                    if (has('how old', 'your age')) return "I'm a little girl, just six years old!";
+                    if (has('bye', 'goodbye', 'see you')) return "Bye bye! Come back soon, I'll be waiting!";
+                    if (has('thank')) return "You're welcome! I'm here for anything!";
+                    if (has('sing', 'song')) return "La la la! Cubes, cubes everywhere! Hee hee!";
+                    if (has('hi', 'hello', 'good morning', 'good evening', 'hey'))
+                    return "Hello! I'm so happy to hear you!";
+                    return "You said: " + raw + ". Sounds nice!";
+                }
+                if (has('πως σε λενε', 'ονομα σου', 'ποιος εισαι', 'ποια εισαι', 'τι εισαι'))
+                    return "Με λένε Aziram και είμαι η φιλεναδίτσα σου!";
+                if (has('τι κανεις', 'πως εισαι', 'εισαι καλα', 'ολα καλα')) return "Τέλεια είμαι! Έτοιμη για κύβους!";
+                if (has('σκορ', 'ποντο')) return "Το σκορ σου είναι " + score + " πόντοι! Συνέχισε!";
+                if (has('επιπεδο', 'πιστα')) return "Είμαστε στο επίπεδο " + (level + 1) + "!";
+                if (has('νομισματα', 'λεφτα', 'χρηματα', 'κερματα')) return "Έχεις " + coins +
+                    " νομίσματα! Πάμε για ψώνια;";
+                if (has('αποστολη', 'στοχος', 'τι πρεπει')) return "Η αποστολή μας: φτιάξε κύβο " + levelTarget(
+                    level) + "!";
+                if (has('ανεκδοτο', 'αστειο', 'πες κατι αστειο')) {
+                    const jokes = ["Γιατί ο κύβος πήγε σχολείο; Για να γίνει τετράγωνο μυαλό!",
+                        "Τι λέει το 2 στο 2; Έλα να γίνουμε 4άρι!",
+                        "Τα κοτσιδάκια μου χορεύουν όταν χοροπηδάω!",
+                        "Ξέρεις ποιο είναι το αγαπημένο μου φαγητό; Τα κυβάκια ζάχαρης!"
+                    ];
+                    return jokes[Math.floor(Math.random() * jokes.length)];
+                }
+                if (has('βοηθεια', 'συμβουλη', 'πως παιζ', 'τι να κανω'))
+                    return "Ένωσε ίδιους αριθμούς! Και κράτα τους μεγάλους κύβους στις άκρες!";
+                if (has('σε αγαπω', 'σ αγαπω', 'σε συμπαθω')) return "Κι εγώ σε αγαπώ πάρα πολύ!";
+                if (has('ποσο χρονων', 'ηλικια')) return "Είμαι ένα μικρό κοριτσάκι, μόλις έξι χρονών!";
+                if (has('αντιο', 'τα λεμε', 'φευγω')) return "Γεια σου! Έλα πάλι γρήγορα, θα σε περιμένω!";
+                if (has('ευχαριστω')) return "Παρακαλώ! Ό,τι θες, εδώ είμαι!";
+                if (has('τραγουδ')) return "Λα λα λα! Κύβοι κύβοι παντού! Χι χι!";
+                if (has('γεια', 'καλημερα', 'καλησπερα', 'καληνυχτα', 'χαιρετε'))
+                return "Γεια σου! Χαίρομαι πολύ που σε ακούω!";
+                return "Είπες: " + raw + ". Ωραίο ακούγεται!";
+            }
+
+            let recognition = null,
+                isListening = false;
+
+            function initMic() {
+                const btn = document.getElementById('btnMic');
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) { btn.onclick = function() { toast(TT().mic_unsupported); }; return; }
+                btn.onclick = function() {
+                    if (isListening) { try { recognition.stop(); } catch (e) {} return; }
+                    recognition = new SR();
+                    recognition.lang = lang === 'en' ? 'en-US' : 'el-GR';
+                    recognition.interimResults = false;
+                    recognition.maxAlternatives = 1;
+                    recognition.onstart = function() { isListening = true;
+                        btn.classList.add('listening');
+                        toast(TT().mic_ask); };
+                    recognition.onresult = function(e) {
+                        const txt = e.results[0][0].transcript;
+                        if (txt) {
+                            const reply = answerQuestion(txt);
+                            reactionTime = 1.2;
+                            showSpeech(reply, Math.max(2800, reply.length * 80));
+                            speak(reply);
+                        }
+                    };
+                    recognition.onerror = function() { toast(TT().mic_fail); };
+                    recognition.onend = function() { isListening = false;
+                        btn.classList.remove('listening'); };
+                    try { recognition.start(); } catch (e) { toast(TT().mic_noopen); }
+                };
+            }
+
+            // ============================================================
+            //  PARTICLES
+            // ============================================================
+            const particles = [];
+            const pGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+            const pMats = {
+                'flame': new THREE.MeshBasicMaterial({ color: 0xff4500 }),
+                'sparkle': new THREE.MeshBasicMaterial({ color: 0xffffff }),
+                'smoke': new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.7 }),
+                'explode': new THREE.MeshBasicMaterial({ color: 0xffa500 }),
+                'confetti': [0xff0000, 0x00ff00, 0x0000ff, 0xffff00].map(function(c) { return new THREE
+                        .MeshBasicMaterial({ color: c }); })
+            };
+
+            function spawnParticle(x, y, z, type) {
+                let mat = pMats[type];
+                if (Array.isArray(mat)) mat = mat[Math.floor(Math.random() * mat.length)];
+                const p = new THREE.Mesh(pGeo, mat);
+                p.position.set(x, y, z);
+                let vx = (Math.random() - 0.5) * 6,
+                    vy = (Math.random() - 0.5) * 6,
+                    vz = (Math.random() - 0.5) * 6;
+                if (type === 'flame' || type === 'smoke') { vx *= 0.2;
+                    vy = -Math.random() * 2 - 0.5;
+                    vz = 0; }
+                if (type === 'confetti') { p.scale.set(0.15, 0.15, 0.15);
+                    vy = Math.random() * 5; }
+                scene.add(p);
+                particles.push({ mesh: p, life: 1.0, vx: vx, vy: vy, vz: vz, type: type });
+            }
+
+            function spawnBurst(x, y, z, type, count) { for (let i = 0; i < count; i++) spawnParticle(x, y, z, type); }
+
+            function updateParticles(dt) {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.life -= dt * (p.type === 'smoke' ? 1.5 : 2.5);
+                    if (p.life <= 0) { scene.remove(p.mesh);
+                        particles.splice(i, 1); } else {
+                        p.mesh.position.x += p.vx * dt;
+                        p.mesh.position.y += p.vy * dt;
+                        p.mesh.position.z += p.vz * dt;
+                        if (p.type === 'confetti') p.vy -= dt * 10;
+                        p.mesh.scale.setScalar(p.life);
+                        if (p.type === 'flame' || p.type === 'explode') p.mesh.material.color.setHSL(0.1 * p.life, 1,
+                            0.5);
+                    }
+                }
+            }
+
+            // ============================================================
+            //  SCENERY
+            // ============================================================
+            let skyPlane, sunGroup, sunFace, grassPlane;
+            const clouds = [];
+
+            function canvasTex(w, h, draw) {
+                const cv = document.createElement('canvas');
+                cv.width = w;
+                cv.height = h;
+                draw(cv.getContext('2d'), w, h);
+                const t = new THREE.CanvasTexture(cv);
+                t.anisotropy = 4;
+                return t;
+            }
+
+            function makeSkyTexture() {
+                return canvasTex(64, 512, function(g, w, h) {
+                    const grad = g.createLinearGradient(0, 0, 0, h);
+                    grad.addColorStop(0, '#4DA6E8');
+                    grad.addColorStop(0.45, '#8FD0F5');
+                    grad.addColorStop(0.8, '#CFEFFB');
+                    grad.addColorStop(1, '#E9FBEF');
+                    g.fillStyle = grad;
+                    g.fillRect(0, 0, w, h);
+                });
+            }
+
+            function makeSunTexture() {
+                return canvasTex(512, 512, function(g, w, h) {
+                    const cx = 256,
+                        cy = 256;
+                    g.save();
+                    g.translate(cx, cy);
+                    for (let i = 0; i < 12; i++) { g.rotate(Math.PI / 6); const grad = g.createLinearGradient(0, -150,
+                            0, -250);
+                        grad.addColorStop(0, 'rgba(255,215,80,0.9)');
+                        grad.addColorStop(1, 'rgba(255,215,80,0)');
+                        g.fillStyle = grad;
+                        g.beginPath();
+                        g.moveTo(-22, -145);
+                        g.lineTo(22, -145);
+                        g.lineTo(0, -248);
+                        g.closePath();
+                        g.fill(); }
+                    g.restore();
+                    let glow = g.createRadialGradient(cx, cy, 60, cx, cy, 220);
+                    glow.addColorStop(0, 'rgba(255,240,150,0.55)');
+                    glow.addColorStop(1, 'rgba(255,240,150,0)');
+                    g.fillStyle = glow;
+                    g.beginPath();
+                    g.arc(cx, cy, 220, 0, Math.PI * 2);
+                    g.fill();
+                    let body = g.createRadialGradient(cx - 45, cy - 55, 20, cx, cy, 150);
+                    body.addColorStop(0, '#FFF6C4');
+                    body.addColorStop(0.55, '#FFD84D');
+                    body.addColorStop(1, '#F5A821');
+                    g.fillStyle = body;
+                    g.beginPath();
+                    g.arc(cx, cy, 145, 0, Math.PI * 2);
+                    g.fill();
+                    g.lineWidth = 12;
+                    g.strokeStyle = '#7A4A12';
+                    g.lineCap = 'round';
+                    g.beginPath();
+                    g.arc(cx - 52, cy - 25, 24, Math.PI * 1.1, Math.PI * 1.9);
+                    g.stroke();
+                    g.beginPath();
+                    g.arc(cx + 52, cy - 25, 24, Math.PI * 1.1, Math.PI * 1.9);
+                    g.stroke();
+                    g.lineWidth = 14;
+                    g.beginPath();
+                    g.arc(cx, cy + 15, 62, Math.PI * 0.15, Math.PI * 0.85);
+                    g.stroke();
+                    g.fillStyle = 'rgba(245,130,90,0.5)';
+                    g.beginPath();
+                    g.arc(cx - 90, cy + 30, 22, 0, Math.PI * 2);
+                    g.fill();
+                    g.beginPath();
+                    g.arc(cx + 90, cy + 30, 22, 0, Math.PI * 2);
+                    g.fill();
+                });
+            }
+
+            function makeCloudTexture(seed) {
+                return canvasTex(512, 256, function(g, w, h) {
+                    function puff(x, y, r) { const grad = g.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.15,
+                            x, y, r);
+                        grad.addColorStop(0, 'rgba(255,255,255,0.98)');
+                        grad.addColorStop(0.75, 'rgba(248,250,255,0.92)');
+                        grad.addColorStop(1, 'rgba(225,235,248,0)');
+                        g.fillStyle = grad;
+                        g.beginPath();
+                        g.arc(x, y, r, 0, Math.PI * 2);
+                        g.fill(); }
+                    const rnd = function(a, b) { seed = (seed * 9301 + 49297) % 233280; return a + (seed / 233280) * (
+                            b - a); };
+                    for (let i = 0; i < 9; i++) puff(rnd(90, 420), rnd(105, 165), rnd(45, 85));
+                    puff(256, 120, 95);
+                });
+            }
+
+            function makeGrassTexture() {
+                return canvasTex(1024, 300, function(g, w, h) {
+                    const grad = g.createLinearGradient(0, 40, 0, h);
+                    grad.addColorStop(0, '#7FC94A');
+                    grad.addColorStop(0.4, '#5FAE33');
+                    grad.addColorStop(1, '#3E7F1F');
+                    g.fillStyle = grad;
+                    g.beginPath();
+                    g.moveTo(0, h);
+                    g.lineTo(0, 90);
+                    for (let x = 0; x <= w; x += 64) g.quadraticCurveTo(x + 32, 90 - Math.sin(x * 0.011) * 26 - 18, x +
+                        64, 90 - Math.sin((x + 64) * 0.009) * 20);
+                    g.lineTo(w, h);
+                    g.closePath();
+                    g.fill();
+                    for (let i = 0; i < 260; i++) { const x = Math.random() * w; const y = 92 + Math.random() * (h -
+                            100); const len = 12 + Math.random() * 22; const lean = (Math.random() - 0.5) * 10;
+                        g.strokeStyle = 'rgba(' + (40 + Math.random() * 60 | 0) + ',' + (130 + Math.random() * 70 |
+                            0) + ',40,0.75)';
+                        g.lineWidth = 2 + Math.random() * 2;
+                        g.lineCap = 'round';
+                        g.beginPath();
+                        g.moveTo(x, y);
+                        g.quadraticCurveTo(x + lean * 0.5, y - len * 0.6, x + lean, y - len);
+                        g.stroke(); }
+                    const petalColors = ['#FF6FA0', '#FFD447', '#FF8552', '#C77DFF', '#FF4D6D', '#FFFFFF'];
+                    for (let i = 0; i < 22; i++) { const x = 30 + Math.random() * (w - 60); const y = 110 + Math.random() *
+                            (h - 150); const size = 8 + Math.random() * 9;
+                        g.strokeStyle = '#2E6B14';
+                        g.lineWidth = 3;
+                        g.beginPath();
+                        g.moveTo(x, y + size * 2.2);
+                        g.quadraticCurveTo(x + 3, y + size, x, y);
+                        g.stroke(); const pc = petalColors[Math.floor(Math.random() * petalColors.length)]; for (let p =
+                            0; p < 6; p++) { const a = p / 6 * Math.PI * 2; const px = x + Math.cos(a) * size; const py =
+                                y + Math.sin(a) * size; const pg = g.createRadialGradient(px, py, 1, px, py, size *
+                                0.75);
+                            pg.addColorStop(0, '#ffffff');
+                            pg.addColorStop(0.25, pc);
+                            pg.addColorStop(1, pc);
+                            g.fillStyle = pg;
+                            g.beginPath();
+                            g.arc(px, py, size * 0.62, 0, Math.PI * 2);
+                            g.fill(); } const cg = g.createRadialGradient(x - 2, y - 2, 1, x, y, size * 0.55);
+                        cg.addColorStop(0, '#FFE97A');
+                        cg.addColorStop(1, '#E8A400');
+                        g.fillStyle = cg;
+                        g.beginPath();
+                        g.arc(x, y, size * 0.5, 0, Math.PI * 2);
+                        g.fill(); }
+                });
+            }
+
+            function unprojectToDist(nx, ny, dist) { const v = new THREE.Vector3(nx, ny, 0.5).unproject(camera); const dir =
+                    v.sub(camera.position).normalize(); return camera.position.clone().add(dir.multiplyScalar(dist)); }
+
+            function viewSizeAt(dist) { const h = 2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); return { h: h,
+                    w: h * camera.aspect }; }
+
+            function initScenery() {
+                skyPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeSkyTexture(),
+                    depthWrite: false }));
+                skyPlane.renderOrder = -10;
+                scene.add(skyPlane);
+                sunFace = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeSunTexture(),
+                    transparent: true, depthWrite: false }));
+                sunGroup = new THREE.Group();
+                sunGroup.add(sunFace);
+                sunGroup.renderOrder = -8;
+                scene.add(sunGroup);
+                for (let i = 0; i < 5; i++) { const c = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.5), new THREE
+                        .MeshBasicMaterial({ map: makeCloudTexture(1000 + i * 777), transparent: true, opacity: 0.95,
+                            depthWrite: false }));
+                    c.renderOrder = -7;
+                    c.userData.speed = 0.25 + Math.random() * 0.45;
+                    c.userData.ny = 0.65 + Math.random() * 0.30;
+                    scene.add(c);
+                    clouds.push(c); }
+                grassPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeGrassTexture(),
+                    transparent: true, depthWrite: false }));
+                grassPlane.renderOrder = -5;
+                scene.add(grassPlane);
+                layoutScenery();
+            }
+
+            let cloudHalfW = 50;
+
+            function layoutScenery() {
+                if (!skyPlane) return;
+                const dSky = 45;
+                const sSky = viewSizeAt(dSky);
+                skyPlane.position.copy(unprojectToDist(0, 0, dSky));
+                skyPlane.scale.set(sSky.w * 1.4, sSky.h * 1.4, 1);
+                const dSun = 40;
+                const sSun = viewSizeAt(dSun);
+                sunGroup.position.copy(unprojectToDist(-0.62, 0.94, dSun));
+                const sunSize = Math.min(sSun.w, sSun.h) * 0.26;
+                sunFace.scale.set(sunSize, sunSize, 1);
+                const dCloud = 36;
+                const sCloud = viewSizeAt(dCloud);
+                cloudHalfW = sCloud.w * 0.75;
+                clouds.forEach(function(c, i) { const p = unprojectToDist(0, c.userData.ny, dCloud);
+                    c.position.set(p.x - sCloud.w * 0.6 + i * sCloud.w * 0.35, p.y, p.z); const cw = sCloud.w * (0.18 + (
+                        i % 3) * 0.05);
+                    c.scale.set(cw, cw * 0.5, 1); });
+                const dGrass = 20;
+                const sGrass = viewSizeAt(dGrass);
+                const gp = unprojectToDist(0, -0.9, dGrass);
+                grassPlane.position.copy(gp);
+                grassPlane.scale.set(sGrass.w * 1.15, sGrass.h * 0.34, 1);
+            }
+
+            function updateClouds(dt) { clouds.forEach(function(c) { c.position.x += c.userData.speed * dt; if (c.position.x >
+                    cloudHalfW) c.position.x = -cloudHalfW; }); }
+
+            // ============================================================
+            //  AZIRAM
+            // ============================================================
+            let girl, girlCore, sockets = {},
+                mouthMesh, eyeL, eyeR, browL, browR, dressMesh, hairGroup, accessoryGroup;
+            let reactionTime = 0,
+                winTime = 0;
+            let girlMood = 'idle',
+                prevMood = 'idle';
+            let lastActionTime = 0;
+            let girlNdcX = 0.28,
+                wanderTargetX = -0.2,
+                petState = 'stand',
+                petStateTimer = 3,
+                faceDir = -1;
+            const SKIN = 0xffd9bd;
+            const BLONDE = 0xf6cf5e;
+
+            function pickNextState() { const r = Math.random(); if (r < 0.45) { petState = 'walk';
+                    wanderTargetX = -0.6 + Math.random() * 1.25;
+                    petStateTimer = 10; } else if (r < 0.62) { petState = 'hop';
+                    petStateTimer = 1.3; } else { petState = 'stand';
+                    petStateTimer = 2 + Math.random() * 3; } }
+
+            let speechTimer = null;
+
+            function showSpeech(text, duration) { const el = document.getElementById("speechText"); const bbl = document
+                    .getElementById("speech"); if (speechTimer) clearTimeout(speechTimer);
+                el.innerText = text;
+                bbl.classList.add("visible");
+                bbl.style.opacity = "1";
+                updateSpeechPosition();
+                speechTimer = setTimeout(function() { bbl.classList.remove("visible");
+                    bbl.style.opacity = "0"; }, duration); }
+
+            function updateSpeechPosition() { if (!girl) return; const vec = girl.position.clone();
+                vec.y += 0.55;
+                vec.project(camera); const x = (vec.x * .5 + .5) * window.innerWidth; const y = (-vec.y * .5 + .5) * window
+                    .innerHeight; const bbl = document.getElementById("speech");
+                bbl.style.left = x + "px";
+                bbl.style.top = y + "px"; }
+
+            function createGirl() {
+                const petGroup = new THREE.Group();
+                petGroup.scale.set(0.5, 0.5, 0.5);
+                const core = new THREE.Group();
+                const headMat = new THREE.MeshPhongMaterial({ color: SKIN, shininess: 18 });
+                const limbMat = new THREE.MeshPhongMaterial({ color: SKIN, shininess: 18 });
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.46, 32, 32), headMat);
+                head.position.y = 0.95;
+                core.add(head);
+                const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), new THREE.MeshPhongMaterial({ color: 0xf7c5a5 }));
+                nose.position.set(0, 0.92, 0.45);
+                core.add(nose);
+
+                function makeEye(x) { const e = new THREE.Group(); const white = new THREE.Mesh(new THREE.SphereGeometry(0.105,
+                        16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff })); const iris = new THREE.Mesh(new THREE
+                        .SphereGeometry(0.06, 16, 16), new THREE.MeshPhongMaterial({ color: 0x3a76c9, shininess: 90 }));
+                    iris.position.z = 0.06; const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), new THREE
+                        .MeshBasicMaterial({ color: 0x111111 }));
+                    pupil.position.z = 0.1; const hl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), new THREE
+                        .MeshBasicMaterial({ color: 0xffffff }));
+                    hl.position.set(0.028, 0.03, 0.115);
+                    e.add(white, iris, pupil, hl);
+                    e.position.set(x, 1.03, 0.36); return e; }
+                eyeL = makeEye(-0.17);
+                eyeR = makeEye(0.17);
+                core.add(eyeL, eyeR);
+                const browMat = new THREE.MeshBasicMaterial({ color: 0xb98a2e });
+                browL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.03), browMat);
+                browL.position.set(-0.17, 1.19, 0.4);
+                browL.visible = false;
+                core.add(browL);
+                browR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.03), browMat);
+                browR.position.set(0.17, 1.19, 0.4);
+                browR.visible = false;
+                core.add(browR);
+                mouthMesh = new THREE.Mesh(new THREE.SphereGeometry(0.09, 20, 14), new THREE.MeshBasicMaterial({ color: 0xc0392b }));
+                mouthMesh.position.set(0, 0.79, 0.41);
+                mouthMesh.scale.set(1, 0.3, 0.3);
+                core.add(mouthMesh);
+                const blushMat = new THREE.MeshBasicMaterial({ color: 0xff9caa, transparent: true, opacity: 0.55 });
+                const bl = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), blushMat);
+                bl.position.set(-0.3, 0.88, 0.34);
+                bl.scale.z = 0.3;
+                const br = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), blushMat);
+                br.position.set(0.3, 0.88, 0.34);
+                br.scale.z = 0.3;
+                core.add(bl, br);
+                hairGroup = new THREE.Group();
+                hairGroup.position.y = 0.95;
+                core.add(hairGroup);
+                sockets.head = new THREE.Group();
+                sockets.head.position.set(0, 1.5, 0);
+                core.add(sockets.head);
+                accessoryGroup = new THREE.Group();
+                core.add(accessoryGroup);
+                dressMesh = new THREE.Mesh(new THREE.ConeGeometry(0.52, 0.95, 24), new THREE.MeshPhongMaterial({ color: 0xe8639c,
+                    shininess: 30 }));
+                dressMesh.position.y = 0.08;
+                core.add(dressMesh);
+                const collar = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 10, 20), new THREE.MeshPhongMaterial({ color: 0xffffff }));
+                collar.rotation.x = Math.PI / 2;
+                collar.position.y = 0.53;
+                core.add(collar);
+                sockets.handL = new THREE.Group();
+                sockets.handL.position.set(-0.42, 0.38, 0);
+                const armL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 14), limbMat);
+                armL.scale.set(1, 2.7, 1);
+                armL.position.y = -0.2;
+                const handL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), limbMat);
+                handL.position.y = -0.44;
+                sockets.handL.add(armL, handL);
+                sockets.handL.rotation.z = 0.35;
+                core.add(sockets.handL);
+                sockets.handR = new THREE.Group();
+                sockets.handR.position.set(0.42, 0.38, 0);
+                const armR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 14), limbMat);
+                armR.scale.set(1, 2.7, 1);
+                armR.position.y = -0.2;
+                const handR = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), limbMat);
+                handR.position.y = -0.44;
+                sockets.handR.add(armR, handR);
+                sockets.handR.rotation.z = -0.35;
+                core.add(sockets.handR);
+                sockets.prop = new THREE.Group();
+                sockets.prop.position.set(0.02, -0.44, 0.12);
+                sockets.handR.add(sockets.prop);
+                const shoeMat = new THREE.MeshPhongMaterial({ color: 0xd23b52, shininess: 60 });
+                sockets.footL = new THREE.Group();
+                sockets.footL.position.set(-0.16, -0.42, 0);
+                const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.4, 12), limbMat);
+                legL.position.y = -0.18;
+                const shoeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 14), shoeMat);
+                shoeL.scale.set(1, 0.7, 1.4);
+                shoeL.position.set(0, -0.4, 0.04);
+                sockets.footL.add(legL, shoeL);
+                core.add(sockets.footL);
+                sockets.footR = new THREE.Group();
+                sockets.footR.position.set(0.16, -0.42, 0);
+                const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.4, 12), limbMat);
+                legR.position.y = -0.18;
+                const shoeR = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 14), shoeMat);
+                shoeR.scale.set(1, 0.7, 1.4);
+                shoeR.position.set(0, -0.4, 0.04);
+                sockets.footR.add(legR, shoeR);
+                core.add(sockets.footR);
+                petGroup.add(core);
+                girlCore = core;
+                petGroup.rotation.y = -0.2;
+                petGroup.rotation.x = 0.12;
+                return petGroup;
+            }
+
+            function hairMat(color) { return new THREE.MeshPhongMaterial({ color: color, shininess: 55 }); }
+
+            function buildHair(styleId) {
+                while (hairGroup.children.length > 0) hairGroup.remove(hairGroup.children[0]);
+                hairGroup.userData.tails = [];
+                const blonde = hairMat(BLONDE);
+                const blondeDark = hairMat(0xe0b53f);
+                const tieMat = new THREE.MeshPhongMaterial({ color: 0xff4f8b, shininess: 70 });
+
+                function addCap(mat) { const m = mat || blonde; const cap = new THREE.Mesh(new THREE.SphereGeometry(0.49, 28, 18,
+                        0, Math.PI * 2, 0, Math.PI / 2.2), m);
+                    cap.position.set(0, 0.1, -0.06);
+                    hairGroup.add(cap); const back = new THREE.Mesh(new THREE.SphereGeometry(0.47, 24, 16, 0, Math.PI * 2, 0,
+                        Math.PI / 1.6), m);
+                    back.position.set(0, 0.04, -0.16);
+                    hairGroup.add(back); const bangs = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), m);
+                    bangs.scale.set(1.4, 0.42, 0.55);
+                    bangs.position.set(0, 0.4, 0.26);
+                    hairGroup.add(bangs); }
+
+                function makeTail(x, mats) { const tail = new THREE.Group();
+                    tail.position.set(x, 0.0, -0.14); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.028, 10, 16),
+                        tieMat);
+                    tie.rotation.y = Math.PI / 2;
+                    tail.add(tie); const sizes = [0.15, 0.13, 0.1]; for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(
+                            new THREE.SphereGeometry(sizes[i], 14, 14), (mats && mats[i]) ? mats[i] : (i === 1 ?
+                            blondeDark : blonde));
+                        s.position.y = -0.12 - i * 0.19;
+                        s.position.x = Math.sign(x) * 0.04 * i;
+                        tail.add(s); }
+                    tail.rotation.z = Math.sign(x) * -0.3;
+                    hairGroup.add(tail);
+                    hairGroup.userData.tails.push(tail); return tail; }
+                if (styleId === 'hair_ponytail') { addCap(); const tail = new THREE.Group();
+                    tail.position.set(0, 0.32, -0.44); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.035, 10, 16),
+                        tieMat);
+                    tie.rotation.x = Math.PI / 2;
+                    tail.add(tie); for (let i = 0; i < 4; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.17 - i * 0.03,
+                            14, 14), i % 2 ? blondeDark : blonde);
+                        s.position.set(0, -0.16 - i * 0.18, -0.05 - i * 0.05);
+                        tail.add(s); }
+                    hairGroup.add(tail);
+                    hairGroup.userData.tails.push(tail); } else if (styleId === 'hair_buns') { addCap(); [-0.32, 0.32]
+                    .forEach(function(x) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), blonde);
+                        bun.position.set(x, 0.44, -0.08); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.026, 8,
+                            16), tieMat);
+                        tie.position.copy(bun.position);
+                        tie.position.y -= 0.1;
+                        tie.rotation.x = Math.PI / 2;
+                        hairGroup.add(bun, tie); }); } else if (styleId === 'hair_long') { addCap(); const back = new THREE
+                        .Mesh(new THREE.SphereGeometry(0.4, 20, 16), blonde);
+                    back.scale.set(1.05, 2.0, 0.5);
+                    back.position.set(0, -0.5, -0.3);
+                    hairGroup.add(back); } else if (styleId === 'hair_bob') { addCap(); [-0.42, 0.42].forEach(function(x) { const
+                            side = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 14), blonde);
+                        side.scale.set(0.7, 1.6, 0.8);
+                        side.position.set(x, -0.06, -0.06);
+                        hairGroup.add(side); }); const backLow = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14),
+                        blondeDark);
+                    backLow.scale.set(1.2, 0.9, 0.6);
+                    backLow.position.set(0, -0.14, -0.26);
+                    hairGroup.add(backLow); } else if (styleId === 'hair_braids') { addCap(); [-0.48, 0.48].forEach(function(
+                        x) { const braid = new THREE.Group();
+                        braid.position.set(x, 0.0, -0.12); for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE
+                                .SphereGeometry(0.09 - i * 0.007, 12, 12), i % 2 ? blondeDark : blonde);
+                            s.position.set(Math.sin(i * 1.6) * 0.045, -0.1 - i * 0.14, 0);
+                            braid.add(s); } const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.022, 8, 14),
+                            tieMat);
+                        tie.position.y = -0.76;
+                        braid.add(tie);
+                        braid.rotation.z = Math.sign(x) * -0.18;
+                        hairGroup.add(braid);
+                        hairGroup.userData.tails.push(braid); }); } else if (styleId === 'hair_curly') { addCap(); for (let i =
+                        0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const px = Math.cos(a) * 0.4; const pz = Math.sin(
+                            a) * 0.38 - 0.1; if (pz > 0.18 && Math.abs(px) < 0.32) continue; const curl = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.13 + Math.random() * 0.05, 12, 12), i % 2 ? blondeDark :
+                        blonde);
+                        curl.position.set(px, 0.2 + Math.sin(i * 2.7) * 0.2, pz);
+                        hairGroup.add(curl); } } else if (styleId === 'hair_rainbow') { addCap();
+                    makeTail(-0.5, [hairMat(0xff4d6d), hairMat(0xffb347), hairMat(0x7bd94b)]);
+                    makeTail(0.5, [hairMat(0x4da6ff), hairMat(0xb26bff), hairMat(0xff6fd8)]); } else if (styleId ===
+                    'hair_star') { addCap();
+                    makeTail(-0.5);
+                    makeTail(0.5); const starMat = new THREE.MeshBasicMaterial({ color: 0xffe066 }); [-0.3, 0.3].forEach(
+                        function(x) { const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), starMat);
+                            star.position.set(x, 0.44, 0.2);
+                            star.userData.onUpdate = function(t) { star.rotation.y = t * 0.002; };
+                            hairGroup.add(star); }); } else if (styleId === 'hair_princess') { addCap(); const back = new THREE
+                        .Mesh(new THREE.SphereGeometry(0.42, 20, 16), blonde);
+                    back.scale.set(1.1, 2.2, 0.5);
+                    back.position.set(0, -0.55, -0.3);
+                    hairGroup.add(back); const tiara = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.032, 10, 24, Math.PI),
+                        new THREE.MeshPhongMaterial({ color: 0xffd700, shininess: 100 }));
+                    tiara.position.set(0, 0.44, 0.06);
+                    tiara.rotation.x = -1.15; const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), new THREE
+                        .MeshPhongMaterial({ color: 0xff2d78, shininess: 120 }));
+                    gem.position.set(0, 0.53, 0.22);
+                    hairGroup.add(tiara, gem); } else { addCap();
+                    makeTail(-0.5);
+                    makeTail(0.5); }
+            }
+
+            function equipClothes(itemId) {
+                if (!girl) return;
+                while (accessoryGroup.children.length > 0) accessoryGroup.remove(accessoryGroup.children[0]);
+                const dressColors = { 'cl_none': 0xe8639c, 'cl_dress_red': 0xd93b3b, 'cl_dress_blue': 0x3d6fd9,
+                    'cl_dress_yellow': 0xf2c53d };
+                if (dressColors[itemId] !== undefined) { dressMesh.material.color.setHex(dressColors[itemId]); return; }
+                if (itemId === 'cl_hat') { const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 20),
+                        new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
+                    brim.position.set(0, 1.36, 0.06); const top = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12, 0, Math
+                            .PI * 2, 0, Math.PI / 2), new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
+                    top.position.set(0, 1.36, 0.06);
+                    accessoryGroup.add(brim, top); } else if (itemId === 'cl_glasses') { const gMat = new THREE.MeshPhongMaterial(
+                        { color: 0xd23b52 }); const ringL = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10, 20),
+                        gMat);
+                    ringL.position.set(-0.17, 1.03, 0.44); const ringR = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10,
+                        20), gMat);
+                    ringR.position.set(0.17, 1.03, 0.44); const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025,
+                        0.025), gMat);
+                    bridge.position.set(0, 1.05, 0.45);
+                    accessoryGroup.add(ringL, ringR, bridge); } else if (itemId === 'cl_scarf') { const scarf = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.24, 0.08, 12, 20), new THREE.MeshPhongMaterial({ color: 0xdd2244 }));
+                    scarf.position.set(0, 0.53, 0);
+                    scarf.rotation.x = Math.PI / 2;
+                    accessoryGroup.add(scarf); } else if (itemId === 'cl_bow') { const bMat = new THREE.MeshPhongMaterial({ color: 0xff4f8b,
+                        shininess: 60 }); const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), bMat);
+                    wingL.scale.set(1.3, 0.7, 0.5);
+                    wingL.position.set(-0.12, 1.42, 0.12); const wingR = wingL.clone();
+                    wingR.position.x = 0.12; const knot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), bMat);
+                    knot.position.set(0, 1.42, 0.14);
+                    accessoryGroup.add(wingL, wingR, knot); } else if (itemId === 'cl_crown') { const crown = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.3, 0.24, 0.3, 8, 1, true), new THREE.MeshPhongMaterial({ color: 0xffd700,
+                        side: THREE.DoubleSide, shininess: 100 }));
+                    crown.position.set(0, 1.5, 0);
+                    accessoryGroup.add(crown); }
+            }
+
+            function equipProp(itemId) {
+                if (!girl) return;
+                while (sockets.prop.children.length > 0) sockets.prop.remove(sockets.prop.children[0]);
+                if (itemId === 'prop_lollipop') { const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5),
+                        new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                    stick.position.y = 0.2; const candy = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 16), new THREE
+                        .MeshPhongMaterial({ color: 0xff0055, shininess: 90 }));
+                    candy.position.y = 0.5;
+                    candy.scale.z = 0.4;
+                    sockets.prop.add(stick, candy); } else if (itemId === 'prop_icecream') { const cone = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.12, 0.32, 16), new THREE.MeshPhongMaterial({ color: 0xcd853f }));
+                    cone.rotation.x = Math.PI;
+                    cone.position.y = 0.16; const scoop = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), new THREE
+                        .MeshPhongMaterial({ color: 0xffaaaa }));
+                    scoop.position.y = 0.38;
+                    sockets.prop.add(cone, scoop); } else if (itemId === 'prop_balloon') { const g = new THREE.Group(); const string =
+                        new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7), new THREE.MeshBasicMaterial({ color: 0xdddddd }));
+                    string.position.y = 0.35; const balloon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE
+                        .MeshPhongMaterial({ color: 0xff3355, shininess: 80 }));
+                    balloon.position.y = 0.85;
+                    balloon.scale.y = 1.15;
+                    g.add(string, balloon);
+                    g.userData.onUpdate = function(t) { balloon.position.y = 0.85 + Math.sin(t * 0.003) * 0.06;
+                        balloon.position.x = Math.sin(t * 0.002) * 0.05; };
+                    sockets.prop.add(g); } else if (itemId === 'prop_wand') { const stick = new THREE.Mesh(new THREE
+                        .CylinderGeometry(0.02, 0.02, 0.5), new THREE.MeshPhongMaterial({ color: 0x5a3a1a }));
+                    stick.position.y = 0.2; const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE
+                        .MeshBasicMaterial({ color: 0xffe066 }));
+                    star.position.y = 0.5; const g = new THREE.Group();
+                    g.add(stick, star);
+                    g.userData.onUpdate = function(t) { star.scale.setScalar(1 + Math.sin(t * 0.01) * 0.25);
+                        star.rotation.y = t * 0.003; };
+                    sockets.prop.add(g); } else if (itemId === 'prop_flower') { const g = new THREE.Group(); const stem = new THREE
+                        .Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.4), new THREE.MeshPhongMaterial({ color: 0x2e6b14 }));
+                    stem.position.y = 0.16;
+                    g.add(stem); const petalMat = new THREE.MeshPhongMaterial({ color: 0xffb3d1 }); for (let p = 0; p < 6; p++) { const
+                            a = p / 6 * Math.PI * 2; const petal = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 10),
+                                petalMat);
+                        petal.position.set(Math.cos(a) * 0.09, 0.4 + Math.sin(a) * 0.09, 0);
+                        g.add(petal); } const center = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), new THREE
+                        .MeshPhongMaterial({ color: 0xf2c53d }));
+                    center.position.y = 0.4;
+                    g.add(center);
+                    sockets.prop.add(g); }
+            }
+
+            function updateGirlScreenPosition() {
+                if (!girl || !camera) return;
+                const ndc = new THREE.Vector3(girlNdcX, -0.85, 0.1);
+                ndc.unproject(camera);
+                const dir = ndc.clone().sub(camera.position).normalize();
+                const pos = camera.position.clone().add(dir.multiplyScalar(5.0));
+                girl.position.copy(pos);
+                updateSpeechPosition();
+            }
+
+            function announceMission(delay) { setTimeout(function() { reactionTime = 1.4;
+                    showSpeech(TT().mission(levelTarget(level)), 4000); }, delay || 0); }
+
+            // ============================================================
+            //  THREE.JS GAME
+            // ============================================================
+            let scene, camera, renderer, boardGroup, raycaster, pointer;
+            let backMesh, cellMat, grid = [],
+                currentCube = null,
+                aimCol = 2,
+                busy = false,
+                hammerMode = false;
+            let anims = [];
+
+            function initThree() {
+                const canvas = document.getElementById("game");
+                if (!canvas) return;
+                renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+                renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x8FD0F5);
+                camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 120);
+                scene.add(new THREE.AmbientLight(0xfff4e0, 0.85));
+                const sun = new THREE.DirectionalLight(0xfff2cc, 0.95);
+                sun.position.set(4, 10, 7);
+                scene.add(sun);
+                const fill = new THREE.DirectionalLight(0xcfe8ff, 0.3);
+                fill.position.set(-5, 2, 4);
+                scene.add(fill);
+                boardGroup = new THREE.Group();
+                boardGroup.rotation.x = -0.10;
+                boardGroup.position.y = -0.05;
+                scene.add(boardGroup);
+                backMesh = new THREE.Mesh(new THREE.BoxGeometry(BOARD_W + 0.7, BOARD_H + 0.7, 0.3), new THREE.MeshLambertMaterial());
+                backMesh.position.z = -0.65;
+                boardGroup.add(backMesh);
+                cellMat = new THREE.MeshLambertMaterial();
+                const cellGeo = new THREE.BoxGeometry(CELL * 0.96, CELL * 0.96, 0.12);
+                for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) { const m = new THREE.Mesh(cellGeo, cellMat); const p = cellPos(c, r);
+                        m.position.set(p.x, p.y, -0.42);
+                        boardGroup.add(m); }
+                updateBoardColorsLive();
+                girl = createGirl();
+                scene.add(girl);
+                raycaster = new THREE.Raycaster();
+                pointer = new THREE.Vector2();
+                onResize();
+                initScenery();
+                updateGirlScreenPosition();
+                addEventListener("resize", onResize);
+                addEventListener("orientationchange", function() { setTimeout(onResize, 250); });
+                requestAnimationFrame(loop);
+            }
+
+            function updateBoardColorsLive() { const bData = SHOP.boards.find(function(b) { return b.id === save.equippedBoard; }) ||
+                    SHOP.boards[0];
+                backMesh.material.color.set(bData.back);
+                cellMat.color.set(bData.cell); }
+
+            function onResize() { renderer.setSize(innerWidth, innerHeight);
+                camera.aspect = innerWidth / innerHeight; const dist = (BOARD_H / 2 + 2.5) / Math.tan(THREE.MathUtils.degToRad(
+                    camera.fov / 2));
+                camera.position.set(0, -1.8, dist + 1.5);
+                camera.lookAt(0, -1.2, 0);
+                camera.updateProjectionMatrix();
+                layoutScenery();
+                updateGirlScreenPosition(); }
+
+            function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (
+                        CELL + GAP) }; }
+
+            function numberTexture(value) { const cv = document.createElement("canvas");
+                cv.width = cv.height = 128; const g = cv.getContext("2d"); const skin = save.equippedCube; if (skin === 'wood') { g
+                    .fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } else if (skin === 'whitered' || skin === 'whitegreen') { g.fillStyle = "white";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill();
+                    g.fillStyle = skin === 'whitered' ? "#D32F2F" : "#388E3C";
+                    g.save();
+                    g.clip(); for (let i = -128; i < 256; i += 32) { g.beginPath();
+                        g.moveTo(i, 0);
+                        g.lineTo(i + 20, 0);
+                        g.lineTo(i - 108, 128);
+                        g.lineTo(i - 128, 128);
+                        g.fill(); }
+                    g.restore(); } else if (skin === 'zebra') { g.fillStyle = "white";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill();
+                    g.fillStyle = "#111";
+                    g.save();
+                    g.clip(); for (let i = 0; i < 128; i += 24) { g.beginPath();
+                        g.moveTo(0, i);
+                        g.bezierCurveTo(40, i + 15, 80, i - 15, 128, i);
+                        g.lineTo(128, i + 10);
+                        g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
+                        g.fill(); }
+                    g.restore(); } else if (skin === 'rainbow') { let grad = g.createLinearGradient(0, 0, 128, 128);['red',
+                        'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'
+                    ].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
+                    g.fillStyle = grad;
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } else if (skin === 'gold') { let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
+                    grad.addColorStop(0, "#FFF59D");
+                    grad.addColorStop(0.6, "#FBC02D");
+                    grad.addColorStop(1, "#F57F17");
+                    g.fillStyle = grad;
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } else if (skin === 'neon') { g.fillStyle = "#111";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill();
+                    g.strokeStyle = "hsl(" + ((Math.log2(value) * 30) % 360) + ", 100%, 50%)";
+                    g.lineWidth = 6;
+                    g.stroke(); } else if (skin === 'galaxy') { g.fillStyle = "#1A0B2E";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill();
+                    g.fillStyle = "white"; for (let i = 0; i < 30; i++) { g.beginPath();
+                        g.arc(Math.random() * 128, Math.random() * 128, Math.random() * 2, 0, 7);
+                        g.fill(); } } else if (skin === 'ice') { let grad = g.createLinearGradient(0, 0, 128, 128);
+                    grad.addColorStop(0, "#E0F7FA");
+                    grad.addColorStop(1, "#00BCD4");
+                    g.fillStyle = grad;
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } else if (skin === 'lava') { let grad = g.createLinearGradient(0, 0, 128, 128);
+                    grad.addColorStop(0, "#FF5722");
+                    grad.addColorStop(1, "#FFC107");
+                    g.fillStyle = grad;
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } else { g.fillStyle = "#111";
+                    roundRect(g, 4, 4, 120, 120, 22);
+                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice',
+                    'lava', 'gold'
+                ]; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
+                    g.shadowColor = "rgba(0,0,0,0.35)";
+                    g.shadowBlur = 7;
+                    g.shadowOffsetY = 2;
+                    g.beginPath();
+                    g.arc(64, 66, 37, 0, Math.PI * 2);
+                    g.fillStyle = "rgba(255,255,255,0.96)";
+                    g.fill();
+                    g.restore();
+                    g.lineWidth = 3;
+                    g.strokeStyle = "rgba(0,0,0,0.12)";
+                    g.beginPath();
+                    g.arc(64, 66, 37, 0, Math.PI * 2);
+                    g.stroke(); }
+                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : (
+                    "800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
+                g.textAlign = "center";
+                g.textBaseline = "middle";
+                g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
+                g.fillText(value, 64, hasBadge ? 66 : 68); const t = new THREE.CanvasTexture(cv);
+                t.anisotropy = 4; return t; }
+
+            function roundRect(g, x, y, w, h, r) { g.beginPath();
+                g.moveTo(x + r, y);
+                g.arcTo(x + w, y, x + w, y + h, r);
+                g.arcTo(x + w, y + h, x, y + h, r);
+                g.arcTo(x, y + h, x, y, r);
+                g.arcTo(x, y, x + w, y, r);
+                g.closePath(); }
+
+            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92,
+                    CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xdddddd }));
+                m.userData.value = value; return m; }
+
+            function tween(obj, to, dur, ease, done) { const from = {}; for (const k in to) from[k] = obj[k];
+                anims.push({ obj: obj, from: from, to: to, dur: dur, t: 0, ease: ease || function(t) { return 1 - Math.pow(1 -
+                        t, 3); }, done: done }); }
+
+            function stepAnims(dt) { for (let i = anims.length - 1; i >= 0; i--) { const a = anims[i];
+                    a.t += dt / a.dur; const k = a.t >= 1 ? 1 : a.ease(a.t); for (const p in a.to) a.obj[p] = a.from[p] + (a.to[
+                            p] - a.from[p]) * k; if (a.t >= 1) { anims.splice(i, 1); if (a.done) a.done(); } } }
+
+            function newBoard() { for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) { if (grid[c] && grid[c][r]) boardGroup.remove(grid[c][r].mesh); }
+                grid = []; for (let c = 0; c < COLS; c++) { grid.push(new Array(ROWS).fill(null)); }
+                score = save.score || 0;
+                updateHUD(); for (let i = 0; i < levelPreset(level); i++) { const c = Math.floor(Math.random() * COLS); const r =
+                        colHeight(c); if (r < 3) placeCube(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); }
+                spawnCurrent();
+                lastActionTime = performance.now(); }
+
+            function colHeight(c) { let h = 0; while (h < ROWS && grid[c][h]) h++; return h; }
+
+            function placeCube(c, r, value, instant) { const cube = makeCube(value); const p = cellPos(c, r);
+                cube.position.set(p.x, p.y, 0.1);
+                boardGroup.add(cube);
+                grid[c][r] = { value: value, mesh: cube }; if (!instant) { cube.scale.set(.4, .4, .4);
+                    tween(cube.scale, { x: 1, y: 1, z: 1 }, 0.22); } return grid[c][r]; }
+
+            function spawnCurrent() { let maxOnBoard = 4; for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) if (grid[c][r]) maxOnBoard = Math.max(maxOnBoard, grid[c][r].value); const pool =
+                    []; for (let v = 2; v <= Math.min(32, Math.max(4, maxOnBoard / 2)); v *= 2) pool.push(v, v, v === 2 ? v :
+                    0); const vals = pool.filter(Boolean);
+                currentCube = makeCube(vals[Math.floor(Math.random() * vals.length)]);
+                currentCube.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
+                currentCube.scale.set(.3, .3, .3);
+                boardGroup.add(currentCube);
+                tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2); }
+
+            function setAim(c, instant) { aimCol = Math.max(0, Math.min(COLS - 1, c)); if (currentCube && !busy) { const tx = cellPos(
+                        aimCol, 0).x; if (instant) currentCube.position.x = tx; else tween(currentCube.position, { x: tx },
+                    0.09); } }
+
+            function launch() { if (busy || !currentCube) return; const c = aimCol; const h = colHeight(c); if (h >= ROWS) { gameOver
+                    (); return; }
+                busy = true;
+                lastActionTime = performance.now();
+                playSound('drop'); const eff = save.equippedEffect; if (eff !== 'eff_none') { const wp = new THREE.Vector3();
+                    currentCube.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype === 'explode')
+                    spawnBurst(wp.x, wp.y - 0.3, wp.z, 'explode', 18); else if (etype === 'confetti') spawnBurst(wp.x, wp.y -
+                        0.3, wp.z, 'confetti', 20); else spawnBurst(wp.x, wp.y - 0.3, wp.z, etype, 10); } const targetR = h;
+                const p = cellPos(c, targetR); const cube = currentCube;
+                currentCube = null;
+                tween(cube.position, { y: p.y }, Math.max(0.13, Math.abs(cube.position.y - p.y) * 0.045), null,
+                function() { boardGroup.remove(cube); const cell = placeCube(c, targetR, cube.userData.value, true);
+                    cell.mesh.scale.set(1.15, 0.85, 1.15);
+                    tween(cell.mesh.scale, { x: 1, y: 1, z: 1 }, 0.18);
+                    resolveMerges([{ c: c, r: targetR }]).then(function() { if (checkWin()) { busy = false;
+                            spawnCurrent();
+                            setAim(aimCol); return; } if (isBoardFull()) { gameOver(); return; }
+                        busy = false;
+                        spawnCurrent();
+                        setAim(aimCol); }); }); }
+
+            function isBoardFull() { for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) if (!grid[c][r]) return false; return true; }
+
+            function boardFillRatio() { let filled = 0; for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) if (grid[c] && grid[c][r]) filled++; return filled / (COLS * ROWS); }
+
+            function resolveMerges(queue) { return new Promise(function(resolveAll) {
+                (function next() { if (!queue.length) { persist();
+                        resolveAll(); return; } const item = queue.shift(); const c = item.c, r = item.r; const cell =
+                        grid[c][r]; if (!cell) { next(); return; } const same = [{ c: c - 1, r: r }, { c: c + 1, r: r },
+                        { c: c, r: r - 1 }, { c: c, r: r + 1 }
+                    ].filter(function(n) { return n.c >= 0 && n.c < COLS && n.r >= 0 && n.r < ROWS && grid[n.c][n
+                            .r] && grid[n.c][n.r].value === cell.value; }); if (!same.length) { next(); return; }
+                    const newVal = cell.value * Math.pow(2, same.length);
+                    score += newVal;
+                    save.score = score;
+                    coins += 1;
+                    save.coins = coins;
+                    updateHUD(); let left = same.length; const tp = cellPos(c, r);
+                    same.forEach(function(n) { const m = grid[n.c][n.r].mesh;
+                        grid[n.c][n.r] = null;
+                        tween(m.position, { x: tp.x, y: tp.y }, 0.14, null, function() { boardGroup.remove(
+                            m); if (--left === 0) afterCollapse(); });
+                        tween(m.scale, { x: .5, y: .5, z: .5 }, 0.14); });
+
+                    function afterCollapse() { playSound('merge'); const eff = save.equippedEffect; if (eff !== 'eff_none') { const
+                                wp = new THREE.Vector3();
+                            cell.mesh.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype ===
+                                'explode') spawnBurst(wp.x, wp.y, wp.z, 'explode', 20); else if (etype ===
+                                'confetti') spawnBurst(wp.x, wp.y, wp.z, 'confetti', 25); else spawnBurst(wp.x, wp
+                                .y, wp.z, etype, 12); } if (newVal >= 64 && winTime <= 0) { reactionTime = 1.2;
+                            showSpeech(TT().wow(newVal), 1800); }
+                        boardGroup.remove(cell.mesh);
+                        grid[c][r] = null; const up = placeCube(c, r, newVal);
+                        up.mesh.scale.set(1.35, 1.35, 1.35);
+                        tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.22); const moved = []; for (let xc = 0; xc <
+                            COLS; xc++) { let write = 0; for (let xr = 0; xr < ROWS; xr++) { if (grid[xc][xr]) { if (
+                                    xr !== write) { grid[xc][write] = grid[xc][xr];
+                                    grid[xc][xr] = null;
+                                    tween(grid[xc][write].mesh.position, { y: cellPos(xc, write)
+                                            .y }, 0.15);
+                                    moved.push({ c: xc, r: write }); }
+                                write++; } } }
+                        queue.push({ c: c, r: r });
+                        moved.forEach(function(mv) { queue.push(mv); });
+                        setTimeout(next, 120); }
+                })(); }); }
+
+            let winTimer = null;
+            let winShown = false;
+
+            function checkWin() { const t = levelTarget(level); let win = false; for (let c = 0; c < COLS; c++)
+                    for (let r = 0; r < ROWS; r++) if (grid[c][r] && grid[c][r].value >= t) { win = true; break; } if (!win)
+                    return false; if (!winShown) { winShown = true;
+                    coins += 25;
+                    save.coins = coins;
+                    best = Math.max(best, score);
+                    save.best = best;
+                    save.level = level + 1;
+                    persist();
+                    updateHUD();
+                    document.getElementById("winText").innerHTML = TT().win_text(t);
+                    playWinSound();
+                    winTime = 6.0;
+                    showSpeech(TT().win_speech, 3800);
+                    speak(TT().win_say); if (winTimer) clearTimeout(winTimer);
+                    winTimer = setTimeout(function() { document.getElementById("winModal").classList.remove("hidden");
+                        winTimer = null; }, 3500); } return true; }
+
+            function gameOver() { busy = true;
+                best = Math.max(best, score);
+                save.best = best;
+                save.score = 0;
+                persist();
+                showSpeech(TT().lose_speech, 2500);
+                speak(TT().lose_say);
+                document.getElementById("loseText").innerHTML = TT().lose_text(score);
+                document.getElementById("loseModal").classList.remove("hidden"); }
+
+            function onTap(e) { if (document.querySelector(".overlay:not(.hidden)")) return;
+                lastActionTime = performance.now(); const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+                const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; const x = cx / innerWidth * 2 - 1;
+                const y = -(cy / innerHeight * 2 - 1);
+                pointer.set(x, y);
+                raycaster.setFromCamera(pointer, camera); if (girl) { const hits = raycaster.intersectObject(girl, true); if (hits
+                        .length > 0 && winTime <= 0) { giggleSFX();
+                        reactionTime = 1.0; const greetings = TT().greetings; const pick = greetings[Math.floor(Math.random() *
+                            greetings.length)];
+                        showSpeech(pick, 1800);
+                        speak(pick.replace(/[^\u0370-\u03FF\u1F00-\u1FFFa-zA-Z' ;!?]/g, '').trim()); return; } } const hit =
+                    new THREE.Vector3(); const boardNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(boardGroup.quaternion);
+                const plane = new THREE.Plane();
+                plane.setFromNormalAndCoplanarPoint(boardNormal, boardGroup.position);
+                raycaster.ray.intersectPlane(plane, hit);
+                boardGroup.worldToLocal(hit); const c = Math.max(0, Math.min(COLS - 1, Math.round((hit.x + BOARD_W / 2 - CELL / 2) /
+                    (CELL + GAP)))); const r = Math.round((BOARD_H / 2 - CELL / 2 - hit.y) / (CELL + GAP)); if (hammerMode) { if (
+                        r >= 0 && r < ROWS && grid[c][r]) { hammerMode = false; const m = grid[c][r].mesh;
+                        grid[c][r] = null;
+                        tween(m.scale, { x: .01, y: .01, z: .01 }, 0.18, null, function() { boardGroup.remove(m); });
+                        busy = true;
+                        setTimeout(function() { resolveMerges([]).then(function() { busy = false;
+                                updateHUD();
+                                persist(); }); }, 180); } else { hammerMode = false;
+                        updateHUD(); } return; }
+                setAim(c, true);
+                launch(); }
+
+            document.getElementById("btnHammer").onclick = function() { if (busy) return;
+                hammerMode = true;
+                updateHUD();
+                toast(TT().hammer_toast); };
+            document.getElementById("btnShuffle").onclick = function() { if (busy || !currentCube) return;
+                boardGroup.remove(currentCube);
+                currentCube = null;
+                spawnCurrent();
+                setAim(aimCol);
+                updateHUD(); };
+            document.getElementById("btnMagnet").onclick = function() { if (busy) return; let tilesByVal = {}; for (let c = 0; c <
+                    COLS; c++)
+                    for (let r = 0; r < ROWS; r++) if (grid[c][r]) { let v = grid[c][r].value; if (!tilesByVal[v]) tilesByVal[
+                            v] = [];
+                        tilesByVal[v].push({ c: c, r: r, cell: grid[c][r] }); } let mg = Object.keys(tilesByVal).map(
+                    function(k) { return tilesByVal[k]; }).filter(function(g) { return g.length > 1; }); if (!mg.length)
+                    return toast(TT().no_pairs);
+                busy = true; let animsP = 0;
+                mg.forEach(function(group) { const trg = group[0];
+                    trg.newVal = trg.cell.value * Math.pow(2, group.length - 1);
+                    group.slice(1).forEach(function(t) { const m = t.cell.mesh;
+                        grid[t.c][t.r] = null; const tp = cellPos(trg.c, trg.r);
+                        animsP++;
+                        tween(m.position, { x: tp.x, y: tp.y, z: 1.0 }, 0.35, null, function() { boardGroup
+                                .remove(m); if (--animsP === 0) finMagnet(mg); });
+                        tween(m.scale, { x: 0.3, y: 0.3, z: 0.3 }, 0.35); }); }); };
+
+            function finMagnet(mg) { playSound('merge');
+                mg.forEach(function(g) { const trg = g[0];
+                    boardGroup.remove(trg.cell.mesh);
+                    grid[trg.c][trg.r] = null;
+                    score += trg.newVal;
+                    save.score = score; const up = placeCube(trg.c, trg.r, trg.newVal);
+                    up.mesh.scale.set(1.5, 1.5, 1.5);
+                    tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.25); });
+                setTimeout(function() { resolveMerges([]).then(function() { busy = false;
+                        updateHUD();
+                        persist(); }); }, 250); }
+
+            // ============================================================
+            //  SHOP
+            // ============================================================
+            function getShopProperties(tab) { const map = { cubes: { owned: 'ownedCubes', equip: 'equippedCube' }, boards: { owned: 'ownedBoards',
+                        equip: 'equippedBoard' }, effects: { owned: 'ownedEffects', equip: 'equippedEffect' },
+                    sounds: { owned: 'ownedSounds', equip: 'equippedSound' }, music: { owned: 'ownedMusic',
+                        equip: 'equippedMusic' }, pet_hair: { owned: 'ownedHair', equip: 'equippedHair' },
+                    pet_clothes: { owned: 'ownedClothes', equip: 'equippedClothes' }, pet_props: { owned: 'ownedProps',
+                        equip: 'equippedProps' } }; return map[tab] || { owned: '', equip: '' }; }
+
+            function renderShop() { const petSubTabs = document.getElementById('petSubTabs'); if (currentMainTab === 'pets')
+                    petSubTabs.classList.add('active'); else petSubTabs.classList.remove('active'); const activeTab =
+                    currentMainTab === 'pets' ? currentPetSubTab : currentMainTab; const container = document.getElementById(
+                        'shopContainer');
+                container.innerHTML = ''; const arr = SHOP[activeTab] || []; const props = getShopProperties(activeTab);
+                arr.forEach(function(item) { const isOwned = save[props.owned] && save[props.owned].indexOf(item.id) !== -1;
+                    const isEquipped = save[props.equip] === item.id; const nm = itemName(item); const el = document
+                        .createElement('div');
+                    el.className = 'shop-item ' + (isOwned ? 'owned' : '') + ' ' + (isEquipped ? 'equipped' : '');
+                    el.innerHTML = '<div style="font-size:32px; margin-bottom:3px;">' + item.icon + '</div><h3>' + nm +
+                        '</h3><div class="price">' + (isEquipped ? TT().selected : isOwned ? TT().select : item.price ===
+                            0 ? TT().free : item.price + ' 🪙') + '</div>';
+                    el.onclick = function() { if (isOwned) { save[props.equip] = item.id;
+                            persist();
+                            renderShop();
+                            applyShopChanges(activeTab);
+                            toast(TT().picked(nm)); } else if (coins >= item.price) { coins -= item.price;
+                            save.coins = coins;
+                            save[props.owned].push(item.id);
+                            save[props.equip] = item.id;
+                            persist();
+                            updateHUD();
+                            renderShop();
+                            applyShopChanges(activeTab);
+                            toast(TT().bought(nm)); } else { toast(TT().not_enough); } };
+                    container.appendChild(el); }); }
+
+            function applyShopChanges(tabChanged) { if (tabChanged === 'boards') updateBoardColorsLive(); if (tabChanged ===
+                    'cubes') { for (let c = 0; c < COLS; c++)
+                        for (let r = 0; r < ROWS; r++) if (grid[c][r]) { const m = grid[c][r].mesh;
+                            m.material.map = numberTexture(grid[c][r].value);
+                            m.material.needsUpdate = true; } if (currentCube) { currentCube.material.map = numberTexture(
+                            currentCube.userData.value);
+                        currentCube.material.needsUpdate = true; }
+                    toast(TT().cube_changed); } if (tabChanged === 'pet_hair') buildHair(save.equippedHair); if (tabChanged ===
+                    'pet_clothes') equipClothes(save.equippedClothes); if (tabChanged === 'pet_props') equipProp(save
+                    .equippedProps); if (tabChanged === 'effects') toast(TT().effect_changed); if (tabChanged === 'sounds')
+                    toast(TT().sound_changed); if (tabChanged === 'music') { toast(TT().music_changed); if (musicStarted)
+                        scheduleMusicLoop(); } }
+
+            document.querySelectorAll('.shop-tab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll(
+                        '.shop-tab').forEach(function(b) { b.classList.remove('active'); });
+                    e.target.classList.add('active');
+                    currentMainTab = e.target.dataset.maintab;
+                    renderShop(); }; });
+            document.querySelectorAll('.pet-subtab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll(
+                        '.pet-subtab').forEach(function(b) { b.classList.remove('active'); });
+                    e.target.classList.add('active');
+                    currentPetSubTab = e.target.dataset.subtab;
+                    renderShop(); }; });
+
+            function updateHUD() { document.getElementById("hudLevel").textContent = level + 1;
+                document.getElementById("hudScore").textContent = score;
+                document.getElementById("hudCoins").textContent = coins;
+                document.getElementById("miniScore").textContent = score;
+                document.getElementById("btnHammer").classList.toggle("armed", hammerMode); }
+
+            function applyLang() { const t = TT();
+                document.documentElement.lang = lang;
+                document.getElementById('lblLevel').textContent = t.level;
+                document.getElementById('lblScore').textContent = t.score;
+                document.getElementById('btnLang').textContent = lang === 'en' ? 'EN' : 'ΕΛ';
+                document.getElementById('micCost').textContent = t.talk;
+                document.querySelectorAll('.lbl-free').forEach(function(el) { el.textContent = t.free; });
+                document.getElementById('shopTitle').textContent = t.customize;
+                document.getElementById('btnCloseShop').textContent = t.close;
+                document.getElementById('winTitle').textContent = t.win_title;
+                document.getElementById('btnNext').textContent = t.win_btn;
+                document.getElementById('loseTitle').textContent = t.lose_title;
+                document.getElementById('btnRetry').textContent = t.lose_btn; const tabNames = { cubes: t.tab_cubes, boards: t
+                        .tab_boards, effects: t.tab_effects, sounds: t.tab_sounds, music: t.tab_music, pets: t.tab_pets };
+                document.querySelectorAll('.shop-tab').forEach(function(b) { b.textContent = tabNames[b.dataset.maintab] || b
+                        .textContent; }); const subNames = { pet_hair: t.sub_hair, pet_clothes: t.sub_clothes, pet_props: t
+                        .sub_props };
+                document.querySelectorAll('.pet-subtab').forEach(function(b) { b.textContent = subNames[b.dataset.subtab] || b
+                        .textContent; }); if (!document.getElementById('shopModal').classList.contains('hidden')) renderShop(); }
+
+            function updateSoundBtn() { document.getElementById('btnSound').textContent = muted ? '🔇' : '🔊'; }
+
+            let toastTimer;
+
+            function toast(msg) { const t = document.getElementById("toast");
+                t.textContent = msg;
+                t.style.opacity = 1;
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function() { t.style.opacity = 0; }, 1800); }
+
+            function computeMood(now) { const fill = boardFillRatio(); if (fill >= 0.8) return 'anxious'; if (fill >= 0.65) return
+                'angry'; if (now - lastActionTime > 15000) return 'bored'; return 'idle'; }
+
+            function onMoodChange(mood) { if (mood === 'angry') { showSpeech(TT().angry, 2200);
+                    angrySFX(); } if (mood === 'anxious') { showSpeech(TT().panic, 2200);
+                    panicSFX(); } if (mood === 'bored') showSpeech(TT().bored, 2200); }
+
+            let lastT = 0,
+                stepAccum = 0;
+
+            function loop(t) { const dt = Math.min(0.05, (t - lastT) / 1000);
+                lastT = t; if (!lastActionTime) lastActionTime = performance.now();
+                stepAnims(dt);
+                updateParticles(dt);
+                updateClouds(dt); if (sunFace) { sunGroup.rotation.z = Math.sin(t * 0.0003) * 0.06; const pulse = 1 + Math.sin(t *
+                        0.0012) * 0.02;
+                    sunGroup.scale.set(pulse, pulse, 1); } if (girl) { const core = girlCore; if (winTime > 0) { winTime -=
+                        dt; const hop = Math.abs(Math.sin(t * 0.01));
+                    core.position.y = hop * 1.3;
+                    core.scale.y = 1 + Math.sin(t * 0.01) * 0.08;
+                    core.scale.x = 1 - Math.sin(t * 0.01) * 0.05;
+                    girl.rotation.y = -0.2 + Math.sin(t * 0.004) * 0.5;
+                    sockets.handL.rotation.z = 2.6 + Math.sin(t * 0.02) * 0.3;
+                    sockets.handR.rotation.z = -2.6 - Math.sin(t * 0.02) * 0.3;
+                    (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.z = (i === 0 ? -0.3 :
+                            0.3) + Math.sin(t * 0.012 + i) * 0.35; });
+                    mouthMesh.scale.set(0.95, 0.8, 0.35);
+                    eyeL.scale.set(1, 0.35, 1);
+                    eyeR.scale.set(1, 0.35, 1); if (winTime <= 0) { sockets.handL.rotation.z = 0.35;
+                        sockets.handR.rotation.z = -0.35;
+                        core.position.y = 0; } } else if (reactionTime > 0) { reactionTime -= dt;
+                    core.position.y = 0.15 * Math.abs(Math.sin(t * 0.015));
+                    girl.rotation.y = -0.2 + Math.sin(t * 0.01) * 0.12;
+                    sockets.handL.rotation.z = 0.35 + Math.sin(t * 0.02) * 0.6;
+                    sockets.handR.rotation.z = -0.35 - Math.sin(t * 0.02) * 0.6;
+                    mouthMesh.scale.set(0.75, 0.65, 0.35);
+                    eyeL.scale.set(1.1, 1.1, 1.1);
+                    eyeR.scale.set(1.1, 1.1, 1.1);
+                    browL.visible = false;
+                    browR.visible = false; } else { const now = performance.now();
+                    girlMood = computeMood(now); if (girlMood !== prevMood) { onMoodChange(girlMood);
+                        prevMood = girlMood; } if (girlMood === 'angry' || girlMood === 'anxious') { if (
+                            petState === 'walk') { petState = 'stand';
+                            petStateTimer = 2; } } else { petStateTimer -= dt; if (petStateTimer <= 0)
+                            pickNextState(); } if (petState === 'walk') { const dir = Math.sign(
+                            wanderTargetX - girlNdcX); if (dir !== 0) faceDir = dir;
+                        girlNdcX += dir * 0.11 * dt;
+                        stepAccum += dt; if (stepAccum > 0.36) { stepAccum = 0;
+                            stepSFX(); } if (Math.abs(wanderTargetX - girlNdcX) < 0.02) { petState =
+                                'stand';
+                            petStateTimer = 1.5 + Math.random() * 2.5; } }
+                    updateGirlScreenPosition();
+                    core.position.x = 0;
+                    girl.rotation.x = 0.12; if (petState === 'hop') { girl.rotation.y += (-0.2 - girl
+                            .rotation.y) * 0.1;
+                        core.position.y = Math.abs(Math.sin(t * 0.012)) * 0.5;
+                        sockets.handL.rotation.z = 0.35 + Math.abs(Math.sin(t * 0.012)) * 0.9;
+                        sockets.handR.rotation.z = -0.35 - Math.abs(Math.sin(t * 0.012)) * 0.9;
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
+                                .z = (i === 0 ? -0.3 : 0.3) + Math.sin(t * 0.012 + i) * 0.3; });
+                        eyeL.scale.set(1, 1, 1);
+                        eyeR.scale.set(1, 1, 1); if (!isTalking) mouthMesh.scale.set(0.8, 0.5,
+                            0.35);
+                        browL.visible = false;
+                        browR.visible = false; } else if (petState === 'walk') { girl.rotation.y += (
+                            (faceDir > 0 ? 0.65 : -0.9) - girl.rotation.y) * 0.08;
+                        core.position.y = Math.abs(Math.sin(t * 0.012)) * 0.09;
+                        sockets.footL.rotation.x = Math.sin(t * 0.012) * 0.6;
+                        sockets.footR.rotation.x = -Math.sin(t * 0.012) * 0.6;
+                        sockets.handL.rotation.x = -Math.sin(t * 0.012) * 0.5;
+                        sockets.handR.rotation.x = Math.sin(t * 0.012) * 0.5;
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
+                                .x = Math.sin(t * 0.012 + i * 0.8) * 0.18; });
+                        eyeL.scale.set(1, 1, 1);
+                        eyeR.scale.set(1, 1, 1); if (!isTalking) mouthMesh.scale.set(1, 0.3, 0.3);
+                        browL.visible = false;
+                        browR.visible = false; } else { girl.rotation.y += (-0.2 - girl.rotation.y) *
+                            0.1;
+                        core.scale.y = 1 + Math.sin(t * 0.004) * 0.02;
+                        core.position.y = Math.sin(t * 0.002) * 0.06;
+                        sockets.footL.rotation.x += (0 - sockets.footL.rotation.x) * 0.1;
+                        sockets.footR.rotation.x += (0 - sockets.footR.rotation.x) * 0.1;
+                        sockets.handL.rotation.x = 0;
+                        sockets.handR.rotation.x = 0;
+                        sockets.handL.rotation.z = 0.35 + Math.sin(t * 0.003) * 0.08;
+                        sockets.handR.rotation.z = -0.35 - Math.cos(t * 0.003) * 0.08;
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
+                                .x = Math.sin(t * 0.0025 + i * 1.5) * 0.08; }); const showBrows =
+                            girlMood === 'angry';
+                        browL.visible = showBrows;
+                        browR.visible = showBrows; if (showBrows) { browL.rotation.z = -0.4;
+                            browR.rotation.z = 0.4; } if (girlMood === 'angry') { eyeL.scale.set(1,
+                                0.7, 1);
+                            eyeR.scale.set(1, 0.7, 1); if (!isTalking) mouthMesh.scale.set(0.8,
+                                0.12, 0.3); } else if (girlMood === 'anxious') { eyeL.scale.set(
+                                1.3, 1.3, 1.3);
+                            eyeR.scale.set(1.3, 1.3, 1.3); if (!isTalking) mouthMesh.scale.set(0.5,
+                                0.55, 0.35);
+                            girl.position.x += (Math.random() - 0.5) * 0.05;
+                            girl.position.y += (Math.random() - 0.5) * 0.05; } else if (girlMood ===
+                            'bored') { eyeL.scale.set(1, 0.35, 1);
+                            eyeR.scale.set(1, 0.35, 1);
+                            girl.rotation.z = Math.sin(t * 0.0008) * 0.1; const yawn = Math.max(0,
+                                Math.sin(t * 0.0012)); if (!isTalking) mouthMesh.scale.set(0.55 +
+                                yawn * 0.2, 0.2 + yawn * 0.55, 0.35); } else { girl.rotation.z += (0 -
+                                girl.rotation.z) * 0.1;
+                            eyeL.scale.set(1, 1, 1);
+                            eyeR.scale.set(1, 1, 1); const blink = Math.sin(t * 0.0035); if (blink >
+                                0.985) { eyeL.scale.y = 0.1;
+                                eyeR.scale.y = 0.1; } if (!isTalking) mouthMesh.scale.set(1, 0.3,
+                                0.3); } } } if (isTalking && mouthMesh) { mouthMesh.scale.y = 0.25 + Math
+                        .abs(Math.sin(t * 0.025)) * 0.55;
+                    mouthMesh.scale.x = 0.7 + Math.abs(Math.cos(t * 0.02)) * 0.2; }
+                    girlCore.traverse(function(child) { if (child.userData && child.userData.onUpdate) child.userData
+                            .onUpdate(t); }); } if (currentCube && !busy) currentCube.rotation.y = Math.sin(t * 0.002) * 0.12; if (
+                    renderer) renderer.render(scene, camera);
+                requestAnimationFrame(loop); }
+
+            // ============================================================
+            //  INIT
+            // ============================================================
+            (function() {
+                try { const keys = ['drop2048-save-pure', 'drop2048-save-v2', 'drop2048-save-v3', 'drop2048-save-v4',
+                        'drop2048-v5', 'drop2048-frankly-v1', 'drop2048-frankly-v2', 'drop2048-frankly-v3',
+                        'drop2048-frankly-v4', 'drop2048-frankly-v5', 'drop2048-frankly-v6', 'drop2048-frankly-v7',
+                        'drop2048-frankly-v8', 'drop2048-frankly-v9'
+                    ];
+                    keys.forEach(function(k) { localStorage.removeItem(k); }); } catch (e) {}
+
+                // Roll-up toggles
+                const shopRollup = document.getElementById('shopRollup');
+                const shopPanel = document.getElementById('shopPanel');
+                const helpRollup = document.getElementById('helpRollup');
+                const helpPanel = document.getElementById('helpPanel');
+
+                shopRollup.onclick = function(e) {
+                    e.stopPropagation();
+                    shopPanelOpen = !shopPanelOpen;
+                    if (shopPanelOpen) {
+                        shopPanel.classList.add('open');
+                        shopRollup.style.opacity = '0';
+                        shopRollup.style.pointerEvents = 'none';
+                    } else {
+                        shopPanel.classList.remove('open');
+                        shopRollup.style.opacity = '1';
+                        shopRollup.style.pointerEvents = 'auto';
+                    }
+                    if (helpPanelOpen) {
+                        helpPanelOpen = false;
+                        helpPanel.classList.remove('open');
+                        helpRollup.classList.remove('open');
+                    }
+                };
+
+                helpRollup.onclick = function(e) {
+                    e.stopPropagation();
+                    helpPanelOpen = !helpPanelOpen;
+                    if (helpPanelOpen) {
+                        helpPanel.classList.add('open');
+                        helpRollup.classList.add('open');
+                    } else {
+                        helpPanel.classList.remove('open');
+                        helpRollup.classList.remove('open');
+                    }
+                    if (shopPanelOpen) {
+                        shopPanelOpen = false;
+                        shopPanel.classList.remove('open');
+                        shopRollup.style.opacity = '1';
+                        shopRollup.style.pointerEvents = 'auto';
+                    }
+                };
+
+                // Close panels when tapping on game canvas
+                document.getElementById('game').addEventListener('pointerdown', function(e) {
+                    if (shopPanelOpen) {
+                        shopPanelOpen = false;
+                        shopPanel.classList.remove('open');
+                        shopRollup.style.opacity = '1';
+                        shopRollup.style.pointerEvents = 'auto';
+                    }
+                    if (helpPanelOpen) {
+                        helpPanelOpen = false;
+                        helpPanel.classList.remove('open');
+                        helpRollup.classList.remove('open');
+                    }
+                });
+
+                document.getElementById('btnShop').onclick = function() {
+                    renderShop();
+                    document.getElementById('shopModal').classList.remove('hidden');
+                    if (shopPanelOpen) {
+                        shopPanelOpen = false;
+                        shopPanel.classList.remove('open');
+                        shopRollup.style.opacity = '1';
+                        shopRollup.style.pointerEvents = 'auto';
+                    }
+                };
+                document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal')
+                    .classList.add('hidden'); };
+                document.getElementById('btnSound').onclick = function() { muted = !muted;
+                    save.muted = muted;
+                    persist();
+                    updateSoundBtn(); if (muted) { try { speechSynthesis.cancel(); } catch (e) {}
+                        isTalking = false; }
+                    toast(muted ? TT().muted : TT().unmuted); };
+                document.getElementById('btnLang').onclick = function() { lang = lang === 'en' ? 'el' : 'en';
+                    save.lang = lang;
+                    persist();
+                    applyLang(); };
+
+                let firstInteraction = false;
+                document.addEventListener('pointerdown', function() { if (firstInteraction) return;
+                    firstInteraction = true; if (audioCtx.state === 'suspended') audioCtx.resume(); try { const u =
+                            new SpeechSynthesisUtterance(' ');
+                        u.volume = 0;
+                        speechSynthesis.speak(u); } catch (e) {}
+                    startMusic();
+                    announceMission(400); }); if (!window.PointerEvent) { document.addEventListener('touchstart',
+                    function() { if (firstInteraction) return;
+                        firstInteraction = true; if (audioCtx.state === 'suspended') audioCtx.resume();
+                        startMusic();
+                        announceMission(400); }, { passive: true }); }
+
+                loadSave();
+                coins = save.coins || 5000;
+                level = save.level || 0;
+                best = save.best || 0;
+                score = save.score || 0;
+                lang = save.lang || 'en';
+                muted = !!save.muted;
+
+                initThree(); if (!renderer) return;
+                newBoard();
+                updateHUD();
+                applyLang();
+                updateSoundBtn();
+                initMic();
+                buildHair(save.equippedHair);
+                equipClothes(save.equippedClothes);
+                equipProp(save.equippedProps);
+
+                const cvs = document.getElementById("game");
+                cvs.addEventListener("pointermove", function(e) { if (busy || !currentCube) return; const cx = (e
+                        .touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; const col = Math.floor(cx /
+                        innerWidth * COLS);
+                    setAim(col); });
+                cvs.addEventListener("pointerdown", onTap); if (!window.PointerEvent) { cvs.addEventListener(
+                    "touchstart", onTap, { passive: true }); }
+
+                document.getElementById("btnNext").onclick = function() { document.getElementById("winModal").classList
+                        .add("hidden");
+                    level = level + 1;
+                    winShown = false;
+                    busy = false;
+                    updateHUD();
+                    announceMission(300); };
+                document.getElementById("btnRetry").onclick = function() { document.getElementById("loseModal")
+                        .classList.add("hidden");
+                    busy = false;
+                    newBoard();
+                    winShown = false;
+                    announceMission(300); };
+            })();
+        })();
+    </script>
+</body>
+</html>
