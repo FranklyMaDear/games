@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Drop 4096 · Aziram</title>
-    <script src="https://www.youtube.com/game_api/v1"></script>
+    <title>Drop 5096 · Aziram</title>
+    <!-- ===== Monetag SDK ===== -->
+    <script src='//libtl.com/sdk.js' data-zone='11108267' data-sdk='show_11108267'></script>
     <style>
         :root {
             --bg: #87CEEB;
@@ -829,9 +830,11 @@
         (function() {
             'use strict';
 
-            // ===== YouTube Playables SDK =====
-            const YT = (typeof ytgame !== 'undefined' && ytgame !== null) ? ytgame : null;
-            let _ytReady = false;
+            // ===== Monetag SDK =====
+            // Το tag στο <head> ορίζει τη συνάρτηση show_11108267() (Rewarded Interstitial).
+            function monetagAd() {
+                return (typeof window.show_11108267 === 'function') ? window.show_11108267 : null;
+            }
             let _sdkPaused = false;
 
             const COLS = 5,
@@ -2442,7 +2445,6 @@
                     save.level = level + 1;
                     persist();
                     updateHUD();
-                    if (window.__sendScoreToYT) window.__sendScoreToYT();
                     document.getElementById("winText").innerHTML = TT().win_text(t);
                     playWinSound();
                     winTime = 6.0;
@@ -2456,7 +2458,6 @@
                 save.best = best;
                 save.score = 0;
                 persist();
-                if (window.__sendScoreToYT) window.__sendScoreToYT();
                 showSpeech(TT().lose_speech, 2500);
                 speak(TT().lose_say);
                 document.getElementById("loseText").innerHTML = TT().lose_text(score);
@@ -2494,13 +2495,19 @@
             let adCallback = null;
             let adTimer = null;
 
-            // Πραγματική rewarded διαφήμιση από το YouTube SDK.
+            // Rewarded Interstitial από το Monetag SDK.
+            // Το promise του show_11108267() ολοκληρώνεται αφού ο χρήστης δει τη διαφήμιση —
+            // τότε εκτελείται το callback (η ανταμοιβή του παίκτη).
             // Αν το SDK δεν είναι διαθέσιμο (π.χ. τοπική δοκιμή), fallback στο τοπικό modal.
             function showAd(callback) {
-                if (YT && YT.game && typeof YT.game.showRewardedAd === 'function') {
-                    YT.game.showRewardedAd().then(function() {
+                const adFn = monetagAd();
+                if (adFn) {
+                    handlePause(); // παύση παιχνιδιού & ήχου όσο παίζει η διαφήμιση
+                    adFn().then(function() {
+                        handleResume();
                         if (callback) callback();
                     }).catch(function() {
+                        handleResume();
                         toast(TT().ad_fail);
                     });
                     return;
@@ -3073,59 +3080,18 @@
                 }
             })();
 
-            // ===== YouTube SDK: κύκλος ζωής παιχνιδιού =====
+            // ===== Παύση/συνέχεια παιχνιδιού κατά τη διαφήμιση (Monetag) =====
             function handlePause() {
                 _sdkPaused = true;
                 try { if (speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+                try { if (audioCtx && audioCtx.state === 'running') audioCtx.suspend(); } catch (e) {}
             }
 
             function handleResume() {
                 _sdkPaused = false;
                 lastT = performance.now();
+                try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
             }
-
-            function initSystemHandlers() {
-                if (!YT || !YT.system) return;
-                try { if (typeof YT.system.onPause === 'function') YT.system.onPause(function() { handlePause(); }); } catch (e) {}
-                try { if (typeof YT.system.onResume === 'function') YT.system.onResume(function() { handleResume(); }); } catch (e) {}
-                try {
-                    if (typeof YT.system.onAudioEnabledChange === 'function') {
-                        YT.system.onAudioEnabledChange(function(en) {
-                            muted = !en;
-                            save.muted = muted;
-                            persist();
-                            updateSoundBtn();
-                        });
-                    }
-                } catch (e) {}
-                try {
-                    if (typeof YT.system.isAudioEnabled === 'function' && !YT.system.isAudioEnabled()) {
-                        muted = true;
-                        updateSoundBtn();
-                    }
-                } catch (e) {}
-            }
-
-            function sendScoreToYT() {
-                if (_ytReady && YT && YT.game && typeof YT.game.sendScore === 'function') {
-                    try { YT.game.sendScore(Math.max(0, Math.round(score))); } catch (e) {}
-                }
-            }
-            window.__sendScoreToYT = sendScoreToYT;
-
-            (function bootYT() {
-                requestAnimationFrame(function() {
-                    requestAnimationFrame(function() {
-                        if (YT && YT.game && typeof YT.game.firstFrameReady === 'function') {
-                            try { YT.game.firstFrameReady(); } catch (e) {}
-                        }
-                        initSystemHandlers();
-                        if (YT && YT.game && typeof YT.game.gameReady === 'function') {
-                            try { YT.game.gameReady(); _ytReady = true; } catch (e) {}
-                        }
-                    });
-                });
-            })();
         })();
     </script>
 </body>
