@@ -43,6 +43,27 @@
             z-index: 0;
         }
 
+        /* --- ΑΛΛΑΓΕΣ: Δείκτης πτώσης τώρα με χρώματα και δυναμική θέση --- */
+        @keyframes rainbowIndicator {
+            0% { background: #ff0000; box-shadow: 0 0 10px #ff0000, 0 0 20px rgba(255,0,0,0.5); }
+            16% { background: #ff8800; box-shadow: 0 0 10px #ff8800, 0 0 20px rgba(255,136,0,0.5); }
+            33% { background: #ffff00; box-shadow: 0 0 10px #ffff00, 0 0 20px rgba(255,255,0,0.5); }
+            50% { background: #00ff00; box-shadow: 0 0 10px #00ff00, 0 0 20px rgba(0,255,0,0.5); }
+            66% { background: #0088ff; box-shadow: 0 0 10px #0088ff, 0 0 20px rgba(0,136,255,0.5); }
+            83% { background: #8800ff; box-shadow: 0 0 10px #8800ff, 0 0 20px rgba(136,0,255,0.5); }
+            100% { background: #ff0000; box-shadow: 0 0 10px #ff0000, 0 0 20px rgba(255,0,0,0.5); }
+        }
+        #dropIndicator {
+            position: fixed;
+            height: 14px;
+            z-index: 15;
+            border-radius: 10px;
+            pointer-events: none;
+            /* Οι διαστάσεις (left, width, top) αλλάζουν δυναμικά με JS */
+            transition: left 0.1s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.1s cubic-bezier(0.0, 0.0, 0.2, 1), width 0.1s cubic-bezier(0.0, 0.0, 0.2, 1);
+            animation: rainbowIndicator 1.2s infinite linear;
+        }
+
         /* Mission panel - σταθερό αριστερά */
         #missionPanel {
             position: fixed;
@@ -738,6 +759,9 @@
 </head>
 <body>
     <canvas id="game"></canvas>
+    
+    <!-- Βελτιωμένος οπτικός δείκτης στόχευσης (αλλάζει χρώματα και είναι ακριβώς κάτω από τον κύβο) -->
+    <div id="dropIndicator"></div>
 
     <!-- Mission Panel - σταθερό αριστερά -->
     <div id="missionPanel">
@@ -824,6 +848,21 @@
         </div>
     </div>
 
+    <!-- --- ΠΡΟΣΘΗΚΗ: Tutorial Αρχικής Οθόνης --- -->
+    <div class="overlay hidden" id="tutorialModal">
+        <div class="card" style="max-width:420px;">
+            <div style="font-size:60px; margin-bottom:8px;">🎲</div>
+            <h2 id="tutorialTitle" style="font-size:32px; margin:0 0 10px;">DROP 4096</h2>
+            <div id="tutorialText" style="font-size:16px; line-height:1.5;">
+                <p style="margin-bottom:15px; color:#4A3423;">
+                    <strong>🎯 Στόχος:</strong> Ένωσε κύβους με τον ίδιο αριθμό για να δημιουργήσεις τον κύβο-στόχο!<br><br>
+                    <strong>🕹️ Πώς παίζεται:</strong> Πάτησε και κράτησε πατημένο το δάχτυλό σου στην οθόνη. Κούνησέ το αριστερά ή δεξιά για να στοχεύσεις. Άφησέ το για να ρίξεις τον κύβο!
+                </p>
+            </div>
+            <button class="btn" id="btnStartTutorial" style="margin-top:0;">🎮 Ξεκινήστε!</button>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
     </script>
     <script>
@@ -831,7 +870,6 @@
             'use strict';
 
             // ===== Monetag SDK =====
-            // Το tag στο <head> ορίζει τη συνάρτηση show_11108267() (Rewarded Interstitial).
             function monetagAd() {
                 return (typeof window.show_11108267 === 'function') ? window.show_11108267 : null;
             }
@@ -845,9 +883,7 @@
             const BOARD_H = ROWS * (CELL + GAP) - GAP;
             const launchY = -BOARD_H / 2 - 0.4;
 
-            // Αποστολές ξεκινούν από 64, μετά 128, 256, 512, 1024, κλπ
             function levelTarget(l) {
-                // l=0 -> 64, l=1 -> 128, l=2 -> 256, l=3 -> 512, l=4 -> 1024, κλπ
                 return 64 * Math.pow(2, l);
             }
 
@@ -855,130 +891,60 @@
 
             const I18N = {
                 en: {
-                    level: 'LEVEL',
-                    score: 'SCORE',
-                    shop: '🛒',
-                    free: 'Free',
-                    talk: 'Talk',
-                    selected: 'SELECTED',
-                    select: 'SELECT',
-                    close: 'Close',
-                    customize: '🛍️ Customize',
-                    tab_cubes: 'Cubes',
-                    tab_boards: 'Boards',
-                    tab_effects: 'Effects',
-                    tab_sounds: 'Sounds',
-                    tab_music: 'Music',
-                    tab_pets: 'Aziram',
-                    sub_hair: '💇 Hair',
-                    sub_clothes: '👗 Clothes',
-                    sub_shoes: '👟 Shoes',
-                    sub_props: '🎈 Item',
-                    win_title: 'Level Complete!',
-                    win_btn: '📺 Watch the ad to continue',
-                    lose_title: 'The board is full!',
-                    revive_btn: '📺 Watch the ad to continue',
-                    mission_label: 'MISSION',
-                    shop_tab: '🛒 SHOP',
-                    help_tab: '❓ HELP',
-                    ad_cost: '📺 Ad',
-                    ad_fail: 'Ad failed or skipped.',
+                    level: 'LEVEL', score: 'SCORE', shop: '🛒', free: 'Free', talk: 'Talk',
+                    selected: 'SELECTED', select: 'SELECT', close: 'Close', customize: '🛍️ Customize',
+                    tab_cubes: 'Cubes', tab_boards: 'Boards', tab_effects: 'Effects', tab_sounds: 'Sounds',
+                    tab_music: 'Music', tab_pets: 'Aziram', sub_hair: '💇 Hair', sub_clothes: '👗 Clothes',
+                    sub_shoes: '👟 Shoes', sub_props: '🎈 Item', win_title: 'Level Complete!',
+                    win_btn: '📺 Watch the ad to continue', lose_title: 'The board is full!',
+                    revive_btn: '📺 Watch the ad to continue', mission_label: 'MISSION',
+                    shop_tab: '🛒 SHOP', help_tab: '❓ HELP', ad_cost: '📺 Ad', ad_fail: 'Ad failed or skipped.',
                     win_text: function(t) { return 'You made ' + t + '!<br>+25 🪙<br>The game continues!'; },
                     lose_text: function(s) { return 'Score: <b>' + s + '</b>'; },
                     mission: function(t) { return '🎯 Mission: make a ' + t + ' cube!'; },
-                    hammer_toast: '🔨 Pick a cube',
-                    no_pairs: 'No pairs!',
-                    not_enough: 'Not enough coins!',
+                    hammer_toast: '🔨 Pick a cube', no_pairs: 'No pairs!', not_enough: 'Not enough coins!',
                     bought: function(n) { return 'You bought ' + n + '!'; },
-                    picked: function(n) { return 'Selected: ' + n; },
-                    cube_changed: 'Cube look changed!',
-                    effect_changed: 'Effect changed!',
-                    sound_changed: 'Sound changed!',
-                    music_changed: 'Music changed!',
-                    shoes_changed: 'Shoes changed!',
-                    mic_unsupported: '🎤 is not supported here',
-                    mic_ask: '🎤 Ask me something...',
-                    mic_fail: "I didn't hear you 😅 Try again",
-                    mic_noopen: "Couldn't open the 🎤",
-                    muted: '🔇 Sound off',
-                    unmuted: '🔊 Sound on',
-                    ad_title: 'Watch a short ad',
-                    ad_text: 'Watch an ad to unlock this for free!',
-                    ad_btn: '▶️ Watch Ad',
-                    ad_cancel: 'Cancel',
-                    ad_free: '📺 Free',
+                    picked: function(n) { return 'Selected: ' + n; }, cube_changed: 'Cube look changed!',
+                    effect_changed: 'Effect changed!', sound_changed: 'Sound changed!',
+                    music_changed: 'Music changed!', shoes_changed: 'Shoes changed!',
+                    mic_unsupported: '🎤 is not supported here', mic_ask: '🎤 Ask me something...',
+                    mic_fail: "I didn't hear you 😅 Try again", mic_noopen: "Couldn't open the 🎤",
+                    muted: '🔇 Sound off', unmuted: '🔊 Sound on',
+                    ad_title: 'Watch a short ad', ad_text: 'Watch an ad to unlock this for free!',
+                    ad_btn: '▶️ Watch Ad', ad_cancel: 'Cancel', ad_free: '📺 Free',
                     greetings: ['Hi there! 😊', 'Hee hee! 😄', 'Wanna play? 🎮', "I'm Aziram! 💖", "Let's make big cubes! 🎲", "You're doing great! 🌟", "I love games! 🥰"],
-                    angry: 'The board is filling up! 😠',
-                    panic: 'PANIC!! 😱',
-                    bored: 'So bored... 🥱',
+                    angry: 'The board is filling up! 😠', panic: 'PANIC!! 😱', bored: 'So bored... 🥱',
                     wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
-                    win_speech: 'We did it! 🎉',
-                    win_say: 'Hooray! We did it!',
-                    lose_speech: 'Oh no! 😭',
-                    lose_say: 'Oh no! The board is full!'
+                    win_speech: 'We did it! 🎉', win_say: 'Hooray! We did it!',
+                    lose_speech: 'Oh no! 😭', lose_say: 'Oh no! The board is full!'
                 },
                 el: {
-                    level: 'ΕΠΙΠΕΔΟ',
-                    score: 'ΣΚΟΡ',
-                    shop: '🛒',
-                    free: 'Δωρεάν',
-                    talk: 'Μίλα',
-                    selected: 'ΕΠΙΛΕΓΜΕΝΟ',
-                    select: 'ΕΠΙΛΟΓΗ',
-                    close: 'Κλείσιμο',
-                    customize: '🛍️ Εξατομίκευση',
-                    tab_cubes: 'Κύβοι',
-                    tab_boards: 'Ταμπλό',
-                    tab_effects: 'Εφέ',
-                    tab_sounds: 'Ήχοι',
-                    tab_music: 'Μουσική',
-                    tab_pets: 'Aziram',
-                    sub_hair: '💇 Μαλλιά',
-                    sub_clothes: '👗 Ρούχα',
-                    sub_shoes: '👟 Παπούτσια',
-                    sub_props: '🎈 Αντικείμενο',
-                    win_title: 'Το Επίπεδο Ολοκληρώθηκε!',
-                    win_btn: '📺 Δείτε τη διαφήμιση για συνέχεια',
-                    lose_title: 'Το ταμπλό γέμισε!',
-                    revive_btn: '📺 Δείτε τη διαφήμιση για συνέχεια',
-                    mission_label: 'ΑΠΟΣΤΟΛΗ',
-                    shop_tab: '🛒 ΜΑΓΑΖΙ',
-                    help_tab: '❓ ΒΟΗΘΕΙΑ',
-                    ad_cost: '📺 Διαφ.',
-                    ad_fail: 'Η διαφήμιση απέτυχε ή παραλείφθηκε.',
+                    level: 'ΕΠΙΠΕΔΟ', score: 'ΣΚΟΡ', shop: '🛒', free: 'Δωρεάν', talk: 'Μίλα',
+                    selected: 'ΕΠΙΛΕΓΜΕΝΟ', select: 'ΕΠΙΛΟΓΗ', close: 'Κλείσιμο', customize: '🛍️ Εξατομίκευση',
+                    tab_cubes: 'Κύβοι', tab_boards: 'Ταμπλό', tab_effects: 'Εφέ', tab_sounds: 'Ήχοι',
+                    tab_music: 'Μουσική', tab_pets: 'Aziram', sub_hair: '💇 Μαλλιά', sub_clothes: '👗 Ρούχα',
+                    sub_shoes: '👟 Παπούτσια', sub_props: '🎈 Αντικείμενο', win_title: 'Το Επίπεδο Ολοκληρώθηκε!',
+                    win_btn: '📺 Δείτε τη διαφήμιση για συνέχεια', lose_title: 'Το ταμπλό γέμισε!',
+                    revive_btn: '📺 Δείτε τη διαφήμιση για συνέχεια', mission_label: 'ΑΠΟΣΤΟΛΗ',
+                    shop_tab: '🛒 ΜΑΓΑΖΙ', help_tab: '❓ ΒΟΗΘΕΙΑ', ad_cost: '📺 Διαφ.', ad_fail: 'Η διαφήμιση απέτυχε ή παραλείφθηκε.',
                     win_text: function(t) { return 'Έφτιαξες ' + t + '!<br>+25 🪙<br>Το παιχνίδι συνεχίζεται!'; },
                     lose_text: function(s) { return 'Σκορ: <b>' + s + '</b>'; },
                     mission: function(t) { return '🎯 Αποστολή: φτιάξε κύβο ' + t + '!'; },
-                    hammer_toast: '🔨 Επίλεξε κύβο',
-                    no_pairs: 'Κανένα ζευγάρι!',
-                    not_enough: 'Δεν έχεις αρκετά νομίσματα!',
+                    hammer_toast: '🔨 Επίλεξε κύβο', no_pairs: 'Κανένα ζευγάρι!', not_enough: 'Δεν έχεις αρκετά νομίσματα!',
                     bought: function(n) { return 'Αγόρασες το ' + n + '!'; },
-                    picked: function(n) { return 'Επιλέχθηκε: ' + n; },
-                    cube_changed: 'Η εμφάνιση κύβου άλλαξε!',
-                    effect_changed: 'Το εφέ άλλαξε!',
-                    sound_changed: 'Ο ήχος άλλαξε!',
-                    music_changed: 'Η μουσική άλλαξε!',
-                    shoes_changed: 'Τα παπούτσια άλλαξαν!',
-                    mic_unsupported: 'Το 🎤 δεν υποστηρίζεται εδώ',
-                    mic_ask: '🎤 Ρώτα με κάτι...',
-                    mic_fail: 'Δεν σε άκουσα 😅 Ξαναδοκίμασε',
-                    mic_noopen: 'Δεν άνοιξε το 🎤',
-                    muted: '🔇 Ήχος κλειστός',
-                    unmuted: '🔊 Ήχος ανοιχτός',
-                    ad_title: 'Δες μια σύντομη διαφήμιση',
-                    ad_text: 'Δες μια διαφήμιση για να το ξεκλειδώσεις δωρεάν!',
-                    ad_btn: '▶️ Δες διαφήμιση',
-                    ad_cancel: 'Ακύρωση',
-                    ad_free: '📺 Δωρεάν',
+                    picked: function(n) { return 'Επιλέχθηκε: ' + n; }, cube_changed: 'Η εμφάνιση κύβου άλλαξε!',
+                    effect_changed: 'Το εφέ άλλαξε!', sound_changed: 'Ο ήχος άλλαξε!',
+                    music_changed: 'Η μουσική άλλαξε!', shoes_changed: 'Τα παπούτσια άλλαξαν!',
+                    mic_unsupported: 'Το 🎤 δεν υποστηρίζεται εδώ', mic_ask: '🎤 Ρώτα με κάτι...',
+                    mic_fail: 'Δεν σε άκουσα 😅 Ξαναδοκίμασε', mic_noopen: 'Δεν άνοιξε το 🎤',
+                    muted: '🔇 Ήχος κλειστός', unmuted: '🔊 Ήχος ανοιχτός',
+                    ad_title: 'Δες μια σύντομη διαφήμιση', ad_text: 'Δες μια διαφήμιση για να το ξεκλειδώσεις δωρεάν!',
+                    ad_btn: '▶️ Δες διαφήμιση', ad_cancel: 'Ακύρωση', ad_free: '📺 Δωρεάν',
                     greetings: ['Γεια σου! 😊', 'Χι χι! 😄', 'Παίζουμε; 🎮', 'Είμαι η Aziram! 💖', 'Πάμε για μεγάλους κύβους! 🎲', 'Τα πας περίφημα! 🌟', 'Λατρεύω τα παιχνίδια! 🥰'],
-                    angry: 'Γεμίζει το ταμπλό! 😠',
-                    panic: 'ΠΑΝΙΚΟΣ!! 😱',
-                    bored: 'Βαριέμαι... 🥱',
+                    angry: 'Γεμίζει το ταμπλό! 😠', panic: 'ΠΑΝΙΚΟΣ!! 😱', bored: 'Βαριέμαι... 🥱',
                     wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
-                    win_speech: 'Τα καταφέραμε! 🎉',
-                    win_say: 'Μπράβο! Τα καταφέραμε!',
-                    lose_speech: 'Ωχ όχι! 😭',
-                    lose_say: 'Ωχ όχι! Γέμισε το ταμπλό!'
+                    win_speech: 'Τα καταφέραμε! 🎉', win_say: 'Μπράβο! Τα καταφέραμε!',
+                    lose_speech: 'Ωχ όχι! 😭', lose_say: 'Ωχ όχι! Γέμισε το ταμπλό!'
                 }
             };
             let lang = 'en';
@@ -1001,26 +967,16 @@
                     { id: 'lava', en: 'Lava', el: 'Λάβα', price: 110, icon: '🌋' }
                 ],
                 boards: [
-                    { id: 'board_wood', en: 'Wooden', el: 'Ξύλινο', price: 0, icon: '🟫', back: '#4A3423',
-                        cell: '#2F1B0D' },
-                    { id: 'board_space', en: 'Deep Space', el: 'Βαθύ Διάστημα', price: 50, icon: '🟦', back: '#0B132B',
-                        cell: '#4A5A8A' },
-                    { id: 'board_crimson', en: 'Crimson', el: 'Πορφυρό', price: 50, icon: '🟥', back: '#3A0CA3',
-                        cell: '#A47CFF' },
-                    { id: 'board_emerald', en: 'Emerald', el: 'Σμαράγδι', price: 60, icon: '🟩', back: '#004B23',
-                        cell: '#7BDF4B' },
-                    { id: 'board_neon', en: 'Neon Dark', el: 'Νέον Σκοτάδι', price: 70, icon: '🟪', back: '#0A0A0A',
-                        cell: '#FF00FF' },
-                    { id: 'board_candy', en: 'Candy', el: 'Ζαχαρωτό', price: 100, icon: '🍭', back: '#D95F8A',
-                        cell: '#8E2F55' },
-                    { id: 'board_ocean', en: 'Ocean', el: 'Ωκεανός', price: 120, icon: '🌊', back: '#0E5E6F',
-                        cell: '#063846' },
-                    { id: 'board_forest', en: 'Forest', el: 'Δάσος', price: 120, icon: '🌲', back: '#2E5A1C',
-                        cell: '#16300A' },
-                    { id: 'board_sunset', en: 'Sunset', el: 'Ηλιοβασίλεμα', price: 150, icon: '🌅', back: '#C2542F',
-                        cell: '#6E2410' },
-                    { id: 'board_royal', en: 'Royal', el: 'Βασιλικό', price: 150, icon: '👑', back: '#3B2A6E',
-                        cell: '#221545' }
+                    { id: 'board_wood', en: 'Wooden', el: 'Ξύλινο', price: 0, icon: '🟫', back: '#4A3423', cell: '#2F1B0D' },
+                    { id: 'board_space', en: 'Deep Space', el: 'Βαθύ Διάστημα', price: 50, icon: '🟦', back: '#0B132B', cell: '#4A5A8A' },
+                    { id: 'board_crimson', en: 'Crimson', el: 'Πορφυρό', price: 50, icon: '🟥', back: '#3A0CA3', cell: '#A47CFF' },
+                    { id: 'board_emerald', en: 'Emerald', el: 'Σμαράγδι', price: 60, icon: '🟩', back: '#004B23', cell: '#7BDF4B' },
+                    { id: 'board_neon', en: 'Neon Dark', el: 'Νέον Σκοτάδι', price: 70, icon: '🟪', back: '#0A0A0A', cell: '#FF00FF' },
+                    { id: 'board_candy', en: 'Candy', el: 'Ζαχαρωτό', price: 100, icon: '🍭', back: '#D95F8A', cell: '#8E2F55' },
+                    { id: 'board_ocean', en: 'Ocean', el: 'Ωκεανός', price: 120, icon: '🌊', back: '#0E5E6F', cell: '#063846' },
+                    { id: 'board_forest', en: 'Forest', el: 'Δάσος', price: 120, icon: '🌲', back: '#2E5A1C', cell: '#16300A' },
+                    { id: 'board_sunset', en: 'Sunset', el: 'Ηλιοβασίλεμα', price: 150, icon: '🌅', back: '#C2542F', cell: '#6E2410' },
+                    { id: 'board_royal', en: 'Royal', el: 'Βασιλικό', price: 150, icon: '👑', back: '#3B2A6E', cell: '#221545' }
                 ],
                 effects: [
                     { id: 'eff_none', en: 'No effect', el: 'Χωρίς Εφέ', price: 0, icon: '✖️' },
@@ -1070,10 +1026,8 @@
                 ],
                 pet_shoes: [
                     { id: 'shoe_wood', en: 'Wood Brown', el: 'Ξύλινο Καφέ', price: 0, icon: '🪵', color: '#8B5A2B' },
-                    { id: 'shoe_whitered', en: 'White-Red', el: 'Άσπρο-Κόκκινο', price: 50, icon: '🍬',
-                    color: '#D32F2F' },
-                    { id: 'shoe_whitegreen', en: 'White-Green', el: 'Άσπρο-Πράσινο', price: 50, icon: '🍵',
-                        color: '#388E3C' },
+                    { id: 'shoe_whitered', en: 'White-Red', el: 'Άσπρο-Κόκκινο', price: 50, icon: '🍬', color: '#D32F2F' },
+                    { id: 'shoe_whitegreen', en: 'White-Green', el: 'Άσπρο-Πράσινο', price: 50, icon: '🍵', color: '#388E3C' },
                     { id: 'shoe_zebra', en: 'Zebra B&W', el: 'Ζέβρα Α/Μ', price: 60, icon: '🦓', color: '#3A3A3A' },
                     { id: 'shoe_neon', en: 'Cyber Neon', el: 'Νέον', price: 80, icon: '⚡', color: '#FF00FF' },
                     { id: 'shoe_rainbow', en: 'Rainbow', el: 'Ουράνιο Τόξο', price: 100, icon: '🌈', color: '#FF6B6B' },
@@ -1096,30 +1050,16 @@
             let currentPetSubTab = 'pet_hair';
 
             const DEFAULT_SAVE = {
-                coins: 100, // ξεκινάμε με 100 coins
-                level: 0,
-                best: 0,
-                score: 0,
-                lang: 'en',
-                muted: false,
-                ownedCubes: ['wood'],
-                equippedCube: 'wood',
-                ownedBoards: ['board_wood'],
-                equippedBoard: 'board_wood',
-                ownedEffects: ['eff_none'],
-                equippedEffect: 'eff_none',
-                ownedSounds: ['snd_default'],
-                equippedSound: 'snd_default',
-                ownedMusic: ['music_1', 'music_2', 'music_3'],
-                equippedMusic: 'music_1',
-                ownedHair: ['hair_pigtails'],
-                equippedHair: 'hair_pigtails',
-                ownedClothes: ['cl_none'],
-                equippedClothes: 'cl_none',
-                ownedShoes: ['shoe_wood'],
-                equippedShoes: 'shoe_wood',
-                ownedProps: ['prop_none'],
-                equippedProps: 'prop_none'
+                coins: 100, level: 0, best: 0, score: 0, lang: 'en', muted: false, tutorialSeen: false, // Προσθήκη tutorialSeen
+                ownedCubes: ['wood'], equippedCube: 'wood',
+                ownedBoards: ['board_wood'], equippedBoard: 'board_wood',
+                ownedEffects: ['eff_none'], equippedEffect: 'eff_none',
+                ownedSounds: ['snd_default'], equippedSound: 'snd_default',
+                ownedMusic: ['music_1', 'music_2', 'music_3'], equippedMusic: 'music_1',
+                ownedHair: ['hair_pigtails'], equippedHair: 'hair_pigtails',
+                ownedClothes: ['cl_none'], equippedClothes: 'cl_none',
+                ownedShoes: ['shoe_wood'], equippedShoes: 'shoe_wood',
+                ownedProps: ['prop_none'], equippedProps: 'prop_none'
             };
 
             let save = Object.assign({}, DEFAULT_SAVE);
@@ -1135,13 +1075,8 @@
                 try { localStorage.setItem("drop2048-frankly-v12", JSON.stringify(save)); } catch (e) {}
             }
 
-            let coins = 0,
-                level = 0,
-                score = 0,
-                best = 0,
-                muted = false;
-            let shopPanelOpen = false,
-                helpPanelOpen = false;
+            let coins = 0, level = 0, score = 0, best = 0, muted = false;
+            let shopPanelOpen = false, helpPanelOpen = false;
 
             const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
 
@@ -1235,19 +1170,11 @@
             function stepSFX() { tone(220, 140, 0.05, 'sine', 0.05); }
 
             const SONGS = {
-                music_1: { tempo: 380, wave: 'triangle', vol: 0.045, mel: [523, 659, 784, 659, 587, 784, 659,
-                        523, 587, 698, 880, 698, 659, 523, 587, 392
-                    ], bass: [262, 262, 196, 196, 233, 233, 175, 196] },
-                music_2: { tempo: 560, wave: 'sine', vol: 0.05, mel: [392, 440, 523, 440, 392, 330, 349, 392,
-                        440, 523, 587, 523, 440, 392, 330, 262
-                    ], bass: [196, 165, 175, 196] },
-                music_3: { tempo: 300, wave: 'square', vol: 0.028, mel: [330, 392, 494, 587, 494, 392, 440, 330,
-                        349, 440, 523, 698, 523, 440, 392, 330
-                    ], bass: [165, 165, 220, 220, 175, 175, 196, 196] }
+                music_1: { tempo: 380, wave: 'triangle', vol: 0.045, mel: [523, 659, 784, 659, 587, 784, 659, 523, 587, 698, 880, 698, 659, 523, 587, 392], bass: [262, 262, 196, 196, 233, 233, 175, 196] },
+                music_2: { tempo: 560, wave: 'sine', vol: 0.05, mel: [392, 440, 523, 440, 392, 330, 349, 392, 440, 523, 587, 523, 440, 392, 330, 262], bass: [196, 165, 175, 196] },
+                music_3: { tempo: 300, wave: 'square', vol: 0.028, mel: [330, 392, 494, 587, 494, 392, 440, 330, 349, 440, 523, 698, 523, 440, 392, 330], bass: [165, 165, 220, 220, 175, 175, 196, 196] }
             };
-            let musicStarted = false,
-                musicTimer = null,
-                musicStep = 0;
+            let musicStarted = false, musicTimer = null, musicStep = 0;
 
             function scheduleMusicLoop() {
                 if (musicTimer) clearInterval(musicTimer);
@@ -1285,8 +1212,7 @@
                     u.lang = lang === 'en' ? 'en-US' : 'el-GR';
                     const voices = speechSynthesis.getVoices();
                     const pref = lang === 'en' ? 'en' : 'el';
-                    const v = voices.find(function(vv) { return vv.lang && vv.lang.toLowerCase().indexOf(
-                            pref) === 0; });
+                    const v = voices.find(function(vv) { return vv.lang && vv.lang.toLowerCase().indexOf(pref) === 0; });
                     if (v) u.voice = v;
                     u.rate = 1.05;
                     u.pitch = 1.6;
@@ -1305,71 +1231,48 @@
 
             function answerQuestion(raw) {
                 const q = stripAccents(raw.toLowerCase());
-                const has = function() { for (var i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) !== -
-                        1) return true; return false; };
+                const has = function() { for (var i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) !== -1) return true; return false; };
                 if (lang === 'en') {
-                    if (has('your name', 'who are you', 'what are you'))
-                        return "My name is Aziram and I'm your little friend!";
+                    if (has('your name', 'who are you', 'what are you')) return "My name is Aziram and I'm your little friend!";
                     if (has('how are you', 'are you ok', 'are you okay')) return "I'm great! Ready for cubes!";
                     if (has('score', 'points')) return "Your score is " + score + " points! Keep going!";
                     if (has('level', 'stage')) return "We're on level " + (level + 1) + "!";
                     if (has('coins', 'money')) return "You have " + coins + " coins! Shall we go shopping?";
-                    if (has('mission', 'goal', 'what should')) return "Our mission: make a " + levelTarget(level) +
-                        " cube!";
+                    if (has('mission', 'goal', 'what should')) return "Our mission: make a " + levelTarget(level) + " cube!";
                     if (has('joke', 'funny')) {
-                        const jokes = ["Why did the cube go to school? To become a square brain!",
-                            "What does 2 say to 2? Let's become a 4!",
-                            "My pigtails dance when I jump!",
-                            "My favourite food? Sugar cubes, of course!",
-                            "Why was the math book sad? Because it had too many problems!",
-                            "I tried to catch some fog earlier... but I mist!"
-                        ];
+                        const jokes = ["Why did the cube go to school? To become a square brain!", "What does 2 say to 2? Let's become a 4!", "My pigtails dance when I jump!", "My favourite food? Sugar cubes, of course!", "Why was the math book sad? Because it had too many problems!", "I tried to catch some fog earlier... but I mist!"];
                         return jokes[Math.floor(Math.random() * jokes.length)];
                     }
-                    if (has('help', 'how to play', 'advice', 'tip'))
-                        return "Match the same numbers! And keep the big cubes at the edges!";
+                    if (has('help', 'how to play', 'advice', 'tip')) return "Match the same numbers! And keep the big cubes at the edges!";
                     if (has('love you', 'like you')) return "I love you too, so much!";
                     if (has('how old', 'your age')) return "I'm a little girl, just six years old!";
                     if (has('bye', 'goodbye', 'see you')) return "Bye bye! Come back soon, I'll be waiting!";
                     if (has('thank')) return "You're welcome! I'm here for anything!";
                     if (has('sing', 'song')) return "La la la! Cubes, cubes everywhere! Hee hee!";
-                    if (has('hi', 'hello', 'good morning', 'good evening', 'hey'))
-                    return "Hello! I'm so happy to hear you!";
+                    if (has('hi', 'hello', 'good morning', 'good evening', 'hey')) return "Hello! I'm so happy to hear you!";
                     return "You said: " + raw + ". Sounds nice!";
                 }
-                if (has('πως σε λενε', 'ονομα σου', 'ποιος εισαι', 'ποια εισαι', 'τι εισαι'))
-                    return "Με λένε Aziram και είμαι η φιλεναδίτσα σου!";
+                if (has('πως σε λενε', 'ονομα σου', 'ποιος εισαι', 'ποια εισαι', 'τι εισαι')) return "Με λένε Aziram και είμαι η φιλεναδίτσα σου!";
                 if (has('τι κανεις', 'πως εισαι', 'εισαι καλα', 'ολα καλα')) return "Τέλεια είμαι! Έτοιμη για κύβους!";
                 if (has('σκορ', 'ποντο')) return "Το σκορ σου είναι " + score + " πόντοι! Συνέχισε!";
                 if (has('επιπεδο', 'πιστα')) return "Είμαστε στο επίπεδο " + (level + 1) + "!";
-                if (has('νομισματα', 'λεφτα', 'χρηματα', 'κερματα')) return "Έχεις " + coins +
-                    " νομίσματα! Πάμε για ψώνια;";
-                if (has('αποστολη', 'στοχος', 'τι πρεπει')) return "Η αποστολή μας: φτιάξε κύβο " + levelTarget(
-                    level) + "!";
+                if (has('νομισματα', 'λεφτα', 'χρηματα', 'κερματα')) return "Έχεις " + coins + " νομίσματα! Πάμε για ψώνια;";
+                if (has('αποστολη', 'στοχος', 'τι πρεπει')) return "Η αποστολή μας: φτιάξε κύβο " + levelTarget(level) + "!";
                 if (has('ανεκδοτο', 'αστειο', 'πες κατι αστειο')) {
-                    const jokes = ["Γιατί ο κύβος πήγε σχολείο; Για να γίνει τετράγωνο μυαλό!",
-                        "Τι λέει το 2 στο 2; Έλα να γίνουμε 4άρι!",
-                        "Τα κοτσιδάκια μου χορεύουν όταν χοροπηδάω!",
-                        "Ξέρεις ποιο είναι το αγαπημένο μου φαγητό; Τα κυβάκια ζάχαρης!",
-                        "Τι κάνει μια μέλισσα όταν βήχει; Μελάκια!",
-                        "Πώς λέγεται το έξυπνο μπουκάλι; Μπουκαλόγος!"
-                    ];
+                    const jokes = ["Γιατί ο κύβος πήγε σχολείο; Για να γίνει τετράγωνο μυαλό!", "Τι λέει το 2 στο 2; Έλα να γίνουμε 4άρι!", "Τα κοτσιδάκια μου χορεύουν όταν χοροπηδάω!", "Ξέρεις ποιο είναι το αγαπημένο μου φαγητό; Τα κυβάκια ζάχαρης!", "Τι κάνει μια μέλισσα όταν βήχει; Μελάκια!", "Πώς λέγεται το έξυπνο μπουκάλι; Μπουκαλόγος!"];
                     return jokes[Math.floor(Math.random() * jokes.length)];
                 }
-                if (has('βοηθεια', 'συμβουλη', 'πως παιζ', 'τι να κανω'))
-                    return "Ένωσε ίδιους αριθμούς! Και κράτα τους μεγάλους κύβους στις άκρες!";
+                if (has('βοηθεια', 'συμβουλη', 'πως παιζ', 'τι να κανω')) return "Ένωσε ίδιους αριθμούς! Και κράτα τους μεγάλους κύβους στις άκρες!";
                 if (has('σε αγαπω', 'σ αγαπω', 'σε συμπαθω')) return "Κι εγώ σε αγαπώ πάρα πολύ!";
                 if (has('ποσο χρονων', 'ηλικια')) return "Είμαι ένα μικρό κοριτσάκι, μόλις έξι χρονών!";
                 if (has('αντιο', 'τα λεμε', 'φευγω')) return "Γεια σου! Έλα πάλι γρήγορα, θα σε περιμένω!";
                 if (has('ευχαριστω')) return "Παρακαλώ! Ό,τι θες, εδώ είμαι!";
                 if (has('τραγουδ')) return "Λα λα λα! Κύβοι κύβοι παντού! Χι χι!";
-                if (has('γεια', 'καλημερα', 'καλησπερα', 'καληνυχτα', 'χαιρετε'))
-                return "Γεια σου! Χαίρομαι πολύ που σε ακούω!";
+                if (has('γεια', 'καλημερα', 'καλησπερα', 'καληνυχτα', 'χαιρετε')) return "Γεια σου! Χαίρομαι πολύ που σε ακούω!";
                 return "Είπες: " + raw + ". Ωραίο ακούγεται!";
             }
 
-            let recognition = null,
-                isListening = false;
+            let recognition = null, isListening = false;
 
             function initMic() {
                 const btn = document.getElementById('btnMic');
@@ -1381,9 +1284,7 @@
                     recognition.lang = lang === 'en' ? 'en-US' : 'el-GR';
                     recognition.interimResults = false;
                     recognition.maxAlternatives = 1;
-                    recognition.onstart = function() { isListening = true;
-                        btn.classList.add('listening');
-                        toast(TT().mic_ask); };
+                    recognition.onstart = function() { isListening = true; btn.classList.add('listening'); toast(TT().mic_ask); };
                     recognition.onresult = function(e) {
                         const txt = e.results[0][0].transcript;
                         if (txt) {
@@ -1394,8 +1295,7 @@
                         }
                     };
                     recognition.onerror = function() { toast(TT().mic_fail); };
-                    recognition.onend = function() { isListening = false;
-                        btn.classList.remove('listening'); };
+                    recognition.onend = function() { isListening = false; btn.classList.remove('listening'); };
                     try { recognition.start(); } catch (e) { toast(TT().mic_noopen); }
                 };
             }
@@ -1407,8 +1307,7 @@
                 'sparkle': new THREE.MeshBasicMaterial({ color: 0xffffff }),
                 'smoke': new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.7 }),
                 'explode': new THREE.MeshBasicMaterial({ color: 0xffa500 }),
-                'confetti': [0xff0000, 0x00ff00, 0x0000ff, 0xffff00].map(function(c) { return new THREE
-                        .MeshBasicMaterial({ color: c }); })
+                'confetti': [0xff0000, 0x00ff00, 0x0000ff, 0xffff00].map(function(c) { return new THREE.MeshBasicMaterial({ color: c }); })
             };
 
             function spawnParticle(x, y, z, type) {
@@ -1416,14 +1315,9 @@
                 if (Array.isArray(mat)) mat = mat[Math.floor(Math.random() * mat.length)];
                 const p = new THREE.Mesh(pGeo, mat);
                 p.position.set(x, y, z);
-                let vx = (Math.random() - 0.5) * 6,
-                    vy = (Math.random() - 0.5) * 6,
-                    vz = (Math.random() - 0.5) * 6;
-                if (type === 'flame' || type === 'smoke') { vx *= 0.2;
-                    vy = -Math.random() * 2 - 0.5;
-                    vz = 0; }
-                if (type === 'confetti') { p.scale.set(0.15, 0.15, 0.15);
-                    vy = Math.random() * 5; }
+                let vx = (Math.random() - 0.5) * 6, vy = (Math.random() - 0.5) * 6, vz = (Math.random() - 0.5) * 6;
+                if (type === 'flame' || type === 'smoke') { vx *= 0.2; vy = -Math.random() * 2 - 0.5; vz = 0; }
+                if (type === 'confetti') { p.scale.set(0.15, 0.15, 0.15); vy = Math.random() * 5; }
                 scene.add(p);
                 particles.push({ mesh: p, life: 1.0, vx: vx, vy: vy, vz: vz, type: type });
             }
@@ -1434,15 +1328,13 @@
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     p.life -= dt * (p.type === 'smoke' ? 1.5 : 2.5);
-                    if (p.life <= 0) { scene.remove(p.mesh);
-                        particles.splice(i, 1); } else {
+                    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); } else {
                         p.mesh.position.x += p.vx * dt;
                         p.mesh.position.y += p.vy * dt;
                         p.mesh.position.z += p.vz * dt;
                         if (p.type === 'confetti') p.vy -= dt * 10;
                         p.mesh.scale.setScalar(p.life);
-                        if (p.type === 'flame' || p.type === 'explode') p.mesh.material.color.setHSL(0.1 * p.life, 1,
-                            0.5);
+                        if (p.type === 'flame' || p.type === 'explode') p.mesh.material.color.setHSL(0.1 * p.life, 1, 0.5);
                     }
                 }
             }
@@ -1496,11 +1388,9 @@
                 });
             }
 
-            function unprojectToDist(nx, ny, dist) { const v = new THREE.Vector3(nx, ny, 0.5).unproject(camera); const dir =
-                    v.sub(camera.position).normalize(); return camera.position.clone().add(dir.multiplyScalar(dist)); }
+            function unprojectToDist(nx, ny, dist) { const v = new THREE.Vector3(nx, ny, 0.5).unproject(camera); const dir = v.sub(camera.position).normalize(); return camera.position.clone().add(dir.multiplyScalar(dist)); }
 
-            function viewSizeAt(dist) { const h = 2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); return { h: h,
-                    w: h * camera.aspect }; }
+            function viewSizeAt(dist) { const h = 2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); return { h: h, w: h * camera.aspect }; }
 
             function create3DSun() {
                 const group = new THREE.Group();
@@ -1570,7 +1460,6 @@
                 return group;
             }
 
-            // Ρεαλιστικά λουλούδια: μαργαρίτα, τουλίπα, παπαρούνα, τριαντάφυλλο, ηλιοτρόπιο
             function createDynamicFlower(index) {
                 const fGroup = new THREE.Group();
                 const stemMat = new THREE.MeshLambertMaterial({ color: 0x3E7C3A });
@@ -1579,7 +1468,6 @@
                 const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, stemLen, 6), stemMat);
                 stem.position.y = stemLen / 2;
 
-                // 1-2 φύλλα στον βλαστό
                 const leafCount = 1 + Math.floor(Math.random() * 2);
                 for (let l = 0; l < leafCount; l++) {
                     const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), leafMat);
@@ -1597,7 +1485,6 @@
 
                 const type = index % 5;
                 if (type === 0) {
-                    // Μαργαρίτα: λευκά στενά πέταλα, κίτρινο κέντρο
                     const pMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
                     for (let i = 0; i < 12; i++) {
                         const petal = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), pMat);
@@ -1613,7 +1500,6 @@
                     center.position.y = 0.015;
                     head.add(center);
                 } else if (type === 1) {
-                    // Τουλίπα: κλειστό κύπελλο από καμπύλα πέταλα
                     const tulipColors = [0xE53935, 0xFFB300, 0xAB47BC, 0xF06292];
                     const pMat = new THREE.MeshLambertMaterial({ color: tulipColors[index % tulipColors.length] });
                     for (let i = 0; i < 6; i++) {
@@ -1627,7 +1513,6 @@
                         head.add(petal);
                     }
                 } else if (type === 2) {
-                    // Παπαρούνα: 5 πλατιά κόκκινα πέταλα, σκούρο κέντρο
                     const pMat = new THREE.MeshLambertMaterial({ color: 0xD32F2F });
                     for (let i = 0; i < 5; i++) {
                         const petal = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), pMat);
@@ -1642,7 +1527,6 @@
                     center.position.y = 0.02;
                     head.add(center);
                 } else if (type === 3) {
-                    // Τριαντάφυλλο: πυκνά επικαλυπτόμενα πέταλα σε στρώσεις
                     const roseColors = [0xE91E63, 0xC2185B, 0xF48FB1];
                     const pMat = new THREE.MeshLambertMaterial({ color: roseColors[index % roseColors.length] });
                     const bud = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), pMat);
@@ -1663,7 +1547,6 @@
                         }
                     }
                 } else {
-                    // Ηλιοτρόπιο: κίτρινα πέταλα, μεγάλο καφέ κέντρο
                     const pMat = new THREE.MeshLambertMaterial({ color: 0xFFC107 });
                     for (let i = 0; i < 14; i++) {
                         const petal = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), pMat);
@@ -1739,7 +1622,7 @@
 
                 const dSun = 40;
                 sunGroup.position.copy(unprojectToDist(-0.6, 0.85, dSun));
-                sunGroup.scale.setScalar(1.8); // Μικρότερος ήλιος
+                sunGroup.scale.setScalar(1.8);
 
                 const dCloud = 36;
                 const sCloud = viewSizeAt(dCloud);
@@ -1766,46 +1649,31 @@
                 });
             }
 
-            function updateClouds(dt) { clouds.forEach(function(c) { c.position.x += c.userData.speed * dt; if (c.position.x >
-                    cloudHalfW) c.position.x = -cloudHalfW; }); }
+            function updateClouds(dt) { clouds.forEach(function(c) { c.position.x += c.userData.speed * dt; if (c.position.x > cloudHalfW) c.position.x = -cloudHalfW; }); }
 
-            let girl, girlCore, sockets = {},
-                mouthMesh, eyeL, eyeR, browL, browR, dressMesh, hairGroup, accessoryGroup;
+            let girl, girlCore, sockets = {}, mouthMesh, eyeL, eyeR, browL, browR, dressMesh, hairGroup, accessoryGroup;
             let shoeMaterial;
-            let reactionTime = 0,
-                winTime = 0;
-            let girlMood = 'idle',
-                prevMood = 'idle';
+            let reactionTime = 0, winTime = 0;
+            let girlMood = 'idle', prevMood = 'idle';
             let lastActionTime = 0;
-            let girlNdcX = 0.28,
-                wanderTargetX = -0.2,
-                petState = 'stand',
-                petStateTimer = 3,
-                faceDir = -1;
+            let girlNdcX = 0.28, wanderTargetX = -0.2, petState = 'stand', petStateTimer = 3, faceDir = -1;
             const SKIN = 0xffd9bd;
             const BLONDE = 0xf6cf5e;
 
-            function pickNextState() { const r = Math.random(); if (r < 0.45) { petState = 'walk';
-                    wanderTargetX = -0.6 + Math.random() * 1.25;
-                    petStateTimer = 10; } else if (r < 0.62) { petState = 'hop';
-                    petStateTimer = 1.3; } else { petState = 'stand';
-                    petStateTimer = 2 + Math.random() * 3; } }
+            function pickNextState() { const r = Math.random(); if (r < 0.45) { petState = 'walk'; wanderTargetX = -0.6 + Math.random() * 1.25; petStateTimer = 10; } else if (r < 0.62) { petState = 'hop'; petStateTimer = 1.3; } else { petState = 'stand'; petStateTimer = 2 + Math.random() * 3; } }
 
             let speechTimer = null;
 
-            function showSpeech(text, duration) { const el = document.getElementById("speechText"); const bbl = document
-                    .getElementById("speech"); if (speechTimer) clearTimeout(speechTimer);
+            function showSpeech(text, duration) { const el = document.getElementById("speechText"); const bbl = document.getElementById("speech"); if (speechTimer) clearTimeout(speechTimer);
                 el.innerText = text;
                 bbl.classList.add("visible");
                 bbl.style.opacity = "1";
                 updateSpeechPosition();
-                speechTimer = setTimeout(function() { bbl.classList.remove("visible");
-                    bbl.style.opacity = "0"; }, duration); }
+                speechTimer = setTimeout(function() { bbl.classList.remove("visible"); bbl.style.opacity = "0"; }, duration); }
 
             function updateSpeechPosition() { if (!girl) return; const vec = girl.position.clone();
                 vec.y += 0.40;
-                vec.project(camera); const x = (vec.x * .5 + .5) * window.innerWidth; const y = (-vec.y * .5 + .5) * window
-                    .innerHeight; const bbl = document.getElementById("speech");
+                vec.project(camera); const x = (vec.x * .5 + .5) * window.innerWidth; const y = (-vec.y * .5 + .5) * window.innerHeight; const bbl = document.getElementById("speech");
                 bbl.style.left = x + "px";
                 bbl.style.top = y + "px"; }
 
@@ -1822,14 +1690,7 @@
                 nose.position.set(0, 0.92, 0.45);
                 core.add(nose);
 
-                function makeEye(x) { const e = new THREE.Group(); const white = new THREE.Mesh(new THREE.SphereGeometry(0.105,
-                        16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff })); const iris = new THREE.Mesh(new THREE
-                        .SphereGeometry(0.06, 16, 16), new THREE.MeshPhongMaterial({ color: 0x3a76c9, shininess: 90 }));
-                    iris.position.z = 0.06; const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), new THREE
-                        .MeshBasicMaterial({ color: 0x111111 }));
-                    pupil.position.z = 0.1; const hl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), new THREE
-                        .MeshBasicMaterial({ color: 0xffffff }));
-                    hl.position.set(0.028, 0.03, 0.115);
+                function makeEye(x) { const e = new THREE.Group(); const white = new THREE.Mesh(new THREE.SphereGeometry(0.105, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff })); const iris = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), new THREE.MeshPhongMaterial({ color: 0x3a76c9, shininess: 90 })); iris.position.z = 0.06; const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), new THREE.MeshBasicMaterial({ color: 0x111111 })); pupil.position.z = 0.1; const hl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(0.028, 0.03, 0.115);
                     e.add(white, iris, pupil, hl);
                     e.position.set(x, 1.03, 0.36); return e; }
                 eyeL = makeEye(-0.17);
@@ -1864,8 +1725,7 @@
                 core.add(sockets.head);
                 accessoryGroup = new THREE.Group();
                 core.add(accessoryGroup);
-                dressMesh = new THREE.Mesh(new THREE.ConeGeometry(0.52, 0.95, 24), new THREE.MeshPhongMaterial({ color: 0xe8639c,
-                    shininess: 30 }));
+                dressMesh = new THREE.Mesh(new THREE.ConeGeometry(0.52, 0.95, 24), new THREE.MeshPhongMaterial({ color: 0xe8639c, shininess: 30 }));
                 dressMesh.position.y = 0.08;
                 core.add(dressMesh);
                 const collar = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 10, 20), new THREE.MeshPhongMaterial({ color: 0xffffff }));
@@ -1930,11 +1790,9 @@
                 const blondeDark = hairMat(0xe0b53f);
                 const tieMat = new THREE.MeshPhongMaterial({ color: 0xff4f8b, shininess: 70 });
 
-                function addCap(mat) { const m = mat || blonde; const cap = new THREE.Mesh(new THREE.SphereGeometry(0.49, 28, 18,
-                        0, Math.PI * 2, 0, Math.PI / 2.2), m);
+                function addCap(mat) { const m = mat || blonde; const cap = new THREE.Mesh(new THREE.SphereGeometry(0.49, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2.2), m);
                     cap.position.set(0, 0.1, -0.06);
-                    hairGroup.add(cap); const back = new THREE.Mesh(new THREE.SphereGeometry(0.47, 24, 16, 0, Math.PI * 2, 0,
-                        Math.PI / 1.6), m);
+                    hairGroup.add(cap); const back = new THREE.Mesh(new THREE.SphereGeometry(0.47, 24, 16, 0, Math.PI * 2, 0, Math.PI / 1.6), m);
                     back.position.set(0, 0.04, -0.16);
                     hairGroup.add(back); const bangs = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), m);
                     bangs.scale.set(1.4, 0.42, 0.55);
@@ -1942,12 +1800,9 @@
                     hairGroup.add(bangs); }
 
                 function makeTail(x, mats) { const tail = new THREE.Group();
-                    tail.position.set(x, 0.0, -0.14); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.028, 10, 16),
-                        tieMat);
+                    tail.position.set(x, 0.0, -0.14); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.028, 10, 16), tieMat);
                     tie.rotation.y = Math.PI / 2;
-                    tail.add(tie); const sizes = [0.15, 0.13, 0.1]; for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(
-                            new THREE.SphereGeometry(sizes[i], 14, 14), (mats && mats[i]) ? mats[i] : (i === 1 ?
-                            blondeDark : blonde));
+                    tail.add(tie); const sizes = [0.15, 0.13, 0.1]; for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(sizes[i], 14, 14), (mats && mats[i]) ? mats[i] : (i === 1 ? blondeDark : blonde));
                         s.position.y = -0.12 - i * 0.19;
                         s.position.x = Math.sign(x) * 0.04 * i;
                         tail.add(s); }
@@ -1955,68 +1810,49 @@
                     hairGroup.add(tail);
                     hairGroup.userData.tails.push(tail); return tail; }
                 if (styleId === 'hair_ponytail') { addCap(); const tail = new THREE.Group();
-                    tail.position.set(0, 0.32, -0.44); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.035, 10, 16),
-                        tieMat);
+                    tail.position.set(0, 0.32, -0.44); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.035, 10, 16), tieMat);
                     tie.rotation.x = Math.PI / 2;
-                    tail.add(tie); for (let i = 0; i < 4; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.17 - i * 0.03,
-                            14, 14), i % 2 ? blondeDark : blonde);
+                    tail.add(tie); for (let i = 0; i < 4; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.17 - i * 0.03, 14, 14), i % 2 ? blondeDark : blonde);
                         s.position.set(0, -0.16 - i * 0.18, -0.05 - i * 0.05);
                         tail.add(s); }
                     hairGroup.add(tail);
-                    hairGroup.userData.tails.push(tail); } else if (styleId === 'hair_buns') { addCap(); [-0.32, 0.32]
-                    .forEach(function(x) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), blonde);
-                        bun.position.set(x, 0.44, -0.08); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.026, 8,
-                            16), tieMat);
+                    hairGroup.userData.tails.push(tail); } else if (styleId === 'hair_buns') { addCap(); [-0.32, 0.32].forEach(function(x) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), blonde);
+                        bun.position.set(x, 0.44, -0.08); const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.026, 8, 16), tieMat);
                         tie.position.copy(bun.position);
                         tie.position.y -= 0.1;
                         tie.rotation.x = Math.PI / 2;
-                        hairGroup.add(bun, tie); }); } else if (styleId === 'hair_long') { addCap(); const back = new THREE
-                        .Mesh(new THREE.SphereGeometry(0.4, 20, 16), blonde);
+                        hairGroup.add(bun, tie); }); } else if (styleId === 'hair_long') { addCap(); const back = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 16), blonde);
                     back.scale.set(1.05, 2.0, 0.5);
                     back.position.set(0, -0.5, -0.3);
-                    hairGroup.add(back); } else if (styleId === 'hair_bob') { addCap(); [-0.42, 0.42].forEach(function(x) { const
-                            side = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 14), blonde);
+                    hairGroup.add(back); } else if (styleId === 'hair_bob') { addCap(); [-0.42, 0.42].forEach(function(x) { const side = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 14), blonde);
                         side.scale.set(0.7, 1.6, 0.8);
                         side.position.set(x, -0.06, -0.06);
-                        hairGroup.add(side); }); const backLow = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14),
-                        blondeDark);
+                        hairGroup.add(side); }); const backLow = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14), blondeDark);
                     backLow.scale.set(1.2, 0.9, 0.6);
                     backLow.position.set(0, -0.14, -0.26);
-                    hairGroup.add(backLow); } else if (styleId === 'hair_braids') { addCap(); [-0.48, 0.48].forEach(function(
-                        x) { const braid = new THREE.Group();
-                        braid.position.set(x, 0.0, -0.12); for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE
-                                .SphereGeometry(0.09 - i * 0.007, 12, 12), i % 2 ? blondeDark : blonde);
+                    hairGroup.add(backLow); } else if (styleId === 'hair_braids') { addCap(); [-0.48, 0.48].forEach(function(x) { const braid = new THREE.Group();
+                        braid.position.set(x, 0.0, -0.12); for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.09 - i * 0.007, 12, 12), i % 2 ? blondeDark : blonde);
                             s.position.set(Math.sin(i * 1.6) * 0.045, -0.1 - i * 0.14, 0);
-                            braid.add(s); } const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.022, 8, 14),
-                            tieMat);
+                            braid.add(s); } const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.022, 8, 14), tieMat);
                         tie.position.y = -0.76;
                         braid.add(tie);
                         braid.rotation.z = Math.sign(x) * -0.18;
                         hairGroup.add(braid);
-                        hairGroup.userData.tails.push(braid); }); } else if (styleId === 'hair_curly') { addCap(); for (let i =
-                        0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const px = Math.cos(a) * 0.4; const pz = Math.sin(
-                            a) * 0.38 - 0.1; if (pz > 0.18 && Math.abs(px) < 0.32) continue; const curl = new THREE.Mesh(
-                            new THREE.SphereGeometry(0.13 + Math.random() * 0.05, 12, 12), i % 2 ? blondeDark :
-                        blonde);
+                        hairGroup.userData.tails.push(braid); }); } else if (styleId === 'hair_curly') { addCap(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const px = Math.cos(a) * 0.4; const pz = Math.sin(a) * 0.38 - 0.1; if (pz > 0.18 && Math.abs(px) < 0.32) continue; const curl = new THREE.Mesh(new THREE.SphereGeometry(0.13 + Math.random() * 0.05, 12, 12), i % 2 ? blondeDark : blonde);
                         curl.position.set(px, 0.2 + Math.sin(i * 2.7) * 0.2, pz);
                         hairGroup.add(curl); } } else if (styleId === 'hair_rainbow') { addCap();
                     makeTail(-0.5, [hairMat(0xff4d6d), hairMat(0xffb347), hairMat(0x7bd94b)]);
-                    makeTail(0.5, [hairMat(0x4da6ff), hairMat(0xb26bff), hairMat(0xff6fd8)]); } else if (styleId ===
-                    'hair_star') { addCap();
+                    makeTail(0.5, [hairMat(0x4da6ff), hairMat(0xb26bff), hairMat(0xff6fd8)]); } else if (styleId === 'hair_star') { addCap();
                     makeTail(-0.5);
-                    makeTail(0.5); const starMat = new THREE.MeshBasicMaterial({ color: 0xffe066 }); [-0.3, 0.3].forEach(
-                        function(x) { const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), starMat);
-                            star.position.set(x, 0.44, 0.2);
-                            star.userData.onUpdate = function(t) { star.rotation.y = t * 0.002; };
-                            hairGroup.add(star); }); } else if (styleId === 'hair_princess') { addCap(); const back = new THREE
-                        .Mesh(new THREE.SphereGeometry(0.42, 20, 16), blonde);
+                    makeTail(0.5); const starMat = new THREE.MeshBasicMaterial({ color: 0xffe066 }); [-0.3, 0.3].forEach(function(x) { const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), starMat);
+                        star.position.set(x, 0.44, 0.2);
+                        star.userData.onUpdate = function(t) { star.rotation.y = t * 0.002; };
+                        hairGroup.add(star); }); } else if (styleId === 'hair_princess') { addCap(); const back = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), blonde);
                     back.scale.set(1.1, 2.2, 0.5);
                     back.position.set(0, -0.55, -0.3);
-                    hairGroup.add(back); const tiara = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.032, 10, 24, Math.PI),
-                        new THREE.MeshPhongMaterial({ color: 0xffd700, shininess: 100 }));
+                    hairGroup.add(back); const tiara = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.032, 10, 24, Math.PI), new THREE.MeshPhongMaterial({ color: 0xffd700, shininess: 100 }));
                     tiara.position.set(0, 0.44, 0.06);
-                    tiara.rotation.x = -1.15; const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), new THREE
-                        .MeshPhongMaterial({ color: 0xff2d78, shininess: 120 }));
+                    tiara.rotation.x = -1.15; const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), new THREE.MeshPhongMaterial({ color: 0xff2d78, shininess: 120 }));
                     gem.position.set(0, 0.53, 0.22);
                     hairGroup.add(tiara, gem); } else { addCap();
                     makeTail(-0.5);
@@ -2026,35 +1862,24 @@
             function equipClothes(itemId) {
                 if (!girl) return;
                 while (accessoryGroup.children.length > 0) accessoryGroup.remove(accessoryGroup.children[0]);
-                const dressColors = { 'cl_none': 0xe8639c, 'cl_dress_red': 0xd93b3b, 'cl_dress_blue': 0x3d6fd9,
-                    'cl_dress_yellow': 0xf2c53d };
+                const dressColors = { 'cl_none': 0xe8639c, 'cl_dress_red': 0xd93b3b, 'cl_dress_blue': 0x3d6fd9, 'cl_dress_yellow': 0xf2c53d };
                 if (dressColors[itemId] !== undefined) { dressMesh.material.color.setHex(dressColors[itemId]); return; }
-                if (itemId === 'cl_hat') { const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 20),
-                        new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
-                    brim.position.set(0, 1.36, 0.06); const top = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12, 0, Math
-                            .PI * 2, 0, Math.PI / 2), new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
+                if (itemId === 'cl_hat') { const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 20), new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
+                    brim.position.set(0, 1.36, 0.06); const top = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhongMaterial({ color: 0x3d6fd9 }));
                     top.position.set(0, 1.36, 0.06);
-                    accessoryGroup.add(brim, top); } else if (itemId === 'cl_glasses') { const gMat = new THREE.MeshPhongMaterial(
-                        { color: 0xd23b52 }); const ringL = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10, 20),
-                        gMat);
-                    ringL.position.set(-0.17, 1.03, 0.44); const ringR = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10,
-                        20), gMat);
-                    ringR.position.set(0.17, 1.03, 0.44); const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025,
-                        0.025), gMat);
+                    accessoryGroup.add(brim, top); } else if (itemId === 'cl_glasses') { const gMat = new THREE.MeshPhongMaterial({ color: 0xd23b52 }); const ringL = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10, 20), gMat);
+                    ringL.position.set(-0.17, 1.03, 0.44); const ringR = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 10, 20), gMat);
+                    ringR.position.set(0.17, 1.03, 0.44); const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025, 0.025), gMat);
                     bridge.position.set(0, 1.05, 0.45);
-                    accessoryGroup.add(ringL, ringR, bridge); } else if (itemId === 'cl_scarf') { const scarf = new THREE.Mesh(
-                        new THREE.TorusGeometry(0.24, 0.08, 12, 20), new THREE.MeshPhongMaterial({ color: 0xdd2244 }));
+                    accessoryGroup.add(ringL, ringR, bridge); } else if (itemId === 'cl_scarf') { const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.08, 12, 20), new THREE.MeshPhongMaterial({ color: 0xdd2244 }));
                     scarf.position.set(0, 0.53, 0);
                     scarf.rotation.x = Math.PI / 2;
-                    accessoryGroup.add(scarf); } else if (itemId === 'cl_bow') { const bMat = new THREE.MeshPhongMaterial({ color: 0xff4f8b,
-                        shininess: 60 }); const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), bMat);
+                    accessoryGroup.add(scarf); } else if (itemId === 'cl_bow') { const bMat = new THREE.MeshPhongMaterial({ color: 0xff4f8b, shininess: 60 }); const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), bMat);
                     wingL.scale.set(1.3, 0.7, 0.5);
                     wingL.position.set(-0.12, 1.42, 0.12); const wingR = wingL.clone();
                     wingR.position.x = 0.12; const knot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), bMat);
                     knot.position.set(0, 1.42, 0.14);
-                    accessoryGroup.add(wingL, wingR, knot); } else if (itemId === 'cl_crown') { const crown = new THREE.Mesh(
-                        new THREE.CylinderGeometry(0.3, 0.24, 0.3, 8, 1, true), new THREE.MeshPhongMaterial({ color: 0xffd700,
-                        side: THREE.DoubleSide, shininess: 100 }));
+                    accessoryGroup.add(wingL, wingR, knot); } else if (itemId === 'cl_crown') { const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.3, 8, 1, true), new THREE.MeshPhongMaterial({ color: 0xffd700, side: THREE.DoubleSide, shininess: 100 }));
                     crown.position.set(0, 1.5, 0);
                     accessoryGroup.add(crown); }
             }
@@ -2070,40 +1895,30 @@
             function equipProp(itemId) {
                 if (!girl) return;
                 while (sockets.prop.children.length > 0) sockets.prop.remove(sockets.prop.children[0]);
-                if (itemId === 'prop_lollipop') { const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5),
-                        new THREE.MeshBasicMaterial({ color: 0xffffff }));
-                    stick.position.y = 0.2; const candy = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 16), new THREE
-                        .MeshPhongMaterial({ color: 0xff0055, shininess: 90 }));
+                if (itemId === 'prop_lollipop') { const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                    stick.position.y = 0.2; const candy = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 16), new THREE.MeshPhongMaterial({ color: 0xff0055, shininess: 90 }));
                     candy.position.y = 0.5;
                     candy.scale.z = 0.4;
-                    sockets.prop.add(stick, candy); } else if (itemId === 'prop_icecream') { const cone = new THREE.Mesh(
-                        new THREE.ConeGeometry(0.12, 0.32, 16), new THREE.MeshPhongMaterial({ color: 0xcd853f }));
+                    sockets.prop.add(stick, candy); } else if (itemId === 'prop_icecream') { const cone = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.32, 16), new THREE.MeshPhongMaterial({ color: 0xcd853f }));
                     cone.rotation.x = Math.PI;
-                    cone.position.y = 0.16; const scoop = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), new THREE
-                        .MeshPhongMaterial({ color: 0xffaaaa }));
+                    cone.position.y = 0.16; const scoop = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffaaaa }));
                     scoop.position.y = 0.38;
-                    sockets.prop.add(cone, scoop); } else if (itemId === 'prop_balloon') { const g = new THREE.Group(); const string =
-                        new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7), new THREE.MeshBasicMaterial({ color: 0xdddddd }));
-                    string.position.y = 0.35; const balloon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE
-                        .MeshPhongMaterial({ color: 0xff3355, shininess: 80 }));
+                    sockets.prop.add(cone, scoop); } else if (itemId === 'prop_balloon') { const g = new THREE.Group(); const string = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7), new THREE.MeshBasicMaterial({ color: 0xdddddd }));
+                    string.position.y = 0.35; const balloon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE.MeshPhongMaterial({ color: 0xff3355, shininess: 80 }));
                     balloon.position.y = 0.85;
                     balloon.scale.y = 1.15;
                     g.add(string, balloon);
                     g.userData.onUpdate = function(t) { balloon.position.y = 0.85 + Math.sin(t * 0.003) * 0.06;
                         balloon.position.x = Math.sin(t * 0.002) * 0.05; };
-                    sockets.prop.add(g); } else if (itemId === 'prop_wand') { const stick = new THREE.Mesh(new THREE
-                        .CylinderGeometry(0.02, 0.02, 0.5), new THREE.MeshPhongMaterial({ color: 0x5a3a1a }));
-                    stick.position.y = 0.2; const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE
-                        .MeshBasicMaterial({ color: 0xffe066 }));
+                    sockets.prop.add(g); } else if (itemId === 'prop_wand') { const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5), new THREE.MeshPhongMaterial({ color: 0x5a3a1a }));
+                    stick.position.y = 0.2; const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
                     star.position.y = 0.5; const g = new THREE.Group();
                     g.add(stick, star);
                     g.userData.onUpdate = function(t) { star.scale.setScalar(1 + Math.sin(t * 0.01) * 0.25);
                         star.rotation.y = t * 0.003; };
-                    sockets.prop.add(g); } else if (itemId === 'prop_flower') { const g = new THREE.Group(); const stem = new THREE
-                        .Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.4), new THREE.MeshPhongMaterial({ color: 0x2e6b14 }));
+                    sockets.prop.add(g); } else if (itemId === 'prop_flower') { const g = new THREE.Group(); const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.4), new THREE.MeshPhongMaterial({ color: 0x2e6b14 }));
                     stem.position.y = 0.16;
                     g.add(stem);
-                    // Ρεαλιστική μαργαρίτα: λευκά επίπεδα πέταλα + κίτρινο κέντρο + φύλλο
                     const petalMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
                     for (let p = 0; p < 10; p++) {
                         const a = p / 10 * Math.PI * 2;
@@ -2113,8 +1928,7 @@
                         petal.rotation.z = a - Math.PI / 2;
                         g.add(petal);
                     }
-                    const center = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), new THREE
-                        .MeshPhongMaterial({ color: 0xF5C518 }));
+                    const center = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), new THREE.MeshPhongMaterial({ color: 0xF5C518 }));
                     center.position.y = 0.4;
                     center.scale.z = 0.55;
                     g.add(center);
@@ -2161,11 +1975,7 @@
             }
 
             let scene, camera, renderer, boardGroup, raycaster, pointer;
-            let backMesh, cellMat, grid = [],
-                currentCube = null,
-                aimCol = 2,
-                busy = false,
-                hammerMode = false;
+            let backMesh, cellMat, grid = [], currentCube = null, aimCol = 2, busy = false, hammerMode = false;
             let anims = [];
 
             function initThree() {
@@ -2210,26 +2020,22 @@
                 requestAnimationFrame(loop);
             }
 
-            function updateBoardColorsLive() { const bData = SHOP.boards.find(function(b) { return b.id === save.equippedBoard; }) ||
-                    SHOP.boards[0];
+            function updateBoardColorsLive() { const bData = SHOP.boards.find(function(b) { return b.id === save.equippedBoard; }) || SHOP.boards[0];
                 backMesh.material.color.set(bData.back);
                 cellMat.color.set(bData.cell); }
 
             function onResize() { renderer.setSize(innerWidth, innerHeight);
-                camera.aspect = innerWidth / innerHeight; const dist = (BOARD_H / 2 + 3.5) / Math.tan(THREE.MathUtils.degToRad(
-                    camera.fov / 2));
+                camera.aspect = innerWidth / innerHeight; const dist = (BOARD_H / 2 + 3.5) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
                 camera.position.set(0, -1.8, dist - 1.5);
                 camera.lookAt(0, -1.2, 0);
                 camera.updateProjectionMatrix();
                 layoutScenery();
                 updateGirlScreenPosition(); }
 
-            function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (
-                        CELL + GAP) }; }
+            function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (CELL + GAP) }; }
 
             function numberTexture(value) { const cv = document.createElement("canvas");
-                cv.width = cv.height = 128; const g = cv.getContext("2d"); const skin = save.equippedCube; if (skin === 'wood') { g
-                    .fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
+                cv.width = cv.height = 128; const g = cv.getContext("2d"); const skin = save.equippedCube; if (skin === 'wood') { g.fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
                     roundRect(g, 4, 4, 120, 120, 22);
                     g.fill(); } else if (skin === 'whitered' || skin === 'whitegreen') { g.fillStyle = "white";
                     roundRect(g, 4, 4, 120, 120, 22);
@@ -2253,9 +2059,7 @@
                         g.lineTo(128, i + 10);
                         g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
                         g.fill(); }
-                    g.restore(); } else if (skin === 'rainbow') { let grad = g.createLinearGradient(0, 0, 128, 128);['red',
-                        'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'
-                    ].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
+                    g.restore(); } else if (skin === 'rainbow') { let grad = g.createLinearGradient(0, 0, 128, 128);['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
                     g.fillStyle = grad;
                     roundRect(g, 4, 4, 120, 120, 22);
                     g.fill(); } else if (skin === 'gold') { let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
@@ -2286,9 +2090,7 @@
                     roundRect(g, 4, 4, 120, 120, 22);
                     g.fill(); } else { g.fillStyle = "#111";
                     roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice',
-                    'lava', 'gold'
-                ]; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
+                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
                     g.shadowColor = "rgba(0,0,0,0.35)";
                     g.shadowBlur = 7;
                     g.shadowOffsetY = 2;
@@ -2302,8 +2104,7 @@
                     g.beginPath();
                     g.arc(64, 66, 37, 0, Math.PI * 2);
                     g.stroke(); }
-                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : (
-                    "800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
+                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
                 g.textAlign = "center";
                 g.textBaseline = "middle";
                 g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
@@ -2318,24 +2119,20 @@
                 g.arcTo(x, y, x + w, y, r);
                 g.closePath(); }
 
-            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92,
-                    CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xdddddd }));
+            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92, CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xdddddd }));
                 m.userData.value = value; return m; }
 
             function tween(obj, to, dur, ease, done) { const from = {}; for (const k in to) from[k] = obj[k];
-                anims.push({ obj: obj, from: from, to: to, dur: dur, t: 0, ease: ease || function(t) { return 1 - Math.pow(1 -
-                        t, 3); }, done: done }); }
+                anims.push({ obj: obj, from: from, to: to, dur: dur, t: 0, ease: ease || function(t) { return 1 - Math.pow(1 - t, 3); }, done: done }); }
 
             function stepAnims(dt) { for (let i = anims.length - 1; i >= 0; i--) { const a = anims[i];
-                    a.t += dt / a.dur; const k = a.t >= 1 ? 1 : a.ease(a.t); for (const p in a.to) a.obj[p] = a.from[p] + (a.to[
-                            p] - a.from[p]) * k; if (a.t >= 1) { anims.splice(i, 1); if (a.done) a.done(); } } }
+                    a.t += dt / a.dur; const k = a.t >= 1 ? 1 : a.ease(a.t); for (const p in a.to) a.obj[p] = a.from[p] + (a.to[p] - a.from[p]) * k; if (a.t >= 1) { anims.splice(i, 1); if (a.done) a.done(); } } }
 
             function newBoard() { for (let c = 0; c < COLS; c++)
                     for (let r = 0; r < ROWS; r++) { if (grid[c] && grid[c][r]) boardGroup.remove(grid[c][r].mesh); }
                 grid = []; for (let c = 0; c < COLS; c++) { grid.push(new Array(ROWS).fill(null)); }
                 score = save.score || 0;
-                updateHUD(); for (let i = 0; i < levelPreset(level); i++) { const c = Math.floor(Math.random() * COLS); const r =
-                        colHeight(c); if (r < 3) placeCube(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); }
+                updateHUD(); for (let i = 0; i < levelPreset(level); i++) { const c = Math.floor(Math.random() * COLS); const r = colHeight(c); if (r < 3) placeCube(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); }
                 spawnCurrent();
                 updateMissionProgress();
                 lastActionTime = performance.now(); }
@@ -2349,27 +2146,58 @@
                     tween(cube.scale, { x: 1, y: 1, z: 1 }, 0.22); } return grid[c][r]; }
 
             function spawnCurrent() { let maxOnBoard = 4; for (let c = 0; c < COLS; c++)
-                    for (let r = 0; r < ROWS; r++) if (grid[c][r]) maxOnBoard = Math.max(maxOnBoard, grid[c][r].value); const pool =
-                    []; for (let v = 2; v <= Math.min(32, Math.max(4, maxOnBoard / 2)); v *= 2) pool.push(v, v, v === 2 ? v :
-                    0); const vals = pool.filter(Boolean);
+                    for (let r = 0; r < ROWS; r++) if (grid[c][r]) maxOnBoard = Math.max(maxOnBoard, grid[c][r].value); const pool = []; for (let v = 2; v <= Math.min(32, Math.max(4, maxOnBoard / 2)); v *= 2) pool.push(v, v, v === 2 ? v : 0); const vals = pool.filter(Boolean);
                 currentCube = makeCube(vals[Math.floor(Math.random() * vals.length)]);
                 currentCube.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
                 currentCube.scale.set(.3, .3, .3);
                 boardGroup.add(currentCube);
                 tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2); }
 
-            function setAim(c, instant) { aimCol = Math.max(0, Math.min(COLS - 1, c)); if (currentCube && !busy) { const tx = cellPos(
-                        aimCol, 0).x; if (instant) currentCube.position.x = tx; else tween(currentCube.position, { x: tx },
-                    0.04); } }
+            function setAim(c, instant) { 
+                aimCol = Math.max(0, Math.min(COLS - 1, c)); 
+                if (currentCube && !busy) { 
+                    const tx = cellPos(aimCol, 0).x; 
+                    if (instant) currentCube.position.x = tx; 
+                    else tween(currentCube.position, { x: tx }, 0.04); 
+                }
+                updateDropIndicator(aimCol);
+            }
+            
+            // ----- Ενημερωμένη συνάρτηση για δυναμική τοποθέτηση της γραμμής -----
+            function updateDropIndicator(col) {
+                const elem = document.getElementById('dropIndicator');
+                if(!elem) return;
+                
+                // Υπολογισμός της 3D θέσης (είτε του τρέχοντος κύβου, είτε του σημείου πτώσης)
+                const targetPos = new THREE.Vector3();
+                if (currentCube && !busy) {
+                    currentCube.getWorldPosition(targetPos);
+                } else {
+                    const p = cellPos(col, 0);
+                    targetPos.set(p.x, launchY, 0.1);
+                    boardGroup.localToWorld(targetPos);
+                }
+                
+                // Προβολή 3D θέσης σε 2D συντεταγμένες οθόνης
+                targetPos.project(camera);
+                const x = (targetPos.x * .5 + .5) * window.innerWidth;
+                const y = (-targetPos.y * .5 + .5) * window.innerHeight;
+                
+                // Διαστάσεις: το πλάτος του κύβου (λίγο μικρότερο από το κελί)
+                const colWidth = window.innerWidth / COLS;
+                const pxWidth = colWidth - 8;
+                
+                // Ενημέρωση CSS: Τοποθέτηση ακριβώς κάτω από τον κύβο (+ 12 pixels)
+                elem.style.width = pxWidth + 'px';
+                elem.style.left = (x - pxWidth / 2) + 'px';
+                elem.style.top = (y + 12) + 'px';
+            }
 
-            function launch() { if (busy || !currentCube) return; const c = aimCol; const h = colHeight(c); if (h >= ROWS) { gameOver
-                    (); return; }
+            function launch() { if (busy || !currentCube) return; const c = aimCol; const h = colHeight(c); if (h >= ROWS) { gameOver(); return; }
                 busy = true;
                 lastActionTime = performance.now();
                 playSound('drop'); const eff = save.equippedEffect; if (eff !== 'eff_none') { const wp = new THREE.Vector3();
-                    currentCube.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype === 'explode')
-                    spawnBurst(wp.x, wp.y - 0.3, wp.z, 'explode', 18); else if (etype === 'confetti') spawnBurst(wp.x, wp.y -
-                        0.3, wp.z, 'confetti', 20); else spawnBurst(wp.x, wp.y - 0.3, wp.z, etype, 10); } const targetR = h;
+                    currentCube.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype === 'explode') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'explode', 18); else if (etype === 'confetti') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'confetti', 20); else spawnBurst(wp.x, wp.y - 0.3, wp.z, etype, 10); } const targetR = h;
                 const p = cellPos(c, targetR); const cube = currentCube;
                 currentCube = null;
                 tween(cube.position, { y: p.y }, Math.max(0.13, Math.abs(cube.position.y - p.y) * 0.045), null,
@@ -2392,11 +2220,7 @@
             function resolveMerges(queue) { return new Promise(function(resolveAll) {
                 (function next() { if (!queue.length) { persist();
                         updateMissionProgress();
-                        resolveAll(); return; } const item = queue.shift(); const c = item.c, r = item.r; const cell =
-                        grid[c][r]; if (!cell) { next(); return; } const same = [{ c: c - 1, r: r }, { c: c + 1, r: r },
-                        { c: c, r: r - 1 }, { c: c, r: r + 1 }
-                    ].filter(function(n) { return n.c >= 0 && n.c < COLS && n.r >= 0 && n.r < ROWS && grid[n.c][n
-                            .r] && grid[n.c][n.r].value === cell.value; }); if (!same.length) { next(); return; }
+                        resolveAll(); return; } const item = queue.shift(); const c = item.c, r = item.r; const cell = grid[c][r]; if (!cell) { next(); return; } const same = [{ c: c - 1, r: r }, { c: c + 1, r: r }, { c: c, r: r - 1 }, { c: c, r: r + 1 }].filter(function(n) { return n.c >= 0 && n.c < COLS && n.r >= 0 && n.r < ROWS && grid[n.c][n.r] && grid[n.c][n.r].value === cell.value; }); if (!same.length) { next(); return; }
                     const newVal = cell.value * Math.pow(2, same.length);
                     score += newVal;
                     save.score = score;
@@ -2405,26 +2229,18 @@
                     updateHUD(); let left = same.length; const tp = cellPos(c, r);
                     same.forEach(function(n) { const m = grid[n.c][n.r].mesh;
                         grid[n.c][n.r] = null;
-                        tween(m.position, { x: tp.x, y: tp.y }, 0.14, null, function() { boardGroup.remove(
-                            m); if (--left === 0) afterCollapse(); });
+                        tween(m.position, { x: tp.x, y: tp.y }, 0.14, null, function() { boardGroup.remove(m); if (--left === 0) afterCollapse(); });
                         tween(m.scale, { x: .5, y: .5, z: .5 }, 0.14); });
 
-                    function afterCollapse() { playSound('merge'); const eff = save.equippedEffect; if (eff !== 'eff_none') { const
-                                wp = new THREE.Vector3();
-                            cell.mesh.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype ===
-                                'explode') spawnBurst(wp.x, wp.y, wp.z, 'explode', 20); else if (etype ===
-                                'confetti') spawnBurst(wp.x, wp.y, wp.z, 'confetti', 25); else spawnBurst(wp.x, wp
-                                .y, wp.z, etype, 12); } if (newVal >= 64 && winTime <= 0) { reactionTime = 1.2;
+                    function afterCollapse() { playSound('merge'); const eff = save.equippedEffect; if (eff !== 'eff_none') { const wp = new THREE.Vector3();
+                            cell.mesh.getWorldPosition(wp); const etype = eff.replace('eff_', ''); if (etype === 'explode') spawnBurst(wp.x, wp.y, wp.z, 'explode', 20); else if (etype === 'confetti') spawnBurst(wp.x, wp.y, wp.z, 'confetti', 25); else spawnBurst(wp.x, wp.y, wp.z, etype, 12); } if (newVal >= 64 && winTime <= 0) { reactionTime = 1.2;
                             showSpeech(TT().wow(newVal), 1800); }
                         boardGroup.remove(cell.mesh);
                         grid[c][r] = null; const up = placeCube(c, r, newVal);
                         up.mesh.scale.set(1.35, 1.35, 1.35);
-                        tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.22); const moved = []; for (let xc = 0; xc <
-                            COLS; xc++) { let write = 0; for (let xr = 0; xr < ROWS; xr++) { if (grid[xc][xr]) { if (
-                                    xr !== write) { grid[xc][write] = grid[xc][xr];
+                        tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.22); const moved = []; for (let xc = 0; xc < COLS; xc++) { let write = 0; for (let xr = 0; xr < ROWS; xr++) { if (grid[xc][xr]) { if (xr !== write) { grid[xc][write] = grid[xc][xr];
                                     grid[xc][xr] = null;
-                                    tween(grid[xc][write].mesh.position, { y: cellPos(xc, write)
-                                            .y }, 0.15);
+                                    tween(grid[xc][write].mesh.position, { y: cellPos(xc, write).y }, 0.15);
                                     moved.push({ c: xc, r: write }); }
                                 write++; } } }
                         queue.push({ c: c, r: r });
@@ -2436,8 +2252,7 @@
             let winShown = false;
 
             function checkWin() { const t = levelTarget(level); let win = false; for (let c = 0; c < COLS; c++)
-                    for (let r = 0; r < ROWS; r++) if (grid[c][r] && grid[c][r].value >= t) { win = true; break; } if (!win)
-                    return false; if (!winShown) { winShown = true;
+                    for (let r = 0; r < ROWS; r++) if (grid[c][r] && grid[c][r].value >= t) { win = true; break; } if (!win) return false; if (!winShown) { winShown = true;
                     coins += 25;
                     save.coins = coins;
                     best = Math.max(best, score);
@@ -2463,46 +2278,72 @@
                 document.getElementById("loseText").innerHTML = TT().lose_text(score);
                 document.getElementById("loseModal").classList.remove("hidden"); }
 
-            function onTap(e) { if (document.querySelector(".overlay:not(.hidden)")) return;
-                lastActionTime = performance.now(); const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-                const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; const x = cx / innerWidth * 2 - 1;
+            function onTap(e) { 
+                if (document.querySelector(".overlay:not(.hidden)")) return;
+                lastActionTime = performance.now(); 
+                const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+                const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; 
+                const x = cx / innerWidth * 2 - 1;
                 const y = -(cy / innerHeight * 2 - 1);
+                
                 pointer.set(x, y);
-                raycaster.setFromCamera(pointer, camera); if (girl) { const hits = raycaster.intersectObject(girl, true); if (hits
-                        .length > 0 && winTime <= 0) { giggleSFX();
-                        reactionTime = 1.0; const greetings = TT().greetings; const pick = greetings[Math.floor(Math.random() *
-                            greetings.length)];
+                raycaster.setFromCamera(pointer, camera); 
+
+                if (girl) { 
+                    const hits = raycaster.intersectObject(girl, true); 
+                    if (hits.length > 0 && winTime <= 0) { 
+                        giggleSFX();
+                        reactionTime = 1.0; 
+                        const greetings = TT().greetings; 
+                        const pick = greetings[Math.floor(Math.random() * greetings.length)];
                         showSpeech(pick, 1800);
-                        speak(pick.replace(/[^Ͱ-Ͽἀ-῿a-zA-Z' ;!?]/g, '').trim()); return; } } const hit =
-                    new THREE.Vector3(); const boardNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(boardGroup.quaternion);
+                        speak(pick.replace(/[^Ͱ-Ͽἀ-῿a-zA-Z' ;!?]/g, '').trim()); 
+                        return; 
+                    } 
+                } 
+                
+                const boardNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(boardGroup.quaternion);
                 const plane = new THREE.Plane();
                 plane.setFromNormalAndCoplanarPoint(boardNormal, boardGroup.position);
+                const hit = new THREE.Vector3();
                 raycaster.ray.intersectPlane(plane, hit);
-                boardGroup.worldToLocal(hit); const c = Math.max(0, Math.min(COLS - 1, Math.round((hit.x + BOARD_W / 2 - CELL / 2) /
-                    (CELL + GAP)))); const r = Math.round((BOARD_H / 2 - CELL / 2 - hit.y) / (CELL + GAP)); if (hammerMode) { if (
-                        r >= 0 && r < ROWS && grid[c][r]) { hammerMode = false; const m = grid[c][r].mesh;
+                
+                boardGroup.worldToLocal(hit); 
+                
+                const c = Math.max(0, Math.min(COLS - 1, Math.round((hit.x + BOARD_W / 2) / (CELL + GAP) - 0.5)));
+                const r = Math.round((BOARD_H / 2 - hit.y) / (CELL + GAP) - 0.5); 
+
+                if (hammerMode) { 
+                    if (r >= 0 && r < ROWS && grid[c][r]) { 
+                        hammerMode = false; 
+                        const m = grid[c][r].mesh;
                         grid[c][r] = null;
                         tween(m.scale, { x: .01, y: .01, z: .01 }, 0.18, null, function() { boardGroup.remove(m); });
                         busy = true;
                         setTimeout(function() { resolveMerges([]).then(function() { busy = false;
                                 updateHUD();
                                 persist(); }); }, 180);
-                        playSound('hammer'); } else { hammerMode = false;
-                        updateHUD(); } return; }
-                setAim(c, true);
-                launch(); }
+                        playSound('hammer'); 
+                    } else { 
+                        hammerMode = false;
+                        updateHUD(); 
+                    } 
+                    return;
+                }
+                
+                if(r < ROWS && r >= 0) {
+                    setAim(c, true);
+                    launch(); 
+                }
+            }
 
             let adCallback = null;
             let adTimer = null;
 
-            // Rewarded Interstitial από το Monetag SDK.
-            // Το promise του show_11108267() ολοκληρώνεται αφού ο χρήστης δει τη διαφήμιση —
-            // τότε εκτελείται το callback (η ανταμοιβή του παίκτη).
-            // Αν το SDK δεν είναι διαθέσιμο (π.χ. τοπική δοκιμή), fallback στο τοπικό modal.
             function showAd(callback) {
                 const adFn = monetagAd();
                 if (adFn) {
-                    handlePause(); // παύση παιχνιδιού & ήχου όσο παίζει η διαφήμιση
+                    handlePause();
                     adFn().then(function() {
                         handleResume();
                         if (callback) callback();
@@ -2577,11 +2418,8 @@
                     playSound('shuffle'); }); };
             document.getElementById("btnMagnet").onclick = function() { if (busy) return;
                 showAd(function() { let tilesByVal = {}; for (let c = 0; c < COLS; c++)
-                        for (let r = 0; r < ROWS; r++) if (grid[c][r]) { let v = grid[c][r].value; if (!tilesByVal[
-                                v]) tilesByVal[v] = [];
-                            tilesByVal[v].push({ c: c, r: r, cell: grid[c][r] }); } let mg = Object.keys(tilesByVal)
-                        .map(function(k) { return tilesByVal[k]; }).filter(function(g) { return g.length > 1; }); if (
-                            !mg.length) { toast(TT().no_pairs); return; }
+                        for (let r = 0; r < ROWS; r++) if (grid[c][r]) { let v = grid[c][r].value; if (!tilesByVal[v]) tilesByVal[v] = [];
+                            tilesByVal[v].push({ c: c, r: r, cell: grid[c][r] }); } let mg = Object.keys(tilesByVal).map(function(k) { return tilesByVal[k]; }).filter(function(g) { return g.length > 1; }); if (!mg.length) { toast(TT().no_pairs); return; }
                     busy = true;
                     playSound('magnet'); let animsP = 0;
                     mg.forEach(function(group) { const trg = group[0];
@@ -2590,8 +2428,7 @@
                             grid[t.c][t.r] = null; const tp = cellPos(trg.c, trg.r);
                             animsP++;
                             tween(m.position, { x: tp.x, y: tp.y, z: 1.0 }, 0.35, null,
-                            function() { boardGroup.remove(m); if (--animsP === 0) finMagnet(
-                                    mg); });
+                            function() { boardGroup.remove(m); if (--animsP === 0) finMagnet(mg); });
                             tween(m.scale, { x: 0.3, y: 0.3, z: 0.3 }, 0.35); }); }); }); };
 
             function finMagnet(mg) { playSound('merge');
@@ -2606,27 +2443,14 @@
                         updateHUD();
                         persist(); }); }, 250); }
 
-            function getShopProperties(tab) { const map = { cubes: { owned: 'ownedCubes', equip: 'equippedCube' }, boards: { owned: 'ownedBoards',
-                        equip: 'equippedBoard' }, effects: { owned: 'ownedEffects', equip: 'equippedEffect' },
-                    sounds: { owned: 'ownedSounds', equip: 'equippedSound' }, music: { owned: 'ownedMusic',
-                        equip: 'equippedMusic' }, pet_hair: { owned: 'ownedHair', equip: 'equippedHair' },
-                    pet_clothes: { owned: 'ownedClothes', equip: 'equippedClothes' }, pet_shoes: { owned: 'ownedShoes',
-                        equip: 'equippedShoes' }, pet_props: { owned: 'ownedProps', equip: 'equippedProps' } }; return map[
-                        tab] || { owned: '', equip: '' }; }
+            function getShopProperties(tab) { const map = { cubes: { owned: 'ownedCubes', equip: 'equippedCube' }, boards: { owned: 'ownedBoards', equip: 'equippedBoard' }, effects: { owned: 'ownedEffects', equip: 'equippedEffect' }, sounds: { owned: 'ownedSounds', equip: 'equippedSound' }, music: { owned: 'ownedMusic', equip: 'equippedMusic' }, pet_hair: { owned: 'ownedHair', equip: 'equippedHair' }, pet_clothes: { owned: 'ownedClothes', equip: 'equippedClothes' }, pet_shoes: { owned: 'ownedShoes', equip: 'equippedShoes' }, pet_props: { owned: 'ownedProps', equip: 'equippedProps' } }; return map[tab] || { owned: '', equip: '' }; }
 
-            function renderShop() { const petSubTabs = document.getElementById('petSubTabs'); if (currentMainTab === 'pets')
-                    petSubTabs.classList.add('active'); else petSubTabs.classList.remove('active'); const activeTab =
-                    currentMainTab === 'pets' ? currentPetSubTab : currentMainTab; const container = document.getElementById(
-                        'shopContainer');
+            function renderShop() { const petSubTabs = document.getElementById('petSubTabs'); if (currentMainTab === 'pets') petSubTabs.classList.add('active'); else petSubTabs.classList.remove('active'); const activeTab = currentMainTab === 'pets' ? currentPetSubTab : currentMainTab; const container = document.getElementById('shopContainer');
                 container.innerHTML = ''; const arr = SHOP[activeTab] || []; const props = getShopProperties(activeTab);
                 arr.forEach(function(item) { const isOwned = save[props.owned] && save[props.owned].indexOf(item.id) !== -1;
-                    const isEquipped = save[props.equip] === item.id; const nm = itemName(item); const el = document
-                        .createElement('div');
+                    const isEquipped = save[props.equip] === item.id; const nm = itemName(item); const el = document.createElement('div');
                     el.className = 'shop-item ' + (isOwned ? 'owned' : '') + ' ' + (isEquipped ? 'equipped' : '');
-                    el.innerHTML = '<div style="font-size:32px; margin-bottom:3px;">' + item.icon + '</div><h3>' + nm +
-                        '</h3><div class="price">' + (isEquipped ? TT().selected : isOwned ? TT().select : item.price ===
-                            0 ? TT().free : item.price + ' 🪙') + '</div>'; if (!isOwned && item.price > 0) { const adBtn =
-                            document.createElement('button');
+                    el.innerHTML = '<div style="font-size:32px; margin-bottom:3px;">' + item.icon + '</div><h3>' + nm + '</h3><div class="price">' + (isEquipped ? TT().selected : isOwned ? TT().select : item.price === 0 ? TT().free : item.price + ' 🪙') + '</div>'; if (!isOwned && item.price > 0) { const adBtn = document.createElement('button');
                         adBtn.className = 'ad-btn';
                         adBtn.textContent = TT().ad_free;
                         adBtn.onclick = function(e) { e.stopPropagation();
@@ -2653,28 +2477,19 @@
                             toast(TT().bought(nm)); } else { toast(TT().not_enough); } };
                     container.appendChild(el); }); }
 
-            function applyShopChanges(tabChanged) { if (tabChanged === 'boards') updateBoardColorsLive(); if (tabChanged ===
-                    'cubes') { for (let c = 0; c < COLS; c++)
+            function applyShopChanges(tabChanged) { if (tabChanged === 'boards') updateBoardColorsLive(); if (tabChanged === 'cubes') { for (let c = 0; c < COLS; c++)
                         for (let r = 0; r < ROWS; r++) if (grid[c][r]) { const m = grid[c][r].mesh;
                             m.material.map = numberTexture(grid[c][r].value);
-                            m.material.needsUpdate = true; } if (currentCube) { currentCube.material.map = numberTexture(
-                            currentCube.userData.value);
+                            m.material.needsUpdate = true; } if (currentCube) { currentCube.material.map = numberTexture(currentCube.userData.value);
                         currentCube.material.needsUpdate = true; }
-                    toast(TT().cube_changed); } if (tabChanged === 'pet_hair') buildHair(save.equippedHair); if (tabChanged ===
-                    'pet_clothes') equipClothes(save.equippedClothes); if (tabChanged === 'pet_shoes') { equipShoes(save
-                        .equippedShoes);
-                    toast(TT().shoes_changed); } if (tabChanged === 'pet_props') equipProp(save.equippedProps); if (
-                    tabChanged === 'effects') toast(TT().effect_changed); if (tabChanged === 'sounds') toast(TT()
-                    .sound_changed); if (tabChanged === 'music') { toast(TT().music_changed); if (musicStarted)
-                        scheduleMusicLoop(); } }
+                    toast(TT().cube_changed); } if (tabChanged === 'pet_hair') buildHair(save.equippedHair); if (tabChanged === 'pet_clothes') equipClothes(save.equippedClothes); if (tabChanged === 'pet_shoes') { equipShoes(save.equippedShoes);
+                    toast(TT().shoes_changed); } if (tabChanged === 'pet_props') equipProp(save.equippedProps); if (tabChanged === 'effects') toast(TT().effect_changed); if (tabChanged === 'sounds') toast(TT().sound_changed); if (tabChanged === 'music') { toast(TT().music_changed); if (musicStarted) scheduleMusicLoop(); } }
 
-            document.querySelectorAll('.shop-tab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll(
-                        '.shop-tab').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.shop-tab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll('.shop-tab').forEach(function(b) { b.classList.remove('active'); });
                     e.target.classList.add('active');
                     currentMainTab = e.target.dataset.maintab;
                     renderShop(); }; });
-            document.querySelectorAll('.pet-subtab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll(
-                        '.pet-subtab').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.pet-subtab').forEach(function(btn) { btn.onclick = function(e) { document.querySelectorAll('.pet-subtab').forEach(function(b) { b.classList.remove('active'); });
                     e.target.classList.add('active');
                     currentPetSubTab = e.target.dataset.subtab;
                     renderShop(); }; });
@@ -2706,11 +2521,8 @@
                 document.getElementById('loseTitle').textContent = t.lose_title;
                 document.getElementById('btnRevive').textContent = t.revive_btn;
                 const tabNames = { cubes: t.tab_cubes, boards: t.tab_boards, effects: t.tab_effects, sounds: t.tab_sounds, music: t.tab_music, pets: t.tab_pets };
-                document.querySelectorAll('.shop-tab').forEach(function(b) { b.textContent = tabNames[b.dataset.maintab] || b
-                        .textContent; }); const subNames = { pet_hair: t.sub_hair, pet_clothes: t.sub_clothes, pet_shoes: t
-                        .sub_shoes, pet_props: t.sub_props };
-                document.querySelectorAll('.pet-subtab').forEach(function(b) { b.textContent = subNames[b.dataset.subtab] || b
-                        .textContent; }); if (!document.getElementById('shopModal').classList.contains('hidden')) renderShop(); }
+                document.querySelectorAll('.shop-tab').forEach(function(b) { b.textContent = tabNames[b.dataset.maintab] || b.textContent; }); const subNames = { pet_hair: t.sub_hair, pet_clothes: t.sub_clothes, pet_shoes: t.sub_shoes, pet_props: t.sub_props };
+                document.querySelectorAll('.pet-subtab').forEach(function(b) { b.textContent = subNames[b.dataset.subtab] || b.textContent; }); if (!document.getElementById('shopModal').classList.contains('hidden')) renderShop(); }
 
             function updateSoundBtn() { document.getElementById('btnSound').textContent = muted ? '🔇' : '🔊'; }
 
@@ -2722,16 +2534,14 @@
                 clearTimeout(toastTimer);
                 toastTimer = setTimeout(function() { t.style.opacity = 0; }, 1800); }
 
-            function computeMood(now) { const fill = boardFillRatio(); if (fill >= 0.8) return 'anxious'; if (fill >= 0.65) return
-                    'angry'; if (now - lastActionTime > 15000) return 'bored'; return 'idle'; }
+            function computeMood(now) { const fill = boardFillRatio(); if (fill >= 0.8) return 'anxious'; if (fill >= 0.65) return 'angry'; if (now - lastActionTime > 15000) return 'bored'; return 'idle'; }
 
             function onMoodChange(mood) { 
                 if (mood === 'angry') { showSpeech(TT().angry, 2200);
                     angrySFX(); } if (mood === 'anxious') { showSpeech(TT().panic, 2200);
                     panicSFX(); } if (mood === 'bored') showSpeech(TT().bored, 2200); }
 
-            let lastT = 0,
-                stepAccum = 0;
+            let lastT = 0, stepAccum = 0;
 
             function loop(t) { if (_sdkPaused) { requestAnimationFrame(loop); lastT = t; return; } const dt = Math.min(0.05, (t - lastT) / 1000);
                 lastT = t; if (!lastActionTime) lastActionTime = performance.now();
@@ -2788,16 +2598,14 @@
                     u.pivot.rotation.x = droop + shake * 0.5;
                 });
                 
-                if (girl) { const core = girlCore; if (winTime > 0) { winTime -=
-                        dt; const hop = Math.abs(Math.sin(t * 0.01));
+                if (girl) { const core = girlCore; if (winTime > 0) { winTime -= dt; const hop = Math.abs(Math.sin(t * 0.01));
                     core.position.y = hop * 1.3;
                     core.scale.y = 1 + Math.sin(t * 0.01) * 0.08;
                     core.scale.x = 1 - Math.sin(t * 0.01) * 0.05;
                     girl.rotation.y = -0.2 + Math.sin(t * 0.004) * 0.5;
                     sockets.handL.rotation.z = 2.6 + Math.sin(t * 0.02) * 0.3;
                     sockets.handR.rotation.z = -2.6 - Math.sin(t * 0.02) * 0.3;
-                    (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.z = (i === 0 ? -0.3 :
-                            0.3) + Math.sin(t * 0.012 + i) * 0.35; });
+                    (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.z = (i === 0 ? -0.3 : 0.3) + Math.sin(t * 0.012 + i) * 0.35; });
                     mouthMesh.scale.set(0.95, 0.8, 0.35);
                     eyeL.scale.set(1, 0.35, 1);
                     eyeR.scale.set(1, 0.35, 1); if (winTime <= 0) { sockets.handL.rotation.z = 0.35;
@@ -2813,43 +2621,33 @@
                     browL.visible = false;
                     browR.visible = false; } else { const now = performance.now();
                     girlMood = computeMood(now); if (girlMood !== prevMood) { onMoodChange(girlMood);
-                        prevMood = girlMood; } if (girlMood === 'angry' || girlMood === 'anxious') { if (
-                            petState === 'walk') { petState = 'stand';
-                            petStateTimer = 2; } } else { petStateTimer -= dt; if (petStateTimer <= 0)
-                            pickNextState(); } if (petState === 'walk') { const dir = Math.sign(
-                            wanderTargetX - girlNdcX); if (dir !== 0) faceDir = dir;
+                        prevMood = girlMood; } if (girlMood === 'angry' || girlMood === 'anxious') { if (petState === 'walk') { petState = 'stand';
+                            petStateTimer = 2; } } else { petStateTimer -= dt; if (petStateTimer <= 0) pickNextState(); } if (petState === 'walk') { const dir = Math.sign(wanderTargetX - girlNdcX); if (dir !== 0) faceDir = dir;
                         girlNdcX += dir * 0.11 * dt;
                         stepAccum += dt; if (stepAccum > 0.36) { stepAccum = 0;
-                            stepSFX(); } if (Math.abs(wanderTargetX - girlNdcX) < 0.02) { petState =
-                                'stand';
+                            stepSFX(); } if (Math.abs(wanderTargetX - girlNdcX) < 0.02) { petState = 'stand';
                             petStateTimer = 1.5 + Math.random() * 2.5; } }
                     updateGirlScreenPosition();
                     core.position.x = 0;
-                    girl.rotation.x = 0.12; if (petState === 'hop') { girl.rotation.y += (-0.2 - girl
-                            .rotation.y) * 0.1;
+                    girl.rotation.x = 0.12; if (petState === 'hop') { girl.rotation.y += (-0.2 - girl.rotation.y) * 0.1;
                         core.position.y = Math.abs(Math.sin(t * 0.012)) * 0.5;
                         sockets.handL.rotation.z = 0.35 + Math.abs(Math.sin(t * 0.012)) * 0.9;
                         sockets.handR.rotation.z = -0.35 - Math.abs(Math.sin(t * 0.012)) * 0.9;
-                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
-                                .z = (i === 0 ? -0.3 : 0.3) + Math.sin(t * 0.012 + i) * 0.3; });
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.z = (i === 0 ? -0.3 : 0.3) + Math.sin(t * 0.012 + i) * 0.3; });
                         eyeL.scale.set(1, 1, 1);
-                        eyeR.scale.set(1, 1, 1); if (!isTalking) mouthMesh.scale.set(0.8, 0.5,
-                            0.35);
+                        eyeR.scale.set(1, 1, 1); if (!isTalking) mouthMesh.scale.set(0.8, 0.5, 0.35);
                         browL.visible = false;
-                        browR.visible = false; } else if (petState === 'walk') { girl.rotation.y += (
-                            (faceDir > 0 ? 0.65 : -0.9) - girl.rotation.y) * 0.08;
+                        browR.visible = false; } else if (petState === 'walk') { girl.rotation.y += ((faceDir > 0 ? 0.65 : -0.9) - girl.rotation.y) * 0.08;
                         core.position.y = Math.abs(Math.sin(t * 0.012)) * 0.09;
                         sockets.footL.rotation.x = Math.sin(t * 0.012) * 0.6;
                         sockets.footR.rotation.x = -Math.sin(t * 0.012) * 0.6;
                         sockets.handL.rotation.x = -Math.sin(t * 0.012) * 0.5;
                         sockets.handR.rotation.x = Math.sin(t * 0.012) * 0.5;
-                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
-                                .x = Math.sin(t * 0.012 + i * 0.8) * 0.18; });
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.x = Math.sin(t * 0.012 + i * 0.8) * 0.18; });
                         eyeL.scale.set(1, 1, 1);
                         eyeR.scale.set(1, 1, 1); if (!isTalking) mouthMesh.scale.set(1, 0.3, 0.3);
                         browL.visible = false;
-                        browR.visible = false; } else { girl.rotation.y += (-0.2 - girl.rotation.y) *
-                            0.1;
+                        browR.visible = false; } else { girl.rotation.y += (-0.2 - girl.rotation.y) * 0.1;
                         core.scale.y = 1 + Math.sin(t * 0.004) * 0.02;
                         core.position.y = Math.sin(t * 0.002) * 0.06;
                         sockets.footL.rotation.x += (0 - sockets.footL.rotation.x) * 0.1;
@@ -2858,51 +2656,31 @@
                         sockets.handR.rotation.x = 0;
                         sockets.handL.rotation.z = 0.35 + Math.sin(t * 0.003) * 0.08;
                         sockets.handR.rotation.z = -0.35 - Math.cos(t * 0.003) * 0.08;
-                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation
-                                .x = Math.sin(t * 0.0025 + i * 1.5) * 0.08; }); const showBrows =
-                            girlMood === 'angry';
+                        (hairGroup.userData.tails || []).forEach(function(tail, i) { tail.rotation.x = Math.sin(t * 0.0025 + i * 1.5) * 0.08; }); const showBrows = girlMood === 'angry';
                         browL.visible = showBrows;
                         browR.visible = showBrows; if (showBrows) { browL.rotation.z = -0.4;
-                            browR.rotation.z = 0.4; } if (girlMood === 'angry') { eyeL.scale.set(1,
-                                0.7, 1);
-                            eyeR.scale.set(1, 0.7, 1); if (!isTalking) mouthMesh.scale.set(0.8,
-                                0.12, 0.3); } else if (girlMood === 'anxious') { eyeL.scale.set(
-                                1.3, 1.3, 1.3);
-                            eyeR.scale.set(1.3, 1.3, 1.3); if (!isTalking) mouthMesh.scale.set(0.5,
-                                0.55, 0.35);
+                            browR.rotation.z = 0.4; } if (girlMood === 'angry') { eyeL.scale.set(1, 0.7, 1);
+                            eyeR.scale.set(1, 0.7, 1); if (!isTalking) mouthMesh.scale.set(0.8, 0.12, 0.3); } else if (girlMood === 'anxious') { eyeL.scale.set(1.3, 1.3, 1.3);
+                            eyeR.scale.set(1.3, 1.3, 1.3); if (!isTalking) mouthMesh.scale.set(0.5, 0.55, 0.35);
                             girl.position.x += (Math.random() - 0.5) * 0.05;
-                            girl.position.y += (Math.random() - 0.5) * 0.05; } else if (girlMood ===
-                            'bored') { eyeL.scale.set(1, 0.35, 1);
+                            girl.position.y += (Math.random() - 0.5) * 0.05; } else if (girlMood === 'bored') { eyeL.scale.set(1, 0.35, 1);
                             eyeR.scale.set(1, 0.35, 1);
-                            girl.rotation.z = Math.sin(t * 0.0008) * 0.1; const yawn = Math.max(0,
-                                Math.sin(t * 0.0012)); if (!isTalking) mouthMesh.scale.set(0.55 +
-                                yawn * 0.2, 0.2 + yawn * 0.55, 0.35); } else { girl.rotation.z += (0 -
-                                girl.rotation.z) * 0.1;
+                            girl.rotation.z = Math.sin(t * 0.0008) * 0.1; const yawn = Math.max(0, Math.sin(t * 0.0012)); if (!isTalking) mouthMesh.scale.set(0.55 + yawn * 0.2, 0.2 + yawn * 0.55, 0.35); } else { girl.rotation.z += (0 - girl.rotation.z) * 0.1;
                             eyeL.scale.set(1, 1, 1);
-                            eyeR.scale.set(1, 1, 1); const blink = Math.sin(t * 0.0035); if (blink >
-                                0.985) { eyeL.scale.y = 0.1;
-                                eyeR.scale.y = 0.1; } if (!isTalking) mouthMesh.scale.set(1, 0.3,
-                                0.3); } } } if (isTalking && mouthMesh) { mouthMesh.scale.y = 0.25 + Math
-                        .abs(Math.sin(t * 0.025)) * 0.55;
+                            eyeR.scale.set(1, 1, 1); const blink = Math.sin(t * 0.0035); if (blink > 0.985) { eyeL.scale.y = 0.1;
+                                eyeR.scale.y = 0.1; } if (!isTalking) mouthMesh.scale.set(1, 0.3, 0.3); } } } if (isTalking && mouthMesh) { mouthMesh.scale.y = 0.25 + Math.abs(Math.sin(t * 0.025)) * 0.55;
                     mouthMesh.scale.x = 0.7 + Math.abs(Math.cos(t * 0.02)) * 0.2; }
-                    girlCore.traverse(function(child) { if (child.userData && child.userData.onUpdate) child.userData
-                            .onUpdate(t); }); } if (currentCube && !busy) currentCube.rotation.y = Math.sin(t * 0.002) * 0.12; if (
-                    renderer) renderer.render(scene, camera);
+                    girlCore.traverse(function(child) { if (child.userData && child.userData.onUpdate) child.userData.onUpdate(t); }); } if (currentCube && !busy) currentCube.rotation.y = Math.sin(t * 0.002) * 0.12; if (renderer) renderer.render(scene, camera);
                 requestAnimationFrame(loop); }
 
             (function() {
-                try { const keys = ['drop2048-save-pure', 'drop2048-save-v2', 'drop2048-save-v3', 'drop2048-save-v4',
-                        'drop2048-v5', 'drop2048-frankly-v1', 'drop2048-frankly-v2', 'drop2048-frankly-v3',
-                        'drop2048-frankly-v4', 'drop2048-frankly-v5', 'drop2048-frankly-v6', 'drop2048-frankly-v7',
-                        'drop2048-frankly-v8', 'drop2048-frankly-v9', 'drop2048-frankly-v10', 'drop2048-frankly-v11'
-                    ];
+                try { const keys = ['drop2048-save-pure', 'drop2048-save-v2', 'drop2048-save-v3', 'drop2048-save-v4', 'drop2048-v5', 'drop2048-frankly-v1', 'drop2048-frankly-v2', 'drop2048-frankly-v3', 'drop2048-frankly-v4', 'drop2048-frankly-v5', 'drop2048-frankly-v6', 'drop2048-frankly-v7', 'drop2048-frankly-v8', 'drop2048-frankly-v9', 'drop2048-frankly-v10', 'drop2048-frankly-v11'];
                     keys.forEach(function(k) { localStorage.removeItem(k); }); } catch (e) {}
 
                 const shopRollup = document.getElementById('shopRollup');
                 const shopPanel = document.getElementById('shopPanel');
                 const helpRollup = document.getElementById('helpRollup');
                 const helpPanel = document.getElementById('helpPanel');
-                // Mission panel πάντα ορατό, δεν χρειάζεται rollup
 
                 shopRollup.onclick = function(e) {
                     e.stopPropagation();
@@ -2965,8 +2743,7 @@
                         shopRollup.style.pointerEvents = 'auto';
                     }
                 };
-                document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal')
-                    .classList.add('hidden'); };
+                document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal').classList.add('hidden'); };
                 document.getElementById('btnSound').onclick = function() { muted = !muted;
                     save.muted = muted;
                     persist();
@@ -2980,13 +2757,11 @@
 
                 let firstInteraction = false;
                 document.addEventListener('pointerdown', function() { if (firstInteraction) return;
-                    firstInteraction = true; if (audioCtx.state === 'suspended') audioCtx.resume(); try { const u =
-                            new SpeechSynthesisUtterance(' ');
+                    firstInteraction = true; if (audioCtx.state === 'suspended') audioCtx.resume(); try { const u = new SpeechSynthesisUtterance(' ');
                         u.volume = 0;
                         speechSynthesis.speak(u); } catch (e) {}
                     startMusic();
-                    announceMission(400); }); if (!window.PointerEvent) { document.addEventListener('touchstart',
-                    function() { if (firstInteraction) return;
+                    announceMission(400); }); if (!window.PointerEvent) { document.addEventListener('touchstart', function() { if (firstInteraction) return;
                         firstInteraction = true; if (audioCtx.state === 'suspended') audioCtx.resume();
                         startMusic();
                         announceMission(400); }, { passive: true }); }
@@ -3011,14 +2786,16 @@
                 equipProp(save.equippedProps || 'prop_none');
 
                 const cvs = document.getElementById("game");
-                cvs.addEventListener("pointermove", function(e) { if (busy || !currentCube) return; const cx = (e
-                        .touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; const col = Math.floor(cx /
-                        innerWidth * COLS);
-                    setAim(col); });
-                cvs.addEventListener("pointerdown", onTap); if (!window.PointerEvent) { cvs.addEventListener(
-                    "touchstart", onTap, { passive: true }); }
+                cvs.addEventListener("pointermove", function(e) { 
+                    if (busy || !currentCube) return; 
+                    const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; 
+                    const colWidth = window.innerWidth / COLS;
+                    let col = Math.floor(cx / colWidth);
+                    col = Math.max(0, Math.min(COLS - 1, col));
+                    setAim(col); 
+                });
+                cvs.addEventListener("pointerdown", onTap); if (!window.PointerEvent) { cvs.addEventListener("touchstart", onTap, { passive: true }); }
 
-                // Win modal: rewarded διαφήμιση για συνέχεια (εκπλήρωση αποστολής)
                 document.getElementById("btnNext").onclick = function() {
                     showAd(function() {
                         document.getElementById("winModal").classList.add("hidden");
@@ -3030,7 +2807,6 @@
                     });
                 };
 
-                // Lose modal: rewarded διαφήμιση για revive (όταν χάνει ο παίκτης)
                 document.getElementById("btnRevive").onclick = function() {
                     if (busy) return;
                     showAd(function() { doRevive(); });
@@ -3078,9 +2854,21 @@
                         updateHUD();
                     }, 400);
                 }
+
+                // --- ΠΡΟΣΘΗΚΗ: Έλεγχος για εμφάνιση tutorial ---
+                if (!save.tutorialSeen) {
+                    document.getElementById('tutorialModal').classList.remove('hidden');
+                    // Απενεργοποίηση του interaction του background όσο είναι ανοιχτό
+                }
+                document.getElementById('btnStartTutorial').onclick = function() {
+                    save.tutorialSeen = true;
+                    persist();
+                    document.getElementById('tutorialModal').classList.add('hidden');
+                    // Ξεκινάμε τη μουσική αν δεν έχει ξεκινήσει λόγω interaction
+                    if (!musicStarted) startMusic();
+                };
             })();
 
-            // ===== Παύση/συνέχεια παιχνιδιού κατά τη διαφήμιση (Monetag) =====
             function handlePause() {
                 _sdkPaused = true;
                 try { if (speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
