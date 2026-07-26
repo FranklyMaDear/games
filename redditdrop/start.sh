@@ -1,1 +1,0 @@
-npm create devvit@latest Ch5SendRRKY0TUFFX0ppWHVzWnNJdDQycEV0c0p2S3cSCWRyb3AtNDA5NlhoHdGhyZWVqcW==
