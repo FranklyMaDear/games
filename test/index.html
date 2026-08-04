@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -105,12 +105,13 @@
             box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
         }
 
-        /* --- Νέο Top UI (Shop + Info + Mission) --- */
+        /* --- Roll-up Banner (Top UI) --- */
         #shopRollup {
             position: fixed;
             top: 0;
             left: 50%;
-            transform: translateX(-50%);
+            /* Αρχικά κρυμμένο εκτός οθόνης */
+            transform: translate(-50%, -100%);
             border-radius: 0 0 24px 24px;
             padding: 10px 16px;
             font-size: 16px;
@@ -123,13 +124,37 @@
             display: flex;
             flex-direction: column;
             animation: rainbowGlow 4s infinite ease-in-out;
+            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
             perspective: 200px;
             transform-style: preserve-3d;
             letter-spacing: 1px;
             z-index: 20;
-            cursor: pointer;
             pointer-events: auto;
-            transition: all 0.25s;
+        }
+
+        /* Κλάση για όταν κατεβαίνει (ανοίγει) */
+        #shopRollup.open {
+            transform: translate(-50%, 0);
+        }
+
+        /* Το μικρό βελάκι (χερούλι) που προεξέχει */
+        .top-toggle-handle {
+            position: absolute;
+            bottom: -24px; 
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 24px;
+            background: rgba(60, 30, 15, 0.95);
+            border: 3px solid rgba(255, 180, 60, 0.8);
+            border-top: none;
+            border-radius: 0 0 16px 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.5);
+            pointer-events: auto;
         }
 
         .top-btn-shop {
@@ -796,6 +821,7 @@
     
     <div id="dropIndicator"></div>
 
+    <!-- ===== Το νέο Roll-up Banner ===== -->
     <div id="shopRollup">
         <!-- Πρώτη Γραμμή: SHOP (Αριστερά) | INFO & Πόντοι (Δεξιά) -->
         <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
@@ -806,7 +832,6 @@
                 <span class="info-lbl">INFO</span>
                 <span>🪙 <span id="miniScore">0</span></span>
                 <span>💎 <span id="miniCoinsDisplay">100</span></span>
-                <span style="font-size: 10px; margin-left: 2px;">▼</span>
             </div>
         </div>
         <!-- Δεύτερη Γραμμή: Μπάρα Πόντων / Αποστολής -->
@@ -816,6 +841,11 @@
                 <div class="mission-bar-fill" id="missionBarFill"></div>
             </div>
         </div>
+
+        <!-- HANDLE FOR ROLLUP (Το βελάκι που προεξέχει προς τα κάτω) -->
+        <div id="topToggleBtn" class="top-toggle-handle">
+            <span id="topToggleArrow" style="color: #ffda85; font-size: 12px; font-weight: 900;">▼</span>
+        </div>
     </div>
 
     <div class="shop-panel" id="shopPanel">
@@ -824,7 +854,6 @@
         <div class="chip coin-chip">💎 <span class="big" id="hudCoins">100</span></div>
         <button class="hud-btn icon-btn" id="btnSound">🔊</button>
         <button class="hud-btn icon-btn" id="btnLang">EN</button>
-        <button class="hud-btn" id="btnShop">🛒</button>
     </div>
 
     <div class="rollup-tab" id="helpRollup">
@@ -940,6 +969,9 @@
             let firstFrameSent = false;
             let isSdkPaused = false; 
 
+            // ===== Νέα Κατάσταση για το Banner =====
+            let topBannerOpen = false; 
+
             // ===== ΔΙΑΦΗΜΙΣΕΙΣ (YouTube Playables Ads) =====
             function requestInterstitialAd() {
                 return new Promise(function(resolve) {
@@ -959,7 +991,6 @@
                 });
             }
 
-            // Ενεργοποιούμε ένα περιοδικό Interstitial Ad request (π.χ. κάθε 2 λεπτά) όπως ζητάει το SDK
             setInterval(function() {
                 if (!gameOver && !paused && !isSdkPaused && typeof ytgame !== 'undefined') {
                     requestInterstitialAd();
@@ -3326,18 +3357,36 @@
                 const helpPanel = document.getElementById('helpPanel');
                 const topShopBtn = document.getElementById('topShopBtn');
                 const topInfoBtn = document.getElementById('topInfoBtn');
+                const topToggleBtn = document.getElementById('topToggleBtn');
+                const topToggleArrow = document.getElementById('topToggleArrow');
+
+                // Λειτουργία Roll-up Banner
+                if (topToggleBtn) {
+                    topToggleBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        if (isSdkPaused) return;
+                        topBannerOpen = !topBannerOpen;
+                        if (topBannerOpen) {
+                            shopRollup.classList.add('open');
+                            topToggleArrow.textContent = '▲';
+                        } else {
+                            shopRollup.classList.remove('open');
+                            topToggleArrow.textContent = '▼';
+                        }
+                    };
+                }
 
                 function toggleInfoPanel() {
                     if (isSdkPaused) return; 
                     shopPanelOpen = !shopPanelOpen;
                     if (shopPanelOpen) {
                         shopPanel.classList.add('open');
-                        shopRollup.style.opacity = '0';
-                        shopRollup.style.pointerEvents = 'none';
+                        // Όταν ανοίγει το INFO HUD, ανεβάζουμε το Banner
+                        topBannerOpen = false;
+                        shopRollup.classList.remove('open');
+                        topToggleArrow.textContent = '▼';
                     } else {
                         shopPanel.classList.remove('open');
-                        shopRollup.style.opacity = '1';
-                        shopRollup.style.pointerEvents = 'auto';
                     }
                     if (helpPanelOpen) {
                         helpPanelOpen = false;
@@ -3360,11 +3409,15 @@
                         renderShop();
                         updateHUD();
                         document.getElementById('shopModal').classList.remove('hidden');
+                        
+                        // Όταν ανοίγει το Shop, ανεβάζουμε το banner
+                        topBannerOpen = false;
+                        shopRollup.classList.remove('open');
+                        topToggleArrow.textContent = '▼';
+                        
                         if (shopPanelOpen) {
                             shopPanelOpen = false;
                             shopPanel.classList.remove('open');
-                            shopRollup.style.opacity = '1';
-                            shopRollup.style.pointerEvents = 'auto';
                         }
                     };
                 }
@@ -3372,7 +3425,7 @@
                 if(shopRollup) {
                     shopRollup.onclick = function(e) {
                         e.stopPropagation();
-                        toggleInfoPanel();
+                        // Απλά εμποδίζει το κλικ στο banner να κλείσει το banner.
                     };
                 }
 
@@ -3390,17 +3443,19 @@
                     if (shopPanelOpen) {
                         shopPanelOpen = false;
                         shopPanel.classList.remove('open');
-                        shopRollup.style.opacity = '1';
-                        shopRollup.style.pointerEvents = 'auto';
                     }
                 };
 
+                // Όταν πατάει μέσα στο παιχνίδι, κλείνουν όλα (Banner, Info, Help)
                 document.getElementById('game').addEventListener('pointerdown', function(e) {
+                    if (topBannerOpen) {
+                        topBannerOpen = false;
+                        shopRollup.classList.remove('open');
+                        topToggleArrow.textContent = '▼';
+                    }
                     if (shopPanelOpen) {
                         shopPanelOpen = false;
                         shopPanel.classList.remove('open');
-                        shopRollup.style.opacity = '1';
-                        shopRollup.style.pointerEvents = 'auto';
                     }
                     if (helpPanelOpen) {
                         helpPanelOpen = false;
@@ -3409,19 +3464,6 @@
                     }
                 });
 
-                document.getElementById('btnShop').onclick = function() {
-                    if (isSdkPaused) return;
-                    renderShop();
-                    updateHUD();
-                    document.getElementById('shopModal').classList.remove('hidden');
-                    if (shopPanelOpen) {
-                        shopPanelOpen = false;
-                        shopPanel.classList.remove('open');
-                        shopRollup.style.opacity = '1';
-                        shopRollup.style.pointerEvents = 'auto';
-                    }
-                };
-                
                 document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal').classList.add('hidden'); };
                 document.getElementById('btnShareHelp').onclick = function() { if (isSdkPaused) return; doShareAction(); };
                 
