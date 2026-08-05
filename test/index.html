@@ -110,7 +110,6 @@
             position: fixed;
             top: 0;
             left: 50%;
-            /* Αρχικά κρυμμένο εκτός οθόνης */
             transform: translate(-50%, -100%);
             border-radius: 0 0 24px 24px;
             padding: 10px 16px;
@@ -131,13 +130,10 @@
             z-index: 20;
             pointer-events: auto;
         }
-
-        /* Κλάση για όταν κατεβαίνει (ανοίγει) */
         #shopRollup.open {
             transform: translate(-50%, 0);
         }
 
-        /* Το μικρό βελάκι (χερούλι) που προεξέχει */
         .top-toggle-handle {
             position: absolute;
             bottom: -24px; 
@@ -229,7 +225,6 @@
             transition: width 0.3s ease-out;
             box-shadow: inset -2px 0 0 rgba(0,0,0,0.2);
         }
-        /* -------------------------------------- */
 
         .shop-panel {
             position: fixed;
@@ -455,7 +450,6 @@
             gap: 4px;
         }
 
-        /* Dual Buttons for eShop */
         .dual-buy {
             display: flex;
             gap: 4px;
@@ -777,6 +771,37 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
+        /* Νέο στυλ για την λίστα Leaderboard */
+        .lb-list {
+            max-height: 50vh;
+            overflow-y: auto;
+            text-align: left;
+            margin: 15px 0;
+            border-radius: 12px;
+            padding: 0 8px;
+        }
+        .lb-list::-webkit-scrollbar { width: 4px; }
+        .lb-list::-webkit-scrollbar-thumb { background: var(--panel-deep); border-radius: 4px; }
+        
+        .lb-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.06);
+            padding: 10px 14px;
+            border-radius: 12px;
+            margin-bottom: 6px;
+            font-weight: 700;
+            color: var(--ink);
+            font-size: 15px;
+        }
+        .lb-item.me {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 8px rgba(242, 160, 61, 0.4);
+        }
+        .lb-rank-name { display: flex; gap: 8px; align-items: center; }
+
         @media (max-width: 480px) {
             #shopRollup { padding: 10px 14px; width: 96%; }
             .top-btn-shop { font-size: 12px; padding: 4px 10px; }
@@ -821,9 +846,7 @@
     
     <div id="dropIndicator"></div>
 
-    <!-- ===== Το νέο Roll-up Banner ===== -->
     <div id="shopRollup">
-        <!-- Πρώτη Γραμμή: SHOP (Αριστερά) | INFO & Πόντοι (Δεξιά) -->
         <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
             <div id="topShopBtn" class="top-btn-shop">
                 🛒 SHOP
@@ -834,15 +857,12 @@
                 <span>💎 <span id="miniCoinsDisplay">100</span></span>
             </div>
         </div>
-        <!-- Δεύτερη Γραμμή: Μπάρα Πόντων / Αποστολής -->
         <div style="display: flex; align-items: center; width: 100%; gap: 6px; margin-top: 6px;">
             <span class="mission-label" id="missionLabel">MISSION: 64</span>
             <div class="mission-bar-bg">
                 <div class="mission-bar-fill" id="missionBarFill"></div>
             </div>
         </div>
-
-        <!-- HANDLE FOR ROLLUP (Το βελάκι που προεξέχει προς τα κάτω) -->
         <div id="topToggleBtn" class="top-toggle-handle">
             <span id="topToggleArrow" style="color: #ffda85; font-size: 12px; font-weight: 900;">▼</span>
         </div>
@@ -876,12 +896,19 @@
 
     <div id="speech"><span id="speechText">WOW!</span></div>
     <div id="toast"></div>
-
     <div id="timer" class="hidden">05:00</div>
 
-    <!-- Καθολικό Pause Overlay (Μπλοκάρει κάθε κλικ) -->
     <div class="overlay hidden" id="pauseOverlay" style="z-index: 9999; flex-direction: column; background: rgba(0,0,0,0.85);">
         <h1 style="color: white; font-size: 40px; margin: 0; letter-spacing: 4px;">PAUSED</h1>
+    </div>
+
+    <!-- ===== LEADERBOARD MODAL ===== -->
+    <div class="overlay hidden" id="leaderboardModal">
+        <div class="card">
+            <h2>🏆 Top Players</h2>
+            <div class="lb-list" id="lbContainer"></div>
+            <button class="btn" id="btnCloseLeaderboard">Close</button>
+        </div>
     </div>
 
     <div class="overlay hidden" id="shopModal">
@@ -954,6 +981,8 @@
                 <button class="btn" id="btnClassic" style="flex:1; min-width:120px;">Classic Mode</button>
                 <button class="btn" id="btnTimeAttack" style="flex:1; min-width:120px; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">Time Attack (5 Mins)</button>
             </div>
+            <!-- Κουμπί Leaderboard στο Main Menu -->
+            <button class="btn" id="btnLeaderboard" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a; margin-top:12px;">🏆 Leaderboard</button>
         </div>
     </div>
 
@@ -965,9 +994,8 @@
         (function() {
             'use strict';
 
-            // ===== Game Modes & State =====
             let gameMode = 'classic';
-            let timeRemaining = 300; // 5 minutes (300 seconds)
+            let timeRemaining = 300; 
             let timerInterval = null;
             let gameOver = false;
             let bestClassic = 0;
@@ -975,11 +1003,8 @@
             let paused = false;
             let firstFrameSent = false;
             let isSdkPaused = false; 
-
-            // ===== Νέα Κατάσταση για το Banner =====
             let topBannerOpen = false; 
 
-            // ===== ΔΙΑΦΗΜΙΣΕΙΣ (YouTube Playables Ads) =====
             function requestInterstitialAd() {
                 return new Promise(function(resolve) {
                     if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestInterstitialAd) {
@@ -1254,10 +1279,17 @@
                 try { 
                     const dataStr = JSON.stringify(save);
                     localStorage.setItem("drop2048-frankly-v23", dataStr);
+                    
                     if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
                         ytgame.game.saveData(dataStr);
                     }
-                } catch (e) {}
+                    
+                    if (typeof mcplay !== 'undefined' && typeof mcplay.saveData === 'function') {
+                        mcplay.saveData(dataStr);
+                    } else if (typeof window !== 'undefined' && window.mcplay && typeof window.mcplay.saveData === 'function') {
+                        window.mcplay.saveData(dataStr);
+                    }
+                } catch (e) { console.warn('Persist error:', e); }
             }
 
             let coins = 0, level = 0, score = 0, muted = false, biggestTile = 0;
@@ -2671,9 +2703,6 @@
                 }
             }
 
-            // =================================================================
-            //   ΑΝΑΒΑΘΜΙΣΜΕΝΟ ΣΥΣΤΗΜΑ ΚΟΙΝΟΠΟΙΗΣΗΣ (Multi-File Share)
-            // =================================================================
             async function doShareAction(onSuccess) {
                 const tileVal = biggestTile || 2;
                 const shareData = {
@@ -2716,7 +2745,6 @@
                 }
             }
 
-            // ===== TIMER =====
             function updateTimerDisplay() {
                 const mins = Math.floor(timeRemaining / 60);
                 const secs = Math.floor(timeRemaining % 60);
@@ -2726,7 +2754,7 @@
 
             function startTimer() {
                 if (timerInterval) clearInterval(timerInterval);
-                timeRemaining = 300; // 5 λεπτά
+                timeRemaining = 300; 
                 updateTimerDisplay();
                 document.getElementById('timer').classList.remove('hidden');
                 timerInterval = setInterval(function() {
@@ -2751,7 +2779,6 @@
                 document.getElementById("timeUpModal").classList.remove("hidden");
             }
 
-            // ===== SHOP =====
             function getShopProperties(tab) {
                 const map = { 
                     cubes: { owned: 'ownedCubes', equip: 'equippedCube' }, 
@@ -3152,7 +3179,6 @@
                 requestAnimationFrame(loop); 
             }
 
-            // ===== BOOTSTRAP & MAIN MENU =====
             let isGameReady = false;
             let bootAttempted = false;
             let bootInProgress = false;
@@ -3165,7 +3191,6 @@
                     const mainMenu = document.getElementById('mainMenu');
                     if (!mainMenu) return;
 
-                    // ===== PLAYABLES SDK: ONPAUSE, ONRESUME & MUTE BINDINGS =====
                     if (typeof ytgame !== 'undefined' && ytgame.system) {
                         if (typeof ytgame.system.onPause === 'function') {
                             ytgame.system.onPause(function() {
@@ -3191,7 +3216,6 @@
                             });
                         }
 
-                        // Αντιμετώπιση του Issue #3 (SDK Mute doesn't work)
                         if (typeof ytgame.system.onAudioEnabledChange === 'function') {
                             ytgame.system.onAudioEnabledChange(function(enabled) {
                                 muted = !enabled;
@@ -3267,7 +3291,6 @@
                     return;
                 }
                 
-                // Διόρθωση Issue #2: Κλήση interstitial μόλις ξεκινάει το πρώτο session.
                 if (!window.hasShownFirstAd && typeof ytgame !== 'undefined') {
                     requestInterstitialAd();
                     window.hasShownFirstAd = true;
@@ -3315,14 +3338,12 @@
                 });
             };
             
-            // Διόρθωση Issue #4: Rewarded Ad Revive functionality
             document.getElementById('btnReviveLose').onclick = function() {
                 runAdFlow('btnReviveLose', 'reward-revive', function() {
                     document.getElementById('loseModal').classList.add('hidden');
                     gameOver = false;
                     busy = false;
                     
-                    // Καθαρίζουμε τις 3 πάνω γραμμές για να συνεχίσει
                     for (let c = 0; c < COLS; c++) {
                         for (let r = ROWS - 3; r < ROWS; r++) {
                             if (grid[c][r]) {
@@ -3344,13 +3365,12 @@
                 });
             };
             
-            // Διόρθωση Issue #4: Extra χρόνος στο Time Attack μέσω rewarded ad
             document.getElementById('btnReviveTimeUp').onclick = function() {
                 runAdFlow('btnReviveTimeUp', 'reward-time', function() {
                     document.getElementById('timeUpModal').classList.add('hidden');
                     gameOver = false;
                     busy = false;
-                    timeRemaining += 60; // Πρόσθεσε 60 δευτερόλεπτα
+                    timeRemaining += 60;
                     startTimer();
                     spawnCurrent();
                     setAim(aimCol);
@@ -3362,6 +3382,51 @@
             };
             document.getElementById('btnShareTimeUp').onclick = function() { 
                 doShareAction(function(){ toast("Thanks for sharing!"); }); 
+            };
+
+            // ===== ΛΕΙΤΟΥΡΓΙΑ LEADERBOARD =====
+            function renderLeaderboard() {
+                const container = document.getElementById('lbContainer');
+                container.innerHTML = '';
+                
+                let players = [
+                    { name: 'Alex', diamonds: 1540 },
+                    { name: 'Maria', diamonds: 920 },
+                    { name: 'Gamer99', diamonds: 430 },
+                    { name: 'Nikos', diamonds: 110 },
+                    { name: 'You', diamonds: coins, isMe: true }
+                ];
+                
+                players.sort((a, b) => b.diamonds - a.diamonds);
+
+                players.forEach((p, index) => {
+                    const el = document.createElement('div');
+                    el.className = 'lb-item' + (p.isMe ? ' me' : '');
+                    
+                    let medal = '';
+                    if (index === 0) medal = '🥇';
+                    else if (index === 1) medal = '🥈';
+                    else if (index === 2) medal = '🥉';
+                    else medal = `#${index + 1}`;
+
+                    el.innerHTML = `
+                        <div class="lb-rank-name">
+                            <span style="width: 25px; text-align: center;">${medal}</span>
+                            <span>${p.name}</span>
+                        </div>
+                        <span>💎 ${p.diamonds}</span>
+                    `;
+                    container.appendChild(el);
+                });
+            }
+
+            document.getElementById('btnLeaderboard').onclick = function() {
+                renderLeaderboard();
+                document.getElementById('leaderboardModal').classList.remove('hidden');
+            };
+
+            document.getElementById('btnCloseLeaderboard').onclick = function() {
+                document.getElementById('leaderboardModal').classList.add('hidden');
             };
 
             function activateHammer() {
@@ -3457,7 +3522,6 @@
                 const topToggleBtn = document.getElementById('topToggleBtn');
                 const topToggleArrow = document.getElementById('topToggleArrow');
 
-                // Λειτουργία Roll-up Banner
                 if (topToggleBtn) {
                     topToggleBtn.onclick = function(e) {
                         e.stopPropagation();
@@ -3478,7 +3542,6 @@
                     shopPanelOpen = !shopPanelOpen;
                     if (shopPanelOpen) {
                         shopPanel.classList.add('open');
-                        // Όταν ανοίγει το INFO HUD, ανεβάζουμε το Banner
                         topBannerOpen = false;
                         shopRollup.classList.remove('open');
                         topToggleArrow.textContent = '▼';
@@ -3507,7 +3570,6 @@
                         updateHUD();
                         document.getElementById('shopModal').classList.remove('hidden');
                         
-                        // Όταν ανοίγει το Shop, ανεβάζουμε το banner
                         topBannerOpen = false;
                         shopRollup.classList.remove('open');
                         topToggleArrow.textContent = '▼';
@@ -3522,7 +3584,6 @@
                 if(shopRollup) {
                     shopRollup.onclick = function(e) {
                         e.stopPropagation();
-                        // Απλά εμποδίζει το κλικ στο banner να κλείσει το banner.
                     };
                 }
 
@@ -3543,7 +3604,6 @@
                     }
                 };
 
-                // Όταν πατάει μέσα στο παιχνίδι, κλείνουν όλα (Banner, Info, Help)
                 document.getElementById('game').addEventListener('pointerdown', function(e) {
                     if (topBannerOpen) {
                         topBannerOpen = false;
@@ -3599,7 +3659,6 @@
                         startMusic(); }, { passive: true }); 
                 }
 
-                // Διόρθωση Issue #5: Περιμένει το SDK να φορτώσει το σώσιμο του χρήστη πριν ξεκινήσει το παιχνίδι.
                 loadSave(function() {
                     coins = save.coins || 100;
                     level = save.level || 0;
