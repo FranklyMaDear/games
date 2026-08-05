@@ -879,6 +879,11 @@
 
     <div id="timer" class="hidden">05:00</div>
 
+    <!-- Καθολικό Pause Overlay (Μπλοκάρει κάθε κλικ) -->
+    <div class="overlay hidden" id="pauseOverlay" style="z-index: 9999; flex-direction: column; background: rgba(0,0,0,0.85);">
+        <h1 style="color: white; font-size: 40px; margin: 0; letter-spacing: 4px;">PAUSED</h1>
+    </div>
+
     <div class="overlay hidden" id="shopModal">
         <div class="card">
             <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; position:relative;">
@@ -917,6 +922,7 @@
             <div style="font-size:40px; margin-bottom:6px;">😵</div>
             <h2 id="loseTitle">The board is full!</h2>
             <p id="loseText"></p>
+            <button class="btn" id="btnReviveLose" style="background:#F2A03D; box-shadow:0 4px 0 #b8742a; margin-top:8px;">🎬 Watch Ad to Continue!</button>
             <button class="btn" id="btnShareLose" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a; margin-top:8px;">📤 Share Score</button>
             <button class="btn" id="btnPlayAgainLose" style="background:#5c7a3a; box-shadow:0 4px 0 #3a4d25; margin-top:4px;">🔄 Play Again</button>
         </div>
@@ -927,6 +933,7 @@
             <div style="font-size:40px; margin-bottom:6px;">⏰</div>
             <h2 id="timeUpTitle">Time's Up!</h2>
             <p id="timeUpText"></p>
+            <button class="btn" id="btnReviveTimeUp" style="background:#F2A03D; box-shadow:0 4px 0 #b8742a; margin-top:8px;">🎬 Watch Ad for +60s!</button>
             <button class="btn" id="btnShareTimeUp" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a; margin-top:8px;">📤 Share Score</button>
             <button class="btn" id="btnPlayAgainTimeUp" style="background:#5c7a3a; box-shadow:0 4px 0 #3a4d25; margin-top:4px;">🔄 Play Again</button>
         </div>
@@ -1221,15 +1228,36 @@
 
             let save = Object.assign({}, DEFAULT_SAVE);
 
-            function loadSave() {
+            function loadSave(callback) {
                 try {
                     const r = localStorage.getItem("drop2048-frankly-v23");
                     if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
                 } catch (e) { console.warn('Load save error', e); }
+
+                if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.loadData) {
+                    try {
+                        ytgame.game.loadData().then(function(dataStr) {
+                            if (dataStr) {
+                                save = Object.assign({}, DEFAULT_SAVE, JSON.parse(dataStr));
+                            }
+                            if (callback) callback();
+                        }).catch(function() {
+                            if (callback) callback();
+                        });
+                    } catch(e) { if(callback) callback(); }
+                } else {
+                    if (callback) callback();
+                }
             }
 
             function persist() {
-                try { localStorage.setItem("drop2048-frankly-v23", JSON.stringify(save)); } catch (e) {}
+                try { 
+                    const dataStr = JSON.stringify(save);
+                    localStorage.setItem("drop2048-frankly-v23", dataStr);
+                    if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
+                        ytgame.game.saveData(dataStr);
+                    }
+                } catch (e) {}
             }
 
             let coins = 0, level = 0, score = 0, muted = false, biggestTile = 0;
@@ -1238,7 +1266,7 @@
             const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
 
             function tone(freq0, freq1, dur, wave, vol, delay) {
-                if (muted) return;
+                if (muted || isSdkPaused) return;
                 try {
                     const o = audioCtx.createOscillator();
                     const g = audioCtx.createGain();
@@ -1256,7 +1284,7 @@
             }
 
             function playSound(type) {
-                if (muted) return;
+                if (muted || isSdkPaused) return;
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 if (type === 'win') { playWinSound(); return; }
                 if (type === 'hammer') {
@@ -2584,8 +2612,8 @@
             }
 
             function onTap(e) { 
-                if (document.querySelector(".overlay:not(.hidden)")) return;
-                if (gameOver || isSdkPaused) return;
+                if (document.querySelector(".overlay:not(.hidden):not(#pauseOverlay)")) return;
+                if (gameOver || isSdkPaused || paused) return;
                 lastActionTime = performance.now(); 
                 const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
                 const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; 
@@ -3137,24 +3165,49 @@
                     const mainMenu = document.getElementById('mainMenu');
                     if (!mainMenu) return;
 
-                    // ===== PLAYABLES SDK: ONPAUSE & ONRESUME =====
+                    // ===== PLAYABLES SDK: ONPAUSE, ONRESUME & MUTE BINDINGS =====
                     if (typeof ytgame !== 'undefined' && ytgame.system) {
-                        ytgame.system.onPause(function() {
-                            isSdkPaused = true;
-                            paused = true;
-                            if (timerInterval) clearInterval(timerInterval);
-                            if (musicTimer) clearInterval(musicTimer);
-                            try { speechSynthesis.cancel(); } catch(e){}
-                        });
-                        ytgame.system.onResume(function() {
-                            isSdkPaused = false;
-                            paused = false;
-                            if (gameMode === 'timeattack') {
-                                startTimer();
-                            } else {
-                                if (musicStarted) scheduleMusicLoop();
-                            }
-                        });
+                        if (typeof ytgame.system.onPause === 'function') {
+                            ytgame.system.onPause(function() {
+                                isSdkPaused = true;
+                                paused = true;
+                                document.getElementById('pauseOverlay').classList.remove('hidden');
+                                if (timerInterval) clearInterval(timerInterval);
+                                if (musicTimer) clearInterval(musicTimer);
+                                try { speechSynthesis.cancel(); } catch(e){}
+                            });
+                        }
+                        
+                        if (typeof ytgame.system.onResume === 'function') {
+                            ytgame.system.onResume(function() {
+                                isSdkPaused = false;
+                                paused = false;
+                                document.getElementById('pauseOverlay').classList.add('hidden');
+                                if (gameMode === 'timeattack') {
+                                    startTimer();
+                                } else {
+                                    if (musicStarted) scheduleMusicLoop();
+                                }
+                            });
+                        }
+
+                        // Αντιμετώπιση του Issue #3 (SDK Mute doesn't work)
+                        if (typeof ytgame.system.onAudioEnabledChange === 'function') {
+                            ytgame.system.onAudioEnabledChange(function(enabled) {
+                                muted = !enabled;
+                                save.muted = muted;
+                                updateSoundBtn();
+                                if (muted) { try { speechSynthesis.cancel(); } catch (e) {} isTalking = false; }
+                            });
+                        }
+                        if (typeof ytgame.system.onAudioVolumeChange === 'function') {
+                            ytgame.system.onAudioVolumeChange(function(volume) {
+                                muted = (volume <= 0);
+                                save.muted = muted;
+                                updateSoundBtn();
+                                if (muted) { try { speechSynthesis.cancel(); } catch (e) {} isTalking = false; }
+                            });
+                        }
                     }
 
                     const rendererResult = initThree(); 
@@ -3180,7 +3233,7 @@
 
                     const cvs = document.getElementById("game");
                     cvs.addEventListener("pointermove", function(e) { 
-                        if (busy || !currentCube || gameOver || isSdkPaused) return; 
+                        if (busy || !currentCube || gameOver || isSdkPaused || paused) return; 
                         const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; 
                         const colWidth = window.innerWidth / COLS;
                         let col = Math.floor(cx / colWidth);
@@ -3212,6 +3265,12 @@
                     toast("Loading game, please wait...");
                     setTimeout(bootGame, 100);
                     return;
+                }
+                
+                // Διόρθωση Issue #2: Κλήση interstitial μόλις ξεκινάει το πρώτο session.
+                if (!window.hasShownFirstAd && typeof ytgame !== 'undefined') {
+                    requestInterstitialAd();
+                    window.hasShownFirstAd = true;
                 }
 
                 document.getElementById('mainMenu').classList.add('hidden');
@@ -3248,18 +3307,56 @@
 
             document.getElementById('btnClassic').onclick = function() { startGame('classic'); };
             document.getElementById('btnTimeAttack').onclick = function() { startGame('timeattack'); };
+            
             document.getElementById('btnPlayAgainLose').onclick = function() {
                 document.getElementById('loseModal').classList.add('hidden');
                 requestInterstitialAd().then(function() {
                     startGame(gameMode);
                 });
             };
+            
+            // Διόρθωση Issue #4: Rewarded Ad Revive functionality
+            document.getElementById('btnReviveLose').onclick = function() {
+                runAdFlow('btnReviveLose', 'reward-revive', function() {
+                    document.getElementById('loseModal').classList.add('hidden');
+                    gameOver = false;
+                    busy = false;
+                    
+                    // Καθαρίζουμε τις 3 πάνω γραμμές για να συνεχίσει
+                    for (let c = 0; c < COLS; c++) {
+                        for (let r = ROWS - 3; r < ROWS; r++) {
+                            if (grid[c][r]) {
+                                boardGroup.remove(grid[c][r].mesh);
+                                grid[c][r] = null;
+                            }
+                        }
+                    }
+                    
+                    spawnCurrent();
+                    setAim(aimCol);
+                });
+            };
+
             document.getElementById('btnPlayAgainTimeUp').onclick = function() {
                 document.getElementById('timeUpModal').classList.add('hidden');
                 requestInterstitialAd().then(function() {
                     startGame('timeattack');
                 });
             };
+            
+            // Διόρθωση Issue #4: Extra χρόνος στο Time Attack μέσω rewarded ad
+            document.getElementById('btnReviveTimeUp').onclick = function() {
+                runAdFlow('btnReviveTimeUp', 'reward-time', function() {
+                    document.getElementById('timeUpModal').classList.add('hidden');
+                    gameOver = false;
+                    busy = false;
+                    timeRemaining += 60; // Πρόσθεσε 60 δευτερόλεπτα
+                    startTimer();
+                    spawnCurrent();
+                    setAim(aimCol);
+                });
+            };
+
             document.getElementById('btnShareLose').onclick = function() { 
                 doShareAction(function(){ toast("Thanks for sharing!"); }); 
             };
@@ -3274,7 +3371,7 @@
                 updateHUD();
             }
             document.getElementById('btnHammer').onclick = function() { 
-                if (busy || gameOver || isSdkPaused) return;
+                if (busy || gameOver || isSdkPaused || paused) return;
                 runAdFlow('btnHammer', 'reward-hammer', activateHammer);
             };
 
@@ -3286,7 +3383,7 @@
                 playSound('shuffle');
             }
             document.getElementById('btnShuffle').onclick = function() { 
-                if (busy || !currentCube || gameOver || isSdkPaused) return;
+                if (busy || !currentCube || gameOver || isSdkPaused || paused) return;
                 runAdFlow('btnShuffle', 'reward-shuffle', activateShuffle);
             };
 
@@ -3319,7 +3416,7 @@
                 }); 
             }
             document.getElementById('btnMagnet').onclick = function() { 
-                if (busy || gameOver || isSdkPaused) return;
+                if (busy || gameOver || isSdkPaused || paused) return;
                 runAdFlow('btnMagnet', 'reward-magnet', activateMagnet);
             };
 
@@ -3364,7 +3461,7 @@
                 if (topToggleBtn) {
                     topToggleBtn.onclick = function(e) {
                         e.stopPropagation();
-                        if (isSdkPaused) return;
+                        if (isSdkPaused || paused) return;
                         topBannerOpen = !topBannerOpen;
                         if (topBannerOpen) {
                             shopRollup.classList.add('open');
@@ -3377,7 +3474,7 @@
                 }
 
                 function toggleInfoPanel() {
-                    if (isSdkPaused) return; 
+                    if (isSdkPaused || paused) return; 
                     shopPanelOpen = !shopPanelOpen;
                     if (shopPanelOpen) {
                         shopPanel.classList.add('open');
@@ -3405,7 +3502,7 @@
                 if(topShopBtn) {
                     topShopBtn.onclick = function(e) {
                         e.stopPropagation();
-                        if (isSdkPaused) return;
+                        if (isSdkPaused || paused) return;
                         renderShop();
                         updateHUD();
                         document.getElementById('shopModal').classList.remove('hidden');
@@ -3431,7 +3528,7 @@
 
                 helpRollup.onclick = function(e) {
                     e.stopPropagation();
-                    if (isSdkPaused) return;
+                    if (isSdkPaused || paused) return;
                     helpPanelOpen = !helpPanelOpen;
                     if (helpPanelOpen) {
                         helpPanel.classList.add('open');
@@ -3465,10 +3562,10 @@
                 });
 
                 document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal').classList.add('hidden'); };
-                document.getElementById('btnShareHelp').onclick = function() { if (isSdkPaused) return; doShareAction(); };
+                document.getElementById('btnShareHelp').onclick = function() { if (isSdkPaused || paused) return; doShareAction(); };
                 
                 document.getElementById('btnSound').onclick = function() { 
-                    if (isSdkPaused) return;
+                    if (isSdkPaused || paused) return;
                     muted = !muted;
                     save.muted = muted;
                     persist();
@@ -3479,7 +3576,7 @@
                 };
                 
                 document.getElementById('btnLang').onclick = function() { 
-                    if (isSdkPaused) return;
+                    if (isSdkPaused || paused) return;
                     lang = lang === 'en' ? 'el' : 'en';
                     save.lang = lang;
                     persist();
@@ -3502,16 +3599,18 @@
                         startMusic(); }, { passive: true }); 
                 }
 
-                loadSave();
-                coins = save.coins || 100;
-                level = save.level || 0;
-                score = save.score || 0;
-                lang = save.lang || 'en';
-                muted = !!save.muted;
-                bestClassic = save.bestClassic || 0;
-                bestTimeAttack = save.bestTimeAttack || 0;
+                // Διόρθωση Issue #5: Περιμένει το SDK να φορτώσει το σώσιμο του χρήστη πριν ξεκινήσει το παιχνίδι.
+                loadSave(function() {
+                    coins = save.coins || 100;
+                    level = save.level || 0;
+                    score = save.score || 0;
+                    lang = save.lang || 'en';
+                    muted = !!save.muted;
+                    bestClassic = save.bestClassic || 0;
+                    bestTimeAttack = save.bestTimeAttack || 0;
 
-                setTimeout(bootGame, 300); 
+                    setTimeout(bootGame, 300);
+                });
             })();
 
         })();
