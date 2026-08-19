@@ -77,6 +77,16 @@
   .hint{position:absolute;bottom:100px;left:0;right:0;text-align:center;color:var(--ink-dim);
     font-size:12px;letter-spacing:.02em;pointer-events:none;}
 
+  .joystick{position:absolute;left:26px;bottom:26px;width:128px;height:128px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#2a2d3a,#14151d 70%);
+    border:2px solid #3a3e50aa;box-shadow:inset 0 4px 10px #00000088, 0 8px 18px #0007;
+    touch-action:none;}
+  .joystick .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#ffe27a,var(--gold) 65%,#c99a1f 100%);
+    box-shadow:0 6px 12px #0009, inset 0 -3px 6px #b58a1288;
+    transform:translate(-50%,-50%);transition:box-shadow .15s;}
+  .joystick.pushed .knob{box-shadow:0 3px 8px #0009, inset 0 -3px 6px #b58a1288, 0 0 0 4px #ffd23f33;}
+
   .toast{position:absolute;top:120px;left:50%;transform:translateX(-50%);
     font-weight:800;font-size:15px;padding:6px 16px;border-radius:999px;opacity:0;
     background:#12141ce6;border:1px solid var(--line);transition:opacity .25s, transform .25s;}
@@ -98,7 +108,11 @@
       </div>
     </div>
 
-    <div class="hint" id="hint">Σύρε ή μετακίνησε το ποντίκι για κατεύθυνση · κράτα πατημένο για ταχύτητα</div>
+    <div class="hint" id="hint">Σύρε το τηλεχειριστήριο για κατεύθυνση · σπρώξε στην άκρη για ταχύτητα</div>
+
+    <div class="joystick" id="joystick">
+      <div class="knob" id="joyKnob"></div>
+    </div>
 
     <div class="powerbar">
       <div class="pw" id="pwBoost" title="Ταχύτητα">⚡<span class="cd" id="cdBoost"></span></div>
@@ -148,13 +162,26 @@ const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes",
                 "thegodfatherpart4","B.Juice","TheAfterLife","kojima_fan92","noodle.exe","xXHunterXx"];
 const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048];
 
+// palette tuned to match the reference screenshot: chunky candy-colored cubes
+const CUBE_PALETTE = [
+  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 2  - yellow
+  { top:'#b9f28c', mid:'#6fcf3d', low:'#3f9a1e', edge:'#245c0f' }, // 4  - green
+  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 8  - yellow
+  { top:'#ffcf9e', mid:'#ff9a3d', low:'#d96f16', edge:'#8a430a' }, // 16 - orange
+  { top:'#ffb3d6', mid:'#ff5fa0', low:'#d92e73', edge:'#8a1348' }, // 32 - pink
+  { top:'#d3b6ff', mid:'#9b5de5', low:'#6f34b0', edge:'#3f1a6b' }, // 64 - purple
+  { top:'#a8d8ff', mid:'#4ea8ff', low:'#2277d9', edge:'#134a8a' }, // 128 - blue
+  { top:'#eafca0', mid:'#c6e23d', low:'#96ab1c', edge:'#5a6710' }, // 256 - lime
+  { top:'#ffb3ad', mid:'#ff5f5f', low:'#d92e2e', edge:'#8a1313' }, // 512 - red
+  { top:'#a0f5ec', mid:'#35d6c4', low:'#1a9c8f', edge:'#0c5a52' }, // 1024 - teal
+];
 function colorFor(v){
   const idx = Math.log2(v) - 1; // 2->0
-  const hues = [48, 358, 172, 265, 28, 152, 322, 205, 330, 46, 0];
-  const h = hues[Math.max(0, Math.min(hues.length-1, Math.round(idx)))];
-  if(v >= 2048) return {fill:'#fff7d6', stroke:'#ffd23f', text:'#3a2a00', glow:true};
-  const light = 56 - Math.min(idx,8)*1.6;
-  return {fill:`hsl(${h} 78% ${light}%)`, stroke:`hsl(${h} 70% ${Math.max(light-22,14)}%)`, text:'#12131a', glow:false};
+  if(v >= 2048){
+    return { top:'#fffdf0', mid:'#ffe27a', low:'#ffd23f', edge:'#a97e10', glow:true, text:'#3a2a00' };
+  }
+  const p = CUBE_PALETTE[Math.max(0, idx) % CUBE_PALETTE.length];
+  return { top:p.top, mid:p.mid, low:p.low, edge:p.edge, glow:false, text:'#ffffff' };
 }
 
 function rnd(a,b){ return a + Math.random()*(b-a); }
@@ -336,6 +363,50 @@ window.addEventListener('keyup', e=>{
   keys[e.key]=false;
   if(e.key===' ') player.boosting = false;
 });
+
+// circular joystick controller
+const joyEl = document.getElementById('joystick');
+const joyKnob = document.getElementById('joyKnob');
+let joy = { active:false, pointerId:null, angle:0, mag:0 };
+const JOY_MAX = 40; // px the knob can travel from center
+
+function joyUpdateFromEvent(e){
+  const rect = joyEl.getBoundingClientRect();
+  const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const d = Math.hypot(dx,dy);
+  const clampedD = Math.min(d, JOY_MAX);
+  const ang = Math.atan2(dy,dx);
+  const kx = Math.cos(ang)*clampedD, ky = Math.sin(ang)*clampedD;
+  joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+  joy.angle = ang;
+  joy.mag = clampedD / JOY_MAX;
+  if(joy.mag > 0.12){
+    player.targetAngle = joy.angle;
+  }
+  player.boosting = joy.mag > 0.82;
+}
+function joyReset(){
+  joy.active = false; joy.pointerId = null; joy.mag = 0;
+  joyKnob.style.transform = 'translate(-50%,-50%)';
+  player.boosting = false;
+  joyEl.classList.remove('pushed');
+}
+joyEl.addEventListener('pointerdown', e=>{
+  joy.active = true; joy.pointerId = e.pointerId;
+  joyEl.classList.add('pushed');
+  joyEl.setPointerCapture(e.pointerId);
+  joyUpdateFromEvent(e);
+  e.stopPropagation();
+});
+joyEl.addEventListener('pointermove', e=>{
+  if(joy.active && e.pointerId===joy.pointerId){ joyUpdateFromEvent(e); }
+  e.stopPropagation();
+});
+window.addEventListener('pointerup', e=>{
+  if(joy.active && e.pointerId===joy.pointerId){ joyReset(); }
+});
+joyEl.addEventListener('pointercancel', ()=>joyReset());
 
 function handleKeyboardSteer(){
   let dx=0, dy=0;
@@ -555,22 +626,58 @@ function drawCube(x,y,value,scale){
   const c = colorFor(value);
   const sx = x-camera.x, sy = y-camera.y;
   if(sx< -60||sx>W+60||sy<-60||sy>H+60) return;
-  const r = 15*scale;
+  const r = 16*scale;
   ctx.save();
   ctx.translate(sx,sy);
+
+  // drop shadow beneath the cube
+  ctx.save();
+  ctx.translate(0, r*0.32);
+  ctx.fillStyle = '#00000055';
+  roundRect(-r, -r, r*2, r*2, 6*scale);
+  ctx.fill();
+  ctx.restore();
+
   if(c.glow){
     ctx.shadowColor = '#ffd23f';
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = 22;
   }
-  ctx.fillStyle = c.fill;
-  ctx.strokeStyle = c.stroke;
-  ctx.lineWidth = 2.5;
-  roundRect(-r,-r,r*2,r*2,6);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = c.text;
-  ctx.font = `800 ${13*scale}px 'Baloo 2', sans-serif`;
+
+  // base body: vertical gradient for a glossy plastic look
+  const grad = ctx.createLinearGradient(0,-r,0,r);
+  grad.addColorStop(0, c.top);
+  grad.addColorStop(0.5, c.mid);
+  grad.addColorStop(1, c.low);
+  ctx.fillStyle = grad;
+  roundRect(-r,-r,r*2,r*2,6*scale);
+  ctx.fill();
+
+  // dark bevel edge
+  ctx.lineWidth = 2.2*scale;
+  ctx.strokeStyle = c.edge;
+  roundRect(-r,-r,r*2,r*2,6*scale);
+  ctx.stroke();
+
+  // glossy highlight sheen top-left
+  ctx.save();
+  roundRect(-r,-r,r*2,r*2,6*scale);
+  ctx.clip();
+  ctx.fillStyle = '#ffffff55';
+  ctx.beginPath();
+  ctx.ellipse(-r*0.35, -r*0.55, r*0.9, r*0.42, -0.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // number with bold black outline + white fill (matches reference)
+  ctx.font = `800 ${14.5*scale}px 'Baloo 2', sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline='middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.4*scale;
+  ctx.strokeStyle = c.glow ? '#a97e10' : '#00000090';
+  ctx.strokeText(value, 0, 1);
+  ctx.fillStyle = c.text;
   ctx.fillText(value, 0, 1);
+
   ctx.restore();
 }
 
