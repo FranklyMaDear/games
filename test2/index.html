@@ -2,13 +2,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
+<!-- Αποτροπή zoom και scroll από τον χρήστη -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <title>Snake Drop 2048</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg-0:#0a0b10;
+    --bg-0:#2a1b3d; /* Πιο ταιριαστό φόντο για το unicorn theme */
     --bg-1:#12141c;
     --line:#23263066;
     --ink:#eef0f6;
@@ -18,8 +19,15 @@
     --good:#3ddc84;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;overflow:hidden;background:var(--bg-0);height:100%;width:100%;
-    font-family:'Baloo 2',system-ui,sans-serif; color:var(--ink); touch-action:none;}
+  
+  /* Αυστηρό κλείδωμα του scroll */
+  html,body{
+    margin:0; padding:0; overflow:hidden; 
+    background:var(--bg-0); height:100%; width:100%;
+    font-family:'Baloo 2',system-ui,sans-serif; color:var(--ink); 
+    touch-action:none; overscroll-behavior:none;
+  }
+  
   #wrap{position:fixed;inset:0;}
   canvas{display:block;width:100%;height:100%;}
 
@@ -52,10 +60,12 @@
   .lb-row.top2 .rank{color:#c9ccd8;}
   .lb-row.top3 .rank{color:#cd8b52;}
 
-  .powerbar{position:absolute;bottom:22px;left:0;right:0;display:flex;justify-content:center;gap:14px;}
+  /* Τροποποιημένη μπάρα Powerups (Δεξιά & Κάθετα) */
+  .powerbar{position:absolute; right:16px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:14px;}
+  
   .pw{width:54px;height:54px;border-radius:16px;border:1px solid var(--line);
-    background:linear-gradient(180deg,#1c1f2a,#12141c);display:flex;align-items:center;justify-content:center;
-    font-size:24px;position:relative;box-shadow:0 6px 14px #0007;}
+    background:linear-gradient(180deg,#1c1f2acc,#12141ccc);display:flex;align-items:center;justify-content:center;
+    font-size:24px;position:relative;box-shadow:0 6px 14px #0007; backdrop-filter:blur(4px);}
   .pw.active{outline:2px solid var(--gold);}
   .pw .cd{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);
     background:var(--gold);color:#181818;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
@@ -64,7 +74,7 @@
 
   .center-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
     background:linear-gradient(180deg,#1a1c26f2,#101219f2);border:1px solid var(--line);border-radius:20px;
-    padding:28px 34px;min-width:260px;box-shadow:0 20px 50px #000a;}
+    padding:28px 34px;min-width:280px;box-shadow:0 20px 50px #000a;}
   .center-msg h1{margin:0 0 6px;font-size:26px;font-weight:800;}
   .center-msg h1 span{color:var(--gold);}
   .center-msg p{margin:0 0 18px;color:var(--ink-dim);font-size:14px;line-height:1.5;}
@@ -124,9 +134,7 @@
 
     <div class="center-msg" id="startMsg">
       <h1>Snake <span>Drop</span> 2048</h1>
-      <p>Μάζεψε κύβους, συγχώνευσε ίδιους αριθμούς, κατάστρεψε αντιπάλους με μεγαλύτερο κεφάλι.
-      Επιβίωσε 3 λεπτά και σκαρφάλωσε στην κορυφή της κατάταξης.</p>
-      <button class="btn" id="startBtn">Παίξε</button>
+      <p>Οι αντίπαλοι ήδη κινούνται! <br><br>Χρησιμοποίησε το <strong>τηλεχειριστήριο</strong> κάτω αριστερά για να ξεκινήσεις και να κατευθύνεις τον κύβο σου.</p>
     </div>
 
     <div class="center-msg hidden" id="endMsg">
@@ -140,6 +148,13 @@
 <script>
 (function(){
 "use strict";
+
+// --- Αποτροπή οποιουδήποτε scroll στην οθόνη ---
+document.addEventListener('touchmove', function(e) {
+  if (e.target.tagName !== 'BUTTON') { 
+    e.preventDefault(); 
+  }
+}, { passive: false });
 
 // ---------- setup ----------
 const canvas = document.getElementById('game');
@@ -155,28 +170,27 @@ function resize(){
 window.addEventListener('resize', resize);
 resize();
 
-const ARENA = 2600;          // arena is a square [0..ARENA]
-const SPACING = 22;          // distance between snake segments
-const BASE_R = 15;           // base segment radius
+const ARENA = 2600;          
+const SPACING = 22;          
+const BASE_R = 15;           
 const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes","Chris_P_Bacon",
                 "thegodfatherpart4","B.Juice","TheAfterLife","kojima_fan92","noodle.exe","xXHunterXx"];
 const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048];
 
-// palette tuned to match the reference screenshot: chunky candy-colored cubes
 const CUBE_PALETTE = [
-  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 2  - yellow
-  { top:'#b9f28c', mid:'#6fcf3d', low:'#3f9a1e', edge:'#245c0f' }, // 4  - green
-  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 8  - yellow
-  { top:'#ffcf9e', mid:'#ff9a3d', low:'#d96f16', edge:'#8a430a' }, // 16 - orange
-  { top:'#ffb3d6', mid:'#ff5fa0', low:'#d92e73', edge:'#8a1348' }, // 32 - pink
-  { top:'#d3b6ff', mid:'#9b5de5', low:'#6f34b0', edge:'#3f1a6b' }, // 64 - purple
-  { top:'#a8d8ff', mid:'#4ea8ff', low:'#2277d9', edge:'#134a8a' }, // 128 - blue
-  { top:'#eafca0', mid:'#c6e23d', low:'#96ab1c', edge:'#5a6710' }, // 256 - lime
-  { top:'#ffb3ad', mid:'#ff5f5f', low:'#d92e2e', edge:'#8a1313' }, // 512 - red
-  { top:'#a0f5ec', mid:'#35d6c4', low:'#1a9c8f', edge:'#0c5a52' }, // 1024 - teal
+  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 2
+  { top:'#b9f28c', mid:'#6fcf3d', low:'#3f9a1e', edge:'#245c0f' }, // 4
+  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 8
+  { top:'#ffcf9e', mid:'#ff9a3d', low:'#d96f16', edge:'#8a430a' }, // 16
+  { top:'#ffb3d6', mid:'#ff5fa0', low:'#d92e73', edge:'#8a1348' }, // 32
+  { top:'#d3b6ff', mid:'#9b5de5', low:'#6f34b0', edge:'#3f1a6b' }, // 64
+  { top:'#a8d8ff', mid:'#4ea8ff', low:'#2277d9', edge:'#134a8a' }, // 128
+  { top:'#eafca0', mid:'#c6e23d', low:'#96ab1c', edge:'#5a6710' }, // 256
+  { top:'#ffb3ad', mid:'#ff5f5f', low:'#d92e2e', edge:'#8a1313' }, // 512
+  { top:'#a0f5ec', mid:'#35d6c4', low:'#1a9c8f', edge:'#0c5a52' }, // 1024
 ];
 function colorFor(v){
-  const idx = Math.log2(v) - 1; // 2->0
+  const idx = Math.log2(v) - 1; 
   if(v >= 2048){
     return { top:'#fffdf0', mid:'#ffe27a', low:'#ffd23f', edge:'#a97e10', glow:true, text:'#3a2a00' };
   }
@@ -200,11 +214,11 @@ class Snake{
     this.boostSpeed = 4.2;
     this.boosting = false;
     this.path = [{x,y}];
-    this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; // t = distance along path from head
+    this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; 
     this.alive = true;
     this.shieldT = 0;
     this.magnetT = 0;
-    this.reactT = 0; // small cooldown to avoid double-destroy per frame
+    this.reactT = 0; 
   }
   get head(){ return this.path[this.path.length-1]; }
   get headValue(){ return this.segments[0].value; }
@@ -216,7 +230,6 @@ class Snake{
   }
 
   update(dt, world){
-    // turn smoothly toward target angle
     let da = this.targetAngle - this.angle;
     while(da > Math.PI) da -= Math.PI*2;
     while(da < -Math.PI) da += Math.PI*2;
@@ -231,13 +244,11 @@ class Snake{
     ny = clamp(ny, 20, ARENA-20);
 
     this.path.push({x:nx,y:ny});
-    // trim path to only what's needed
     const maxLen = this.segments.length * SPACING + 60;
     while(this.path.length > 2 && this.pathLength() > maxLen){
       this.path.shift();
     }
 
-    // boost drains a segment slowly if it's a real boost & long enough
     if(this.boosting && this.segments.length > 1){
       this._boostAccum = (this._boostAccum||0) + spd;
       if(this._boostAccum > 140){
@@ -259,7 +270,6 @@ class Snake{
     return d;
   }
 
-  // returns {x,y} for a point `dist` behind the head along the path
   pointAtDistance(distBack){
     const p = this.path;
     let remaining = distBack;
@@ -308,11 +318,12 @@ class Snake{
 }
 
 // ---------- world ----------
-let cubes = [];      // {x,y,value}
-let powerups = [];   // {x,y,type}
-let particles = [];  // {x,y,vx,vy,life,color}
+let cubes = [];      
+let powerups = [];   
+let particles = [];  
 let player, bots = [];
 let running = false;
+let gameStartedOnce = false;
 let timeLeft = 180;
 let elapsedSinceLB = 0;
 let camera = {x:0,y:0};
@@ -357,6 +368,9 @@ window.addEventListener('pointerup', ()=>{ pointer.active=false; player.boosting
 const keys = {};
 window.addEventListener('keydown', e=>{
   keys[e.key]=true;
+  if(!running && document.getElementById('startMsg').classList.contains('hidden') === false){
+    startGame();
+  }
   if(e.key===' ') player.boosting = true;
 });
 window.addEventListener('keyup', e=>{
@@ -368,7 +382,7 @@ window.addEventListener('keyup', e=>{
 const joyEl = document.getElementById('joystick');
 const joyKnob = document.getElementById('joyKnob');
 let joy = { active:false, pointerId:null, angle:0, mag:0 };
-const JOY_MAX = 40; // px the knob can travel from center
+const JOY_MAX = 40; 
 
 function joyUpdateFromEvent(e){
   const rect = joyEl.getBoundingClientRect();
@@ -393,6 +407,10 @@ function joyReset(){
   joyEl.classList.remove('pushed');
 }
 joyEl.addEventListener('pointerdown', e=>{
+  // Ξεκινάει το παιχνίδι μόλις πατηθεί το joystick
+  if(!running && document.getElementById('startMsg').classList.contains('hidden') === false){
+    startGame();
+  }
   joy.active = true; joy.pointerId = e.pointerId;
   joyEl.classList.add('pushed');
   joyEl.setPointerCapture(e.pointerId);
@@ -448,7 +466,6 @@ function eatCubes(snake){
     const d2 = dist2(headPos.x, headPos.y, c.x, c.y);
     if(d2 < pickR*pickR){
       if(magnetActive && d2 > (26*26)){
-        // pull toward head instead of instant pickup
         c.x += (headPos.x-c.x)*0.18;
         c.y += (headPos.y-c.y)*0.18;
         continue;
@@ -473,7 +490,7 @@ function eatPowerups(snake){
     if(dist2(headPos.x,headPos.y,p.x,p.y) < 30*30){
       powerups.splice(i,1);
       if(p.type==='boost'){ snake.baseSpeed = 3.3; setTimeout(()=>snake.baseSpeed=2.3, 6000); flashPw('pwBoost',6000); toast('Ταχύτητα!','#ffd23f'); }
-      if(p.type==='magnet'){ snake.magnetT = 8; flashPw('pwMagnet',8000); toast('Μαγνήτης!','#4ecdc4'); }
+      if(p.type==='magnet'){ snake.magnetT = 5; flashPw('pwMagnet',5000); toast('Μαγνήτης!','#4ecdc4'); } // Διαρκεί 5 δευτερόλεπτα
       if(p.type==='shield'){ snake.shieldT = 6; flashPw('pwShield',6000); toast('Ασπίδα!','#7b61ff'); }
       burst(p.x,p.y,'#fff',12);
       spawnPowerup();
@@ -497,7 +514,7 @@ function flashPw(id, ms){
 function destroySegment(snake, idx, x, y){
   const val = snake.segments[idx].value;
   snake.segments.splice(idx,1);
-  cubes.push({x, y, value: val>=8? val/2 : 2}); // loot drop (roughly halved)
+  cubes.push({x, y, value: val>=8? val/2 : 2}); 
   burst(x,y, colorFor(val).stroke, 14);
   if(snake.segments.length===0){
     killSnake(snake);
@@ -506,7 +523,6 @@ function destroySegment(snake, idx, x, y){
 
 function killSnake(snake){
   snake.alive = false;
-  // drop remaining as cubes
   const positions = snake.segmentPositions();
   positions.forEach((p,i)=>{
     if(snake.segments[i]) cubes.push({x:p.x+rnd(-20,20), y:p.y+rnd(-20,20), value: snake.segments[i].value});
@@ -521,7 +537,10 @@ function killSnake(snake){
 }
 
 function resolveCombat(){
-  const all = [player, ...bots].filter(s=>s.alive);
+  // Όσο το παιχνίδι δεν έχει ξεκινήσει, ο παίκτης προστατεύεται από μάχες
+  let all = [player, ...bots].filter(s=>s.alive);
+  if(!running) all = bots.filter(s=>s.alive);
+
   for(const a of all){
     if(a.reactT>0) continue;
     const aPos = a.segmentPositions();
@@ -529,7 +548,6 @@ function resolveCombat(){
     for(const b of all){
       if(a===b || b.reactT>0) continue;
       const bPos = b.segmentPositions();
-      // check a's head vs each of b's segments (skip b's own head-to-head handled once)
       for(let i=0;i<bPos.length;i++){
         const segPos = bPos[i];
         const hitR = BASE_R + Math.min(Math.log2(b.segments[i].value)*1.4, 16);
@@ -538,16 +556,11 @@ function resolveCombat(){
           const aVal = a.headValue, bVal = b.segments[i].value;
           if(aVal > bVal){
             destroySegment(b, i, segPos.x, segPos.y);
-            if(i===0 || b.segments.length===0){ /* head or wipeout handled in destroySegment */ }
             a.reactT = 0.15; b.reactT = 0.15;
             if(a.isPlayer){ toast('+'+bVal+' Κατάστρεψες!', '#ff4d6d'); }
           } else if(aVal < bVal){
             if(a.shieldT>0){ continue; }
-            if(i===0){
-              killSnake(a);
-            } else {
-              destroySegment(a, 0, aHead.x, aHead.y);
-            }
+            if(i===0){ killSnake(a); } else { destroySegment(a, 0, aHead.x, aHead.y); }
             a.reactT = 0.15; b.reactT = 0.15;
           }
           break;
@@ -564,7 +577,6 @@ function botAI(bot, dt){
   if(bot.retargetT<=0){
     bot.retargetT = rnd(0.6,1.4);
     const hp = bot.head;
-    // find nearest cube within radius, else wander
     let best=null, bestD=520*520;
     for(const c of cubes){
       const d2 = dist2(hp.x,hp.y,c.x,c.y);
@@ -577,7 +589,6 @@ function botAI(bot, dt){
     }
     bot.boosting = Math.random() > 0.85;
   }
-  // avoid walls
   const margin = 160;
   const hp = bot.head;
   if(hp.x<margin || hp.x>ARENA-margin || hp.y<margin || hp.y>ARENA-margin){
@@ -601,23 +612,43 @@ function renderLeaderboard(){
 }
 
 // ---------- render ----------
-function drawGrid(){
+function drawFloor(){
+  const sx = -camera.x;
+  const sy = -camera.y;
+
   ctx.save();
-  ctx.strokeStyle = '#ffffff08';
+  // Φανταχτερό Unicorn Gradient
+  const grad = ctx.createLinearGradient(sx, sy, sx+ARENA, sy+ARENA);
+  grad.addColorStop(0, '#ff9a9e');
+  grad.addColorStop(0.3, '#fecfef');
+  grad.addColorStop(0.6, '#a1c4fd');
+  grad.addColorStop(1, '#c2e9fb');
+  ctx.fillStyle = grad;
+  ctx.fillRect(sx, sy, ARENA, ARENA);
+
+  // Εφέ γυαλάδας 
+  const gloss = ctx.createLinearGradient(sx, sy, sx, sy+ARENA);
+  gloss.addColorStop(0, '#ffffffa1');
+  gloss.addColorStop(0.5, '#ffffff00');
+  gloss.addColorStop(1, '#ffffff33');
+  ctx.fillStyle = gloss;
+  ctx.fillRect(sx, sy, ARENA, ARENA);
+
+  // Πλέγμα (αστραφτερό)
+  ctx.strokeStyle = '#ffffff66';
   ctx.lineWidth = 1;
   const step = 80;
-  const startX = -((camera.x) % step);
-  const startY = -((camera.y) % step);
-  for(let x=startX; x<W; x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for(let y=startY; y<H; y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-  ctx.restore();
-}
+  
+  ctx.beginPath();
+  for(let x=0; x<=ARENA; x+=step){ ctx.moveTo(sx+x, sy); ctx.lineTo(sx+x, sy+ARENA); }
+  for(let y=0; y<=ARENA; y+=step){ ctx.moveTo(sx, sy+y); ctx.lineTo(sx+ARENA, sy+y); }
+  ctx.stroke();
 
-function drawWalls(){
-  ctx.save();
-  ctx.strokeStyle = '#ff4d6d55';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(-camera.x, -camera.y, ARENA, ARENA);
+  // Περίγραμμα Αρένας
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(sx, sy, ARENA, ARENA);
+
   ctx.restore();
 }
 
@@ -630,7 +661,6 @@ function drawCube(x,y,value,scale){
   ctx.save();
   ctx.translate(sx,sy);
 
-  // drop shadow beneath the cube
   ctx.save();
   ctx.translate(0, r*0.32);
   ctx.fillStyle = '#00000055';
@@ -638,27 +668,18 @@ function drawCube(x,y,value,scale){
   ctx.fill();
   ctx.restore();
 
-  if(c.glow){
-    ctx.shadowColor = '#ffd23f';
-    ctx.shadowBlur = 22;
-  }
+  if(c.glow){ ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 22; }
 
-  // base body: vertical gradient for a glossy plastic look
   const grad = ctx.createLinearGradient(0,-r,0,r);
-  grad.addColorStop(0, c.top);
-  grad.addColorStop(0.5, c.mid);
-  grad.addColorStop(1, c.low);
+  grad.addColorStop(0, c.top); grad.addColorStop(0.5, c.mid); grad.addColorStop(1, c.low);
   ctx.fillStyle = grad;
   roundRect(-r,-r,r*2,r*2,6*scale);
   ctx.fill();
 
-  // dark bevel edge
-  ctx.lineWidth = 2.2*scale;
-  ctx.strokeStyle = c.edge;
+  ctx.lineWidth = 2.2*scale; ctx.strokeStyle = c.edge;
   roundRect(-r,-r,r*2,r*2,6*scale);
   ctx.stroke();
 
-  // glossy highlight sheen top-left
   ctx.save();
   roundRect(-r,-r,r*2,r*2,6*scale);
   ctx.clip();
@@ -668,58 +689,36 @@ function drawCube(x,y,value,scale){
   ctx.fill();
   ctx.restore();
 
-  // number with bold black outline + white fill (matches reference)
   ctx.font = `800 ${14.5*scale}px 'Baloo 2', sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline='middle';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 3.4*scale;
+  ctx.lineJoin = 'round'; ctx.lineWidth = 3.4*scale;
   ctx.strokeStyle = c.glow ? '#a97e10' : '#00000090';
   ctx.strokeText(value, 0, 1);
   ctx.fillStyle = c.text;
   ctx.fillText(value, 0, 1);
-
   ctx.restore();
 }
 
 function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 
 function drawSnake(snake){
   const positions = snake.segmentPositions();
-  // body first (back to front)
   for(let i=positions.length-1; i>=1; i--){
-    const p = positions[i];
-    drawCube(p.x, p.y, snake.segments[i].value, 1);
+    drawCube(positions[i].x, positions[i].y, snake.segments[i].value, 1);
   }
-  // shield aura
   if(snake.shieldT>0){
     const hp = positions[0];
-    ctx.save();
-    ctx.strokeStyle = '#7b61ffcc';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(hp.x-camera.x, hp.y-camera.y, 26, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#7b61ffcc'; ctx.lineWidth = 3; ctx.beginPath();
+    ctx.arc(hp.x-camera.x, hp.y-camera.y, 26, 0, Math.PI*2); ctx.stroke(); ctx.restore();
   }
-  // head
   const hp = positions[0];
   drawCube(hp.x, hp.y, snake.segments[0].value, 1.15);
-  // name tag
   if(!snake.isPlayer){
-    ctx.save();
-    ctx.font = "700 11px 'Baloo 2', sans-serif";
-    ctx.fillStyle = '#ffffffaa';
-    ctx.textAlign='center';
-    ctx.fillText(snake.name, hp.x-camera.x, hp.y-camera.y-28);
-    ctx.restore();
+    ctx.save(); ctx.font = "700 11px 'Baloo 2', sans-serif"; ctx.fillStyle = '#111';
+    ctx.textAlign='center'; ctx.fillText(snake.name, hp.x-camera.x, hp.y-camera.y-28); ctx.restore();
   }
 }
 
@@ -727,12 +726,8 @@ function drawPowerup(p){
   const sx=p.x-camera.x, sy=p.y-camera.y;
   if(sx<-40||sx>W+40||sy<-40||sy>H+40) return;
   const icon = p.type==='boost'?'⚡':p.type==='magnet'?'🧲':'🛡️';
-  ctx.save();
-  ctx.translate(sx,sy);
-  ctx.font='22px sans-serif';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(icon,0,2);
-  ctx.restore();
+  ctx.save(); ctx.translate(sx,sy); ctx.font='22px sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(icon,0,2); ctx.restore();
 }
 
 function drawParticles(dt){
@@ -740,13 +735,8 @@ function drawParticles(dt){
     const pt = particles[i];
     pt.x += pt.vx; pt.y += pt.vy; pt.life -= dt*1.6;
     if(pt.life<=0){ particles.splice(i,1); continue; }
-    ctx.save();
-    ctx.globalAlpha = clamp(pt.life,0,1);
-    ctx.fillStyle = pt.color;
-    ctx.beginPath();
-    ctx.arc(pt.x-camera.x, pt.y-camera.y, 3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
+    ctx.save(); ctx.globalAlpha = clamp(pt.life,0,1); ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x-camera.x, pt.y-camera.y, 3, 0, Math.PI*2); ctx.fill(); ctx.restore();
   }
 }
 
@@ -757,22 +747,19 @@ function frame(ts){
   const dt = Math.min((ts-lastT)/1000, 0.05);
   lastT = ts;
 
+  // Οι αντίπαλοι (bots) παίζουν ΣΥΝΕΧΕΙΑ στο background, ακόμα και αν δεν έχεις ξεκινήσει
+  bots.forEach(b=>{ botAI(b,dt); b.update(dt); });
+  bots.forEach(b=>eatCubes(b));
+  resolveCombat();
+
   if(running){
     if(!handleKeyboardSteer() && pointer.active){
       const wx = pointer.x + camera.x, wy = pointer.y + camera.y;
       player.steerToward(wx,wy);
     }
     player.update(dt);
-    bots.forEach(b=>{ botAI(b,dt); b.update(dt); });
-
     eatCubes(player); eatPowerups(player);
-    bots.forEach(b=>eatCubes(b));
-
-    resolveCombat();
-
-    camera.x = player.head.x - W/2;
-    camera.y = player.head.y - H/2;
-
+    
     timeLeft -= dt;
     elapsedSinceLB += dt;
     if(elapsedSinceLB > 1){ elapsedSinceLB = 0; renderLeaderboard(); }
@@ -783,12 +770,14 @@ function frame(ts){
     if(timeLeft<=0){ endGame(true); }
   }
 
+  camera.x = player.head.x - W/2;
+  camera.y = player.head.y - H/2;
+
   // ---- draw ----
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = '#0a0b10';
+  ctx.fillStyle = 'var(--bg-0)';
   ctx.fillRect(0,0,W,H);
-  drawGrid();
-  drawWalls();
+  drawFloor(); 
   cubes.forEach(c=>drawCube(c.x,c.y,c.value,0.85));
   powerups.forEach(drawPowerup);
   bots.forEach(b=>{ if(b.alive) drawSnake(b); });
@@ -801,7 +790,10 @@ requestAnimationFrame(frame);
 
 // ---------- start / end ----------
 function startGame(){
-  initWorld();
+  if(gameStartedOnce && (!player.alive || timeLeft <= 0)){
+    initWorld(); // Reset μόνο αν έχεις χάσει και κάνεις restart
+  }
+  gameStartedOnce = true;
   renderLeaderboard();
   document.getElementById('startMsg').classList.add('hidden');
   document.getElementById('endMsg').classList.add('hidden');
@@ -818,10 +810,10 @@ function endGame(survived){
   body.textContent = `Σκορ: ${player.score} · Θέση #${rank} στο δωμάτιο`;
   document.getElementById('endMsg').classList.remove('hidden');
 }
-document.getElementById('startBtn').addEventListener('click', startGame);
+
 document.getElementById('restartBtn').addEventListener('click', startGame);
 
-// initial idle world for background behind start screen
+// initial idle world for background
 initWorld();
 renderLeaderboard();
 
