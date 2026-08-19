@@ -2,25 +2,20 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<!-- Αποτροπή zoom και scroll από τον χρήστη -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-<title>Snake Drop 2048</title>
+<title>DROP AZIRAM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg-0:#2a1b3d; /* Πιο ταιριαστό φόντο για το unicorn theme */
-    --bg-1:#12141c;
+    --bg-0:#1a1c29;
     --line:#23263066;
     --ink:#eef0f6;
     --ink-dim:#8b8fa3;
     --gold:#ffd23f;
-    --danger:#ff4d6d;
-    --good:#3ddc84;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   
-  /* Αυστηρό κλείδωμα του scroll */
   html,body{
     margin:0; padding:0; overflow:hidden; 
     background:var(--bg-0); height:100%; width:100%;
@@ -36,17 +31,25 @@
 
   .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
     align-items:flex-start;padding:14px 14px 0;}
+  
   .stat{display:flex;align-items:center;gap:6px;background:linear-gradient(180deg,#1c1f2a,#14161f);
     border:1px solid var(--line);border-radius:999px;padding:6px 14px 6px 8px;font-weight:700;
     font-size:15px;box-shadow:0 4px 10px #0006;}
-  .stat .dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-size:12px;}
+  .stat .dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
   .stat.score .dot{background:radial-gradient(circle at 30% 30%,#ffe27a,var(--gold));}
   .stat.timer{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:1px;}
-  .stat.timer .dot{background:transparent;}
-
-  .leaderboard{background:linear-gradient(180deg,#1a1c26f2,#101219f2);border:1px solid var(--line);
-    border-radius:14px;padding:8px 10px;min-width:190px;box-shadow:0 8px 22px #0007;backdrop-filter:blur(4px);}
+  
+  .leaderboard{
+    background:linear-gradient(180deg,#1a1c26f2,#101219f2);border:1px solid var(--line);
+    border-radius:14px;padding:8px 10px;min-width:190px;
+    box-shadow:0 8px 22px #0007;backdrop-filter:blur(4px);
+    max-height: 120px; /* Μικρότερο ύψος */
+    overflow-y: auto; /* Δυνατότητα scroll */
+    pointer-events: auto;
+  }
+  .leaderboard::-webkit-scrollbar { width: 4px; }
+  .leaderboard::-webkit-scrollbar-thumb { background: #ffffff33; border-radius: 4px; }
+  
   .leaderboard .lb-title{font-size:11px;letter-spacing:.14em;color:var(--ink-dim);text-transform:uppercase;
     margin:0 2px 6px;font-weight:700;}
   .lb-row{display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:13px;font-weight:600;
@@ -56,13 +59,8 @@
   .lb-row .val{font-family:'JetBrains Mono',monospace;color:var(--ink-dim);}
   .lb-row.me{background:#ffd23f22;}
   .lb-row.me .name,.lb-row.me .val{color:var(--gold);}
-  .lb-row.top1 .rank{color:#ffd23f;}
-  .lb-row.top2 .rank{color:#c9ccd8;}
-  .lb-row.top3 .rank{color:#cd8b52;}
-
-  /* Τροποποιημένη μπάρα Powerups (Δεξιά & Κάθετα) */
-  .powerbar{position:absolute; right:16px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:14px;}
   
+  .powerbar{position:absolute; right:16px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:14px;}
   .pw{width:54px;height:54px;border-radius:16px;border:1px solid var(--line);
     background:linear-gradient(180deg,#1c1f2acc,#12141ccc);display:flex;align-items:center;justify-content:center;
     font-size:24px;position:relative;box-shadow:0 6px 14px #0007; backdrop-filter:blur(4px);}
@@ -72,35 +70,50 @@
     padding:1px 6px;border-radius:8px;display:none;}
   .pw.active .cd{display:block;}
 
-  .center-msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
+  .center-msg{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);text-align:center;
     background:linear-gradient(180deg,#1a1c26f2,#101219f2);border:1px solid var(--line);border-radius:20px;
     padding:28px 34px;min-width:280px;box-shadow:0 20px 50px #000a;}
   .center-msg h1{margin:0 0 6px;font-size:26px;font-weight:800;}
   .center-msg h1 span{color:var(--gold);}
-  .center-msg p{margin:0 0 18px;color:var(--ink-dim);font-size:14px;line-height:1.5;}
+  .center-msg p{margin:0;color:var(--ink-dim);font-size:14px;line-height:1.5;}
+  
   .btn{border:none;border-radius:999px;padding:12px 26px;font-family:'Baloo 2',sans-serif;
     font-weight:800;font-size:16px;cursor:pointer;background:linear-gradient(180deg,#ffe27a,var(--gold));
-    color:#1a1200;box-shadow:0 6px 0 #b58a12, 0 10px 18px #0007;}
-  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #b58a12;}
+    color:#1a1200;box-shadow:0 6px 0 #b58a12, 0 10px 18px #0007;margin-top:18px;}
   .hidden{display:none !important;}
-
-  .hint{position:absolute;bottom:100px;left:0;right:0;text-align:center;color:var(--ink-dim);
-    font-size:12px;letter-spacing:.02em;pointer-events:none;}
-
-  .joystick{position:absolute;left:26px;bottom:26px;width:128px;height:128px;border-radius:50%;
-    background:radial-gradient(circle at 35% 30%,#2a2d3a,#14151d 70%);
-    border:2px solid #3a3e50aa;box-shadow:inset 0 4px 10px #00000088, 0 8px 18px #0007;
-    touch-action:none;}
-  .joystick .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;border-radius:50%;
-    background:radial-gradient(circle at 35% 30%,#ffe27a,var(--gold) 65%,#c99a1f 100%);
-    box-shadow:0 6px 12px #0009, inset 0 -3px 6px #b58a1288;
-    transform:translate(-50%,-50%);transition:box-shadow .15s;}
-  .joystick.pushed .knob{box-shadow:0 3px 8px #0009, inset 0 -3px 6px #b58a1288, 0 0 0 4px #ffd23f33;}
 
   .toast{position:absolute;top:120px;left:50%;transform:translateX(-50%);
     font-weight:800;font-size:15px;padding:6px 16px;border-radius:999px;opacity:0;
     background:#12141ce6;border:1px solid var(--line);transition:opacity .25s, transform .25s;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
+
+  /* Οπτικός οδηγός αφής στην αρχή (Σύμβολο απείρου) */
+  .gesture-guide {
+    position: absolute;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .gesture-guide svg {
+    width: 140px;
+    height: 60px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+  }
+  .hand-icon {
+    font-size: 45px;
+    position: absolute;
+    top: 20px;
+    animation: swipe 2.5s infinite ease-in-out;
+  }
+  @keyframes swipe {
+    0%, 100% { transform: translateX(-40px); }
+    50% { transform: translateX(40px); }
+  }
 </style>
 </head>
 <body>
@@ -112,16 +125,10 @@
         <div class="stat score"><div class="dot">◆</div><span id="scoreVal">0</span></div>
         <div class="stat timer"><span id="timerVal">03:00</span></div>
       </div>
-      <div class="leaderboard">
+      <div class="leaderboard" id="leaderboardPanel">
         <div class="lb-title">Κατάταξη δωματίου</div>
         <div id="lbRows"></div>
       </div>
-    </div>
-
-    <div class="hint" id="hint">Σύρε το τηλεχειριστήριο για κατεύθυνση · σπρώξε στην άκρη για ταχύτητα</div>
-
-    <div class="joystick" id="joystick">
-      <div class="knob" id="joyKnob"></div>
     </div>
 
     <div class="powerbar">
@@ -133,8 +140,8 @@
     <div class="toast" id="toast"></div>
 
     <div class="center-msg" id="startMsg">
-      <h1>Snake <span>Drop</span> 2048</h1>
-      <p>Οι αντίπαλοι ήδη κινούνται! <br><br>Χρησιμοποίησε το <strong>τηλεχειριστήριο</strong> κάτω αριστερά για να ξεκινήσεις και να κατευθύνεις τον κύβο σου.</p>
+      <h1>DROP <span>AZIRAM</span></h1>
+      <p>Οι αντίπαλοι ήδη κινούνται! <br>Άγγιξε την οθόνη για να ξεκινήσεις.</p>
     </div>
 
     <div class="center-msg hidden" id="endMsg">
@@ -142,6 +149,17 @@
       <p id="endBody">Το σκορ σου: 0</p>
       <button class="btn" id="restartBtn">Ξανά</button>
     </div>
+
+    <div class="gesture-guide" id="gestureGuide">
+      <svg viewBox="0 0 120 50">
+        <path d="M 30 25 C 10 5, 10 45, 30 25 C 50 5, 70 45, 90 25 C 110 5, 110 45, 90 25 C 70 5, 50 45, 30 25" 
+              fill="none" stroke="#a1c4fd" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M 30 25 C 10 5, 10 45, 30 25 C 50 5, 70 45, 90 25 C 110 5, 110 45, 90 25 C 70 5, 50 45, 30 25" 
+              fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="hand-icon">👆</div>
+    </div>
+
   </div>
 </div>
 
@@ -149,14 +167,11 @@
 (function(){
 "use strict";
 
-// --- Αποτροπή οποιουδήποτε scroll στην οθόνη ---
 document.addEventListener('touchmove', function(e) {
-  if (e.target.tagName !== 'BUTTON') { 
-    e.preventDefault(); 
-  }
+  if (e.target.closest('#leaderboardPanel')) return; 
+  if (e.target.tagName !== 'BUTTON') { e.preventDefault(); }
 }, { passive: false });
 
-// ---------- setup ----------
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let W, H, DPR;
@@ -171,47 +186,47 @@ window.addEventListener('resize', resize);
 resize();
 
 const ARENA = 2600;          
-const SPACING = 22;          
-const BASE_R = 15;           
+const SPACING = 24;          
+const BASE_R = 14;           
 const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes","Chris_P_Bacon",
                 "thegodfatherpart4","B.Juice","TheAfterLife","kojima_fan92","noodle.exe","xXHunterXx"];
-const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048];
+const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048,5096];
 
 const CUBE_PALETTE = [
-  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 2
-  { top:'#b9f28c', mid:'#6fcf3d', low:'#3f9a1e', edge:'#245c0f' }, // 4
-  { top:'#fff6a8', mid:'#f4d93e', low:'#d4a916', edge:'#8a6a0c' }, // 8
-  { top:'#ffcf9e', mid:'#ff9a3d', low:'#d96f16', edge:'#8a430a' }, // 16
-  { top:'#ffb3d6', mid:'#ff5fa0', low:'#d92e73', edge:'#8a1348' }, // 32
-  { top:'#d3b6ff', mid:'#9b5de5', low:'#6f34b0', edge:'#3f1a6b' }, // 64
-  { top:'#a8d8ff', mid:'#4ea8ff', low:'#2277d9', edge:'#134a8a' }, // 128
-  { top:'#eafca0', mid:'#c6e23d', low:'#96ab1c', edge:'#5a6710' }, // 256
-  { top:'#ffb3ad', mid:'#ff5f5f', low:'#d92e2e', edge:'#8a1313' }, // 512
-  { top:'#a0f5ec', mid:'#35d6c4', low:'#1a9c8f', edge:'#0c5a52' }, // 1024
+  { face:'#e66e6e', side:'#c24a4a' }, // 2 (Red)
+  { face:'#5994f2', side:'#336dc9' }, // 4 (Blue)
+  { face:'#f0d05d', side:'#c9a72e' }, // 8 (Yellow)
+  { face:'#e89851', side:'#c7732a' }, // 16 (Orange)
+  { face:'#d97ce8', side:'#ad4ebf' }, // 32 (Purple)
+  { face:'#62c7a3', side:'#3a9c79' }, // 64 (Teal)
+  { face:'#a3c762', side:'#7a9e38' }, // 128 (Lime)
+  { face:'#937be6', side:'#6a4cc7' }, // 256 (Indigo)
+  { face:'#e67b93', side:'#c7526c' }, // 512 (Pink)
+  { face:'#6bd6cf', side:'#41aba5' }, // 1024 (Cyan)
+  { face:'#e6e6e6', side:'#b3b3b3' }, // 2048 (White/Grey)
+  { face:'#ffda6b', side:'#d9b136' }, // 5096 (Gold)
 ];
+
 function colorFor(v){
   const idx = Math.log2(v) - 1; 
-  if(v >= 2048){
-    return { top:'#fffdf0', mid:'#ffe27a', low:'#ffd23f', edge:'#a97e10', glow:true, text:'#3a2a00' };
-  }
-  const p = CUBE_PALETTE[Math.max(0, idx) % CUBE_PALETTE.length];
-  return { top:p.top, mid:p.mid, low:p.low, edge:p.edge, glow:false, text:'#ffffff' };
+  if(v >= 5096) return CUBE_PALETTE[11];
+  return CUBE_PALETTE[Math.max(0, idx) % CUBE_PALETTE.length];
 }
 
 function rnd(a,b){ return a + Math.random()*(b-a); }
 function dist2(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 
-// ---------- entities ----------
 class Snake{
   constructor(x,y,isPlayer,name){
     this.isPlayer = isPlayer;
     this.name = name;
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
-    this.speed = 2.3;
-    this.baseSpeed = 2.3;
-    this.boostSpeed = 4.2;
+    // Μειωμένες ταχύτητες
+    this.speed = 1.3;
+    this.baseSpeed = 1.3;
+    this.boostSpeed = 2.3;
     this.boosting = false;
     this.path = [{x,y}];
     this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; 
@@ -233,7 +248,7 @@ class Snake{
     let da = this.targetAngle - this.angle;
     while(da > Math.PI) da -= Math.PI*2;
     while(da < -Math.PI) da += Math.PI*2;
-    const turnRate = 0.09;
+    const turnRate = 0.07;
     this.angle += clamp(da, -turnRate, turnRate);
 
     const spd = (this.boosting && this.segments.length>1) ? this.boostSpeed : this.baseSpeed;
@@ -251,7 +266,7 @@ class Snake{
 
     if(this.boosting && this.segments.length > 1){
       this._boostAccum = (this._boostAccum||0) + spd;
-      if(this._boostAccum > 140){
+      if(this._boostAccum > 180){
         this._boostAccum = 0;
         this.segments.pop();
       }
@@ -306,7 +321,11 @@ class Snake{
       merged = false;
       for(let i=0;i<this.segments.length-1;i++){
         if(this.segments[i].value === this.segments[i+1].value){
-          this.segments[i].value *= 2;
+          // Αποτροπή υπέρβασης του 5096 (το ανώτατο όριο)
+          let newVal = this.segments[i].value * 2;
+          if (this.segments[i].value === 2048) newVal = 5096;
+          
+          this.segments[i].value = newVal;
           this.segments.splice(i+1,1);
           merged = true; anyMerge = true;
           break;
@@ -317,7 +336,6 @@ class Snake{
   }
 }
 
-// ---------- world ----------
 let cubes = [];      
 let powerups = [];   
 let particles = [];  
@@ -333,7 +351,7 @@ function spawnCube(){
   const rarity = Math.random();
   let v = 2;
   if(rarity > 0.94) v = 8; else if(rarity > 0.75) v = 4;
-  cubes.push({x:rnd(30,ARENA-30), y:rnd(30,ARENA-30), value:v, wob:Math.random()*Math.PI*2});
+  cubes.push({x:rnd(30,ARENA-30), y:rnd(30,ARENA-30), value:v});
 }
 function spawnPowerup(){
   const types = ['boost','magnet','shield'];
@@ -357,74 +375,38 @@ function initWorld(){
   timeLeft = 180;
 }
 
-// ---------- input ----------
 function updatePointerFromClient(clientX, clientY){
   pointer.x = clientX; pointer.y = clientY; pointer.active = true;
 }
-canvas.addEventListener('pointerdown', e=>{ updatePointerFromClient(e.clientX,e.clientY); player.boosting = true; });
-canvas.addEventListener('pointermove', e=>{ if(pointer.active || e.buttons) updatePointerFromClient(e.clientX,e.clientY); else {pointer.x=e.clientX; pointer.y=e.clientY;} });
-window.addEventListener('pointerup', ()=>{ pointer.active=false; player.boosting=false; });
+
+// Ενοποιημένη λογική αφής που αντικαθιστά το τηλεχειριστήριο
+canvas.addEventListener('pointerdown', e => {
+  document.getElementById('gestureGuide').classList.add('hidden');
+  if(!running && document.getElementById('startMsg').classList.contains('hidden') === false){
+    startGame();
+  }
+  updatePointerFromClient(e.clientX, e.clientY);
+  player.boosting = true;
+});
+canvas.addEventListener('pointermove', e => { 
+  if(pointer.active || e.buttons) updatePointerFromClient(e.clientX, e.clientY); 
+  else { pointer.x = e.clientX; pointer.y = e.clientY; } 
+});
+window.addEventListener('pointerup', () => { pointer.active = false; player.boosting = false; });
 
 const keys = {};
-window.addEventListener('keydown', e=>{
-  keys[e.key]=true;
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
   if(!running && document.getElementById('startMsg').classList.contains('hidden') === false){
+    document.getElementById('gestureGuide').classList.add('hidden');
     startGame();
   }
-  if(e.key===' ') player.boosting = true;
+  if(e.key === ' ') player.boosting = true;
 });
-window.addEventListener('keyup', e=>{
-  keys[e.key]=false;
-  if(e.key===' ') player.boosting = false;
+window.addEventListener('keyup', e => {
+  keys[e.key] = false;
+  if(e.key === ' ') player.boosting = false;
 });
-
-// circular joystick controller
-const joyEl = document.getElementById('joystick');
-const joyKnob = document.getElementById('joyKnob');
-let joy = { active:false, pointerId:null, angle:0, mag:0 };
-const JOY_MAX = 40; 
-
-function joyUpdateFromEvent(e){
-  const rect = joyEl.getBoundingClientRect();
-  const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
-  let dx = e.clientX - cx, dy = e.clientY - cy;
-  const d = Math.hypot(dx,dy);
-  const clampedD = Math.min(d, JOY_MAX);
-  const ang = Math.atan2(dy,dx);
-  const kx = Math.cos(ang)*clampedD, ky = Math.sin(ang)*clampedD;
-  joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-  joy.angle = ang;
-  joy.mag = clampedD / JOY_MAX;
-  if(joy.mag > 0.12){
-    player.targetAngle = joy.angle;
-  }
-  player.boosting = joy.mag > 0.82;
-}
-function joyReset(){
-  joy.active = false; joy.pointerId = null; joy.mag = 0;
-  joyKnob.style.transform = 'translate(-50%,-50%)';
-  player.boosting = false;
-  joyEl.classList.remove('pushed');
-}
-joyEl.addEventListener('pointerdown', e=>{
-  // Ξεκινάει το παιχνίδι μόλις πατηθεί το joystick
-  if(!running && document.getElementById('startMsg').classList.contains('hidden') === false){
-    startGame();
-  }
-  joy.active = true; joy.pointerId = e.pointerId;
-  joyEl.classList.add('pushed');
-  joyEl.setPointerCapture(e.pointerId);
-  joyUpdateFromEvent(e);
-  e.stopPropagation();
-});
-joyEl.addEventListener('pointermove', e=>{
-  if(joy.active && e.pointerId===joy.pointerId){ joyUpdateFromEvent(e); }
-  e.stopPropagation();
-});
-window.addEventListener('pointerup', e=>{
-  if(joy.active && e.pointerId===joy.pointerId){ joyReset(); }
-});
-joyEl.addEventListener('pointercancel', ()=>joyReset());
 
 function handleKeyboardSteer(){
   let dx=0, dy=0;
@@ -439,7 +421,6 @@ function handleKeyboardSteer(){
   return false;
 }
 
-// ---------- game logic ----------
 function toast(msg, color){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -474,7 +455,7 @@ function eatCubes(snake){
       snake.grow(c.value);
       const merged = snake.mergeAdjacent();
       if(snake.isPlayer){
-        burst(c.x,c.y, colorFor(c.value).stroke, 8);
+        burst(c.x,c.y, '#ffffff', 8);
         if(merged) toast('Συγχώνευση! ×2', '#3ddc84');
       }
       spawnCube();
@@ -489,8 +470,8 @@ function eatPowerups(snake){
     const p = powerups[i];
     if(dist2(headPos.x,headPos.y,p.x,p.y) < 30*30){
       powerups.splice(i,1);
-      if(p.type==='boost'){ snake.baseSpeed = 3.3; setTimeout(()=>snake.baseSpeed=2.3, 6000); flashPw('pwBoost',6000); toast('Ταχύτητα!','#ffd23f'); }
-      if(p.type==='magnet'){ snake.magnetT = 5; flashPw('pwMagnet',5000); toast('Μαγνήτης!','#4ecdc4'); } // Διαρκεί 5 δευτερόλεπτα
+      if(p.type==='boost'){ snake.baseSpeed = 2.0; setTimeout(()=>snake.baseSpeed=1.3, 6000); flashPw('pwBoost',6000); toast('Ταχύτητα!','#ffd23f'); }
+      if(p.type==='magnet'){ snake.magnetT = 5; flashPw('pwMagnet',5000); toast('Μαγνήτης!','#4ecdc4'); } 
       if(p.type==='shield'){ snake.shieldT = 6; flashPw('pwShield',6000); toast('Ασπίδα!','#7b61ff'); }
       burst(p.x,p.y,'#fff',12);
       spawnPowerup();
@@ -515,7 +496,7 @@ function destroySegment(snake, idx, x, y){
   const val = snake.segments[idx].value;
   snake.segments.splice(idx,1);
   cubes.push({x, y, value: val>=8? val/2 : 2}); 
-  burst(x,y, colorFor(val).stroke, 14);
+  burst(x,y, '#ffffff', 14);
   if(snake.segments.length===0){
     killSnake(snake);
   }
@@ -537,7 +518,6 @@ function killSnake(snake){
 }
 
 function resolveCombat(){
-  // Όσο το παιχνίδι δεν έχει ξεκινήσει, ο παίκτης προστατεύεται από μάχες
   let all = [player, ...bots].filter(s=>s.alive);
   if(!running) all = bots.filter(s=>s.alive);
 
@@ -596,59 +576,50 @@ function botAI(bot, dt){
   }
 }
 
-// ---------- leaderboard ----------
 function renderLeaderboard(){
   const all = [player, ...bots].filter(s=>s.alive);
   all.sort((a,b)=>b.score-a.score);
-  const top = all.slice(0,8);
+  const top = all; // Εμφάνιση όλων για να υπάρχει scroll
   const rows = document.getElementById('lbRows');
   rows.innerHTML = '';
   top.forEach((s,i)=>{
     const div = document.createElement('div');
-    div.className = 'lb-row' + (s.isPlayer?' me':'') + (i===0?' top1':i===1?' top2':i===2?' top3':'');
+    div.className = 'lb-row' + (s.isPlayer?' me':'');
     div.innerHTML = `<span class="rank">${i+1}</span><span class="name">${s.isPlayer?'You':s.name}</span><span class="val">${s.score}</span>`;
     rows.appendChild(div);
   });
 }
 
-// ---------- render ----------
 function drawFloor(){
   const sx = -camera.x;
   const sy = -camera.y;
 
   ctx.save();
-  // Φανταχτερό Unicorn Gradient
+  // Πάτωμα με χρώματα ουράνιου τόξου
   const grad = ctx.createLinearGradient(sx, sy, sx+ARENA, sy+ARENA);
-  grad.addColorStop(0, '#ff9a9e');
-  grad.addColorStop(0.3, '#fecfef');
-  grad.addColorStop(0.6, '#a1c4fd');
-  grad.addColorStop(1, '#c2e9fb');
+  grad.addColorStop(0, '#ff4d4d');
+  grad.addColorStop(0.2, '#ffaa4d');
+  grad.addColorStop(0.4, '#ffd23f');
+  grad.addColorStop(0.6, '#3ddc84');
+  grad.addColorStop(0.8, '#4d94ff');
+  grad.addColorStop(1, '#9d4dff');
   ctx.fillStyle = grad;
   ctx.fillRect(sx, sy, ARENA, ARENA);
 
-  // Εφέ γυαλάδας 
-  const gloss = ctx.createLinearGradient(sx, sy, sx, sy+ARENA);
-  gloss.addColorStop(0, '#ffffffa1');
-  gloss.addColorStop(0.5, '#ffffff00');
-  gloss.addColorStop(1, '#ffffff33');
-  ctx.fillStyle = gloss;
-  ctx.fillRect(sx, sy, ARENA, ARENA);
+  // Μοτίβο με κουκκίδες
+  ctx.fillStyle = '#ffffff33';
+  const step = 50;
+  for(let x=0; x<=ARENA; x+=step){
+    for(let y=0; y<=ARENA; y+=step){
+      ctx.beginPath();
+      ctx.arc(sx+x, sy+y, 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
 
-  // Πλέγμα (αστραφτερό)
-  ctx.strokeStyle = '#ffffff66';
-  ctx.lineWidth = 1;
-  const step = 80;
-  
-  ctx.beginPath();
-  for(let x=0; x<=ARENA; x+=step){ ctx.moveTo(sx+x, sy); ctx.lineTo(sx+x, sy+ARENA); }
-  for(let y=0; y<=ARENA; y+=step){ ctx.moveTo(sx, sy+y); ctx.lineTo(sx+ARENA, sy+y); }
-  ctx.stroke();
-
-  // Περίγραμμα Αρένας
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 8;
+  ctx.strokeStyle = '#ffffff88';
+  ctx.lineWidth = 6;
   ctx.strokeRect(sx, sy, ARENA, ARENA);
-
   ctx.restore();
 }
 
@@ -658,44 +629,34 @@ function drawCube(x,y,value,scale){
   const sx = x-camera.x, sy = y-camera.y;
   if(sx< -60||sx>W+60||sy<-60||sy>H+60) return;
   const r = 16*scale;
+  
   ctx.save();
   ctx.translate(sx,sy);
 
+  // Σκιά (Drop shadow)
   ctx.save();
-  ctx.translate(0, r*0.32);
-  ctx.fillStyle = '#00000055';
-  roundRect(-r, -r, r*2, r*2, 6*scale);
+  ctx.translate(0, r*0.4);
+  ctx.fillStyle = '#00000044';
+  roundRect(-r, -r, r*2, r*2, 4*scale);
   ctx.fill();
   ctx.restore();
 
-  if(c.glow){ ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 22; }
-
-  const grad = ctx.createLinearGradient(0,-r,0,r);
-  grad.addColorStop(0, c.top); grad.addColorStop(0.5, c.mid); grad.addColorStop(1, c.low);
-  ctx.fillStyle = grad;
-  roundRect(-r,-r,r*2,r*2,6*scale);
+  // Κάτω / πλαϊνή πλευρά (πιο σκούρα)
+  ctx.fillStyle = c.side;
+  roundRect(-r, -r + r*0.2, r*2, r*2, 4*scale);
   ctx.fill();
 
-  ctx.lineWidth = 2.2*scale; ctx.strokeStyle = c.edge;
-  roundRect(-r,-r,r*2,r*2,6*scale);
-  ctx.stroke();
-
-  ctx.save();
-  roundRect(-r,-r,r*2,r*2,6*scale);
-  ctx.clip();
-  ctx.fillStyle = '#ffffff55';
-  ctx.beginPath();
-  ctx.ellipse(-r*0.35, -r*0.55, r*0.9, r*0.42, -0.5, 0, Math.PI*2);
+  // Πάνω πλευρά (πιο φωτεινή)
+  ctx.fillStyle = c.face;
+  roundRect(-r, -r, r*2, r*2, 4*scale);
   ctx.fill();
-  ctx.restore();
 
-  ctx.font = `800 ${14.5*scale}px 'Baloo 2', sans-serif`;
+  // Απλός λευκός αριθμός στο κέντρο
+  ctx.font = `600 ${14*scale}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline='middle';
-  ctx.lineJoin = 'round'; ctx.lineWidth = 3.4*scale;
-  ctx.strokeStyle = c.glow ? '#a97e10' : '#00000090';
-  ctx.strokeText(value, 0, 1);
-  ctx.fillStyle = c.text;
-  ctx.fillText(value, 0, 1);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(value, 0, 0);
+
   ctx.restore();
 }
 
@@ -716,10 +677,14 @@ function drawSnake(snake){
   }
   const hp = positions[0];
   drawCube(hp.x, hp.y, snake.segments[0].value, 1.15);
-  if(!snake.isPlayer){
-    ctx.save(); ctx.font = "700 11px 'Baloo 2', sans-serif"; ctx.fillStyle = '#111';
-    ctx.textAlign='center'; ctx.fillText(snake.name, hp.x-camera.x, hp.y-camera.y-28); ctx.restore();
-  }
+  
+  // Τοποθέτηση του ονόματος/You (όπως στη φωτογραφία)
+  ctx.save(); 
+  ctx.font = "600 12px sans-serif"; 
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign='center'; 
+  ctx.fillText(snake.isPlayer ? 'You' : snake.name, hp.x-camera.x, hp.y-camera.y-26); 
+  ctx.restore();
 }
 
 function drawPowerup(p){
@@ -740,14 +705,12 @@ function drawParticles(dt){
   }
 }
 
-// ---------- loop ----------
 let lastT = null;
 function frame(ts){
   if(!lastT) lastT = ts;
   const dt = Math.min((ts-lastT)/1000, 0.05);
   lastT = ts;
 
-  // Οι αντίπαλοι (bots) παίζουν ΣΥΝΕΧΕΙΑ στο background, ακόμα και αν δεν έχεις ξεκινήσει
   bots.forEach(b=>{ botAI(b,dt); b.update(dt); });
   bots.forEach(b=>eatCubes(b));
   resolveCombat();
@@ -773,10 +736,7 @@ function frame(ts){
   camera.x = player.head.x - W/2;
   camera.y = player.head.y - H/2;
 
-  // ---- draw ----
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = 'var(--bg-0)';
-  ctx.fillRect(0,0,W,H);
   drawFloor(); 
   cubes.forEach(c=>drawCube(c.x,c.y,c.value,0.85));
   powerups.forEach(drawPowerup);
@@ -788,18 +748,18 @@ function frame(ts){
 }
 requestAnimationFrame(frame);
 
-// ---------- start / end ----------
 function startGame(){
   if(gameStartedOnce && (!player.alive || timeLeft <= 0)){
-    initWorld(); // Reset μόνο αν έχεις χάσει και κάνεις restart
+    initWorld(); 
   }
   gameStartedOnce = true;
   renderLeaderboard();
   document.getElementById('startMsg').classList.add('hidden');
   document.getElementById('endMsg').classList.add('hidden');
+  document.getElementById('gestureGuide').classList.add('hidden');
   running = true;
-  setTimeout(()=>{ document.getElementById('hint').style.opacity='0'; }, 4000);
 }
+
 function endGame(survived){
   running = false;
   const title = document.getElementById('endTitle');
@@ -813,7 +773,6 @@ function endGame(survived){
 
 document.getElementById('restartBtn').addEventListener('click', startGame);
 
-// initial idle world for background
 initWorld();
 renderLeaderboard();
 
