@@ -1010,7 +1010,7 @@
     <div class="overlay hidden win-lose-overlay" id="loseModal">
         <div class="card">
             <div style="font-size:40px; margin-bottom:6px;">😵</div>
-            <h2 id="loseTitle">The board is full!</h2>
+            <h2 id="loseTitle">The jar is full!</h2>
             <p id="loseText"></p>
             <button class="btn" id="btnReviveLose" style="background:#F2A03D; box-shadow:0 4px 0 #b8742a; margin-top:8px;">🎬 Watch Ad to Continue!</button>
             <button class="btn" id="btnShareLose" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a; margin-top:8px;">📤 Share Score</button>
@@ -1123,25 +1123,25 @@
             const COLS = 5,
                 ROWS = 6,
                 CELL = 0.75;
-            const GAP = 0.0; // No gap, balls touch each other
+            const GAP = 0.0; 
             const BOARD_W = COLS * (CELL + GAP) - GAP;
             const BOARD_H = ROWS * (CELL + GAP) - GAP;
-            const launchY = BOARD_H / 2 + 0.4;
+            // Ξεκινάει από ΠΑΝΩ
+            const launchY = BOARD_H / 2 + 0.5;
 
-            // Colors for balls based on value
+            // Χρώματα για μπάλες
             const BALL_COLORS = {
-                2: 0x5B9BD5,
-                4: 0x4A89DC,
-                8: 0x3CB371,
-                16: 0xF9CA24,
-                32: 0xF39C12,
-                64: 0xE74C3C,
-                128: 0x9B59B6,
-                256: 0xFD79A8,
-                512: 0xF1C40F,
-                1024: 0xD35400,
-                2048: 0xECF0F1,
-                4096: 0x2C3E50
+                2: 0x4A90E2,     // Μπλε
+                4: 0x2C3E50,     // Σκούρο Μπλε
+                8: 0x27AE60,     // Πράσινο
+                16: 0xF1C40F,    // Κίτρινο
+                32: 0xF39C12,    // Πορτοκαλί
+                64: 0xE74C3C,    // Κόκκινο
+                128: 0x8E44AD,   // Μωβ
+                256: 0xFD79A8,   // Ροζ
+                512: 0x00CEC9,   // Γαλάζιο
+                1024: 0xE67E22,  // Κοκκινωπό Πορτοκαλί
+                2048: 0x2ECC71,  // Πράσινο-Κίτρινο (ίσως κλίση)
             };
 
             function levelTarget(l) {
@@ -1648,7 +1648,7 @@
             let skyPlane, sunGroup, grassPlane;
             const clouds = [];
             const flowers = [];
-            let containerMesh; // The glass jar
+            let containerMesh; // Η γυάλα
 
             function canvasTex(w, h, draw) {
                 const cv = document.createElement('canvas');
@@ -2304,8 +2304,8 @@
                 fill.position.set(-5, 2, 4);
                 scene.add(fill);
                 
-                // 1. Δημιουργία της Γυάλας (Glass Jar)
-                const containerRadius = BOARD_W / 2 + 0.6; // Λίγο μεγαλύτερο από το ταμπλό
+                // Δημιουργία της Γυάλας
+                const containerRadius = BOARD_W / 2 + 0.6; 
                 const containerHeight = BOARD_H + 1.5;
                 const containerGeo = new THREE.CylinderGeometry(containerRadius, containerRadius * 0.9, containerHeight, 32, 1, true);
                 const containerMat = new THREE.MeshPhysicalMaterial({
@@ -2322,7 +2322,7 @@
                 containerMesh.position.z = -0.5;
                 scene.add(containerMesh);
 
-                // Bottom of the jar
+                // Πάτος της γυάλας
                 const bottomGeo = new THREE.CircleGeometry(containerRadius * 0.9, 32);
                 const bottomMat = new THREE.MeshPhysicalMaterial({
                     color: 0xeeeeee,
@@ -2336,7 +2336,7 @@
                 bottomMesh.position.set(0, -containerHeight / 2, -0.5);
                 scene.add(bottomMesh);
 
-                // 2. Ομάδα των μπαλών (αντί για boardGroup)
+                // Ομάδα μπαλών (παίζει το ρόλο του ταμπλό)
                 boardGroup = new THREE.Group();
                 boardGroup.position.y = 0;
                 boardGroup.position.z = -1.0;
@@ -2368,48 +2368,62 @@
                 updateGirlScreenPosition(); 
             }
 
-            function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (CELL + GAP) }; }
+            // ΣΗΜΕΙΟ-ΚΛΕΙΔΙ: Το r=0 είναι στο κάτω μέρος (πυθμένας)
+            function cellPos(c, r) { 
+                return { 
+                    x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), 
+                    y: -BOARD_H / 2 + CELL / 2 + r * (CELL + GAP) 
+                }; 
+            }
 
-            // Δημιουργία υλικού για τη σφαίρα (αριθμός + χρώμα)
             function makeBall(value) {
-                // Υπολογισμός ακτίνας με βάση τον αριθμό
+                // Μέγεθος: Λογαριθμικό για να μεγαλώνει δραματικά (2 -> μικρό, 4096 -> τεράστιο)
                 const logVal = Math.log2(value);
-                const radius = 0.3 + (logVal - 1) * 0.03; 
+                const radius = 0.35 + (logVal - 1) * 0.04; 
 
-                // Δημιουργία εικόνας με τον αριθμό
+                // Canvas για το χρώμα και τον αριθμό
                 const canvas = document.createElement('canvas');
                 canvas.width = 256;
                 canvas.height = 256;
                 const ctx = canvas.getContext('2d');
                 
-                // Σχεδίαση κύκλου με το χρώμα της μπάλας
-                const colorHex = BALL_COLORS[value] || 0x333333;
-                const color = new THREE.Color(colorHex);
-                ctx.fillStyle = '#' + color.getHexString();
+                // 1. Χρώμα της μπάλας
+                let colorHex = BALL_COLORS[value];
+                if (!colorHex) {
+                    // Αν δεν υπάρχει, κάνε ένα εφέ ουράνιου τόξου
+                    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+                    gradient.addColorStop(0, '#ff0000');
+                    gradient.addColorStop(0.3, '#ffff00');
+                    gradient.addColorStop(0.6, '#00ff00');
+                    gradient.addColorStop(0.9, '#0000ff');
+                    ctx.fillStyle = gradient;
+                    colorHex = 0xffffff; // fallback
+                } else {
+                    const color = new THREE.Color(colorHex);
+                    ctx.fillStyle = '#' + color.getHexString();
+                }
                 ctx.beginPath();
                 ctx.arc(128, 128, 120, 0, 2 * Math.PI);
                 ctx.fill();
 
-                // Σχεδίαση αριθμού
-                ctx.fillStyle = (value >= 512 && value !== 2048) ? '#000000' : '#ffffff';
-                ctx.font = 'Bold ' + (value >= 1024 ? 50 : 80) + 'px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(value.toString(), 128, 130);
-
-                // Προσθήκη λάμψης (highlights)
+                // Λάμψη (highlight)
                 ctx.beginPath();
                 ctx.arc(80, 100, 30, 0, 2 * Math.PI);
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.fill();
 
+                // 2. Αριθμός (με περίγραμμα για να φαίνεται καλά)
+                ctx.font = 'Bold ' + (value >= 1024 ? 50 : 70) + 'px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(value.toString(), 128, 130);
+                ctx.shadowBlur = 0;
+
                 const texture = new THREE.CanvasTexture(canvas);
-
-                const material = new THREE.MeshPhongMaterial({
-                    map: texture,
-                    shininess: 30
-                });
-
+                const material = new THREE.MeshPhongMaterial({ map: texture, shininess: 30 });
                 const geometry = new THREE.SphereGeometry(radius, 32, 32);
                 const mesh = new THREE.Mesh(geometry, material);
                 mesh.userData.value = value;
@@ -2550,7 +2564,7 @@
                     boardGroup.localToWorld(targetPos);
                 }
                 
-                // Για τη σφαίρα, το κέντρο είναι το μέσο του ύψους.
+                // Το κέντρο της μπάλας
                 const ballRadius = (CELL * 0.92 / 2) * scaleY;
                 const centerPos = targetPos.clone().add(new THREE.Vector3(0, ballRadius, 0));
                 centerPos.project(camera);
@@ -3002,17 +3016,16 @@
             }
 
             function applyShopChanges(tabChanged) { 
-                if (tabChanged === 'boards') {} // No board colors to update
+                if (tabChanged === 'boards') {} 
                 if (tabChanged === 'cubes') { 
                     for (let c = 0; c < COLS; c++)
                         for (let r = 0; r < ROWS; r++) 
                             if (grid[c][r]) { 
                                 const m = grid[c][r].mesh;
-                                // Recreate ball with new style (skin). 
-                                // Note: In this version, "cube skin" affects the color palette slightly or we just keep original colors.
+                                // Δεν κάνουμε τίποτα, το χρώμα είναι σταθερό
                             } 
                     if (currentBall) { 
-                        // Recreate current ball
+                        // Δεν κάνουμε τίποτα
                     }
                     toast(TT().cube_changed); 
                 } 
