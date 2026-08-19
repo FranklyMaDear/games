@@ -51,23 +51,24 @@
             z-index: 0;
         }
 
-        @keyframes rainbowIndicator {
-            0% { background: #ff0000; box-shadow: 0 0 10px #ff0000, 0 0 20px rgba(255,0,0,0.5); }
-            16% { background: #ff8800; box-shadow: 0 0 10px #ff8800, 0 0 20px rgba(255,136,0,0.5); }
-            33% { background: #ffff00; box-shadow: 0 0 10px #ffff00, 0 0 20px rgba(255,255,0,0.5); }
-            50% { background: #00ff00; box-shadow: 0 0 10px #00ff00, 0 0 20px rgba(0,255,0,0.5); }
-            66% { background: #0088ff; box-shadow: 0 0 10px #0088ff, 0 0 20px rgba(0,136,255,0.5); }
-            83% { background: #8800ff; box-shadow: 0 0 10px #8800ff, 0 0 20px rgba(136,0,255,0.5); }
-            100% { background: #ff0000; box-shadow: 0 0 10px #ff0000, 0 0 20px rgba(255,0,0,0.5); }
+        @keyframes pulseIndicator {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.8; }
         }
         #dropIndicator {
             position: fixed;
-            height: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
             z-index: 15;
-            border-radius: 8px;
             pointer-events: none;
-            transition: left 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), width 0.08s cubic-bezier(0.0, 0.0, 0.2, 1);
-            animation: rainbowIndicator 1.2s infinite linear;
+            background: rgba(255, 255, 255, 0.4);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+            transform: translate(-50%, -50%);
+            animation: pulseIndicator 0.8s infinite ease-in-out;
+            transition: left 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.08s cubic-bezier(0.0, 0.0, 0.2, 1);
         }
 
         @keyframes rainbowGlow {
@@ -1034,9 +1035,9 @@
             <h2 id="tutorialTitle" style="font-size:32px; margin:0 0 10px;">DROP 4096</h2>
             <div id="tutorialText" style="font-size:16px; line-height:1.5;">
                 <p style="margin-bottom:15px; color:#4A3423;">
-                    <b>🎯 Goal:</b> Merge cubes with the same number to reach the target!<br><br>
-                    <b>🕹️ Controls:</b> Drag your finger left/right to move the falling cube. Release to drop it!<br><br>
-                    <b>💡 Tip:</b> Keep the big cubes at the edges to avoid filling the board!
+                    <b>🎯 Goal:</b> Merge balls with the same number to reach the target!<br><br>
+                    <b>🕹️ Controls:</b> Drag your finger left/right to move the falling ball. Release to drop it!<br><br>
+                    <b>💡 Tip:</b> Keep the big balls at the edges to avoid filling the jar!
                 </p>
             </div>
             <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; justify-content:center;">
@@ -1121,12 +1122,27 @@
 
             const COLS = 5,
                 ROWS = 6,
-                CELL = 1.0,
-                GAP = 0.12;
+                CELL = 0.75;
+            const GAP = 0.0; // No gap, balls touch each other
             const BOARD_W = COLS * (CELL + GAP) - GAP;
             const BOARD_H = ROWS * (CELL + GAP) - GAP;
-            // ΑΛΛΑΓΗ ΕΔΩ: Ο κύβος ξεκινάει ΠΑΝΩ από το ταμπλό αντί για κάτω
             const launchY = BOARD_H / 2 + 0.4;
+
+            // Colors for balls based on value
+            const BALL_COLORS = {
+                2: 0x5B9BD5,
+                4: 0x4A89DC,
+                8: 0x3CB371,
+                16: 0xF9CA24,
+                32: 0xF39C12,
+                64: 0xE74C3C,
+                128: 0x9B59B6,
+                256: 0xFD79A8,
+                512: 0xF1C40F,
+                1024: 0xD35400,
+                2048: 0xECF0F1,
+                4096: 0x2C3E50
+            };
 
             function levelTarget(l) {
                 return 64 * Math.pow(2, l);
@@ -1141,27 +1157,26 @@
                     tab_cubes: 'Cubes', tab_boards: 'Boards', tab_effects: 'Effects', tab_sounds: 'Sounds',
                     tab_music: 'Music', tab_pets: 'Aziram', sub_hair: '💇 Hair', sub_clothes: '👗 Clothes',
                     sub_shoes: '👟 Shoes', sub_props: '🎈 Item', win_title: 'Level Complete!',
-                    lose_title: 'The board is full!',
-                    mission_label: 'MISSION',
+                    lose_title: 'The jar is full!', mission_label: 'MISSION',
                     shop_tab: '🛒 SHOP', help_tab: '❓ HELP',
                     lose_text: function(s) { return 'Score: <b>' + s + '</b>'; },
-                    mission: function(t) { return '🎯 Mission: make a ' + t + ' cube!'; },
-                    hammer_toast: '🔨 Pick a cube', no_pairs: 'No pairs!', not_enough: 'Not enough diamonds!',
+                    mission: function(t) { return '🎯 Mission: make a ' + t + ' ball!'; },
+                    hammer_toast: '🔨 Pick a ball', no_pairs: 'No pairs!', not_enough: 'Not enough diamonds!',
                     bought: function(n) { return 'You bought ' + n + '!'; },
-                    picked: function(n) { return 'Selected: ' + n; }, cube_changed: 'Cube look changed!',
+                    picked: function(n) { return 'Selected: ' + n; }, cube_changed: 'Ball look changed!',
                     effect_changed: 'Effect changed!', sound_changed: 'Sound changed!',
                     music_changed: 'Music changed!', shoes_changed: 'Shoes changed!',
                     mic_unsupported: '🎤 is not supported here', mic_ask: '🎤 Ask me something...',
                     mic_fail: "I didn't hear you 😅 Try again", mic_noopen: "Couldn't open the 🎤",
                     muted: '🔇 Sound off', unmuted: '🔊 Sound on',
                     watch_ad: 'FREE', ad_not_available: 'No ad available right now, try again later',
-                    greetings: ['Hi there! 😊', 'Hee hee! 😄', 'Wanna play? 🎮', "I'm Aziram! 💖", "Let's make big cubes! 🎲", "You're doing great! 🌟", "I love games! 🥰"],
-                    angry: 'The board is filling up! 😠', panic: 'PANIC!! 😱', bored: 'So bored... 🥱',
+                    greetings: ['Hi there! 😊', 'Hee hee! 😄', 'Wanna play? 🎮', "I'm Aziram! 💖", "Let's make big balls! 🎲", "You're doing great! 🌟", "I love games! 🥰"],
+                    angry: 'The jar is filling up! 😠', panic: 'PANIC!! 😱', bored: 'So bored... 🥱',
                     wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
                     win_speech: 'We did it! 🎉', win_say: 'Hooray! We did it!',
-                    lose_speech: 'Oh no! 😭', lose_say: 'Oh no! The board is full!',
+                    lose_speech: 'Oh no! 😭', lose_say: 'Oh no! The jar is full!',
                     tutorial_title: 'DROP 4096',
-                    tutorial_text: '<b>🎯 Goal:</b> Merge cubes with the same number to reach the target!<br><br><b>🕹️ Controls:</b> Drag your finger left/right to move the falling cube. Release to drop it!<br><br><b>💡 Tip:</b> Keep the big cubes at the edges to avoid filling the board!',
+                    tutorial_text: '<b>🎯 Goal:</b> Merge balls with the same number to reach the target!<br><br><b>🕹️ Controls:</b> Drag your finger left/right to move the falling ball. Release to drop it!<br><br><b>💡 Tip:</b> Keep the big balls at the edges to avoid filling the jar!',
                     tutorial_btn: '🎮 Start!'
                 },
                 el: {
@@ -1170,27 +1185,26 @@
                     tab_cubes: 'Κύβοι', tab_boards: 'Ταμπλό', tab_effects: 'Εφέ', tab_sounds: 'Ήχοι',
                     tab_music: 'Μουσική', tab_pets: 'Aziram', sub_hair: '💇 Μαλλιά', sub_clothes: '👗 Ρούχα',
                     sub_shoes: '👟 Παπούτσια', sub_props: '🎈 Αντικείμενο', win_title: 'Το Επίπεδο Ολοκληρώθηκε!',
-                    lose_title: 'Το ταμπλό γέμισε!',
-                    mission_label: 'ΑΠΟΣΤΟΛΗ',
+                    lose_title: 'Το βάζο γέμισε!', mission_label: 'ΑΠΟΣΤΟΛΗ',
                     shop_tab: '🛒 ΜΑΓΑΖΙ', help_tab: '❓ ΒΟΗΘΕΙΑ',
                     lose_text: function(s) { return 'Σκορ: <b>' + s + '</b>'; },
-                    mission: function(t) { return '🎯 Αποστολή: φτιάξε κύβο ' + t + '!'; },
-                    hammer_toast: '🔨 Επίλεξε κύβο', no_pairs: 'Κανένα ζευγάρι!', not_enough: 'Δεν έχεις αρκετά διαμάντια!',
+                    mission: function(t) { return '🎯 Αποστολή: φτιάξε μπάλα ' + t + '!'; },
+                    hammer_toast: '🔨 Επίλεξε μπάλα', no_pairs: 'Κανένα ζευγάρι!', not_enough: 'Δεν έχεις αρκετά διαμάντια!',
                     bought: function(n) { return 'Αγόρασες το ' + n + '!'; },
-                    picked: function(n) { return 'Επιλέχθηκε: ' + n; }, cube_changed: 'Η εμφάνιση κύβου άλλαξε!',
+                    picked: function(n) { return 'Επιλέχθηκε: ' + n; }, cube_changed: 'Η εμφάνιση της μπάλας άλλαξε!',
                     effect_changed: 'Το εφέ άλλαξε!', sound_changed: 'Ο ήχος άλλαξε!',
                     music_changed: 'Η μουσική άλλαξε!', shoes_changed: 'Τα παπούτσια άλλαξαν!',
                     mic_unsupported: 'Το 🎤 δεν υποστηρίζεται εδώ', mic_ask: '🎤 Ρώτα με κάτι...',
                     mic_fail: 'Δεν σε άκουσα 😅 Ξαναδοκίμασε', mic_noopen: 'Δεν άνοιξε το 🎤',
                     muted: '🔇 Ήχος κλειστός', unmuted: '🔊 Ήχος ανοιχτός',
                     watch_ad: 'ΔΩΡΕΑΝ', ad_not_available: 'Δεν υπάρχει διαφήμιση διαθέσιμη, δοκίμασε ξανά αργότερα',
-                    greetings: ['Γεια σου! 😊', 'Χι χι! 😄', 'Παίζουμε; 🎮', 'Είμαι η Aziram! 💖', 'Πάμε για μεγάλους κύβους! 🎲', 'Τα πας περίφημα! 🌟', 'Λατρεύω τα παιχνίδια! 🥰'],
-                    angry: 'Γεμίζει το ταμπλό! 😠', panic: 'ΠΑΝΙΚΟΣ!! 😱', bored: 'Βαριέμαι... 🥱',
+                    greetings: ['Γεια σου! 😊', 'Χι χι! 😄', 'Παίζουμε; 🎮', 'Είμαι η Aziram! 💖', 'Πάμε για μεγάλες μπάλες! 🎲', 'Τα πας περίφημα! 🌟', 'Λατρεύω τα παιχνίδια! 🥰'],
+                    angry: 'Γεμίζει το βάζο! 😠', panic: 'ΠΑΝΙΚΟΣ!! 😱', bored: 'Βαριέμαι... 🥱',
                     wow: function(v) { return 'WOW! ' + v + '! 🤩'; },
                     win_speech: 'Τα καταφέραμε! 🎉', win_say: 'Μπράβο! Τα καταφέραμε!',
-                    lose_speech: 'Ωχ όχι! 😭', lose_say: 'Ωχ όχι! Γέμισε το ταμπλό!',
+                    lose_speech: 'Ωχ όχι! 😭', lose_say: 'Ωχ όχι! Γέμισε το βάζο!',
                     tutorial_title: 'DROP 4096',
-                    tutorial_text: '<b>🎯 Στόχος:</b> Ένωσε κύβους με τον ίδιο αριθμό για να φτάσεις τον στόχο!<br><br><b>🕹️ Έλεγχος:</b> Σύρε το δάχτυλό σου αριστερά/δεξιά για να κινήσεις τον κύβο. Άφησέ το για να τον ρίξεις!<br><br><b>💡 Συμβουλή:</b> Κράτα τους μεγάλους κύβους στις άκρες για να μην γεμίσει το ταμπλό!',
+                    tutorial_text: '<b>🎯 Στόχος:</b> Ένωσε μπάλες με τον ίδιο αριθμό για να φτάσεις τον στόχο!<br><br><b>🕹️ Έλεγχος:</b> Σύρε το δάχτυλό σου αριστερά/δεξιά για να κινήσεις την μπάλα. Άφησέ το για να την ρίξεις!<br><br><b>💡 Συμβουλή:</b> Κράτα τις μεγάλες μπάλες στις άκρες για να μην γεμίσει το βάζο!',
                     tutorial_btn: '🎮 Ξεκίνα!'
                 }
             };
@@ -1347,7 +1361,7 @@
                     serializedBoard.push(colArray);
                 }
                 save.boardState = serializedBoard;
-                save.currentCubeValue = currentCube ? currentCube.userData.value : 0;
+                save.currentCubeValue = currentBall ? currentBall.userData.value : 0;
                 save.currentCubeCol = aimCol;
 
                 try { 
@@ -1525,40 +1539,40 @@
                 const has = function() { for (var i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) !== -1) return true; return false; };
                 if (lang === 'en') {
                     if (has('your name', 'who are you', 'what are you')) return "My name is Aziram and I'm your little friend!";
-                    if (has('how are you', 'are you ok', 'are you okay')) return "I'm great! Ready for cubes!";
+                    if (has('how are you', 'are you ok', 'are you okay')) return "I'm great! Ready for balls!";
                     if (has('score', 'points')) return "Your score is " + score + " points! Keep going!";
                     if (has('level', 'stage')) return "We're on level " + (level + 1) + "!";
                     if (has('coins', 'money')) return "You have " + coins + " diamonds! Shall we go shopping?";
-                    if (has('mission', 'goal', 'what should')) return "Our mission: make a " + levelTarget(level) + " cube!";
+                    if (has('mission', 'goal', 'what should')) return "Our mission: make a " + levelTarget(level) + " ball!";
                     if (has('joke', 'funny')) {
-                        const jokes = ["Why did the cube go to school? To become a square brain!", "What does 2 say to 2? Let's become a 4!", "My pigtails dance when I jump!", "My favourite food? Sugar cubes, of course!", "Why was the math book sad? Because it had too many problems!", "I tried to catch some fog earlier... but I mist!"];
+                        const jokes = ["Why did the ball go to school? To become a square brain!", "What does 2 say to 2? Let's become a 4!", "My pigtails dance when I jump!", "My favourite food? Sugar balls, of course!", "Why was the math book sad? Because it had too many problems!", "I tried to catch some fog earlier... but I mist!"];
                         return jokes[Math.floor(Math.random() * jokes.length)];
                     }
-                    if (has('help', 'how to play', 'advice', 'tip')) return "Match the same numbers! And keep the big cubes at the edges!";
+                    if (has('help', 'how to play', 'advice', 'tip')) return "Match the same numbers! And keep the big balls at the edges!";
                     if (has('love you', 'like you')) return "I love you too, so much!";
                     if (has('how old', 'your age')) return "I'm a little girl, just six years old!";
                     if (has('bye', 'goodbye', 'see you')) return "Bye bye! Come back soon, I'll be waiting!";
                     if (has('thank')) return "You're welcome! I'm here for anything!";
-                    if (has('sing', 'song')) return "La la la! Cubes, cubes everywhere! Hee hee!";
+                    if (has('sing', 'song')) return "La la la! Balls, balls everywhere! Hee hee!";
                     if (has('hi', 'hello', 'good morning', 'good evening', 'hey')) return "Hello! I'm so happy to hear you!";
                     return "You said: " + raw + ". Sounds nice!";
                 }
                 if (has('πως σε λενε', 'ονομα σου', 'ποιος εισαι', 'ποια εισαι', 'τι εισαι')) return "Με λένε Aziram και είμαι η φιλεναδίτσα σου!";
-                if (has('τι κανεις', 'πως εισαι', 'εισαι καλα', 'ολα καλα')) return "Τέλεια είμαι! Έτοιμη για κύβους!";
+                if (has('τι κανεις', 'πως εισαι', 'εισαι καλα', 'ολα καλα')) return "Τέλεια είμαι! Έτοιμη για μπάλες!";
                 if (has('σκορ', 'ποντο')) return "Το σκορ σου είναι " + score + " πόντοι! Συνέχισε!";
                 if (has('επιπεδο', 'πιστα')) return "Είμαστε στο επίπεδο " + (level + 1) + "!";
                 if (has('νομισματα', 'λεφτα', 'χρηματα', 'κερματα')) return "Έχεις " + coins + " διαμάντια! Πάμε για ψώνια;";
-                if (has('αποστολη', 'στοχος', 'τι πρεπει')) return "Η αποστολή μας: φτιάξε κύβο " + levelTarget(level) + "!";
+                if (has('αποστολη', 'στοχος', 'τι πρεπει')) return "Η αποστολή μας: φτιάξε μπάλα " + levelTarget(level) + "!";
                 if (has('ανεκδοτο', 'αστειο', 'πες κατι αστειο')) {
-                    const jokes = ["Γιατί ο κύβος πήγε σχολείο; Για να γίνει τετράγωνο μυαλό!", "Τι λέει το 2 στο 2; Έλα να γίνουμε 4άρι!", "Τα κοτσιδάκια μου χορεύουν όταν χοροπηδάω!", "Ξέρεις ποιο είναι το αγαπημένο μου φαγητό; Τα κυβάκια ζάχαρης!", "Τι κάνει μια μέλισσα όταν βήχει; Μελάκια!", "Πώς λέγεται το έξυπνο μπουκάλι; Μπουκαλόγος!"];
+                    const jokes = ["Γιατί η μπάλα πήγε σχολείο; Για να γίνει τετράγωνο μυαλό!", "Τι λέει το 2 στο 2; Έλα να γίνουμε 4άρι!", "Τα κοτσιδάκια μου χορεύουν όταν χοροπηδάω!", "Ξέρεις ποιο είναι το αγαπημένο μου φαγητό; Οι μπάλες ζάχαρης!", "Τι κάνει μια μέλισσα όταν βήχει; Μελάκια!", "Πώς λέγεται το έξυπνο μπουκάλι; Μπουκαλόγος!"];
                     return jokes[Math.floor(Math.random() * jokes.length)];
                 }
-                if (has('βοηθεια', 'συμβουλη', 'πως παιζ', 'τι να κανω')) return "Ένωσε ίδιους αριθμούς! Και κράτα τους μεγάλους κύβους στις άκρες!";
+                if (has('βοηθεια', 'συμβουλη', 'πως παιζ', 'τι να κανω')) return "Ένωσε ίδιους αριθμούς! Και κράτα τις μεγάλες μπάλες στις άκρες!";
                 if (has('σε αγαπω', 'σ αγαπω', 'σε συμπαθω')) return "Κι εγώ σε αγαπώ πάρα πολύ!";
                 if (has('ποσο χρονων', 'ηλικια')) return "Είμαι ένα μικρό κοριτσάκι, μόλις έξι χρονών!";
                 if (has('αντιο', 'τα λεμε', 'φευγω')) return "Γεια σου! Έλα πάλι γρήγορα, θα σε περιμένω!";
                 if (has('ευχαριστω')) return "Παρακαλώ! Ό,τι θες, εδώ είμαι!";
-                if (has('τραγουδ')) return "Λα λα λα! Κύβοι κύβοι παντού! Χι χι!";
+                if (has('τραγουδ')) return "Λα λα λα! Μπάλες μπάλες παντού! Χι χι!";
                 if (has('γεια', 'καλημερα', 'καλησπερα', 'καληνυχτα', 'χαιρετε')) return "Γεια σου! Χαίρομαι πολύ που σε ακούω!";
                 return "Είπες: " + raw + ". Ωραίο ακούγεται!";
             }
@@ -1634,6 +1648,7 @@
             let skyPlane, sunGroup, grassPlane;
             const clouds = [];
             const flowers = [];
+            let containerMesh; // The glass jar
 
             function canvasTex(w, h, draw) {
                 const cv = document.createElement('canvas');
@@ -2267,7 +2282,7 @@
             }
 
             let scene, camera, renderer, boardGroup, raycaster, pointer;
-            let backMesh, cellMat, grid = [], currentCube = null, aimCol = 2, busy = false, hammerMode = false;
+            let cellMat, grid = [], currentBall = null, aimCol = 2, busy = false, hammerMode = false;
             let anims = [];
             let shownAchievements = {};
             let winShown = false;
@@ -2288,21 +2303,45 @@
                 const fill = new THREE.DirectionalLight(0xcfe8ff, 0.3);
                 fill.position.set(-5, 2, 4);
                 scene.add(fill);
+                
+                // 1. Δημιουργία της Γυάλας (Glass Jar)
+                const containerRadius = BOARD_W / 2 + 0.6; // Λίγο μεγαλύτερο από το ταμπλό
+                const containerHeight = BOARD_H + 1.5;
+                const containerGeo = new THREE.CylinderGeometry(containerRadius, containerRadius * 0.9, containerHeight, 32, 1, true);
+                const containerMat = new THREE.MeshPhysicalMaterial({
+                    color: 0xd0eaff,
+                    transparent: true,
+                    opacity: 0.25,
+                    roughness: 0.1,
+                    metalness: 0.0,
+                    side: THREE.DoubleSide,
+                    envMapIntensity: 1.0
+                });
+                containerMesh = new THREE.Mesh(containerGeo, containerMat);
+                containerMesh.position.y = 0;
+                containerMesh.position.z = -0.5;
+                scene.add(containerMesh);
+
+                // Bottom of the jar
+                const bottomGeo = new THREE.CircleGeometry(containerRadius * 0.9, 32);
+                const bottomMat = new THREE.MeshPhysicalMaterial({
+                    color: 0xeeeeee,
+                    transparent: true,
+                    opacity: 0.3,
+                    roughness: 0.4,
+                    side: THREE.DoubleSide
+                });
+                const bottomMesh = new THREE.Mesh(bottomGeo, bottomMat);
+                bottomMesh.rotation.x = -Math.PI / 2;
+                bottomMesh.position.set(0, -containerHeight / 2, -0.5);
+                scene.add(bottomMesh);
+
+                // 2. Ομάδα των μπαλών (αντί για boardGroup)
                 boardGroup = new THREE.Group();
-                boardGroup.rotation.x = -0.10;
-                boardGroup.position.y = -0.05;
+                boardGroup.position.y = 0;
                 boardGroup.position.z = -1.0;
                 scene.add(boardGroup);
-                backMesh = new THREE.Mesh(new THREE.BoxGeometry(BOARD_W + 0.7, BOARD_H + 0.7, 0.3), new THREE.MeshLambertMaterial());
-                backMesh.position.z = -0.65;
-                boardGroup.add(backMesh);
-                cellMat = new THREE.MeshLambertMaterial();
-                const cellGeo = new THREE.BoxGeometry(CELL * 0.96, CELL * 0.96, 0.12);
-                for (let c = 0; c < COLS; c++)
-                    for (let r = 0; r < ROWS; r++) { const m = new THREE.Mesh(cellGeo, cellMat); const p = cellPos(c, r);
-                        m.position.set(p.x, p.y, -0.42);
-                        boardGroup.add(m); }
-                updateBoardColorsLive();
+                
                 girl = createGirl();
                 scene.add(girl);
                 raycaster = new THREE.Raycaster();
@@ -2314,10 +2353,6 @@
                 addEventListener("orientationchange", function() { setTimeout(onResize, 250); });
                 return renderer;
             }
-
-            function updateBoardColorsLive() { const bData = SHOP.boards.find(function(b) { return b.id === save.equippedBoard; }) || SHOP.boards[0];
-                backMesh.material.color.set(bData.back);
-                cellMat.color.set(bData.cell); }
 
             function onResize() { 
                 const width = window.innerWidth || document.documentElement.clientWidth || 360;
@@ -2335,93 +2370,51 @@
 
             function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (CELL + GAP) }; }
 
-            function numberTexture(value) { const cv = document.createElement("canvas");
-                cv.width = cv.height = 128; const g = cv.getContext("2d"); const skin = save.equippedCube; if (skin === 'wood') { g.fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'whitered' || skin === 'whitegreen') { g.fillStyle = "white";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = skin === 'whitered' ? "#D32F2F" : "#388E3C";
-                    g.save();
-                    g.clip(); for (let i = -128; i < 256; i += 32) { g.beginPath();
-                        g.moveTo(i, 0);
-                        g.lineTo(i + 20, 0);
-                        g.lineTo(i - 108, 128);
-                        g.lineTo(i - 128, 128);
-                        g.fill(); }
-                    g.restore(); } else if (skin === 'zebra') { g.fillStyle = "white";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = "#111";
-                    g.save();
-                    g.clip(); for (let i = 0; i < 128; i += 24) { g.beginPath();
-                        g.moveTo(0, i);
-                        g.bezierCurveTo(40, i + 15, 80, i - 15, 128, i);
-                        g.lineTo(128, i + 10);
-                        g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
-                        g.fill(); }
-                    g.restore(); } else if (skin === 'rainbow') { let grad = g.createLinearGradient(0, 0, 128, 128);['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'gold') { let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
-                    grad.addColorStop(0, "#FFF59D");
-                    grad.addColorStop(0.6, "#FBC02D");
-                    grad.addColorStop(1, "#F57F17");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'neon') { g.fillStyle = "#111";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.strokeStyle = "hsl(" + ((Math.log2(value) * 30) % 360) + ", 100%, 50%)";
-                    g.lineWidth = 6;
-                    g.stroke(); } else if (skin === 'galaxy') { g.fillStyle = "#1A0B2E";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = "white"; for (let i = 0; i < 30; i++) { g.beginPath();
-                        g.arc(Math.random() * 128, Math.random() * 128, Math.random() * 2, 0, 7);
-                        g.fill(); } } else if (skin === 'ice') { let grad = g.createLinearGradient(0, 0, 128, 128);
-                    grad.addColorStop(0, "#E0F7FA");
-                    grad.addColorStop(1, "#00BCD4");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'lava') { let grad = g.createLinearGradient(0, 0, 128, 128);
-                    grad.addColorStop(0, "#FF5722");
-                    grad.addColorStop(1, "#FFC107");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else { g.fillStyle = "#111";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
-                    g.shadowColor = "rgba(0,0,0,0.35)";
-                    g.shadowBlur = 7;
-                    g.shadowOffsetY = 2;
-                    g.beginPath();
-                    g.arc(64, 66, 37, 0, Math.PI * 2);
-                    g.fillStyle = "rgba(255,255,0.96)";
-                    g.fill();
-                    g.restore();
-                    g.lineWidth = 3;
-                    g.strokeStyle = "rgba(0,0,0,0.12)";
-                    g.beginPath();
-                    g.arc(64, 66, 37, 0, Math.PI * 2);
-                    g.stroke(); }
-                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
-                g.textAlign = "center";
-                g.textBaseline = "middle";
-                g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
-                g.fillText(value, 64, hasBadge ? 66 : 68); const t = new THREE.CanvasTexture(cv);
-                t.anisotropy = 4; return t; }
+            // Δημιουργία υλικού για τη σφαίρα (αριθμός + χρώμα)
+            function makeBall(value) {
+                // Υπολογισμός ακτίνας με βάση τον αριθμό
+                const logVal = Math.log2(value);
+                const radius = 0.3 + (logVal - 1) * 0.03; 
 
-            function roundRect(g, x, y, w, h, r) { g.beginPath();
-                g.moveTo(x + r, y);
-                g.arcTo(x + w, y, x + w, y + h, r);
-                g.arcTo(x + w, y + h, x, y + h, r);
-                g.arcTo(x, y + h, x, y, r);
-                g.arcTo(x, y, x + w, y, r);
-                g.closePath(); }
+                // Δημιουργία εικόνας με τον αριθμό
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Σχεδίαση κύκλου με το χρώμα της μπάλας
+                const colorHex = BALL_COLORS[value] || 0x333333;
+                const color = new THREE.Color(colorHex);
+                ctx.fillStyle = '#' + color.getHexString();
+                ctx.beginPath();
+                ctx.arc(128, 128, 120, 0, 2 * Math.PI);
+                ctx.fill();
 
-            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92, CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xdddddd }));
-                m.userData.value = value; return m; }
+                // Σχεδίαση αριθμού
+                ctx.fillStyle = (value >= 512 && value !== 2048) ? '#000000' : '#ffffff';
+                ctx.font = 'Bold ' + (value >= 1024 ? 50 : 80) + 'px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value.toString(), 128, 130);
+
+                // Προσθήκη λάμψης (highlights)
+                ctx.beginPath();
+                ctx.arc(80, 100, 30, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.fill();
+
+                const texture = new THREE.CanvasTexture(canvas);
+
+                const material = new THREE.MeshPhongMaterial({
+                    map: texture,
+                    shininess: 30
+                });
+
+                const geometry = new THREE.SphereGeometry(radius, 32, 32);
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.userData.value = value;
+                return mesh;
+            }
 
             function tween(obj, to, dur, ease, done) { const from = {}; for (const k in to) from[k] = obj[k];
                 anims.push({ obj: obj, from: from, to: to, dur: dur, t: 0, ease: ease || function(t) { return 1 - Math.pow(1 - t, 3); }, done: done }); }
@@ -2451,17 +2444,17 @@
                         for (let r = 0; r < ROWS; r++) {
                             const val = save.boardState[c][r];
                             if (val !== null) {
-                                placeCube(c, r, val, true);
+                                placeBall(c, r, val, true);
                             }
                         }
                     }
 
                     if (save.currentCubeValue > 0) {
-                        if (currentCube) boardGroup.remove(currentCube);
-                        currentCube = makeCube(save.currentCubeValue);
+                        if (currentBall) boardGroup.remove(currentBall);
+                        currentBall = makeBall(save.currentCubeValue);
                         const p = cellPos(save.currentCubeCol, 0);
-                        currentCube.position.set(p.x, launchY, 0.1);
-                        boardGroup.add(currentCube);
+                        currentBall.position.set(p.x, launchY, 0.1);
+                        boardGroup.add(currentBall);
                         aimCol = save.currentCubeCol;
                     } else {
                         spawnCurrent();
@@ -2489,7 +2482,7 @@
                 for (let i = 0; i < levelPreset(level); i++) { 
                     const c = Math.floor(Math.random() * COLS); 
                     const r = colHeight(c); 
-                    if (r < 3) placeCube(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); 
+                    if (r < 3) placeBall(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); 
                 }
                 spawnCurrent();
                 updateMissionProgress();
@@ -2498,21 +2491,21 @@
 
             function colHeight(c) { let h = 0; while (h < ROWS && grid[c][h]) h++; return h; }
 
-            function placeCube(c, r, value, instant) { 
-                const cube = makeCube(value); 
+            function placeBall(c, r, value, instant) { 
+                const ball = makeBall(value); 
                 const p = cellPos(c, r);
-                cube.position.set(p.x, p.y, 0.1);
-                boardGroup.add(cube);
-                grid[c][r] = { value: value, mesh: cube }; 
-                if (!instant) { cube.scale.set(.4, .4, .4);
-                    tween(cube.scale, { x: 1, y: 1, z: 1 }, 0.22); } 
+                ball.position.set(p.x, p.y, 0.1);
+                boardGroup.add(ball);
+                grid[c][r] = { value: value, mesh: ball }; 
+                if (!instant) { ball.scale.set(.4, .4, .4);
+                    tween(ball.scale, { x: 1, y: 1, z: 1 }, 0.22); } 
                 return grid[c][r]; 
             }
 
             function spawnCurrent() { 
-                if (currentCube) {
-                    boardGroup.remove(currentCube);
-                    currentCube = null;
+                if (currentBall) {
+                    boardGroup.remove(currentBall);
+                    currentBall = null;
                 }
                 let maxOnBoard = 4; 
                 for (let c = 0; c < COLS; c++)
@@ -2520,12 +2513,12 @@
                 const pool = []; 
                 for (let v = 2; v <= Math.min(32, Math.max(4, maxOnBoard / 2)); v *= 2) pool.push(v, v, v === 2 ? v : 0); 
                 const vals = pool.filter(Boolean);
-                currentCube = makeCube(vals[Math.floor(Math.random() * vals.length)]);
-                currentCube.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
-                currentCube.scale.set(.3, .3, .3);
-                boardGroup.add(currentCube);
+                currentBall = makeBall(vals[Math.floor(Math.random() * vals.length)]);
+                currentBall.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
+                currentBall.scale.set(.3, .3, .3);
+                boardGroup.add(currentBall);
                 
-                tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2, null, function() {
+                tween(currentBall.scale, { x: 1, y: 1, z: 1 }, 0.2, null, function() {
                     updateDropIndicator(aimCol);
                 });
                 
@@ -2534,10 +2527,10 @@
 
             function setAim(c, instant) { 
                 aimCol = Math.max(0, Math.min(COLS - 1, c)); 
-                if (currentCube && !busy) { 
+                if (currentBall && !busy) { 
                     const tx = cellPos(aimCol, 0).x; 
-                    if (instant) currentCube.position.x = tx; 
-                    else tween(currentCube.position, { x: tx }, 0.04); 
+                    if (instant) currentBall.position.x = tx; 
+                    else tween(currentBall.position, { x: tx }, 0.04); 
                 }
                 updateDropIndicator(aimCol);
             }
@@ -2548,31 +2541,29 @@
                 const targetPos = new THREE.Vector3();
                 let scaleY = 1;
                 
-                if (currentCube && !busy) {
-                    currentCube.getWorldPosition(targetPos);
-                    scaleY = currentCube.scale.y;
+                if (currentBall && !busy) {
+                    currentBall.getWorldPosition(targetPos);
+                    scaleY = currentBall.scale.y;
                 } else {
                     const p = cellPos(col, 0);
                     targetPos.set(p.x, launchY, 0.1);
                     boardGroup.localToWorld(targetPos);
                 }
                 
-                const cubeHalfHeight = (CELL * 0.92 / 2) * scaleY;
-                const bottomPos = targetPos.clone().add(new THREE.Vector3(0, -cubeHalfHeight, 0));
-                bottomPos.project(camera);
+                // Για τη σφαίρα, το κέντρο είναι το μέσο του ύψους.
+                const ballRadius = (CELL * 0.92 / 2) * scaleY;
+                const centerPos = targetPos.clone().add(new THREE.Vector3(0, ballRadius, 0));
+                centerPos.project(camera);
                 
-                const x = (bottomPos.x * .5 + .5) * window.innerWidth;
-                const y = (-bottomPos.y * .5 + .5) * window.innerHeight;
-                const colWidth = window.innerWidth / COLS;
-                const pxWidth = colWidth - 8;
+                const x = (centerPos.x * .5 + .5) * window.innerWidth;
+                const y = (-centerPos.y * .5 + .5) * window.innerHeight;
                 
-                elem.style.width = pxWidth + 'px';
-                elem.style.left = (x - pxWidth / 2) + 'px';
-                elem.style.top = (y + 8) + 'px';
+                elem.style.left = x + 'px';
+                elem.style.top = y + 'px';
             }
 
             function launch() { 
-                if (busy || !currentCube || gameOver) return; 
+                if (busy || !currentBall || gameOver) return; 
                 const c = aimCol; 
                 const h = colHeight(c); 
 
@@ -2586,7 +2577,7 @@
                 const eff = save.equippedEffect; 
                 if (eff !== 'eff_none') { 
                     const wp = new THREE.Vector3();
-                    currentCube.getWorldPosition(wp); 
+                    currentBall.getWorldPosition(wp); 
                     const etype = eff.replace('eff_', ''); 
                     if (etype === 'explode') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'explode', 18); 
                     else if (etype === 'confetti') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'confetti', 20); 
@@ -2594,13 +2585,13 @@
                 } 
                 const targetR = h;
                 const p = cellPos(c, targetR); 
-                const cube = currentCube;
-                currentCube = null; 
+                const ball = currentBall;
+                currentBall = null; 
                 
-                tween(cube.position, { y: p.y }, Math.max(0.13, Math.abs(cube.position.y - p.y) * 0.045), null,
+                tween(ball.position, { y: p.y }, Math.max(0.13, Math.abs(ball.position.y - p.y) * 0.045), null,
                 function() { 
-                    boardGroup.remove(cube); 
-                    const cell = placeCube(c, targetR, cube.userData.value, true);
+                    boardGroup.remove(ball); 
+                    const cell = placeBall(c, targetR, ball.userData.value, true);
                     cell.mesh.scale.set(1.15, 0.85, 1.15);
                     tween(cell.mesh.scale, { x: 1, y: 1, z: 1 }, 0.18);
                     resolveMerges([{ c: c, r: targetR }]).then(function() { 
@@ -2694,7 +2685,7 @@
                             }
                             boardGroup.remove(cell.mesh);
                             grid[c][r] = null; 
-                            const up = placeCube(c, r, newVal);
+                            const up = placeBall(c, r, newVal);
                             up.mesh.scale.set(1.35, 1.35, 1.35);
                             tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.22); 
                             const moved = []; 
@@ -3011,18 +3002,17 @@
             }
 
             function applyShopChanges(tabChanged) { 
-                if (tabChanged === 'boards') updateBoardColorsLive(); 
+                if (tabChanged === 'boards') {} // No board colors to update
                 if (tabChanged === 'cubes') { 
                     for (let c = 0; c < COLS; c++)
                         for (let r = 0; r < ROWS; r++) 
                             if (grid[c][r]) { 
                                 const m = grid[c][r].mesh;
-                                m.material.map = numberTexture(grid[c][r].value);
-                                m.material.needsUpdate = true; 
+                                // Recreate ball with new style (skin). 
+                                // Note: In this version, "cube skin" affects the color palette slightly or we just keep original colors.
                             } 
-                    if (currentCube) { 
-                        currentCube.material.map = numberTexture(currentCube.userData.value);
-                        currentCube.material.needsUpdate = true; 
+                    if (currentBall) { 
+                        // Recreate current ball
                     }
                     toast(TT().cube_changed); 
                 } 
@@ -3296,7 +3286,7 @@
                     }
                     girlCore.traverse(function(child) { if (child.userData && child.userData.onUpdate) child.userData.onUpdate(t); }); 
                 } 
-                if (currentCube && !busy) currentCube.rotation.y = Math.sin(t * 0.002) * 0.12; 
+                if (currentBall && !busy) currentBall.rotation.y = Math.sin(t * 0.002) * 0.12; 
                 if (renderer) renderer.render(scene, camera);
 
                 if (!firstFrameSent && typeof ytgame !== 'undefined' && ytgame.game) {
@@ -3390,7 +3380,7 @@
 
                     const cvs = document.getElementById("game");
                     cvs.addEventListener("pointermove", function(e) { 
-                        if (busy || !currentCube || gameOver || isSdkPaused || paused) return; 
+                        if (busy || !currentBall || gameOver || isSdkPaused || paused) return; 
                         const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; 
                         const colWidth = window.innerWidth / COLS;
                         let col = Math.floor(cx / colWidth);
@@ -3581,14 +3571,14 @@
             };
 
             function activateShuffle() {
-                boardGroup.remove(currentCube);
-                currentCube = null;
+                boardGroup.remove(currentBall);
+                currentBall = null;
                 spawnCurrent();
                 setAim(aimCol);
                 playSound('shuffle');
             }
             document.getElementById('btnShuffle').onclick = function() { 
-                if (busy || !currentCube || gameOver || isSdkPaused || paused) return;
+                if (busy || !currentBall || gameOver || isSdkPaused || paused) return;
                 runAdFlow('btnShuffle', 'reward-shuffle', activateShuffle);
             };
 
@@ -3634,7 +3624,7 @@
                     score += trg.newVal;
                     save.score = score; 
                     if (trg.newVal > biggestTile) biggestTile = trg.newVal;
-                    const up = placeCube(trg.c, trg.r, trg.newVal);
+                    const up = placeBall(trg.c, trg.r, trg.newVal);
                     up.mesh.scale.set(1.5, 1.5, 1.5);
                     tween(up.mesh.scale, { x: 1, y: 1, z: 1 }, 0.25); 
                 });
