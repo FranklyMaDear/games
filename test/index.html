@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Drop 4096</title>
+    <title>Drop 4096 · FranklyGames</title>
     
     <style>
         :root {
-            --bg: #5B7DB1;
+            --bg: #87CEEB;
             --panel-deep: #4A3423;
             --cream: #F7EFDC;
             --ink: #2F1B0D;
+            --accent: #F2A03D;
+            --coin: #F5C542;
         }
         * {
             margin: 0;
@@ -32,8 +34,24 @@
             position: fixed;
             inset: 0;
             display: block;
-            z-index: 1;
+            z-index: 0;
         }
+
+        /* Δείκτης πτώσης (κουκκίδα) */
+        #dropIndicator {
+            position: fixed;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            z-index: 15;
+            pointer-events: none;
+            background: rgba(255, 150, 80, 0.6);
+            border: 2px solid rgba(255, 150, 80, 0.9);
+            transform: translate(-50%, -50%);
+            transition: left 0.05s, top 0.05s;
+        }
+
+        /* Διεπαφή Χρήστη (UI) - Μινιμαλιστική */
         #ui-overlay {
             position: fixed;
             top: 20px;
@@ -42,49 +60,90 @@
             z-index: 10;
             pointer-events: none;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
-        #ui-overlay h2 {
+        #ui-top {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
             color: white;
-            font-size: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            margin: 0;
+            font-weight: 700;
+            font-size: 16px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
-        #scoreDisplay {
-            color: #FFF;
-            font-size: 24px;
-            font-weight: 800;
-            text-shadow: 2px 2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, -2px -2px 0 #000;
+        #ui-top .item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
-        #next-ball-container {
+        #btnSound {
+            cursor: pointer;
+            font-size: 18px;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 0;
+            pointer-events: auto;
+        }
+        #mission-container {
+            pointer-events: none;
+            width: 200px;
+            background: rgba(0,0,0,0.4);
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #mission-label {
+            font-size: 11px;
+            color: white;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        #mission-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+        #mission-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #F5C542, #F2A03D);
+            transition: width 0.2s ease-out;
+        }
+
+        #timer {
             position: fixed;
             top: 80px;
             right: 20px;
-            z-index: 10;
-            width: 60px;
-            height: 60px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.4);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #next-ball-canvas {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-        }
-        #girl {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 5;
-            font-size: 80px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 18px;
+            font-family: monospace;
             pointer-events: none;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));
-            opacity: 0.8;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
+
+        /* Overlay Main Menu & Game Over */
         .overlay {
             position: fixed;
             inset: 0;
@@ -106,14 +165,12 @@
             animation: pop .25s cubic-bezier(.34, 1.56, .64, 1);
             display: flex;
             flex-direction: column;
+            gap: 10px;
         }
         @keyframes pop {
             from { transform: scale(.7); opacity: 0; }
         }
-        .card h2 {
-            font-size: 24px;
-            margin-bottom: 15px;
-        }
+        .card h2 { font-size: 24px; margin: 0; }
         .btn {
             border: none;
             cursor: pointer;
@@ -121,69 +178,94 @@
             font-weight: 800;
             font-size: 18px;
             color: #fff;
-            background: #F2A03D;
+            background: var(--accent);
             border-radius: 16px;
             padding: 12px 24px;
             box-shadow: 0 4px 0 #b8742a;
             transition: transform .08s;
-            margin: 5px 0;
         }
         .btn:active {
             transform: translateY(4px);
             box-shadow: 0 1px 0 #b8742a;
         }
-        .hidden {
-            display: none !important;
+        .hidden { display: none !important; }
+
+        /* Το κορίτσι */
+        #girl {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            font-size: 70px;
+            pointer-events: none;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.2));
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
     <canvas id="game"></canvas>
-
-    <!-- Ελάχιστο UI -->
-    <div id="ui-overlay">
-        <div>SCORE: <span id="scoreDisplay">0</span></div>
-    </div>
-    <div id="next-ball-container">
-        <canvas id="next-ball-canvas"></canvas>
-    </div>
     
+    <!-- Δείκτης πτώσης -->
+    <div id="dropIndicator"></div>
+
+    <!-- Μινιμαλιστικό UI -->
+    <div id="ui-overlay">
+        <div id="ui-top">
+            <span class="item">🪙 <span id="scoreDisplay">0</span></span>
+            <span style="color:rgba(255,255,255,0.3);">|</span>
+            <span class="item">LEVEL <span id="levelDisplay">1</span></span>
+            <span style="color:rgba(255,255,255,0.3);">|</span>
+            <button id="btnSound">🔊</button>
+        </div>
+        <div id="mission-container">
+            <div id="mission-label">MISSION: 64</div>
+            <div id="mission-bar-bg"><div id="mission-bar-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="timer" class="hidden">05:00</div>
+
     <div id="girl">👧</div>
 
+    <!-- Overlay Game Over -->
     <div class="overlay hidden" id="gameOverOverlay">
         <div class="card">
-            <div style="font-size:40px; margin-bottom:8px;">😵</div>
+            <div style="font-size:40px;">😵</div>
             <h2>The jar is full!</h2>
-            <p id="finalScoreText">Score: <b>0</b></p>
+            <p>Score: <b id="finalScore">0</b></p>
             <button class="btn" id="btnPlayAgain" style="background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">🔄 Play Again</button>
         </div>
     </div>
 
+    <!-- Main Menu -->
     <div class="overlay" id="mainMenu">
         <div class="card" style="max-width:420px;">
-            <div style="font-size:60px; margin-bottom:8px;">🎲</div>
-            <h2 style="font-size:32px; margin:0 0 10px;">DROP 4096</h2>
-            <div style="font-size:16px; line-height:1.5; margin-bottom:15px; color:#4A3423;">
+            <div style="font-size:60px;">🎲</div>
+            <h2 style="font-size:32px;">DROP 4096</h2>
+            <div style="font-size:15px; line-height:1.5; color:#4A3423;">
                 <b>🎯 Goal:</b> Merge balls with the same number!<br><br>
-                <b>🕹️ Controls:</b> Drag and release to drop the ball inside the jar.
+                <b>🕹️ Controls:</b> Drag your finger left/right to move the ball. Release to drop!
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-                <button class="btn" id="btnClassic" style="flex:1; min-width:120px; background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a;">Classic</button>
-            </div>
+            <button class="btn" id="btnClassic" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a;">🎮 Play</button>
         </div>
     </div>
 
+    <!-- Βιβλιοθήκη Φυσικής Matter.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
         (function() {
             'use strict';
 
-            // 1. Απλοποιημένη αποθήκευση (μόνο σκορ)
-            const DEFAULT_SAVE = { level: 0, score: 0, bestClassic: 0 };
+            // --- 1. Αρχικοποίηση Απλού Save System ---
+            const DEFAULT_SAVE = { bestScore: 0 };
             let save = { ...DEFAULT_SAVE };
             let currentScore = 0;
+            let currentLevel = 0;
             let isGameOver = false;
             let isPlaying = false;
+            let muted = false;
 
             function loadSave() {
                 try { 
@@ -195,45 +277,372 @@
                 try { localStorage.setItem("drop4096-v2", JSON.stringify(save)); } catch(e) {} 
             }
 
-            // 2. Matter.js Configuration
+            // --- 2. Matter.js Configuration ---
             const { Engine, Bodies, Body, Composite, Events, World, Vector, Sleeping } = Matter;
             const engine = Engine.create();
             const world = engine.world;
             
-            // Σημαντική ρύθμιση: Substepping για αποφυγή tunneling
+            // Substepping για αποφυγή tunneling (η μπάλα να περνάει μέσα από τοίχους)
             engine.timing.delta = 1000 / 60 / 4; 
-            // Σημαντική ρύθμιση: Sleeping για απόδοση
-            engine.enableSleeping = true;
-            
-            engine.world.gravity.y = 2.5; 
+            engine.enableSleeping = true; // Απενεργοποίηση ακίνητων σωμάτων για απόδοση
+            engine.world.gravity.y = 2.0; 
 
-            // 3. Canvas & Διαστάσεις
+            // --- 3. Canvas & Διαστάσεις ---
             const canvas = document.getElementById('game');
             const ctx = canvas.getContext('2d');
-            const nextCanvas = document.getElementById('next-ball-canvas');
-            const nextCtx = nextCanvas.getContext('2d');
-
             let width, height;
             let jarLeft, jarRight, jarBottom, jarWidth, jarHeight;
-            
-            // Τοίχοι της γυάλας (με μεγάλο πάχος για να μην περνάνε οι μπάλες)
-            const WALL_THICKNESS = 30; 
+            const WALL_THICKNESS = 20; // Πάχος τοίχων για αποφυγή διαφυγής
             let ground, leftWall, rightWall;
 
-            function resizeCanvas() {
+            // --- 4. Δεδομένα μπαλών και Χρώματα ---
+            const BALL_COLORS = {
+                2: 0x4A90E2, 4: 0x2C3E50, 8: 0x27AE60, 16: 0xF1C40F, 
+                32: 0xE67E22, 64: 0xE74C3C, 128: 0x8E44AD, 256: 0xFD79A8,
+                512: 0x00CEC9, 1024: 0xD35400, 2048: 0x2ECC71, 4096: 0x1A1A2E
+            };
+            
+            let nextBallValue = 2;
+            let currentBallBody = null; // Η μπάλα που κρατάει ο παίκτης
+            let isDragging = false;
+            let dragX = 0;
+
+            function getRadius(value) {
+                return 12 + Math.log2(value) * 4; // Μέγεθος ανάλογο με τον αριθμό
+            }
+
+            function getColorHex(value) {
+                return BALL_COLORS[value] || 0x888888;
+            }
+
+            // --- 5. Λειτουργίες Δημιουργίας και Διαγραφής ---
+            function createPhysicsBall(x, y, value, isStatic = true) {
+                const radius = getRadius(value);
+                // Η πυκνότητα μεγαλώνει με τον αριθμό, ώστε οι μεγάλες να σπρώχνουν τις μικρές
+                const density = 0.002 * Math.log2(value + 1); 
+                
+                const body = Bodies.circle(x, y, radius, {
+                    isStatic: isStatic,
+                    restitution: 0.25, // Ελαστικότητα
+                    friction: 0.6,     // Τριβή
+                    density: density,
+                    label: 'ball',
+                    plugin: { value: value, radius: radius }
+                });
+                Composite.add(world, body);
+                return body;
+            }
+
+            function removeBall(body) {
+                Composite.remove(world, body);
+            }
+
+            function spawnNextBall() {
+                if (currentBallBody) return; // Αν ήδη υπάρχει, μην δημιουργήσεις άλλη
+
+                const val = nextBallValue;
+                const rad = getRadius(val);
+                // Τοποθέτηση πάνω ακριβώς από τη γυάλα
+                const spawnX = width / 2;
+                const spawnY = jarBottom - jarHeight - rad - 20;
+                
+                currentBallBody = createPhysicsBall(spawnX, spawnY, val, true);
+                
+                // Υπολογισμός επόμενης τυχαίας μπάλας (2, 4, 8, 16)
+                const pool = [2, 4, 8, 16];
+                nextBallValue = pool[Math.floor(Math.random() * pool.length)];
+
+                isDragging = false;
+                updateUI(); // Ενημέρωση για το νέο level ή σκορ
+            }
+
+            // --- 6. Σύστημα Εισόδου (Drag & Drop) ---
+            function getPointerX(e) {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                return clientX - rect.left;
+            }
+
+            function setupInput() {
+                canvas.addEventListener('pointerdown', (e) => {
+                    if (isGameOver || !isPlaying) return;
+                    if (!currentBallBody) spawnNextBall();
+                    isDragging = true;
+                });
+
+                canvas.addEventListener('pointermove', (e) => {
+                    if (isGameOver || !isPlaying) return;
+                    if (isDragging && currentBallBody) {
+                        const x = getPointerX(e);
+                        const radius = getRadius(currentBallBody.plugin.value);
+                        // Περιορισμός εντός των τοιχωμάτων
+                        const clampX = Math.max(jarLeft + radius, Math.min(jarRight - radius, x));
+                        Body.setPosition(currentBallBody, { x: clampX, y: currentBallBody.position.y });
+                        dragX = clampX;
+                    }
+                });
+
+                canvas.addEventListener('pointerup', (e) => {
+                    if (isGameOver || !isPlaying) return;
+                    if (isDragging && currentBallBody) {
+                        Body.setStatic(currentBallBody, false); // Η μπάλα αρχίζει να πέφτει
+                        const currentBody = currentBallBody;
+                        currentBallBody = null;
+                        isDragging = false;
+                        
+                        // Δημιουργία επόμενης μπάλας μετά από μικρό delay
+                        setTimeout(() => {
+                            if (!isGameOver && isPlaying) spawnNextBall();
+                        }, 600);
+                    }
+                });
+            }
+
+            // --- 7. Σύστημα Συγχώνευσης (Merging) ---
+            Events.on(engine, 'collisionStart', (event) => {
+                const pairs = event.pairs;
+                const toRemove = [];
+                const toSpawn = [];
+
+                for (let i = 0; i < pairs.length; i++) {
+                    const pair = pairs[i];
+                    const bodyA = pair.bodyA;
+                    const bodyB = pair.bodyB;
+
+                    if (bodyA.label === 'ball' && bodyB.label === 'ball') {
+                        const valA = bodyA.plugin.value;
+                        const valB = bodyB.plugin.value;
+                        
+                        // Αποτροπή πολλαπλών συγχωνεύσεων του ίδιου σώματος
+                        if (valA === valB && !bodyA.isMerging && !bodyB.isMerging) {
+                            bodyA.isMerging = true;
+                            bodyB.isMerging = true;
+                            
+                            toRemove.push(bodyA);
+                            toRemove.push(bodyB);
+                            
+                            const newVal = valA * 2;
+                            // Τοποθέτηση στο μέσο των δύο μπαλών
+                            const midX = (bodyA.position.x + bodyB.position.x) / 2;
+                            const midY = (bodyA.position.y + bodyB.position.y) / 2;
+                            
+                            toSpawn.push({ x: midX, y: midY, value: newVal });
+                        }
+                    }
+                }
+
+                if (toRemove.length > 0) {
+                    Composite.remove(world, toRemove);
+                    
+                    for (let s of toSpawn) {
+                        const newBody = createPhysicsBall(s.x, s.y, s.value, false);
+                        // Αύξηση σκορ
+                        currentScore += s.value;
+                        updateUI();
+                        
+                        // Έλεγχος αν η νέα μπάλα ακουμπάει το πάνω μέρος (Game Over)
+                        const containerTopY = jarBottom - jarHeight;
+                        if (newBody.position.y - getRadius(s.value) < containerTopY) {
+                            triggerGameOver();
+                        }
+                    }
+                }
+            });
+
+            // --- 8. Custom Render Loop (Απόδοση Γραφικών) ---
+            function render() {
+                ctx.clearRect(0, 0, width, height);
+
+                // Σχεδίαση Γυάλας (Πάτος και τοιχώματα)
+                ctx.fillStyle = 'rgba(40, 70, 120, 0.3)';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+                ctx.shadowBlur = 15;
+                roundRect(ctx, jarLeft, jarBottom - jarHeight, jarWidth, jarHeight, 20);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Σχεδίαση μπαλών
+                const bodies = Composite.allBodies(world);
+                for (let body of bodies) {
+                    if (body.label === 'ball') {
+                        drawBall(ctx, body);
+                    }
+                }
+
+                // Σχεδίαση βοηθητικού δείκτη πτώσης (όταν σέρνουμε)
+                if (isDragging && currentBallBody) {
+                    const x = currentBallBody.position.x;
+                    const y = currentBallBody.position.y + getRadius(currentBallBody.plugin.value);
+                    
+                    ctx.beginPath();
+                    ctx.setLineDash([8, 8]);
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, jarBottom);
+                    ctx.strokeStyle = 'rgba(255, 200, 100, 0.5)';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // Ενημέρωση του DOM indicator (κουκκίδα)
+                    const elem = document.getElementById('dropIndicator');
+                    const pxX = (x / width) * window.innerWidth;
+                    const pxY = ((jarBottom / height) * window.innerHeight);
+                    elem.style.left = pxX + 'px';
+                    elem.style.top = pxY + 'px';
+                }
+
+                // Σχεδίαση Γυάλας (Περίγραμμα)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = 4;
+                roundRect(ctx, jarLeft, jarBottom - jarHeight, jarWidth, jarHeight, 20, true);
+
+                requestAnimationFrame(render);
+            }
+
+            // --- 9. Συνάρτηση Σχεδίασης Μπάλας ---
+            function drawBall(ctx, body) {
+                const x = body.position.x;
+                const y = body.position.y;
+                const value = body.plugin.value;
+                const radius = body.plugin.radius;
+                const colorHex = getColorHex(value);
+
+                ctx.save();
+                ctx.translate(x, y);
+                
+                // Σκιά
+                ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                ctx.shadowBlur = 8;
+                ctx.shadowOffsetY = 3;
+
+                // Χρώμα μπάλας
+                ctx.fillStyle = '#' + new THREE.Color(colorHex).getHexString();
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Λάμψη (Highlight)
+                ctx.beginPath();
+                ctx.arc(-radius/3, -radius/3, radius/4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                ctx.fill();
+
+                // Αριθμός (με περίγραμμα, πάντα οριζόντιος)
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const fontSize = radius * 0.9;
+                ctx.font = `Bold ${fontSize}px Arial`;
+                
+                // Μαύρο περίγραμμα
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 0;
+                ctx.strokeText(value.toString(), 0, 0);
+                
+                // Λευκό κείμενο
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 0;
+                ctx.fillText(value.toString(), 0, 0);
+
+                ctx.restore();
+            }
+
+            // Βοηθητική συνάρτηση για στρογγυλεμένες γωνίες
+            function roundRect(ctx, x, y, w, h, r, stroke = false) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+                if (stroke) ctx.stroke();
+                else ctx.fill();
+            }
+
+            // --- 10. Διαχείριση UI ---
+            function updateUI() {
+                document.getElementById('scoreDisplay').innerText = currentScore;
+                document.getElementById('levelDisplay').innerText = currentLevel + 1;
+                updateMission();
+            }
+
+            function updateMission() {
+                // Υπολογισμός του μεγαλύτερου αριθμού στο ταμπλό
+                let maxVal = 2;
+                const bodies = Composite.allBodies(world);
+                for (let b of bodies) {
+                    if (b.label === 'ball' && b.plugin.value > maxVal) {
+                        maxVal = b.plugin.value;
+                    }
+                }
+                const target = 64 * Math.pow(2, currentLevel);
+                document.getElementById('mission-label').innerText = 'MISSION: ' + target;
+                
+                let pct = (Math.log2(maxVal) / Math.log2(target)) * 100;
+                if (pct > 100) pct = 100;
+                document.getElementById('mission-bar-fill').style.width = pct + '%';
+                
+                // Έλεγχος αν ολοκληρώθηκε η αποστολή (ανεβάζουμε level)
+                if (maxVal >= target) {
+                    currentLevel++;
+                    updateUI();
+                    // Μικρό animation ήχου (προαιρετικό)
+                }
+            }
+
+            function triggerGameOver() {
+                isGameOver = true;
+                isPlaying = false;
+                if (currentScore > save.bestScore) {
+                    save.bestScore = currentScore;
+                    persist();
+                }
+                document.getElementById('finalScore').innerText = currentScore;
+                document.getElementById('gameOverOverlay').classList.remove('hidden');
+            }
+
+            function startGame() {
+                // Καθαρισμός παλιών σωμάτων
+                const balls = Composite.allBodies(world).filter(b => b.label === 'ball');
+                Composite.remove(world, balls);
+                
+                currentScore = 0;
+                currentLevel = 0;
+                isGameOver = false;
+                isPlaying = true;
+                updateUI();
+                document.getElementById('gameOverOverlay').classList.add('hidden');
+                document.getElementById('mainMenu').classList.add('hidden');
+                
+                if (currentBallBody) {
+                    Composite.remove(world, currentBallBody);
+                    currentBallBody = null;
+                }
+                isDragging = false;
+                spawnNextBall();
+            }
+
+            // --- 11. Δημιουργία Γυάλας και Διαστάσεις ---
+            function resizeAndSetup() {
                 width = window.innerWidth;
                 height = window.innerHeight;
                 canvas.width = width;
                 canvas.height = height;
 
-                // Διαστάσεις γυάλας (80% του πλάτους, 90% του ύψους)
-                jarWidth = width * 0.75;
-                jarHeight = height * 0.8;
+                // Το μέγεθος της γυάλας (80% πλάτους, 75% ύψους)
+                jarWidth = width * 0.8;
+                jarHeight = height * 0.75;
                 jarLeft = (width - jarWidth) / 2;
                 jarRight = jarLeft + jarWidth;
-                jarBottom = height - 40;
+                jarBottom = height - 50;
 
-                // Αναδημιουργία τοιχωμάτων στο νέο μέγεθος
+                // Δημιουργία τοιχωμάτων
                 if (leftWall) {
                     Composite.remove(world, leftWall);
                     Composite.remove(world, rightWall);
@@ -251,353 +660,67 @@
                 });
                 
                 Composite.add(world, [ground, leftWall, rightWall]);
-                resizeNextBallCanvas();
-            }
-
-            function resizeNextBallCanvas() {
-                nextCanvas.width = 60;
-                nextCanvas.height = 60;
-            }
-
-            window.addEventListener('resize', resizeCanvas);
-
-            // 4. Δεδομένα μπαλών και Χρώματα
-            const BALL_COLORS = {
-                2: 0x5B9BD5, 4: 0x2C3E50, 8: 0x27AE60, 16: 0xF1C40F, 
-                32: 0xE67E22, 64: 0xE74C3C, 128: 0x8E44AD, 256: 0xFD79A8,
-                512: 0x00CEC9, 1024: 0xD35400, 2048: 0x2ECC71, 4096: 0x1A1A2E
-            };
-            
-            let nextBallValue = 2;
-            let currentBallBody = null; // Το σώμα που κρατάει ο παίκτης
-            let isDragging = false;
-            let dropLineY = 0;
-
-            function getRadius(value) {
-                return 15 + Math.log2(value) * 4.5; 
-            }
-
-            function getColorHex(value) {
-                return BALL_COLORS[value] || 0x888888;
-            }
-
-            // 5. Δημιουργία & Διαγραφή Μπαλών
-            function createPhysicsBall(x, y, value, isStatic = true) {
-                const radius = getRadius(value);
-                const density = 0.002 * Math.log2(value + 1); 
                 
-                const body = Bodies.circle(x, y, radius, {
-                    isStatic: isStatic,
-                    restitution: 0.25,
-                    friction: 0.6,
-                    density: density,
-                    label: 'ball',
-                    plugin: { value: value, radius: radius }
-                });
-                Composite.add(world, body);
-                return body;
+                if (isPlaying && !currentBallBody) spawnNextBall();
             }
 
-            function removeBall(body) {
-                Composite.remove(world, body);
+            // --- 12. Ήχος ---
+            const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+            function playMergeSound() {
+                if (muted) return;
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } catch(e) {}
             }
 
-            function spawnNextBall() {
-                const val = nextBallValue;
-                const rad = getRadius(val);
-                // Η μπάλα ξεκινάει πάνω από το πάνω μέρος της γυάλας
-                const spawnX = width / 2;
-                const spawnY = jarBottom - jarHeight - rad - 20;
-                
-                currentBallBody = createPhysicsBall(spawnX, spawnY, val, true);
-                
-                // Υπολογισμός της επόμενης μπάλας (2, 4, 8... )
-                const pool = [2, 4, 8, 16];
-                nextBallValue = pool[Math.floor(Math.random() * pool.length)];
-                drawNextBallPreview();
-
-                isDragging = false;
-            }
-
-            // 6. Σύστημα Εισόδου (Drag and Drop)
-            function getPointerX(e) {
-                const rect = canvas.getBoundingClientRect();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                return clientX - rect.left;
-            }
-
-            canvas.addEventListener('pointerdown', (e) => {
-                if (isGameOver || !isPlaying) return;
-                if (!currentBallBody) spawnNextBall();
-                isDragging = true;
-            });
-
-            canvas.addEventListener('pointermove', (e) => {
-                if (isGameOver || !isPlaying) return;
-                if (isDragging && currentBallBody) {
-                    const x = getPointerX(e);
-                    // Περιορισμός της μπάλας εντός των ορίων των τοίχων
-                    const radius = getRadius(currentBallBody.plugin.value);
-                    const clampX = Math.max(jarLeft + radius, Math.min(jarRight - radius, x));
-                    Body.setPosition(currentBallBody, { x: clampX, y: currentBallBody.position.y });
-                }
-            });
-
-            canvas.addEventListener('pointerup', (e) => {
-                if (isGameOver || !isPlaying) return;
-                if (isDragging && currentBallBody) {
-                    // Αφήνουμε την μπάλα ελεύθερη (ενεργοποιείται η βαρύτητα)
-                    Body.setStatic(currentBallBody, false);
-                    currentBallBody = null;
-                    isDragging = false;
-                    
-                    // Δημιουργία επόμενης μπάλας μετά από μικρό delay
-                    setTimeout(spawnNextBall, 500);
-                }
-            });
-
-            // 7. Σύστημα Συγχώνευσης (Merging)
-            Events.on(engine, 'collisionStart', (event) => {
-                const pairs = event.pairs;
-                const toRemove = [];
-                const toSpawn = [];
-
-                for (let i = 0; i < pairs.length; i++) {
-                    const pair = pairs[i];
-                    const bodyA = pair.bodyA;
-                    const bodyB = pair.bodyB;
-
-                    if (bodyA.label === 'ball' && bodyB.label === 'ball') {
-                        const valA = bodyA.plugin.value;
-                        const valB = bodyB.plugin.value;
-                        
-                        // Αποφυγή διπλής συγχώνευσης του ίδιου σώματος (με χρήση σημαιών)
-                        if (valA === valB && !bodyA.isMerging && !bodyB.isMerging) {
-                            bodyA.isMerging = true;
-                            bodyB.isMerging = true;
-                            
-                            toRemove.push(bodyA);
-                            toRemove.push(bodyB);
-                            
-                            const newVal = valA * 2;
-                            // Δημιουργία στο μέσο της σύγκρουσης
-                            const midX = (bodyA.position.x + bodyB.position.x) / 2;
-                            const midY = (bodyA.position.y + bodyB.position.y) / 2;
-                            
-                            toSpawn.push({ x: midX, y: midY, value: newVal });
-                        }
-                    }
-                }
-
-                // Εκτέλεση αφαιρέσεων και προσθηκών μετά την επεξεργασία των συγκρούσεων
-                if (toRemove.length > 0) {
-                    Composite.remove(world, toRemove);
-                    
-                    for (let s of toSpawn) {
-                        const newBody = createPhysicsBall(s.x, s.y, s.value, false);
-                        // Αύξηση σκορ
-                        currentScore += s.value;
-                        updateUI();
-                        
-                        // Έλεγχος αν η γυάλα γέμισε (η νέα μπάλα ακουμπάει την οροφή)
-                        const containerTopY = jarBottom - jarHeight;
-                        if (newBody.position.y - getRadius(s.value) < containerTopY) {
-                            triggerGameOver();
-                        }
-                    }
-                }
-            });
-
-            // 8. Βρόχος Σχεδίασης (Custom Canvas Rendering)
-            function render() {
-                ctx.clearRect(0, 0, width, height);
-
-                // Σχεδίαση Γυάλας (Πίσω μέρος)
-                ctx.fillStyle = 'rgba(32, 66, 120, 0.4)';
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-                ctx.shadowBlur = 20;
-                roundRect(ctx, jarLeft, jarBottom - jarHeight, jarWidth, jarHeight, 30);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // Σχεδίαση μπαλών και δείκτη πτώσης
-                const bodies = Composite.allBodies(world);
-                
-                for (let body of bodies) {
-                    if (body.label === 'ball') {
-                        drawBall(ctx, body);
-                    }
-                }
-
-                // Σχεδίαση του δείκτη πτώσης (όταν σέρνουμε)
-                if (isDragging && currentBallBody) {
-                    const x = currentBallBody.position.x;
-                    const radius = getRadius(currentBallBody.plugin.value);
-                    const y = currentBallBody.position.y;
-                    ctx.setLineDash([10, 10]);
-                    ctx.strokeStyle = 'rgba(255, 200, 100, 0.6)';
-                    ctx.lineWidth = 4;
-                    ctx.beginPath();
-                    ctx.moveTo(x, y + radius);
-                    ctx.lineTo(x, jarBottom);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-
-                // Σχεδίαση Γυάλας (Μπροστινό μέρος - άκρες)
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctx.lineWidth = 6;
-                roundRect(ctx, jarLeft, jarBottom - jarHeight, jarWidth, jarHeight, 30, true);
-
-                requestAnimationFrame(render);
-            }
-
-            function drawBall(ctx, body) {
-                const x = body.position.x;
-                const y = body.position.y;
-                const angle = body.angle;
-                const value = body.plugin.value;
-                const radius = body.plugin.radius;
-                const colorHex = getColorHex(value);
-
-                // 1. Σώμα (Κύκλος)
-                ctx.save();
-                ctx.translate(x, y);
-                
-                // Σκιά
-                ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetY = 5;
-
-                // Χρώμα
-                ctx.fillStyle = '#' + new THREE.Color(colorHex).getHexString();
-                ctx.beginPath();
-                ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // Highlights (λάμψη)
-                ctx.beginPath();
-                ctx.arc(-radius/3, -radius/3, radius/4, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                ctx.fill();
-
-                // 2. Αριθμός (Κείμενο) - Πάντα οριζόντιος
-                // Περίγραμμα (stroke)
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.font = `Bold ${radius * 1.0}px Arial`;
-                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-                ctx.lineWidth = 5;
-                ctx.strokeText(value.toString(), 0, 0);
-                
-                // Γέμισμα (fill)
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowBlur = 0;
-                ctx.fillText(value.toString(), 0, 0);
-
-                ctx.restore();
-            }
-
-            // Βοηθητική συνάρτηση για ορθογώνιο με στρογγυλεμένες γωνίες
-            function roundRect(ctx, x, y, w, h, r, stroke = false) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-                if (stroke) ctx.stroke();
-                else ctx.fill();
-            }
-
-            // 9. Προβολή επόμενης μπάλας (μικρό πλαίσιο πάνω δεξιά)
-            function drawNextBallPreview() {
-                nextCtx.clearRect(0, 0, 60, 60);
-                const val = nextBallValue;
-                const rad = getRadius(val);
-                const colorHex = getColorHex(val);
-                
-                nextCtx.fillStyle = '#' + new THREE.Color(colorHex).getHexString();
-                nextCtx.beginPath();
-                nextCtx.arc(30, 30, rad, 0, Math.PI * 2);
-                nextCtx.fill();
-
-                nextCtx.textAlign = 'center';
-                nextCtx.textBaseline = 'middle';
-                nextCtx.font = `Bold ${rad * 1.2}px Arial`;
-                nextCtx.strokeStyle = 'rgba(0,0,0,0.8)';
-                nextCtx.lineWidth = 3;
-                nextCtx.strokeText(val.toString(), 30, 30);
-                nextCtx.fillStyle = '#ffffff';
-                nextCtx.fillText(val.toString(), 30, 30);
-            }
-
-            // 10. Λειτουργίες UI και Game Over
-            function updateUI() {
-                document.getElementById('scoreDisplay').innerText = currentScore;
-            }
-
-            function triggerGameOver() {
-                isGameOver = true;
-                isPlaying = false;
-                if (currentScore > save.bestClassic) {
-                    save.bestClassic = currentScore;
-                    persist();
-                }
-                document.getElementById('finalScoreText').innerHTML = `Score: <b>${currentScore}</b>`;
-                document.getElementById('gameOverOverlay').classList.remove('hidden');
-            }
-
-            function startGame() {
-                // Καθαρισμός παλιών μπαλών
-                const balls = Composite.allBodies(world).filter(b => b.label === 'ball');
-                Composite.remove(world, balls);
-                
-                currentScore = 0;
-                isGameOver = false;
-                isPlaying = true;
-                updateUI();
-                document.getElementById('gameOverOverlay').classList.add('hidden');
-                document.getElementById('mainMenu').classList.add('hidden');
-                
-                if (currentBallBody) {
-                    Composite.remove(world, currentBallBody);
-                    currentBallBody = null;
-                }
-                isDragging = false;
-                spawnNextBall();
-            }
-
-            document.getElementById('btnClassic').onclick = startGame;
-            document.getElementById('btnPlayAgain').onclick = startGame;
-
-            // 11. Αρχικοποίηση και Εκκίνηση
+            // --- 13. Εκκίνηση και Γεγονότα ---
             function init() {
                 loadSave();
-                resizeCanvas();
                 
-                // Ξεκινάμε το loop σχεδίασης
-                requestAnimationFrame(render);
-                
-                // Το loop της φυσικής ενημερώνεται σε κάθε καρέ (με sub-stepping)
+                // Αρχική ρύθμιση
+                resizeAndSetup();
+                window.addEventListener('resize', () => {
+                    resizeAndSetup();
+                });
+
+                // Σύστημα εισόδου
+                setupInput();
+
+                // Loop φυσικής (με υποβήματα)
                 function physicsLoop() {
                     if (!isGameOver && isPlaying) {
-                        // Ενημέρωση με 4 υποβήματα ανά καρέ για αποφυγή tunneling
                         for (let i = 0; i < 4; i++) {
                             Engine.update(engine, 1000 / 60 / 4);
                         }
+                        updateUI(); // Ενημέρωση προόδου αποστολής
                     }
                     requestAnimationFrame(physicsLoop);
                 }
+                
+                // Loop σχεδίασης
+                requestAnimationFrame(render);
                 requestAnimationFrame(physicsLoop);
 
                 document.getElementById('mainMenu').classList.remove('hidden');
+                
+                // Κουμπί ήχου
+                document.getElementById('btnSound').onclick = function() {
+                    muted = !muted;
+                    this.innerText = muted ? '🔇' : '🔊';
+                };
+
+                // Κουμπί play
+                document.getElementById('btnClassic').onclick = startGame;
+                document.getElementById('btnPlayAgain').onclick = startGame;
             }
 
             init();
