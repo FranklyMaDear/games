@@ -8,7 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg-0:#1a1c29;
     --line:#23263066;
     --ink:#eef0f6;
     --ink-dim:#8b8fa3;
@@ -18,7 +17,7 @@
   
   html,body{
     margin:0; padding:0; overflow:hidden; 
-    background:var(--bg-0); height:100%; width:100%;
+    background:#1a1c29; height:100%; width:100%;
     font-family:'Baloo 2',system-ui,sans-serif; color:var(--ink); 
     touch-action:none; overscroll-behavior:none;
   }
@@ -43,7 +42,7 @@
     background:linear-gradient(180deg,#1a1c26f2,#101219f2);border:1px solid var(--line);
     border-radius:14px;padding:8px 10px;min-width:190px;
     box-shadow:0 8px 22px #0007;backdrop-filter:blur(4px);
-    max-height: 120px; 
+    max-height: 140px; 
     overflow-y: auto; 
     pointer-events: auto;
   }
@@ -87,7 +86,6 @@
     background:#12141ce6;border:1px solid var(--line);transition:opacity .25s, transform .25s;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
 
-  /* Καθαρό Χειριστήριο - Μόνο το χεράκι */
   .control-zone {
     position: absolute;
     bottom: 0;
@@ -108,7 +106,7 @@
     transform: translate(-50%, -50%);
     width: 60px;
     height: 60px;
-    opacity: 0.6; /* Ημιδιάφανο για να μην ενοχλεί */
+    opacity: 0.6; 
     pointer-events: none;
     transition: transform 0.05s linear;
   }
@@ -185,9 +183,9 @@ const ctx = canvas.getContext('2d');
 let W, H, DPR;
 
 // ----------------------------------------------------
-// Το ΖΟΟΜ (Για να βλέπεις καλύτερα και πιο κοντά!)
+// Απόσταση Κάμερας όπως στις εικόνες (Μικρότερο Zoom)
 // ----------------------------------------------------
-const CAMERA_ZOOM = 1.6;
+const CAMERA_ZOOM = 1.05;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -199,7 +197,7 @@ function resize(){
 window.addEventListener('resize', resize);
 resize();
 
-const ARENA = 2600;          
+const ARENA = 3500; // Λίγο μεγαλύτερη αρένα για να χωράνε άνετα τα εμπόδια
 const SPACING = 24;          
 const BASE_R = 14;           
 const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes","Chris_P_Bacon",
@@ -237,9 +235,9 @@ class Snake{
     this.name = name;
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
-    this.baseSpeed = 1.3;
-    this.boostSpeed = 2.4;
-    this.boostT = 0; // Διάρκεια ταχύτητας από pads/κεραυνούς
+    this.baseSpeed = 1.6;
+    this.boostSpeed = 2.8;
+    this.boostT = 0; 
     this.path = [{x,y}];
     this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; 
     this.alive = true;
@@ -260,15 +258,35 @@ class Snake{
     let da = this.targetAngle - this.angle;
     while(da > Math.PI) da -= Math.PI*2;
     while(da < -Math.PI) da += Math.PI*2;
-    const turnRate = 0.07;
+    const turnRate = 0.08;
     this.angle += clamp(da, -turnRate, turnRate);
 
-    // Η ταχύτητα εξαρτάται ΜΟΝΟ από το αν έχουμε μαζέψει powerup ταχύτητας ή έχουμε πατήσει speed pad
     const spd = (this.boostT > 0) ? this.boostSpeed : this.baseSpeed;
     
     const h = this.head;
     let nx = h.x + Math.cos(this.angle)*spd;
     let ny = h.y + Math.sin(this.angle)*spd;
+    
+    // --- ΣΥΓΚΡΟΥΣΗ ΜΕ ΕΜΠΟΔΙΑ (Blocks) ---
+    for(let o of obstacles) {
+      const dx = nx - o.x;
+      const dy = ny - o.y;
+      const hw = o.w/2 + BASE_R;
+      const hh = o.h/2 + BASE_R;
+      
+      // Αν το επόμενο βήμα μπαίνει μέσα στο εμπόδιο
+      if(Math.abs(dx) < hw && Math.abs(dy) < hh) {
+        // Υπολογισμός ποια πλευρά είναι πιο κοντά για να γλιστρήσει 
+        const overlapX = hw - Math.abs(dx);
+        const overlapY = hh - Math.abs(dy);
+        if(overlapX < overlapY) {
+          nx += (dx > 0 ? overlapX : -overlapX);
+        } else {
+          ny += (dy > 0 ? overlapY : -overlapY);
+        }
+      }
+    }
+
     nx = clamp(nx, 20, ARENA-20);
     ny = clamp(ny, 20, ARENA-20);
 
@@ -322,13 +340,9 @@ class Snake{
     this.optimizeSegments();
   }
 
-  // ΝΕΟ ΣΥΣΤΗΜΑ ΣΥΓΧΩΝΕΥΣΗΣ: Ταξινομεί και συγχωνεύει αυτόματα τα πάντα!
   optimizeSegments(){
     let count = 0;
-    // 1. Ταξινόμηση από τον μεγαλύτερο στον μικρότερο (κεφάλι = μεγαλύτερο)
     this.segments.sort((a,b) => b.value - a.value);
-    
-    // 2. Συνεχείς συγχωνεύσεις μέχρι να μην υπάρχουν ίδια νούμερα
     let merged = true;
     while(merged){
       merged = false;
@@ -338,10 +352,10 @@ class Snake{
           if (this.segments[i].value >= 5096) newVal = 5096;
           
           this.segments[i].value = newVal;
-          this.segments.splice(i+1, 1); // Αφαιρούμε το δεύτερο
+          this.segments.splice(i+1, 1); 
           merged = true; 
           count++;
-          break; // Ξεκινάει πάλι από την αρχή για σιγουριά
+          break; 
         }
       }
     }
@@ -351,7 +365,7 @@ class Snake{
 
 let cubes = [];      
 let powerups = []; 
-let speedPads = [];  
+let obstacles = []; // Τα μεγάλα Blocks 
 let particles = [];
 let floaters = [];  
 let player, bots = [];
@@ -361,26 +375,60 @@ let timeLeft = 180;
 let elapsedSinceLB = 0;
 let camera = {x:0,y:0};
 let screenShake = 0; 
+let floorTime = 0; // Για το animation του δαπέδου
+
+// Έλεγχος αν ένα σημείο είναι μέσα σε εμπόδιο
+function isInsideObstacle(x, y, padding = 40) {
+  for(let o of obstacles) {
+    if (Math.abs(x - o.x) < (o.w/2 + padding) && Math.abs(y - o.y) < (o.h/2 + padding)) return true;
+  }
+  return false;
+}
 
 function spawnCube(){
   const rarity = Math.random();
   let v = 2;
   if(rarity > 0.94) v = 8; else if(rarity > 0.75) v = 4;
-  cubes.push({x:rnd(30,ARENA-30), y:rnd(30,ARENA-30), value:v});
+  
+  let cx, cy;
+  do { cx = rnd(30,ARENA-30); cy = rnd(30,ARENA-30); } while(isInsideObstacle(cx, cy, 20));
+  cubes.push({x: cx, y: cy, value: v});
 }
+
 function spawnPowerup(){
   const types = ['boost','magnet','shield'];
-  powerups.push({x:rnd(40,ARENA-40), y:rnd(40,ARENA-40), type: types[Math.floor(rnd(0,3))]});
+  let px, py;
+  do { px = rnd(60,ARENA-60); py = rnd(60,ARENA-60); } while(isInsideObstacle(px, py, 30));
+  powerups.push({x: px, y: py, type: types[Math.floor(rnd(0,3))]});
 }
-function spawnSpeedPad(){
-  speedPads.push({x: rnd(100, ARENA-100), y: rnd(100, ARENA-100), angle: rnd(0, Math.PI*2)});
+
+function spawnObstacles(){
+  obstacles = [];
+  const count = 12; // Αριθμός εμποδίων στο χάρτη
+  for(let i=0; i<count; i++) {
+    let ox = rnd(300, ARENA-300);
+    let oy = rnd(300, ARENA-300);
+    // Φροντίζουμε να μην μπει εμπόδιο ακριβώς στο κέντρο (στο spawn του παίκτη)
+    if(dist2(ox, oy, ARENA/2, ARENA/2) < 400*400) continue; 
+    
+    obstacles.push({
+      x: ox,
+      y: oy,
+      w: rnd(150, 350), // Πλάτος block
+      h: rnd(150, 350)  // Ύψος block
+    });
+  }
 }
+
 function spawnText(x, y, text, color){
   floaters.push({x, y, text, color, life: 1.2});
 }
 
 function makeBot(){
-  const s = new Snake(rnd(200,ARENA-200), rnd(200,ARENA-200), false,
+  let bx, by;
+  do { bx = rnd(200,ARENA-200); by = rnd(200,ARENA-200); } while(isInsideObstacle(bx, by, 40));
+  
+  const s = new Snake(bx, by, false,
     NAMES[Math.floor(rnd(0,NAMES.length))] + (Math.random()>0.8? (Math.floor(rnd(1,9))):''));
   for(let i=0;i<Math.floor(rnd(1,4));i++) s.grow(VALUES[Math.floor(rnd(0,3))]);
   s.retargetT = 0;
@@ -388,16 +436,17 @@ function makeBot(){
 }
 
 function initWorld(){
-  cubes = []; powerups = []; speedPads = []; particles = []; floaters = []; bots = [];
-  for(let i=0;i<160;i++) spawnCube();
-  for(let i=0;i<5;i++) spawnPowerup();
-  for(let i=0;i<6;i++) spawnSpeedPad();
+  spawnObstacles(); 
+  cubes = []; powerups = []; particles = []; floaters = []; bots = [];
+  for(let i=0;i<180;i++) spawnCube();
+  for(let i=0;i<15;i++) spawnPowerup(); // Περισσότερα powerups
+  
   player = new Snake(ARENA/2, ARENA/2, true, "You");
-  for(let i=0;i<7;i++) bots.push(makeBot());
+  for(let i=0;i<8;i++) bots.push(makeBot());
   timeLeft = 180;
 }
 
-// ---------- Logic Τηλεχειριστηρίου (Αφαιρέθηκε η ποινή ταχύτητας) ----------
+// ---------- Logic Τηλεχειριστηρίου ----------
 const joyZone = document.getElementById('controlZone');
 const joyKnob = document.getElementById('joyKnob');
 let joy = { active: false, pointerId: null };
@@ -469,19 +518,17 @@ function burst(x,y,color,n){
 function eatCubes(snake){
   const headPos = snake.segmentPositions()[0];
   const magnetActive = snake.magnetT > 0;
-  const pickR = magnetActive ? 130 : 26;
+  const pickR = magnetActive ? 140 : 28;
   for(let i=cubes.length-1;i>=0;i--){
     const c = cubes[i];
     const d2 = dist2(headPos.x, headPos.y, c.x, c.y);
     if(d2 < pickR*pickR){
-      if(magnetActive && d2 > (26*26)){
+      if(magnetActive && d2 > (28*28)){
         c.x += (headPos.x-c.x)*0.18; c.y += (headPos.y-c.y)*0.18; continue;
       }
       cubes.splice(i,1);
-      snake.grow(c.value); // Το grow πλέον κάνει optimize (ταξινόμηση και συγχώνευση)
-      if(snake.isPlayer){
-        burst(c.x,c.y, '#ffffff', 8);
-      }
+      snake.grow(c.value); 
+      if(snake.isPlayer){ burst(c.x,c.y, '#ffffff', 8); }
       spawnCube();
     }
   }
@@ -490,27 +537,16 @@ function eatCubes(snake){
 function eatPowerups(snake){
   const headPos = snake.segmentPositions()[0];
   
-  // Φαγητό μεγάλων Powerups (Κεραυνός, Μαγνήτης κλπ)
   for(let i=powerups.length-1;i>=0;i--){
     const p = powerups[i];
-    if(dist2(headPos.x,headPos.y,p.x,p.y) < 30*30){
+    if(dist2(headPos.x,headPos.y,p.x,p.y) < 32*32){
       powerups.splice(i,1);
-      if(p.type==='boost'){ snake.boostT = 4.0; if(snake.isPlayer){ flashPw('pwBoost',4000); toast('Ταχύτητα!','#ffd23f'); } }
+      // ΟΛΑ ΔΙΑΡΚΟΥΝ 5 ΔΕΥΤΕΡΟΛΕΠΤΑ
+      if(p.type==='boost'){ snake.boostT = 5.0; if(snake.isPlayer){ flashPw('pwBoost',5000); toast('Ταχύτητα!','#ffd23f'); } }
       if(p.type==='magnet'){ snake.magnetT = 5.0; if(snake.isPlayer){ flashPw('pwMagnet',5000); toast('Μαγνήτης!','#4ecdc4'); } } 
-      if(p.type==='shield'){ snake.shieldT = 6.0; if(snake.isPlayer){ flashPw('pwShield',6000); toast('Ασπίδα!','#7b61ff'); } }
+      if(p.type==='shield'){ snake.shieldT = 5.0; if(snake.isPlayer){ flashPw('pwShield',5000); toast('Ασπίδα!','#7b61ff'); } }
       if(snake.isPlayer) { burst(p.x,p.y,'#fff',12); screenShake = 0.1; }
       spawnPowerup();
-    }
-  }
-
-  // Roll Spins / Speed Pads (Ταχύτητα πατώματος)
-  for(let i=speedPads.length-1; i>=0; i--){
-    const sp = speedPads[i];
-    if(dist2(headPos.x, headPos.y, sp.x, sp.y) < 35*35){
-       snake.boostT = 2.5; // Δίνει 2.5 δευτερόλεπτα ταχύτητας
-       speedPads.splice(i,1);
-       spawnSpeedPad();
-       if(snake.isPlayer) { spawnText(sp.x, sp.y, "BOOST!", "#ffcf9e"); burst(sp.x, sp.y, '#ffcf9e', 8); }
     }
   }
 }
@@ -532,17 +568,23 @@ function killSnake(snake){
   snake.alive = false;
   const positions = snake.segmentPositions();
   positions.forEach((p,i)=>{
-    if(snake.segments[i]) cubes.push({x:p.x+rnd(-20,20), y:p.y+rnd(-20,20), value: snake.segments[i].value});
+    if(snake.segments[i]) {
+      // Πετάμε τους κύβους γύρω-γύρω, αλλά όχι μέσα σε εμπόδια
+      let dropX = p.x + rnd(-20,20);
+      let dropY = p.y + rnd(-20,20);
+      if(!isInsideObstacle(dropX, dropY)) {
+        cubes.push({x: dropX, y: dropY, value: snake.segments[i].value});
+      }
+    }
   });
   if(snake.isPlayer){ endGame(false); } 
   else {
     const idx = bots.indexOf(snake);
     if(idx>=0) bots.splice(idx,1);
-    if(bots.length < 6) bots.push(makeBot());
+    if(bots.length < 7) bots.push(makeBot());
   }
 }
 
-// Combat Logic
 function resolveCombat(){
   let all = [player, ...bots].filter(s=>s.alive);
   if(!running) all = bots.filter(s=>s.alive);
@@ -562,12 +604,12 @@ function resolveCombat(){
           const aVal = a.headValue, bVal = b.segments[i].value;
           
           if(aVal > bVal){
-            // TAIL STEAL: Κόβει από το i και πίσω. 
-            // Επειδή πλέον γίνεται αυτόματο merge, ο παίκτης απλά τα τρώει και νικάει (συγχωνεύονται).
             const severed = b.segments.splice(i);
             severed.forEach((seg, idx) => {
                const p = bPos[i + idx] || bPos[bPos.length-1];
-               cubes.push({x: p.x + rnd(-10,10), y: p.y + rnd(-10,10), value: seg.value});
+               if(!isInsideObstacle(p.x, p.y)){
+                 cubes.push({x: p.x + rnd(-10,10), y: p.y + rnd(-10,10), value: seg.value});
+               }
                burst(p.x, p.y, '#ffffff', 5);
             });
             a.reactT = 0.15; b.reactT = 0.15;
@@ -601,7 +643,6 @@ function botAI(bot, dt){
     const hp = bot.head;
     let best=null, bestD=520*520;
     
-    // Στόχευση κοντινών cubes
     for(const c of cubes){
       const d2 = dist2(hp.x,hp.y,c.x,c.y);
       if(d2<bestD){ bestD=d2; best=c; }
@@ -613,8 +654,10 @@ function botAI(bot, dt){
       bot.targetAngle = bot.angle + rnd(-1.4,1.4);
     }
   }
-  const margin = 160;
+  
+  // Απλή αποφυγή τοίχων 
   const hp = bot.head;
+  const margin = 160;
   if(hp.x<margin || hp.x>ARENA-margin || hp.y<margin || hp.y>ARENA-margin){
     bot.targetAngle = Math.atan2(ARENA/2-hp.y, ARENA/2-hp.x);
   }
@@ -638,50 +681,75 @@ function drawFloor(){
   const sy = -camera.y;
 
   ctx.save();
+  // Υπολογισμός χρώματος με βάση το χρόνο (Δυναμικό Χρώμα Δαπέδου)
+  // Αλλάζει Hue από 0-360 αργά και ευχάριστα.
+  const hue = (floorTime * 15) % 360; 
+  
   const grad = ctx.createLinearGradient(sx, sy, sx+ARENA, sy+ARENA);
-  grad.addColorStop(0, '#ff4d4d');
-  grad.addColorStop(0.2, '#ffaa4d');
-  grad.addColorStop(0.4, '#ffd23f');
-  grad.addColorStop(0.6, '#3ddc84');
-  grad.addColorStop(0.8, '#4d94ff');
-  grad.addColorStop(1, '#9d4dff');
+  grad.addColorStop(0, `hsl(${hue}, 40%, 25%)`);
+  grad.addColorStop(0.5, `hsl(${(hue + 20) % 360}, 50%, 20%)`);
+  grad.addColorStop(1, `hsl(${(hue + 40) % 360}, 60%, 15%)`);
+  
   ctx.fillStyle = grad;
   ctx.fillRect(sx, sy, ARENA, ARENA);
 
-  ctx.fillStyle = '#ffffff33';
+  // Δυναμικές κουκκίδες
+  ctx.fillStyle = `hsla(${(hue + 180) % 360}, 60%, 60%, 0.25)`;
   const step = 50;
   for(let x=0; x<=ARENA; x+=step){
     for(let y=0; y<=ARENA; y+=step){
       ctx.beginPath();
-      ctx.arc(sx+x, sy+y, 2, 0, Math.PI*2);
+      ctx.arc(sx+x, sy+y, 2.5, 0, Math.PI*2);
       ctx.fill();
     }
   }
 
-  ctx.strokeStyle = '#ffffff88';
-  ctx.lineWidth = 6;
+  // Περίγραμμα Αρένας
+  ctx.strokeStyle = '#ffffff55';
+  ctx.lineWidth = 8;
   ctx.strokeRect(sx, sy, ARENA, ARENA);
   ctx.restore();
 }
 
-function drawSpeedPads(dt) {
-  speedPads.forEach(sp => {
-    sp.angle += dt * 5; // Περιστροφή (roll spin)
-    const sx = sp.x - camera.x, sy = sp.y - camera.y;
-    if(sx < -50 || sx > W/CAMERA_ZOOM + 50 || sy < -50 || sy > H/CAMERA_ZOOM + 50) return;
+function drawObstacles() {
+  obstacles.forEach(o => {
+    const sx = o.x - camera.x;
+    const sy = o.y - camera.y;
+    
+    // Έλεγχος Cull 
+    if(sx < -o.w || sx > W/CAMERA_ZOOM + o.w || sy < -o.h || sy > H/CAMERA_ZOOM + o.h) return;
     
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.rotate(sp.angle);
     
-    // Σχεδιασμός βελών ταχύτητας (spinning pads)
-    ctx.fillStyle = '#ffcf9eaa';
-    ctx.shadowColor = '#ffcf9e';
-    ctx.shadowBlur = 15;
-    ctx.beginPath();
-    ctx.moveTo(0, -25); ctx.lineTo(15, -5); ctx.lineTo(-15, -5); ctx.fill();
-    ctx.moveTo(0, 5); ctx.lineTo(15, 25); ctx.lineTo(-15, 25); ctx.fill();
-    
+    const r = 20; // Στρογγυλεμένες γωνίες
+
+    // 1. Σκιά (Drop Shadow)
+    ctx.save();
+    ctx.translate(0, 15); // Offset σκιάς
+    ctx.fillStyle = '#00000088';
+    ctx.shadowColor = '#00000066';
+    ctx.shadowBlur = 20;
+    roundRect(-o.w/2, -o.h/2, o.w, o.h, r);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Πλευρά (Ογκος 3D - Σκούρο Γκρι)
+    ctx.fillStyle = '#444655';
+    roundRect(-o.w/2, -o.h/2 + 8, o.w, o.h, r);
+    ctx.fill();
+
+    // 3. Επάνω Επιφάνεια (Face - Ανοιχτό Γκρι)
+    ctx.fillStyle = '#555866';
+    roundRect(-o.w/2, -o.h/2, o.w, o.h, r);
+    ctx.fill();
+
+    // 4. Ελαφρύ περίγραμμα/highlight για αίσθηση γυαλάδας
+    ctx.strokeStyle = '#6a6e7c';
+    ctx.lineWidth = 2;
+    roundRect(-o.w/2, -o.h/2, o.w, o.h, r);
+    ctx.stroke();
+
     ctx.restore();
   });
 }
@@ -691,7 +759,6 @@ function drawCube(x,y,value,scale){
   const c = colorFor(value);
   const sx = x-camera.x, sy = y-camera.y;
   
-  // Έλεγχος Cull, προσαρμοσμένος στο Zoom
   if(sx < -60 || sx > W/CAMERA_ZOOM+60 || sy < -60 || sy > H/CAMERA_ZOOM+60) return;
   const r = 16*scale;
   
@@ -733,8 +800,8 @@ function drawSnake(snake){
   }
   if(snake.shieldT>0){
     const hp = positions[0];
-    ctx.save(); ctx.strokeStyle = '#7b61ffcc'; ctx.lineWidth = 3; ctx.beginPath();
-    ctx.arc(hp.x-camera.x, hp.y-camera.y, 26, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#7b61ffcc'; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.arc(hp.x-camera.x, hp.y-camera.y, 28, 0, Math.PI*2); ctx.stroke(); ctx.restore();
   }
   const hp = positions[0];
   drawCube(hp.x, hp.y, snake.segments[0].value, 1.15);
@@ -754,10 +821,9 @@ function drawPowerup(p){
   ctx.save(); 
   ctx.translate(sx,sy); 
   
-  // Ένα μικρό εφέ σκιάς/λάμψης πίσω από το εικονίδιο για να ξεχωρίζει στο δάπεδο
   ctx.shadowColor = '#00000088';
   ctx.shadowBlur = 10;
-  ctx.font='32px sans-serif'; // Πιο μεγάλα για να φαίνονται καθαρά
+  ctx.font='32px sans-serif'; 
   ctx.textAlign='center'; ctx.textBaseline='middle'; 
   ctx.fillText(icon,0,2); 
   ctx.restore();
@@ -781,7 +847,7 @@ function drawFloaters(dt){
     if(f.life <= 0){ floaters.splice(i,1); continue; }
     ctx.save();
     ctx.globalAlpha = Math.min(1, f.life * 2);
-    ctx.font = "800 16px 'Baloo 2', sans-serif"; // Προσαρμοσμένο λόγω Zoom
+    ctx.font = "800 16px 'Baloo 2', sans-serif"; 
     ctx.fillStyle = f.color;
     ctx.strokeStyle = '#000000cc';
     ctx.lineWidth = 3;
@@ -802,6 +868,8 @@ function frame(ts){
   bots.forEach(b=>eatCubes(b));
   resolveCombat();
 
+  floorTime += dt; // Αυξάνει το χρόνο για το animation του δαπέδου
+
   if(running){
     player.update(dt);
     eatCubes(player); 
@@ -819,7 +887,6 @@ function frame(ts){
 
   if(screenShake > 0) screenShake -= dt;
   
-  // Το Camera Zoom εφαρμόζεται εδώ στον υπολογισμό της κάμερας
   let cx = player.head.x - (W/2) / CAMERA_ZOOM;
   let cy = player.head.y - (H/2) / CAMERA_ZOOM;
   
@@ -831,12 +898,11 @@ function frame(ts){
 
   ctx.clearRect(0,0,W,H);
   
-  // Εφαρμογή του Zoom στο Canvas
   ctx.save();
   ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
   
   drawFloor(); 
-  drawSpeedPads(dt);
+  drawObstacles(); // Εμπόδια πρώτα, για να γλιστράνε οι κύβοι πάνω τους
   cubes.forEach(c=>drawCube(c.x,c.y,c.value,0.85));
   powerups.forEach(drawPowerup);
   bots.forEach(b=>{ if(b.alive) drawSnake(b); });
@@ -844,7 +910,7 @@ function frame(ts){
   drawParticles(dt);
   drawFloaters(dt);
 
-  ctx.restore(); // Τέλος Zoom
+  ctx.restore(); 
 
   requestAnimationFrame(frame);
 }
