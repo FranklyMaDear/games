@@ -137,6 +137,8 @@
     <div class="topbar">
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button id="btnOpenShop" class="btn-shop">🛒 eShop</button>
+        <!-- ΕΔΩ ΗΤΑΝ ΤΟ BUG: Είχε διαγραφεί κατά λάθος το σκορ! Προστέθηκε ξανά. -->
+        <div class="stat score"><div class="dot">◆</div><span id="scoreVal">0</span></div>
         <div class="stat timer" id="timerUI"><span id="timerVal">05:00</span></div>
       </div>
     </div>
@@ -338,7 +340,6 @@ try {
     }
 } catch(e){}
 
-// Safe fallbacks in case of bad save data
 if(!save.equippedCube) save.equippedCube = 'wood';
 if(!save.equippedBoard) save.equippedBoard = 'board_wood';
 if(!save.equippedEffect) save.equippedEffect = 'eff_none';
@@ -415,51 +416,158 @@ document.getElementById('btnCloseShop').onclick = () => {
 };
 
 // ==========================================
-// CUBE COLORS (Based on Equipped Skin)
+// CUBE COLORS & 2D TEXTURES
 // ==========================================
-const BASE_COLORS = {
-  2:    { face:'#DEB887', side:'#8B5A2B' }, 
-  4:    { face:'#ffffff', side:'#388E3C' }, 
-  8:    { face:'#ffffff', side:'#D32F2F' }, 
-  16:   { face:'#E0F7FA', side:'#00BCD4' }, 
-  32:   { face:'#ffffff', side:'#111111' }, 
-  64:   { face:'#FFC107', side:'#FF5722' }, 
-  128:  { face:'#333333', side:'#000000' }, 
-  256:  { face:'#4A148C', side:'#1A0B2E' }, 
-  512:  { face:'#FF6B6B', side:'#45B7D1' }, 
-  1024: { face:'#FFF59D', side:'#F57F17' }, 
-  2048: { face:'#FFE082', side:'#E65100' }, 
-  5096: { face:'#FFFFFF', side:'#FF8C00' },
-};
+function roundRectCtx(g, x, y, w, h, r){
+  g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
 
-function getCubeColors(v) {
+function getDominantColor(value) {
   const skin = save.equippedCube || 'wood';
-  
-  if (skin === 'wood') return { face: v>=128 ? '#8B5A2B' : '#DEB887', side: v>=128 ? '#5C3A18' : '#8B5A2B' };
-  if (skin === 'whitered') return { face: '#ffffff', side: '#D32F2F' };
-  if (skin === 'whitegreen') return { face: '#ffffff', side: '#388E3C' };
-  if (skin === 'zebra') return { face: '#ffffff', side: '#111111' };
-  if (skin === 'neon') return { face: '#111111', side: `hsl(${(Math.log2(v)*30)%360}, 100%, 50%)` };
-  if (skin === 'rainbow') return { face: `hsl(${(Math.log2(v)*40)%360}, 100%, 60%)`, side: `hsl(${(Math.log2(v)*40)%360}, 100%, 40%)` };
-  if (skin === 'gold') return { face: '#FFF59D', side: '#F57F17' };
-  if (skin === 'ice') return { face: '#E0F7FA', side: '#00BCD4' };
-  if (skin === 'lava') return { face: '#FFC107', side: '#FF5722' };
-  if (skin === 'galaxy') return { face: '#4A148C', side: '#1A0B2E' };
-  
-  if(v>=5096) return BASE_COLORS[5096];
-  let val = 2;
-  while(val < v && val <= 5096) val *= 2;
-  return BASE_COLORS[val] || BASE_COLORS[2];
+  if (skin === 'wood') return value >= 128 ? '#8B5A2B' : '#DEB887';
+  if (skin === 'whitered') return '#D32F2F';
+  if (skin === 'whitegreen') return '#388E3C';
+  if (skin === 'zebra') return '#222222';
+  if (skin === 'neon') return '#111111';
+  if (skin === 'rainbow') {
+      const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#8b00ff'];
+      return colors[Math.max(0, Math.log2(value)-1) % colors.length];
+  }
+  if (skin === 'gold') return '#F57F17';
+  if (skin === 'ice') return '#00BCD4';
+  if (skin === 'lava') return '#FF5722';
+  if (skin === 'galaxy') return '#1A0B2E';
+  return '#333333';
 }
 
 function shadeColor(hex, percent) {
   if (hex.startsWith('hsl')) return hex;
-  const num = parseInt(hex.slice(1), 16);
+  let num = parseInt(hex.slice(1), 16);
+  if (isNaN(num)) num = 0;
   let r = (num >> 16) + percent;
   let g = ((num >> 8) & 0x00FF) + percent;
   let b = (num & 0x0000FF) + percent;
   r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
   return '#' + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+}
+
+const textureCache = {};
+function getCubeTexture(value) {
+    if(textureCache[value]) return textureCache[value];
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 128; 
+    const g = cv.getContext("2d"); 
+    
+    let skin = save.equippedCube || 'wood';
+
+    if (skin === 'wood') { 
+        g.fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    else if (skin === 'whitered' || skin === 'whitegreen') { 
+        g.fillStyle = "white";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill();
+        g.fillStyle = skin === 'whitered' ? "#D32F2F" : "#388E3C";
+        g.save();
+        g.clip(); 
+        for (let i = -128; i < 256; i += 32) { 
+            g.beginPath();
+            g.moveTo(i, 0); g.lineTo(i + 20, 0); g.lineTo(i - 108, 128); g.lineTo(i - 128, 128);
+            g.fill(); 
+        }
+        g.restore(); 
+    } 
+    else if (skin === 'zebra') { 
+        g.fillStyle = "white";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill();
+        g.fillStyle = "#111";
+        g.save();
+        g.clip(); 
+        for (let i = 0; i < 128; i += 24) { 
+            g.beginPath();
+            g.moveTo(0, i); g.bezierCurveTo(40, i + 15, 80, i - 15, 128, i);
+            g.lineTo(128, i + 10); g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
+            g.fill(); 
+        }
+        g.restore(); 
+    } 
+    else if (skin === 'rainbow') { 
+        let grad = g.createLinearGradient(0, 0, 128, 128);
+        ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
+        g.fillStyle = grad;
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    else if (skin === 'gold') { 
+        let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
+        grad.addColorStop(0, "#FFF59D"); grad.addColorStop(0.6, "#FBC02D"); grad.addColorStop(1, "#F57F17");
+        g.fillStyle = grad;
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    else if (skin === 'neon') { 
+        g.fillStyle = "#111";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill();
+        g.strokeStyle = `hsl(${(Math.log2(value)*30)%360}, 100%, 50%)`;
+        g.lineWidth = 6;
+        g.stroke(); 
+    } 
+    else if (skin === 'galaxy') { 
+        g.fillStyle = "#1A0B2E";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill();
+        g.fillStyle = "white"; 
+        for (let i = 0; i < 30; i++) { 
+            g.beginPath();
+            g.arc(Math.random() * 128, Math.random() * 128, Math.random() * 2, 0, 7);
+            g.fill(); 
+        } 
+    } 
+    else if (skin === 'ice') { 
+        let grad = g.createLinearGradient(0, 0, 128, 128);
+        grad.addColorStop(0, "#E0F7FA"); grad.addColorStop(1, "#00BCD4");
+        g.fillStyle = grad;
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    else if (skin === 'lava') { 
+        let grad = g.createLinearGradient(0, 0, 128, 128);
+        grad.addColorStop(0, "#FF5722"); grad.addColorStop(1, "#FFC107");
+        g.fillStyle = grad;
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    else { 
+        g.fillStyle = "#111";
+        roundRectCtx(g, 4, 4, 120, 120, 22);
+        g.fill(); 
+    } 
+    
+    const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; 
+    const hasBadge = badgeSkins.includes(skin); 
+    if (hasBadge) { 
+        g.save();
+        g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = 7; g.shadowOffsetY = 2;
+        g.beginPath(); g.arc(64, 66, 37, 0, Math.PI * 2);
+        g.fillStyle = "rgba(255,255,255,0.96)"; g.fill();
+        g.restore();
+        g.lineWidth = 3; g.strokeStyle = "rgba(0,0,0,0.12)";
+        g.beginPath(); g.arc(64, 66, 37, 0, Math.PI * 2); g.stroke(); 
+    }
+    
+    g.font = hasBadge ? (`800 ${value >= 1024 ? 30 : value >= 128 ? 36 : 44}px 'Baloo 2', sans-serif`) : (`800 ${value >= 1024 ? 42 : value >= 128 ? 50 : 60}px 'Baloo 2', sans-serif`);
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
+    if(skin === 'neon') g.fillStyle = '#fff';
+    g.fillText(value, 64, hasBadge ? 66 : 68); 
+    
+    textureCache[value] = cv;
+    return cv;
 }
 
 function drawCube(x, y, value, scaleMultiplier = 1) {
@@ -469,73 +577,32 @@ function drawCube(x, y, value, scaleMultiplier = 1) {
     const valScale = 1.0 + Math.min(10, Math.max(0, Math.log2(value) - 1)) * 0.05;
     const finalScale = valScale * scaleMultiplier;
 
-    const size = 18 * finalScale; 
-    const depth = 7 * finalScale; 
-    const rr = 5 * finalScale; 
+    const size = 36 * finalScale; 
+    const depth = 8 * finalScale; 
+    const rr = 6 * finalScale; 
     
-    const c = getCubeColors(value);
+    const tex = getCubeTexture(value);
 
     ctx.save();
     ctx.translate(sx, sy);
     
-    // Shadow
-    ctx.save();
-    ctx.translate(3, depth + 4);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    roundRect(-size, -size, size*2, size*2, rr);
+    // Bottom Depth / Drop Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8 * finalScale;
+    ctx.shadowOffsetY = depth + 2 * finalScale;
+    
+    const baseCol = getDominantColor(value);
+    ctx.fillStyle = shadeColor(baseCol, -30);
+    
+    roundRectCtx(ctx, -size/2, -size/2 + depth, size, size, rr);
     ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+
+    // Front Face (The Drop 4096 pattern)
+    ctx.drawImage(tex, -size/2, -size/2, size, size);
+    
     ctx.restore();
-
-    // Side
-    ctx.beginPath();
-    ctx.moveTo(size - rr*0.3, -size + depth*0.3);
-    ctx.lineTo(size + depth*0.6, -size + depth*0.9);
-    ctx.lineTo(size + depth*0.6, size + depth*0.9);
-    ctx.lineTo(size - rr*0.3, size + depth*0.3);
-    ctx.closePath();
-    ctx.fillStyle = c.side;
-    ctx.fill();
-
-    // Bottom edge
-    ctx.beginPath();
-    ctx.moveTo(-size + rr*0.2, size);
-    ctx.lineTo(size - rr*0.2, size);
-    ctx.lineTo(size + depth*0.5, size + depth);
-    ctx.lineTo(-size + depth*0.3, size + depth);
-    ctx.closePath();
-    ctx.fillStyle = shadeColor(c.side, -25);
-    ctx.fill();
-
-    // Top face
-    ctx.fillStyle = c.face;
-    roundRect(-size, -size, size*2, size*2, rr);
-    ctx.fill();
-    
-    // Highlight
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    roundRect(-size+1.5, -size+1.5, size*2-3, size*2-3, rr-1);
-    ctx.stroke();
-
-    // Number
-    ctx.font = `800 ${Math.max(10, 16 * finalScale)}px 'Baloo 2', system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    
-    ctx.fillStyle = (save.equippedCube === 'wood' || c.face === '#ffffff' || c.face === '#FFF59D' || c.face === '#E0F7FA') ? '#111' : '#fff';
-    if(save.equippedCube === 'neon') ctx.fillStyle = '#fff';
-
-    ctx.shadowColor = 'rgba(0,0,0,0.3)'; 
-    ctx.shadowBlur = 2; 
-    ctx.shadowOffsetY = 1;
-    
-    ctx.fillText(String(value), 0, 1);
-    ctx.restore();
-}
-
-function roundRect(x,y,w,h,r){
-  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 
 function rnd(a,b){ return a + Math.random()*(b-a); }
@@ -566,9 +633,8 @@ class Snake {
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
     
-    // Very natural smooth speed (Reduced)
-    this.baseSpeed = 1.3;
-    this.boostSpeed = 2.6;
+    this.baseSpeed = 1.6;
+    this.boostSpeed = 3.2;
     this.boostT = 0; 
     
     this.path = [{x,y}];
@@ -1041,16 +1107,16 @@ function drawObstacles() {
     const bData = SHOP_DATA.boards.find(b => b.id === save.equippedBoard) || SHOP_DATA.boards[0];
     
     ctx.save(); ctx.translate(sx, sy); const r = 20; 
-    ctx.save(); ctx.translate(0, 15); ctx.fillStyle = '#00000066'; ctx.shadowBlur = 20; roundRect(-o.w/2, -o.h/2, o.w, o.h, r); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(0, 15); ctx.fillStyle = '#00000066'; ctx.shadowBlur = 20; roundRectCtx(ctx, -o.w/2, -o.h/2, o.w, o.h, r); ctx.fill(); ctx.restore();
 
     ctx.fillStyle = shadeColor(bData.back, -30);
-    roundRect(-o.w/2, -o.h/2 + 8, o.w, o.h, r); ctx.fill();
+    roundRectCtx(ctx, -o.w/2, -o.h/2 + 8, o.w, o.h, r); ctx.fill();
 
     ctx.fillStyle = shadeColor(bData.back, 10);
-    roundRect(-o.w/2, -o.h/2, o.w, o.h, r); ctx.fill();
+    roundRectCtx(ctx, -o.w/2, -o.h/2, o.w, o.h, r); ctx.fill();
 
     ctx.strokeStyle = shadeColor(bData.cell, 20); ctx.lineWidth = 2;
-    roundRect(-o.w/2, -o.h/2, o.w, o.h, r); ctx.stroke();
+    roundRectCtx(ctx, -o.w/2, -o.h/2, o.w, o.h, r); ctx.stroke();
     ctx.restore();
   });
 }
@@ -1208,9 +1274,11 @@ function endGame(survived, diedEarly){
   document.getElementById('endModal').classList.remove('hidden');
 }
 
-// Background init before game starts
+// Background init before game starts so it doesn't crash on load
 initWorld('endless');
 running = false; 
+document.getElementById('startModal').classList.remove('hidden');
+document.getElementById('endModal').classList.add('hidden');
 
 document.getElementById('continueBtn').addEventListener('click', () => {
     watchAd(() => {
