@@ -229,7 +229,7 @@ const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes",
 const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048,5096];
 
 // ==========================================
-// AUDIO SYSTEM (from eShop)
+// AUDIO SYSTEM 
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let muted = false;
@@ -424,7 +424,6 @@ function getCubeColors(v) {
   if (skin === 'lava') return { face: '#FFC107', side: '#FF5722' };
   if (skin === 'galaxy') return { face: '#4A148C', side: '#1A0B2E' };
   
-  // Default fallback map
   if(v>=5096) return BASE_COLORS[5096];
   let val = 2;
   while(val < v && val <= 5096) val *= 2;
@@ -432,7 +431,7 @@ function getCubeColors(v) {
 }
 
 function shadeColor(hex, percent) {
-  if (hex.startsWith('hsl')) return hex; // Ignore HSL shading for simplicity
+  if (hex.startsWith('hsl')) return hex;
   const num = parseInt(hex.slice(1), 16);
   let r = (num >> 16) + percent;
   let g = ((num >> 8) & 0x00FF) + percent;
@@ -545,7 +544,6 @@ class Snake {
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
     
-    // Very natural smooth speed
     this.baseSpeed = 1.3;
     this.boostSpeed = 2.6;
     this.boostT = 0; 
@@ -561,7 +559,7 @@ class Snake {
     this.shieldCd = 0;
   }
   get head(){ return this.path[this.path.length-1]; }
-  get headValue(){ return this.segments[0].value; }
+  get headValue(){ return this.segments.length > 0 ? this.segments[0].value : 2; }
   get score(){ return this.segments.reduce((s,seg)=>s+seg.value,0); }
 
   update(dt){
@@ -756,7 +754,7 @@ wrap.addEventListener('pointerdown', (e) => {
   joyPointerId = e.pointerId;
   joyStartX = e.clientX; joyStartY = e.clientY;
   
-  document.getElementById('joyCenter').style.display = 'none'; // Κρύβει το ♾️
+  document.getElementById('joyCenter').style.display = 'none'; 
   if(wrap.setPointerCapture) wrap.setPointerCapture(e.pointerId);
 });
 
@@ -853,6 +851,7 @@ function burst(x,y,color,n, eType){
 }
 
 function eatCubes(snake){
+  if (!snake.segments || snake.segments.length === 0) return;
   const headPos = snake.segmentPositions()[0];
   const magnetActive = snake.magnetT > 0;
   const pickR = magnetActive ? 140 : 28;
@@ -875,6 +874,7 @@ function eatCubes(snake){
 }
 
 function eatFloorItems(snake){
+  if (!snake.segments || snake.segments.length === 0) return;
   const headPos = snake.segmentPositions()[0];
   for(let i=floorItems.length-1; i>=0; i--){
     const item = floorItems[i];
@@ -911,8 +911,8 @@ function killSnake(snake){
 }
 
 function resolveCombat(){
-  let all = [player, ...bots].filter(s=>s && s.alive);
-  if(!running) all = bots.filter(s=>s.alive);
+  let all = [player, ...bots].filter(s=>s && s.alive && s.segments && s.segments.length > 0);
+  if(!running) all = bots.filter(s=>s && s.alive && s.segments && s.segments.length > 0);
 
   for(const a of all){
     if(a.reactT>0) continue;
@@ -972,7 +972,7 @@ function botAI(bot, dt){
 
 function renderLeaderboard(){
   if(!player) return;
-  const all = [player, ...bots].filter(s=>s.alive);
+  const all = [player, ...bots].filter(s=>s && s.alive);
   all.sort((a,b)=>b.score-a.score);
   const rows = document.getElementById('lbRows');
   rows.innerHTML = '';
@@ -1033,6 +1033,7 @@ function drawObstacles() {
 }
 
 function drawSnake(snake){
+  if (!snake.segments || snake.segments.length === 0) return;
   const positions = snake.segmentPositions();
   for(let i=positions.length-1; i>=1; i--){
     if(snake.segments[i]) drawCube(positions[i].x, positions[i].y, snake.segments[i].value, 1);
@@ -1125,7 +1126,7 @@ function frame(ts){
     
     elapsedSinceLB += dt;
     if(elapsedSinceLB > 1){ elapsedSinceLB = 0; renderLeaderboard(); }
-    document.getElementById('scoreVal').textContent = player.score;
+    document.getElementById('scoreVal').textContent = player && player.alive ? player.score : 0;
     
     if(!isEndless) {
         timeLeft -= dt;
@@ -1136,7 +1137,10 @@ function frame(ts){
   }
 
   if(screenShake > 0) screenShake -= dt;
-  let cx = player.head.x - (W/2) / CAMERA_ZOOM, cy = player.head.y - (H/2) / CAMERA_ZOOM;
+  
+  let cx = player && player.segments && player.segments.length > 0 ? player.head.x - (W/2) / CAMERA_ZOOM : ARENA/2 - (W/2) / CAMERA_ZOOM;
+  let cy = player && player.segments && player.segments.length > 0 ? player.head.y - (H/2) / CAMERA_ZOOM : ARENA/2 - (H/2) / CAMERA_ZOOM;
+  
   if(screenShake > 0) { cx += rnd(-10, 10) * screenShake; cy += rnd(-10, 10) * screenShake; }
   camera.x = cx; camera.y = cy;
 
@@ -1181,6 +1185,12 @@ function endGame(survived, diedEarly){
   document.getElementById('endModal').classList.remove('hidden');
 }
 
+// Background init before game starts so it doesn't crash on load
+initWorld('endless');
+running = false; 
+document.getElementById('startModal').classList.remove('hidden');
+document.getElementById('endModal').classList.add('hidden');
+
 document.getElementById('continueBtn').addEventListener('click', () => {
     watchAd(() => {
         hasContinued = true;
@@ -1200,8 +1210,6 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('startModal').classList.remove('hidden');
 });
 
-spawnObstacles();
-for(let i=0;i<60;i++) spawnCube();
 frame(0);
 
 })();
