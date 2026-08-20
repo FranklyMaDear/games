@@ -68,7 +68,7 @@
   .toast{position:absolute;top:120px;left:50%;transform:translateX(-50%);font-weight:800;font-size:15px;padding:6px 16px;border-radius:999px;opacity:0;background:#12141ce6;border:1px solid var(--line);transition:opacity .25s, transform .25s; z-index:20;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
 
-  /* Νέο Κυκλικό Διάφανο Χειριστήριο */
+  /* Διάφανο Στρογγυλό Χειριστήριο */
   .control-zone {
     position: absolute;
     bottom: 5%;
@@ -143,7 +143,6 @@
       <button class="btn" id="restartBtn">Ξανά</button>
     </div>
 
-    <!-- Νέο χειριστήριο -->
     <div class="control-zone" id="controlZone">
       <div class="circular-joystick" id="joyCenter">
         <div class="joy-inner" id="joyKnob"></div>
@@ -184,46 +183,33 @@ const BASE_R = 14;
 const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes","Chris_P_Bacon","thegodfatherpart4","B.Juice","TheAfterLife","kojima_fan92","noodle.exe","xXHunterXx"];
 const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048,5096];
 
-// Πιο ζωντανά χρώματα (εμπνευσμένα από το 4096)
+// Χρώματα που ταιριάζουν με το 2D ψευδο-3D του παραδείγματός σου
 const CUBE_PALETTE = [
-  { top:'#ff6b6b', right:'#cc4444', bottom:'#992222' },
-  { top:'#4dabf7', right:'#2d7dc9', bottom:'#1b5796' },
-  { top:'#ffd43b', right:'#d9b126', bottom:'#a3811a' },
-  { top:'#ff922b', right:'#d9731e', bottom:'#a35414' },
-  { top:'#cc5de8', right:'#a838c8', bottom:'#7d1f96' },
-  { top:'#20c997', right:'#179b74', bottom:'#0e634a' },
-  { top:'#94d82d', right:'#75ad20', bottom:'#527a15' },
-  { top:'#845ef7', right:'#6743cc', bottom:'#432c8a' },
-  { top:'#f06595', right:'#c74d78', bottom:'#943554' },
-  { top:'#38d9a9', right:'#28ad86', bottom:'#1e7e64' },
-  { top:'#f8f9fa', right:'#d0d4d8', bottom:'#9aa0a5' },
-  { top:'#ffda6b', right:'#d9b136', bottom:'#a8871f' },
+  { top:'#f07178', right:'#c24e55', bottom:'#7e3237' }, // 2
+  { top:'#4f8cf0', right:'#3566b8', bottom:'#1c3e78' }, // 4
+  { top:'#f2d152', right:'#c4a537', bottom:'#8a7726' }, // 8 
+  { top:'#e38f4d', right:'#b87037', bottom:'#7a4c23' }, // 16 
+  { top:'#c470d6', right:'#9b53ab', bottom:'#673570' }, // 32 
+  { top:'#59bfa3', right:'#3c947c', bottom:'#256050' }, // 64 
+  { top:'#9cc255', right:'#759938', bottom:'#4b6322' }, // 128 
+  { top:'#856cd6', right:'#5e47a8', bottom:'#392b68' }, // 256 
+  { top:'#e06e87', right:'#b34f66', bottom:'#723341' }, // 512 
+  { top:'#5bc9c4', right:'#3ca19c', bottom:'#236562' }, // 1024 
+  { top:'#e6e6e6', right:'#b3b3b3', bottom:'#747474' }, // 2048 
+  { top:'#ffda6b', right:'#d9b136', bottom:'#8e7524' }, // 5096 
 ];
-
-function shadeColor(hex, percent) {
-  const num = parseInt(hex.slice(1), 16);
-  let r = (num >> 16) + percent;
-  let g = ((num >> 8) & 0x00FF) + percent;
-  let b = (num & 0x0000FF) + percent;
-  r = Math.max(0, Math.min(255, r));
-  g = Math.max(0, Math.min(255, g));
-  b = Math.max(0, Math.min(255, b));
-  return '#' + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
-}
 
 function colorFor(v){
   const idx = Math.log2(v) - 1; 
-  if(v >= 5096) return { top:'#ffda6b', right:'#d9b136', bottom:'#a8871f' };
-  const c = CUBE_PALETTE[Math.max(0, idx) % CUBE_PALETTE.length];
-  return { top: c.top, right: c.right, bottom: shadeColor(c.right, -35) };
+  if(v >= 5096) return CUBE_PALETTE[11];
+  return CUBE_PALETTE[Math.max(0, idx) % CUBE_PALETTE.length];
 }
 
 function rnd(a,b){ return a + Math.random()*(b-a); }
 function dist2(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 
-let speedTracks = []; // Πίστες ταχύτητας
-let floorItems = [];  // Αντικείμενα (μεγάλα)
+let floorItems = [];  // Μικρά αντικείμενα δαπέδου (⚡ και 🛡️)
 
 class Snake{
   constructor(x,y,isPlayer,name){
@@ -231,8 +217,8 @@ class Snake{
     this.name = name;
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
-    this.baseSpeed = 2.4;
-    this.boostSpeed = 4.5;
+    this.baseSpeed = 2.5;
+    this.boostSpeed = 4.8;
     this.boostT = 0; 
     this.path = [{x,y}];
     this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; 
@@ -261,18 +247,6 @@ class Snake{
     const turnRate = 0.12 + (this.boostT > 0 ? 0.025 : 0);
     this.angle += clamp(da, -turnRate, turnRate);
     if (Math.abs(da) < 0.4) this.angle += da * 0.08;
-
-    // Έλεγχος για πίστα ταχύτητας
-    let onTrack = false;
-    for(let i=speedTracks.length-1; i>=0; i--) {
-        const t = speedTracks[i];
-        if(this.head.x > t.x && this.head.x < t.x + t.w &&
-           this.head.y > t.y && this.head.y < t.y + t.h) {
-            onTrack = true;
-            this.boostT = 0.3; // Μικρή, συνεχής ώθηση
-            break;
-        }
-    }
 
     const spd = (this.boostT > 0) ? this.boostSpeed : this.baseSpeed;
     
@@ -426,31 +400,17 @@ function makeBot(){
 }
 
 function initWorld(){
-  speedTracks = [];
   floorItems = [];
   spawnObstacles(); 
   cubes = []; particles = []; floaters = []; bots = [];
   for(let i=0;i<180;i++) spawnCube();
-  for(let i=0;i<5;i++) spawnSpeedTrack();
   
   player = new Snake(ARENA/2, ARENA/2, true, "You");
   for(let i=0;i<8;i++) bots.push(makeBot());
   timeLeft = 180;
 }
 
-// Πίστα ταχύτητας
-function spawnSpeedTrack() {
-    let x, y, w, h;
-    w = rnd(100, 200);
-    h = rnd(250, 400);
-    do { 
-        x = rnd(100, ARENA - 100 - w);
-        y = rnd(100, ARENA - 100 - h);
-    } while(isInsideObstacle(x, y, 20));
-    speedTracks.push({ x, y, w, h, life: 12.0 });
-}
-
-// Μεγάλα αντικείμενα δαπέδου
+// Μικρά αντικείμενα δαπέδου (για ταχύτητα ή ασπίδα)
 function spawnFloorItem() {
   let x, y;
   do { x = rnd(100, ARENA-100); y = rnd(100, ARENA-100); } while(isInsideObstacle(x, y, 40));
@@ -474,14 +434,19 @@ function updateJoystick(e) {
   const d = Math.hypot(dx, dy);
   const ang = Math.atan2(dy, dx);
   
-  const maxR = 45; // Ακτίνα κίνησης του κουμπιού
+  const maxR = 45;
   const r = Math.min(d, maxR);
   
   const kx = Math.cos(ang) * r;
   const ky = Math.sin(ang) * r;
   
+  // Κινούμε την κουκκίδα μέσα στο joystick
   joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-  if (d > 5) { player.targetAngle = ang; }
+  
+  // Δίνουμε την κατεύθυνση στο φίδι
+  if (d > 5 && player && player.alive) { 
+    player.targetAngle = ang; 
+  }
 }
 
 joyZone.addEventListener('pointerdown', e => {
@@ -555,6 +520,18 @@ function eatCubes(snake){
       if(magnetActive && d2 > (28*28)){ c.x += (headPos.x-c.x)*0.18; c.y += (headPos.y-c.y)*0.18; continue; }
       cubes.splice(i,1); snake.grow(c.value); 
       if(snake.isPlayer){ burst(c.x,c.y, '#ffffff', 8); } spawnCube();
+    }
+  }
+}
+
+function eatFloorItems(snake){
+  const headPos = snake.segmentPositions()[0];
+  for(let i=floorItems.length-1; i>=0; i--){
+    const item = floorItems[i];
+    if(dist2(headPos.x, headPos.y, item.x, item.y) < 30){
+      if(item.type === 'speed'){ snake.boostT = 3.0; spawnText(item.x, item.y, '⚡SPEED', '#ffcc00'); }
+      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, '🛡️SHIELD', '#00d4ff'); }
+      floorItems.splice(i, 1);
     }
   }
 }
@@ -663,75 +640,77 @@ function drawObstacles() {
   });
 }
 
-function drawSpeedTracks() {
-  ctx.save();
-  speedTracks.forEach(t => {
-    const sx = t.x - camera.x; const sy = t.y - camera.y;
-    ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
-    ctx.fillRect(sx, sy, t.w, t.h);
-    
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    const offset = (floorTime * 80) % 60;
-    for(let i= -60; i < t.h + 60; i += 25) {
-        ctx.moveTo(sx, sy + i + offset);
-        ctx.lineTo(sx + t.w, sy + i - 20 + offset);
-    }
-    ctx.stroke();
-    
-    ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    const offset2 = (floorTime * 80 + 30) % 60;
-    for(let i= -60; i < t.h + 60; i += 25) {
-        ctx.moveTo(sx, sy + i + offset2);
-        ctx.lineTo(sx + t.w, sy + i - 20 + offset2);
-    }
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
-// Σχεδίαση 3D κύβων με γεμάτα χρώματα
-function drawCube3D(x, y, value, scale = 1) {
+// Σχεδίαση κύβων (2D Canvas με ψευδο-3D προοπτική)
+function drawCube(x, y, value, scale = 1) {
   const c = colorFor(value);
   const sx = x - camera.x, sy = y - camera.y;
   if(sx < -60 || sx > (W/CAMERA_ZOOM)+60 || sy < -60 || sy > (H/CAMERA_ZOOM)+60) return;
 
-  const s = 16 * scale;
-  const d = 8 * scale;
+  const s = 16 * scale; // Μισό πλάτος
+  const d = 8 * scale;  // Βάθος
   
   ctx.save();
   ctx.translate(sx, sy);
 
-  ctx.save(); ctx.translate(2, d + 4);
-  ctx.fillStyle = 'rgba(0,0,0,0.40)';
-  ctx.beginPath(); ctx.moveTo(-s, s); ctx.lineTo(s, s); ctx.lineTo(s+d, s+d); ctx.lineTo(-s+d, s+d); ctx.closePath();
-  ctx.fill(); ctx.restore();
+  // Σκιά (Χαμηλά και δεξιά όπως στο παράδειγμα)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.moveTo(-s + d + 4, s + 4);
+  ctx.lineTo(s + d + 4, s + 4);
+  ctx.lineTo(s + d + d + 4, s + d + 4);
+  ctx.lineTo(-s + d + 4, s + d + 4);
+  ctx.closePath();
+  ctx.fill();
 
+  // Κάτω / Μπροστινή πλευρά
   ctx.fillStyle = c.bottom;
-  ctx.beginPath(); ctx.moveTo(-s, s); ctx.lineTo(s, s); ctx.lineTo(s+d, s+d); ctx.lineTo(-s+d, s+d); ctx.closePath();
+  ctx.beginPath();
+  ctx.moveTo(-s, s);
+  ctx.lineTo(s, s);
+  ctx.lineTo(s + d, s + d);
+  ctx.lineTo(-s + d, s + d);
+  ctx.closePath();
   ctx.fill();
 
+  // Δεξιά πλαϊνή πλευρά
   ctx.fillStyle = c.right;
-  ctx.beginPath(); ctx.moveTo(s, -s); ctx.lineTo(s+d, -s+d); ctx.lineTo(s+d, s+d); ctx.lineTo(s, s); ctx.closePath();
+  ctx.beginPath();
+  ctx.moveTo(s, -s);
+  ctx.lineTo(s + d, -s + d);
+  ctx.lineTo(s + d, s + d);
+  ctx.lineTo(s, s);
+  ctx.closePath();
   ctx.fill();
 
+  // Πάνω / Μπροστινή πλευρά
   ctx.fillStyle = c.top;
-  ctx.beginPath(); ctx.moveTo(-s, -s); ctx.lineTo(s, -s); ctx.lineTo(s+d, -s+d); ctx.lineTo(-s+d, -s+d); ctx.closePath();
+  ctx.beginPath();
+  ctx.moveTo(-s, -s);
+  ctx.lineTo(s, -s);
+  ctx.lineTo(s + d, -s + d);
+  ctx.lineTo(-s + d, -s + d);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-s+2, -s+2); ctx.lineTo(s-2, -s+2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-s+2, -s+2); ctx.lineTo(-s+2+d*0.4, -s+2+d*0.4); ctx.stroke();
+  // Φωτεινή γραμμή (για λάμψη)
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-s+2, -s+2);
+  ctx.lineTo(s-2, -s+2);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(-s+2, -s+2);
+  ctx.lineTo(-s+2 + d*0.3, -s+2 + d*0.3);
+  ctx.stroke();
 
+  // Ο αριθμός στο κέντρο
   ctx.save();
   ctx.font = `800 ${Math.max(10, 13*scale)}px 'Baloo 2', system-ui, sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
   ctx.fillText(String(value), d*0.4, -d*0.2);
   ctx.restore();
   ctx.restore();
@@ -743,37 +722,33 @@ function drawSnake(snake){
   const positions = snake.segmentPositions();
   if(!positions.length) return;
   
+  // Εφέ Σύννεφου (Cloud Shield) - Για όλο το σώμα
   if(snake.shieldT > 0) {
     ctx.save();
-    // Εφέ Σύννεφου (Cloud Shield)
-    ctx.shadowBlur = 50; ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 3;
-    
+    ctx.shadowBlur = 50; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     for(let i=0; i<positions.length; i+=2) {
       const p = positions[i];
       const sx = p.x - camera.x; const sy = p.y - camera.y;
       ctx.beginPath();
-      ctx.arc(sx, sy, 28 + Math.sin(floorTime * 4 + i * 2) * 5, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 22 + Math.sin(floorTime * 4 + i * 2) * 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
     for(let i=0; i<positions.length; i+=2) {
       const p = positions[i];
       const sx = p.x - camera.x; const sy = p.y - camera.y;
       ctx.beginPath();
-      ctx.arc(sx, sy, 36 + Math.cos(floorTime * 3 + i) * 6, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 28 + Math.cos(floorTime * 3 + i) * 5, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
   }
 
   for(let i=positions.length-1; i>=1; i--){
-    drawCube3D(positions[i].x, positions[i].y, snake.segments[i].value, 1);
+    drawCube(positions[i].x, positions[i].y, snake.segments[i].value, 1);
   }
-  drawCube3D(positions[0].x, positions[0].y, snake.segments[0].value, 1.2);
+  drawCube(positions[0].x, positions[0].y, snake.segments[0].value, 1.2);
   
   ctx.save(); ctx.font = "700 12px sans-serif"; ctx.fillStyle = '#ffffff'; ctx.textAlign='center'; 
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
@@ -788,8 +763,8 @@ function drawFloorItems() {
     ctx.save(); ctx.translate(sx, sy); ctx.rotate(item.angle);
     
     ctx.shadowColor = item.type === 'speed' ? '#ffcc00' : '#00d4ff';
-    ctx.shadowBlur = 40;
-    ctx.font = `800 45px 'Baloo 2', sans-serif`;
+    ctx.shadowBlur = 25;
+    ctx.font = `800 32px 'Baloo 2', sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = item.type === 'speed' ? '#ffcc00' : '#00d4ff';
     ctx.fillText(item.type === 'speed' ? '⚡' : '🛡️', 0, 0);
@@ -822,35 +797,26 @@ function drawFloaters(dt){
 }
 
 let lastT = null;
-let trackSpawnTimer = 0;
+let itemSpawnTimer = 0;
 
 function frame(ts){
   if(!lastT) lastT = ts;
   const dt = Math.min((ts-lastT)/1000, 0.05);
   lastT = ts;
 
-  // Ανανέωση πίστας ταχύτητας
-  trackSpawnTimer -= dt;
-  if(trackSpawnTimer <= 0 && running) { spawnSpeedTrack(); trackSpawnTimer = rnd(3, 6); }
-
-  for(let i=speedTracks.length-1; i>=0; i--) {
-      speedTracks[i].life -= dt;
-      if(speedTracks[i].life <= 0) speedTracks.splice(i, 1);
-  }
-
-  // Ανανέωση floor items
   if(running && floorItems.length < 6) {
     itemSpawnTimer -= dt;
     if(itemSpawnTimer <= 0) { spawnFloorItem(); itemSpawnTimer = rnd(4, 8); }
   }
 
   bots.forEach(b=>{ botAI(b,dt); b.update(dt); });
-  bots.forEach(b=>eatCubes(b));
+  bots.forEach(b=>{ eatCubes(b); eatFloorItems(b); });
   resolveCombat();
   floorTime += dt; 
 
   if(running){
-    player.update(dt); eatCubes(player); 
+    if(!player || !player.alive) return; // Ασφάλεια
+    player.update(dt); eatCubes(player); eatFloorItems(player); 
     
     timeLeft -= dt; elapsedSinceLB += dt;
     if(elapsedSinceLB > 1){ elapsedSinceLB = 0; renderLeaderboard(); }
@@ -861,16 +827,16 @@ function frame(ts){
   }
 
   if(screenShake > 0) screenShake -= dt;
-  let cx = player.head.x - (W/2) / CAMERA_ZOOM;
-  let cy = player.head.y - (H/2) / CAMERA_ZOOM;
+  let cx = player ? player.head.x - (W/2) / CAMERA_ZOOM : 0;
+  let cy = player ? player.head.y - (H/2) / CAMERA_ZOOM : 0;
   if(screenShake > 0) { cx += rnd(-10, 10) * screenShake; cy += rnd(-10, 10) * screenShake; }
   camera.x = cx; camera.y = cy;
 
   ctx.clearRect(0,0,W,H); ctx.save(); ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
-  drawFloor(); drawObstacles(); drawSpeedTracks(); drawFloorItems();
-  cubes.forEach(c=>drawCube3D(c.x,c.y,c.value,0.85));
+  drawFloor(); drawObstacles(); drawFloorItems();
+  cubes.forEach(c=>drawCube(c.x,c.y,c.value,0.85));
   bots.forEach(b=>{ if(b.alive) drawSnake(b); });
-  if(player.alive) drawSnake(player);
+  if(player && player.alive) drawSnake(player);
   drawParticles(dt); drawFloaters(dt);
   ctx.restore(); 
   requestAnimationFrame(frame);
@@ -878,7 +844,7 @@ function frame(ts){
 requestAnimationFrame(frame);
 
 function startGame(){
-  if(gameStartedOnce && (!player.alive || timeLeft <= 0)){
+  if(gameStartedOnce && (!player || !player.alive || timeLeft <= 0)){
     initWorld(); 
     ['pwBoost', 'pwMagnet', 'pwShield'].forEach(id => {
        const el = document.getElementById(id);
@@ -891,7 +857,6 @@ function startGame(){
   document.getElementById('startMsg').classList.add('hidden');
   document.getElementById('endMsg').classList.add('hidden');
   running = true;
-  trackSpawnTimer = 1;
 }
 
 function endGame(survived){
