@@ -82,7 +82,7 @@
   .pw .cd{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);background:var(--gold);color:#181818;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;display:none;}
   .pw.cooldown .cd{display:block; background:#ff4d6d; color:#fff;}
   .pw.active-buff .cd{display:block; background:var(--good); color:#000;}
-  .pw-ad { position: absolute; top: -6px; right: -6px; font-size: 14px; background: #fff; border-radius: 50%; padding: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+  .pw-ad { position: absolute; top: -6px; right: -6px; font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; background: #ffd23f; color: #1a1200; border-radius: 50%; min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); padding: 0 3px; line-height: 1; }
 
   .overlay { position: fixed; inset: 0; background: rgba(11, 12, 16, .85); display: flex; align-items: center; justify-content: center; z-index: 30; backdrop-filter: blur(4px); pointer-events: auto; }
   
@@ -137,8 +137,8 @@
     <div class="topbar">
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button id="btnOpenShop" class="btn-shop">🛒 eShop</button>
-        <!-- ΕΔΩ ΗΤΑΝ ΤΟ BUG: Είχε διαγραφεί κατά λάθος το σκορ! Προστέθηκε ξανά. -->
-        <div class="stat score"><div class="dot">◆</div><span id="scoreVal">0</span></div>
+        <div class="stat score"><div class="dot">🪙</div><span id="coinsVal">0</span></div>
+        <div class="stat score" style="font-size:13px;"><div class="dot">◆</div><span id="scoreVal">0</span></div>
         <div class="stat timer" id="timerUI"><span id="timerVal">05:00</span></div>
       </div>
     </div>
@@ -329,7 +329,8 @@ const DEFAULT_SAVE = {
     ownedCubes: ['multi'], equippedCube: 'multi',
     ownedBoards: ['board_wood'], equippedBoard: 'board_wood',
     ownedEffects: ['eff_none'], equippedEffect: 'eff_none',
-    ownedSounds: ['snd_default'], equippedSound: 'snd_default'
+    ownedSounds: ['snd_default'], equippedSound: 'snd_default',
+    coins: 200  // starting coins
 };
 let save = Object.assign({}, DEFAULT_SAVE);
 
@@ -341,6 +342,7 @@ try {
         // Ensure multi is always owned for new default
         if (!save.ownedCubes.includes('multi')) save.ownedCubes.unshift('multi');
         if (!save.equippedCube) save.equippedCube = 'multi';
+        if (typeof save.coins !== 'number') save.coins = 200;
     }
 } catch(e){}
 
@@ -348,10 +350,17 @@ if(!save.equippedCube) save.equippedCube = 'multi';
 if(!save.equippedBoard) save.equippedBoard = 'board_wood';
 if(!save.equippedEffect) save.equippedEffect = 'eff_none';
 if(!save.equippedSound) save.equippedSound = 'snd_default';
+if (typeof save.coins !== 'number') save.coins = 200;
 
 function saveGame() {
     try { localStorage.setItem("snakedrop-save-v1", JSON.stringify(save)); } catch(e){}
 }
+
+function updateCoinsUI() {
+    const el = document.getElementById('coinsVal');
+    if (el) el.textContent = save.coins;
+}
+updateCoinsUI();
 
 let activeShopTab = 'cubes';
 
@@ -374,7 +383,7 @@ function renderShop() {
         const div = document.createElement('div');
         div.className = `shop-item ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''}`;
         
-        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '100 pts');
+        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '100 🪙');
         
         div.innerHTML = `
             <div style="font-size:28px;">${item.icon}</div>
@@ -394,21 +403,21 @@ function renderShop() {
                 renderShop();
                 toast('Equipped ' + item.name);
             } else {
-                // Buy with 100 points
-                if (!player || !player.alive || player.score < 100) {
-                    toast('Need 100 points!', '#ff4d6d');
+                // Buy with 100 coins
+                if (save.coins < 100) {
+                    toast('Need 100 coins!', '#ff4d6d');
                     return;
                 }
-                player.spent = (player.spent || 0) + 100;
+                save.coins -= 100;
                 save[props.owned].push(item.id);
                 save[props.equip] = item.id;
                 if (activeShopTab === 'cubes') {
                     for (const k in textureCache) delete textureCache[k];
                 }
                 saveGame();
+                updateCoinsUI();
                 renderShop();
                 toast('Bought & equipped ' + item.name);
-                document.getElementById('scoreVal').textContent = player.score;
             }
         };
         container.appendChild(div);
@@ -606,7 +615,7 @@ function getCubeTexture(value) {
     g.font = hasBadge ? (`800 ${value >= 1024 ? 30 : value >= 128 ? 36 : 44}px 'Baloo 2', sans-serif`) : (`800 ${value >= 1024 ? 42 : value >= 128 ? 50 : 60}px 'Baloo 2', sans-serif`);
     g.textAlign = "center"; g.textBaseline = "middle";
     g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
-    if(skin === 'neon') g.fillStyle = '#fff';
+    if(skin === 'neon') g.fillStyle = '#111';
     if(skin === 'multi') g.fillStyle = '#fff';
     g.fillText(value, 64, hasBadge ? 66 : 68); 
     
@@ -831,21 +840,42 @@ function spawnCube(){
 
 function spawnObstacles(){
   obstacles = [];
-  // More obstacles for maze / corridor feel
-  for(let i=0; i<28; i++) {
-    let ox = rnd(250, ARENA-250), oy = rnd(250, ARENA-250);
-    if(dist2(ox, oy, ARENA/2, ARENA/2) < 500*500) continue; 
-    // Mix of squares and long corridors
-    if (Math.random() < 0.45) {
-      // long horizontal or vertical corridor-like wall
-      if (Math.random() < 0.5) {
-        obstacles.push({ x: ox, y: oy, w: rnd(300, 700), h: rnd(60, 120) });
-      } else {
-        obstacles.push({ x: ox, y: oy, w: rnd(60, 120), h: rnd(300, 700) });
-      }
+  const maxObstacles = 35;
+  let attempts = 0;
+  while (obstacles.length < maxObstacles && attempts < 200) {
+    attempts++;
+    let ox = rnd(280, ARENA - 280), oy = rnd(280, ARENA - 280);
+    // keep center clear
+    if (dist2(ox, oy, ARENA/2, ARENA/2) < 550 * 550) continue;
+
+    let w, h;
+    const roll = Math.random();
+    if (roll < 0.35) {
+      // long horizontal corridor
+      w = rnd(280, 650); h = rnd(55, 100);
+    } else if (roll < 0.55) {
+      // long vertical corridor
+      w = rnd(55, 100); h = rnd(280, 650);
+    } else if (roll < 0.75) {
+      // medium square / rectangle
+      w = rnd(140, 280); h = rnd(140, 280);
     } else {
-      obstacles.push({ x: ox, y: oy, w: rnd(120, 320), h: rnd(120, 320) });
+      // smaller block
+      w = rnd(90, 180); h = rnd(90, 180);
     }
+
+    // check no overlap with existing obstacles (with padding)
+    let overlaps = false;
+    const pad = 80;
+    for (const o of obstacles) {
+      if (Math.abs(ox - o.x) < (w/2 + o.w/2 + pad) && Math.abs(oy - o.y) < (h/2 + o.h/2 + pad)) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+
+    obstacles.push({ x: ox, y: oy, w, h });
   }
 }
 
@@ -950,18 +980,19 @@ function setupPowerupBtn(btnId, type, msg, color) {
         if(!player || !player.alive) return;
         if(player[type + 'Cd'] > 0) return;
         
-        // Cost 50 points
-        if (player.score < 50) {
-            toast('Need 50 points!', '#ff4d6d');
+        // Cost 50 coins
+        if (save.coins < 50) {
+            toast('Need 50 coins!', '#ff4d6d');
             return;
         }
-        player.spent = (player.spent || 0) + 50;
+        save.coins -= 50;
+        saveGame();
+        updateCoinsUI();
         player[type + 'T'] = 5.0; // 5 seconds
         player[type + 'Cd'] = 20.0;
         toast(msg + ' (-50)', color);
         screenShake = 0.15;
         updateCooldownVisual(document.getElementById(btnId), player, type);
-        document.getElementById('scoreVal').textContent = player.score;
     });
 }
 
@@ -1029,13 +1060,14 @@ function eatFloorItems(snake){
   for(let i=floorItems.length-1; i>=0; i--){
     const item = floorItems[i];
     if(dist2(headPos.x, headPos.y, item.x, item.y) < 35*35){
-      // Player pays 25 points for floor powerups
+      // Player pays 25 coins for floor powerups
       if (snake.isPlayer) {
-        if (snake.score < 25) {
+        if (save.coins < 25) {
           continue; // can't afford, leave it
         }
-        snake.spent = (snake.spent || 0) + 25;
-        document.getElementById('scoreVal').textContent = snake.score;
+        save.coins -= 25;
+        saveGame();
+        updateCoinsUI();
       }
       if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, '⚡ SPEED -25', '#ffcc00'); }
       else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, '🛡️ SHIELD -25', '#00d4ff'); }
@@ -1153,57 +1185,53 @@ function drawFloor(){
   
   const bData = SHOP_DATA.boards.find(b => b.id === save.equippedBoard) || SHOP_DATA.boards[0];
   
-  const grad = ctx.createLinearGradient(sx, sy, sx+ARENA, sy+ARENA);
-  grad.addColorStop(0, shadeColor(bData.back, 20));
-  grad.addColorStop(1, bData.back);
+  // Base glossy gradient
+  const grad = ctx.createLinearGradient(sx, sy, sx + ARENA * 0.6, sy + ARENA * 0.8);
+  grad.addColorStop(0, shadeColor(bData.back, 25));
+  grad.addColorStop(0.5, bData.back);
+  grad.addColorStop(1, shadeColor(bData.back, -15));
   ctx.fillStyle = grad;
   ctx.fillRect(sx, sy, ARENA, ARENA);
 
-  // Grid dots
-  ctx.fillStyle = bData.cell + '55';
-  for(let x=0; x<=ARENA; x+=60){
-    for(let y=0; y<=ARENA; y+=60){
-      ctx.beginPath(); ctx.arc(sx+x, sy+y, 2.2, 0, Math.PI*2); ctx.fill();
-    }
-  }
-
-  // Decorative squares pattern (every ~180px)
-  ctx.strokeStyle = bData.cell + '40';
-  ctx.lineWidth = 1.5;
-  for(let x=90; x<ARENA; x+=180){
-    for(let y=90; y<ARENA; y+=180){
-      ctx.strokeRect(sx + x - 18, sy + y - 18, 36, 36);
-    }
-  }
-
-  // Triangles pattern
-  ctx.fillStyle = bData.cell + '28';
-  for(let x=45; x<ARENA; x+=220){
-    for(let y=45; y<ARENA; y+=220){
-      ctx.beginPath();
-      ctx.moveTo(sx + x, sy + y - 14);
-      ctx.lineTo(sx + x + 16, sy + y + 12);
-      ctx.lineTo(sx + x - 16, sy + y + 12);
-      ctx.closePath();
+  // Soft shiny tile grid (glossy panels)
+  const tile = 90;
+  for(let x = 0; x < ARENA; x += tile){
+    for(let y = 0; y < ARENA; y += tile){
+      const tx = sx + x, ty = sy + y;
+      // subtle panel fill
+      const panelGrad = ctx.createLinearGradient(tx, ty, tx + tile, ty + tile);
+      panelGrad.addColorStop(0, 'rgba(255,255,255,0.06)');
+      panelGrad.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+      panelGrad.addColorStop(1, 'rgba(0,0,0,0.06)');
+      ctx.fillStyle = panelGrad;
+      roundRectCtx(ctx, tx + 4, ty + 4, tile - 8, tile - 8, 10);
       ctx.fill();
+
+      // thin glossy border
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = 1;
+      roundRectCtx(ctx, tx + 4, ty + 4, tile - 8, tile - 8, 10);
+      ctx.stroke();
     }
   }
 
-  // Corridor / maze-like faint lines (horizontal + vertical lanes)
-  ctx.strokeStyle = bData.cell + '22';
-  ctx.lineWidth = 8;
-  for(let x=200; x<ARENA; x+=450){
+  // Soft multi-color accent dots (inspired by Multi skin)
+  const accents = ['#22c55e33','#f9731633','#3b82f633','#a855f733','#ef444433','#06b6d433'];
+  for(let i = 0; i < 80; i++){
+    const ax = (i * 137 + 50) % ARENA;
+    const ay = (i * 89 + 120) % ARENA;
     ctx.beginPath();
-    ctx.moveTo(sx + x, sy + 80);
-    ctx.lineTo(sx + x, sy + ARENA - 80);
-    ctx.stroke();
+    ctx.arc(sx + ax, sy + ay, 3 + (i % 3), 0, Math.PI * 2);
+    ctx.fillStyle = accents[i % accents.length];
+    ctx.fill();
   }
-  for(let y=200; y<ARENA; y+=450){
-    ctx.beginPath();
-    ctx.moveTo(sx + 80, sy + y);
-    ctx.lineTo(sx + ARENA - 80, sy + y);
-    ctx.stroke();
-  }
+
+  // Very subtle center glow
+  const glow = ctx.createRadialGradient(sx + ARENA/2, sy + ARENA/2, 0, sx + ARENA/2, sy + ARENA/2, ARENA * 0.45);
+  glow.addColorStop(0, 'rgba(255,255,255,0.04)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx, sy, ARENA, ARENA);
 
   ctx.restore();
 }
@@ -1371,8 +1399,15 @@ function startGame(mode){
 
 function endGame(survived, diedEarly){
   running = false;
+  // Award coins based on score (persist)
+  const earned = Math.floor(player.score / 4);
+  if (earned > 0) {
+    save.coins += earned;
+    saveGame();
+    updateCoinsUI();
+  }
   document.getElementById('endTitle').innerHTML = survived ? 'You Survived! 🏆' : 'Game Over';
-  document.getElementById('endBody').textContent = `Your score: ${player.score}`;
+  document.getElementById('endBody').textContent = `Your score: ${player.score}` + (earned > 0 ? `  |  +${earned} coins` : '');
   
   const continueBtn = document.getElementById('continueBtn');
   if(diedEarly && !isEndless && timeLeft > 0 && !hasContinued) {
