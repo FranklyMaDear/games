@@ -36,7 +36,6 @@
   .stat.score .dot{background:radial-gradient(circle at 30% 30%,#ffe27a,var(--gold));}
   .stat.timer{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:1px;}
   
-  /* Κατάταξη - πάνω δεξιά, ημιδιάφανη */
   .leaderboard{
     position: absolute; 
     top: 14px; 
@@ -66,7 +65,6 @@
   .leaderboard::-webkit-scrollbar { display:none; }
   .leaderboard .lb-title { text-align: center; font-size: 12px; margin: 0 0 8px; color: #fff; font-weight: 800; letter-spacing: 1px; }
   
-  /* Κρύβουμε τις γραμμές όταν είναι κλειστό */
   .leaderboard:not(.expanded) .lb-row { display: none; }
   
   .lb-row{display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:13px;font-weight:700;border-radius:8px; background:rgba(0,0,0,0.3); margin-bottom:4px;}
@@ -76,7 +74,6 @@
   .lb-row.me{background:rgba(255, 210, 63, 0.25); border:1px solid rgba(255, 210, 63, 0.4);}
   .lb-row.me .name,.lb-row.me .val{color:var(--gold);}
   
-  /* Βοηθητικά Δεξιά - Χωρίς πλαίσιο */
   .powerbar{position:absolute; right:16px; top:45%; transform:translateY(-50%); display:flex; flex-direction:column; gap:16px;}
   .pw{
     width:48px;height:48px;display:flex;align-items:center;justify-content:center;
@@ -107,7 +104,6 @@
   .toast{position:absolute;top:120px;left:50%;transform:translateX(-50%);font-weight:800;font-size:15px;padding:6px 16px;border-radius:999px;opacity:0;background:#12141ce6;border:1px solid var(--line);transition:opacity .25s, transform .25s; z-index:20;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(6px);}
 
-  /* Διάφανο Στρογγυλό Χειριστήριο */
   .control-zone {
     position: absolute;
     bottom: 5%;
@@ -207,7 +203,8 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let W, H, DPR;
 
-const CAMERA_ZOOM = 1.05;
+// Επαναφορά της αρχικής κάμερας - Zoom σταδιακά
+const CAMERA_ZOOM = 0.85;
 
 function resize(){
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -253,9 +250,12 @@ class Snake{
     this.name = name;
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
+    
+    // Επαναφορά στην αρχική ταχύτητα
     this.baseSpeed = 2.5;
     this.boostSpeed = 4.8;
     this.boostT = 0; 
+    
     this.path = [{x,y}];
     this.segments = [{value: VALUES[Math.floor(rnd(0,2))], t:0}]; 
     this.alive = true;
@@ -490,7 +490,20 @@ function updateJoystick(e) {
   const rect = joyZone.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
-  let dx = e.clientX - cx, dy = e.clientY - cy;
+  
+  // Ασφαλής έλεγχος συντεταγμένων αφής
+  let clientX = e.clientX;
+  let clientY = e.clientY;
+  if(clientX === undefined && e.touches && e.touches.length > 0){
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else if (clientX === undefined) {
+    clientX = cx; clientY = cy;
+  }
+  
+  let dx = clientX - cx;
+  let dy = clientY - cy;
+  
   const d = Math.hypot(dx, dy);
   const ang = Math.atan2(dy, dx);
   const r = Math.min(d, 45);
@@ -500,20 +513,25 @@ function updateJoystick(e) {
   if (d > 5 && player && player.alive) { player.targetAngle = ang; }
 }
 
-joyZone.addEventListener('pointerdown', e => {
+function startJoystick(e) {
   if(!running) return; 
   joyCenter.style.opacity = '0';
   joy.active = true;
-  joy.pointerId = e.pointerId;
-  joyZone.setPointerCapture(e.pointerId);
+  joy.pointerId = e.pointerId || (e.changedTouches ? e.changedTouches[0].identifier : null);
+  
+  if (e.pointerId && joyZone.setPointerCapture) {
+    joyZone.setPointerCapture(e.pointerId);
+  }
+  
   updateJoystick(e);
-  e.stopPropagation();
-});
+  if(e.cancelable) e.preventDefault();
+}
 
-joyZone.addEventListener('pointermove', e => {
-  if(joy.active && e.pointerId === joy.pointerId){ updateJoystick(e); }
-  e.stopPropagation();
-});
+function moveJoystick(e) {
+  if(!joy.active) return;
+  updateJoystick(e);
+  if(e.cancelable) e.preventDefault();
+}
 
 function joyReset() {
   joy.active = false;
@@ -521,8 +539,14 @@ function joyReset() {
   joyKnob.style.transform = 'translate(-50%, -50%)';
 }
 
-joyZone.addEventListener('pointerup', e => { if(joy.active && e.pointerId === joy.pointerId){ joyReset(); }});
-joyZone.addEventListener('pointercancel', () => joyReset());
+// Χρήση Pointer Events με fallback σε Touch
+joyZone.addEventListener('pointerdown', startJoystick);
+joyZone.addEventListener('pointermove', moveJoystick);
+joyZone.addEventListener('pointerup', joyReset);
+joyZone.addEventListener('pointercancel', joyReset);
+joyZone.addEventListener('touchstart', startJoystick, { passive: false });
+joyZone.addEventListener('touchmove', moveJoystick, { passive: false });
+joyZone.addEventListener('touchend', joyReset);
 
 function triggerPowerup(type, btnId, msg, color) {
   if(!player || !player.alive) return;
@@ -640,7 +664,7 @@ function resolveCombat(){
                burst(p.x, p.y, '#ffffff', 5);
             });
             a.reactT = 0.15; b.reactT = 0.15;
-            if(a.isPlayer){ spawnText(aHead.x, aHead.y, "TAIL CUT!", "#ff4d6d"); screenShake = 0.3; }
+            if(a.isPlayer){ spawnText(aHead.x, aHead.y, "ΚΟΠΗΚΕ Η ΟΥΡΑ!", "#ff4d6d"); screenShake = 0.3; }
             if(b.segments.length === 0) killSnake(b);
           } else if(aVal < bVal){
             if(a.shieldT>0){ continue; }
@@ -688,7 +712,6 @@ function renderLeaderboard(){
   });
 }
 
-// Λειτουργία Toggling Κατάταξης
 document.getElementById('leaderboardPanel').addEventListener('click', function(e) {
   e.stopPropagation();
   this.classList.toggle('expanded');
@@ -1046,17 +1069,6 @@ function startGame(mode){
   running = true;
 }
 
-function endGame(survived){
-  running = false;
-  const title = document.getElementById('endTitle');
-  const body = document.getElementById('endBody');
-  title.innerHTML = survived ? 'Επιβίωσες! 🏆' : 'Game Over';
-  const all = [player, ...bots].filter(s=>s!==player);
-  const rank = 1 + all.filter(s=>s.score>player.score).length;
-  body.textContent = `Σκορ: ${player.score} · Θέση #${rank}`;
-  document.getElementById('endMsg').classList.remove('hidden');
-}
-
 document.getElementById('btn3Min').addEventListener('click', () => startGame('3min'));
 document.getElementById('btnEndless').addEventListener('click', () => startGame('endless'));
 document.getElementById('restartBtn').addEventListener('click', () => {
@@ -1064,7 +1076,6 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('startMsg').classList.remove('hidden');
 });
 
-// Αρχική σχεδίαση για το background
 spawnObstacles();
 for(let i=0;i<60;i++) spawnCube();
 frame(0);
