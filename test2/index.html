@@ -174,9 +174,11 @@
 (function(){
 "use strict";
 
-document.addEventListener('touchmove', function(e) {
-  if (e.target.closest('#leaderboardPanel')) return; 
-  if (e.target.tagName !== 'BUTTON') { e.preventDefault(); }
+// Μόνο το joystick εμποδίζει την κύλιση, όχι όλη η σελίδα.
+document.getElementById('controlZone').addEventListener('touchmove', function(e) {
+  if (e.target === this || e.target.closest('.control-zone')) { 
+    e.preventDefault(); 
+  }
 }, { passive: false });
 
 const canvas = document.getElementById('game');
@@ -194,7 +196,6 @@ function resize(){
 window.addEventListener('resize', resize);
 resize();
 
-// Ήχος σύγκρουσης ισότιμων αξιών
 let audioCtx = null;
 function playClashSound() {
   if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -218,32 +219,20 @@ const BASE_R = 14;
 const NAMES = ["Twentyfourhourpharma","averagestudent","rejectedbachelorcontes","Chris_P_Bacon","thegodfatherpart4","B.Juice","TheAfterLife","kojima_fan92","noodle.exe","xXHunterXx"];
 const VALUES = [2,4,8,16,32,64,128,256,512,1024,2048,5096];
 
-// Πιο γεμάτα, ζωντανά 3D χρώματα
 const CUBE_PALETTE = [
-  { top:'#ff6b6b', right:'#cc4444', bottom:'#992222' }, // 2
-  { top:'#4dabf7', right:'#2d7dc9', bottom:'#1b5796' }, // 4
-  { top:'#ffd43b', right:'#d9b126', bottom:'#a3811a' }, // 8
-  { top:'#ff922b', right:'#d9731e', bottom:'#a35414' }, // 16
-  { top:'#cc5de8', right:'#a838c8', bottom:'#7d1f96' }, // 32
-  { top:'#20c997', right:'#179b74', bottom:'#0e634a' }, // 64
-  { top:'#94d82d', right:'#75ad20', bottom:'#527a15' }, // 128
-  { top:'#845ef7', right:'#6743cc', bottom:'#432c8a' }, // 256
-  { top:'#f06595', right:'#c74d78', bottom:'#943554' }, // 512
-  { top:'#38d9a9', right:'#28ad86', bottom:'#1e7e64' }, // 1024
-  { top:'#f8f9fa', right:'#d0d4d8', bottom:'#9aa0a5' }, // 2048
-  { top:'#ffda6b', right:'#d9b136', bottom:'#a8871f' }, // 5096
+  { top:'#ff6b6b', right:'#cc4444', bottom:'#992222' },
+  { top:'#4dabf7', right:'#2d7dc9', bottom:'#1b5796' },
+  { top:'#ffd43b', right:'#d9b126', bottom:'#a3811a' },
+  { top:'#ff922b', right:'#d9731e', bottom:'#a35414' },
+  { top:'#cc5de8', right:'#a838c8', bottom:'#7d1f96' },
+  { top:'#20c997', right:'#179b74', bottom:'#0e634a' },
+  { top:'#94d82d', right:'#75ad20', bottom:'#527a15' },
+  { top:'#845ef7', right:'#6743cc', bottom:'#432c8a' },
+  { top:'#f06595', right:'#c74d78', bottom:'#943554' },
+  { top:'#38d9a9', right:'#28ad86', bottom:'#1e7e64' },
+  { top:'#f8f9fa', right:'#d0d4d8', bottom:'#9aa0a5' },
+  { top:'#ffda6b', right:'#d9b136', bottom:'#a8871f' },
 ];
-
-function shadeColor(hex, percent) {
-  const num = parseInt(hex.slice(1), 16);
-  let r = (num >> 16) + percent;
-  let g = ((num >> 8) & 0x00FF) + percent;
-  let b = (num & 0x0000FF) + percent;
-  r = Math.max(0, Math.min(255, r));
-  g = Math.max(0, Math.min(255, g));
-  b = Math.max(0, Math.min(255, b));
-  return '#' + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
-}
 
 function colorFor(v){
   const idx = Math.log2(v) - 1; 
@@ -254,7 +243,6 @@ function rnd(a,b){ return a + Math.random()*(b-a); }
 function dist2(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 
-// Power-ups δαπέδου
 let floorItems = [];
 let itemSpawnTimer = 0;
 
@@ -264,7 +252,7 @@ class Snake{
     this.name = name;
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
-    this.baseSpeed = 2.5; /* Σταθερή ταχύτητα */
+    this.baseSpeed = 2.5;
     this.boostSpeed = 5.0;
     this.boostT = 0; 
     this.path = [{x,y}];
@@ -397,7 +385,8 @@ let cubes = [];
 let obstacles = []; 
 let particles = [];
 let floaters = [];  
-let player, bots = [];
+let player = null;
+let bots = [];
 let running = false;
 let gameStartedOnce = false;
 let timeLeft = 180;
@@ -405,9 +394,8 @@ let elapsedSinceLB = 0;
 let camera = {x:0,y:0};
 let screenShake = 0; 
 let floorTime = 0;
-
-// Μεταβλητές τρόπου παιχνιδιού
-let gameMode = 'survive'; // 'timed' ή 'survive'
+let gameMode = 'survive';
+let respawnTimer = null; 
 
 function isInsideObstacle(x, y, padding = 40) {
   for(let o of obstacles) {
@@ -455,6 +443,7 @@ function makeBot(){
 }
 
 function initWorld(){
+  if(respawnTimer) { clearTimeout(respawnTimer); respawnTimer = null; }
   floorItems = []; itemSpawnTimer = 0;
   spawnObstacles(); 
   cubes = []; particles = []; floaters = []; bots = [];
@@ -465,30 +454,29 @@ function initWorld(){
   else timeLeft = 999;
 }
 
-// Χειριστήριο
 const joyZone = document.getElementById('controlZone');
 let joy = { active: false, pointerId: null };
 
 function updateJoystick(e) {
+  if(!player) return;
   const rect = joyZone.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   
   let dx = e.clientX - cx;
   let dy = e.clientY - cy;
-  
   const d = Math.hypot(dx, dy);
   const ang = Math.atan2(dy, dx);
   
-  if (d > 5) { 
+  if (d > 5 && player.alive) { 
     player.targetAngle = ang; 
-    // Δείχνουμε ότι κινείται
   }
 }
 
 joyZone.addEventListener('pointerdown', e => {
   if(!running && !document.getElementById('modeSelectMsg').classList.contains('hidden')) { return; }
   if(!running && document.getElementById('endMsg').classList.contains('hidden') === false){ startGame(); return; }
+  if(!player || !player.alive) return;
   
   joy.active = true;
   joy.pointerId = e.pointerId;
@@ -503,11 +491,9 @@ joyZone.addEventListener('pointermove', e => {
 });
 
 function joyReset() { joy.active = false; joy.pointerId = null; }
-
 joyZone.addEventListener('pointerup', e => { if(joy.active && e.pointerId === joy.pointerId){ joyReset(); }});
 joyZone.addEventListener('pointercancel', () => joyReset());
 
-// Ενεργοποίηση κουμπιών
 function triggerPowerup(type, btnId, msg, color) {
   if(!player || !player.alive) return;
   if(player[type + 'Cd'] > 0) return;
@@ -527,6 +513,7 @@ function updateCooldownVisual(el, p, type) {
   const cdEl = el.querySelector('.cd');
   clearInterval(el._iv);
   el._iv = setInterval(()=>{
+    if(!p || !p.alive) { clearInterval(el._iv); return; }
     const active = p[type + 'T'];
     const cd = p[type + 'Cd'];
     if(active > 0) { el.classList.add('active-buff'); el.classList.remove('cooldown'); cdEl.textContent = active.toFixed(1) + 's'; } 
@@ -545,6 +532,7 @@ function toast(msg, color){
 function burst(x,y,color,n){ n = n||10; for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, sp=rnd(0.6,3.0); particles.push({x,y,vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, color}); } }
 
 function eatCubes(snake){
+  if(!snake || !snake.alive) return;
   const headPos = snake.segmentPositions()[0];
   const magnetActive = snake.magnetT > 0;
   const pickR = magnetActive ? 140 : 28;
@@ -559,8 +547,8 @@ function eatCubes(snake){
   }
 }
 
-// Κατανάλωση αντικειμένων δαπέδου
 function eatFloorItems(snake){
+  if(!snake || !snake.alive) return;
   const headPos = snake.segmentPositions()[0];
   for(let i=floorItems.length-1; i>=0; i--){
     const item = floorItems[i];
@@ -573,6 +561,7 @@ function eatFloorItems(snake){
 }
 
 function killSnake(snake){
+  if(!snake || !snake.alive) return;
   snake.alive = false;
   const positions = snake.segmentPositions();
   positions.forEach((p,i)=>{
@@ -581,15 +570,18 @@ function killSnake(snake){
       if(!isInsideObstacle(dropX, dropY)) cubes.push({x: dropX, y: dropY, value: snake.segments[i].value});
     }
   });
+  
   if(snake.isPlayer){ 
-    if(gameMode === 'survive') endGame(false); 
-    else { 
-      // Σε λειτουργία χρόνου, ξαναγεννιέται μετά από λίγο
-      setTimeout(() => {
-        if(!running || gameMode !== 'timed') return;
+    if(gameMode === 'survive') {
+      endGame(false); 
+    } else { 
+      if(respawnTimer) clearTimeout(respawnTimer);
+      respawnTimer = setTimeout(() => {
+        if(!running || gameMode !== 'timed') { respawnTimer = null; return; }
         let bx, by; do { bx = rnd(200,ARENA-200); by = rnd(200,ARENA-200); } while(isInsideObstacle(bx, by, 40));
         player = new Snake(bx, by, true, "You");
         player.baseSpeed = 2.5; player.boostSpeed = 5.0;
+        respawnTimer = null;
       }, 2000);
     }
   } 
@@ -601,34 +593,30 @@ function killSnake(snake){
 }
 
 function resolveCombat(){
-  let all = [player, ...bots].filter(s=>s.alive);
-  if(!running) all = bots.filter(s=>s.alive);
+  if(!player || !player.alive) return;
+  let all = [player, ...bots].filter(s=>s && s.alive);
+  if(!running) all = bots.filter(s=>s && s.alive);
   for(const a of all){
-    if(a.reactT>0) continue;
+    if(!a || !a.alive || a.reactT>0) continue;
     const aPos = a.segmentPositions(); const aHead = aPos[0];
     for(const b of all){
-      if(a===b || b.reactT>0) continue;
+      if(!b || !b.alive || a===b || b.reactT>0) continue;
       const bPos = b.segmentPositions();
-      for(let i=0;i<bPos.length;i++){
+      for(let i=0;i<bPos.length && b.alive;i++){
         const segPos = bPos[i];
         const hitR = BASE_R + Math.min(Math.log2(b.segments[i].value)*1.4, 16);
         if(dist2(aHead.x,aHead.y,segPos.x,segPos.y) < (hitR+BASE_R*0.6)*(hitR+BASE_R*0.6)){
           
-          // ΝΕΟ: Αν οι αριθμοί είναι ίσοι, αλλάζουν κατεύθυνση και κάνουν ήχο
           if(b.segments[i].value === a.headValue){
-             if(a !== player && b !== player) continue; // Μόνο για μάχες παίκτη
-             
+             if(a !== player && b !== player) continue; 
              const dx = aHead.x - segPos.x;
              const dy = aHead.y - segPos.y;
              if(dx !== 0 || dy !== 0){
-               // Ώθηση μακριά
                const ang = Math.atan2(dy, dx);
                a.angle = ang + 0.2; a.targetAngle = ang + 0.2;
                const bAng = ang + Math.PI;
                b.angle = bAng + 0.2; b.targetAngle = bAng + 0.2;
-               
                a.reactT = 0.2; b.reactT = 0.2; 
-               // Ήχος σύγκρουσης
                playClashSound();
                burst(aHead.x, aHead.y, '#ffffff', 8);
              }
@@ -649,7 +637,7 @@ function resolveCombat(){
             if(b.segments.length === 0) killSnake(b);
           } else if(aVal < bVal){
             if(a.shieldT>0){ continue; }
-            if(i===0 || true){ killSnake(a); }
+            killSnake(a);
             a.reactT = 0.15; b.reactT = 0.15;
           }
           break;
@@ -657,17 +645,16 @@ function resolveCombat(){
       }
       if(!a.alive) break;
     }
-    if(!a.alive) continue;
   }
 }
 
 function botAI(bot, dt){
+  if(!bot || !bot.alive) return;
   bot.retargetT -= dt;
   if(bot.retargetT<=0){
     bot.retargetT = rnd(0.6,1.4);
     const hp = bot.head;
     let best=null, bestD=550*550;
-    // Στόχευση αντικειμένων δαπέδου και κύβων
     for(const c of cubes){ const d2=dist2(hp.x,hp.y,c.x,c.y); if(d2<bestD){ bestD=d2; best=c; } }
     for(const it of floorItems){ const d2=dist2(hp.x,hp.y,it.x,it.y); if(d2<bestD){ bestD=d2; best={x:it.x,y:it.y}; } }
     
@@ -677,7 +664,8 @@ function botAI(bot, dt){
 }
 
 function renderLeaderboard(){
-  const all = [player, ...bots].filter(s=>s.alive);
+  if(!player) return;
+  const all = [player, ...bots].filter(s=>s && s.alive);
   all.sort((a,b)=>b.score-a.score);
   const rows = document.getElementById('lbRows'); rows.innerHTML = '';
   all.forEach((s,i)=>{
@@ -716,8 +704,6 @@ function drawFloorItems() {
     item.angle += 0.03;
     const sx = item.x - camera.x; const sy = item.y - camera.y;
     ctx.save(); ctx.translate(sx, sy); ctx.rotate(item.angle);
-    
-    // Λάμψη
     ctx.shadowColor = item.type === 'speed' ? 'var(--speed-color)' : 'var(--shield-color)';
     ctx.shadowBlur = 25;
     ctx.font = `800 22px 'Baloo 2', sans-serif`;
@@ -728,7 +714,6 @@ function drawFloorItems() {
   });
 }
 
-// Πλήρως 3D σχεδίαση κύβων με γεμάτα χρώματα
 function drawCube3D(x, y, value, scale = 1) {
   const c = colorFor(value);
   const sx = x - camera.x, sy = y - camera.y;
@@ -736,7 +721,6 @@ function drawCube3D(x, y, value, scale = 1) {
 
   const s = 16 * scale;
   const d = 8 * scale;
-  const rr = 1.5 * scale;
   
   ctx.save();
   ctx.translate(sx, sy);
@@ -757,18 +741,17 @@ function drawCube3D(x, y, value, scale = 1) {
   ctx.beginPath(); ctx.moveTo(s, -s); ctx.lineTo(s+d, -s+d); ctx.lineTo(s+d, s+d); ctx.lineTo(s, s); ctx.closePath();
   ctx.fill();
 
-  // Πάνω Όψη (Γεμάτη με έντονο χρώμα)
+  // Πάνω Όψη
   ctx.fillStyle = c.top;
   ctx.beginPath(); ctx.moveTo(-s, -s); ctx.lineTo(s, -s); ctx.lineTo(s+d, -s+d); ctx.lineTo(-s+d, -s+d); ctx.closePath();
   ctx.fill();
 
-  // Λάμψη άκρων (Για να δείχνει πιο γεμάτο)
+  // Λάμψη
   ctx.strokeStyle = 'rgba(255,255,255,0.20)';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(-s+2, -s+2); ctx.lineTo(s-2, -s+2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(-s+2, -s+2); ctx.lineTo(-s+2+d*0.4, -s+2+d*0.4); ctx.stroke();
 
-  // Αριθμός
   ctx.save();
   ctx.font = `800 ${Math.max(10, 13*scale)}px 'Baloo 2', system-ui, sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -781,15 +764,13 @@ function drawCube3D(x, y, value, scale = 1) {
 
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
-// Σχεδίαση φιδιού με ασπίδα σε όλο το μήκος
 function drawSnake(snake){
+  if(!snake || !snake.alive) return;
   const positions = snake.segmentPositions();
   if(!positions.length) return;
   
-  // Ασπίδα σε όλο το μήκος
   if(snake.shieldT > 0) {
     ctx.save();
-    // Υπέροχο εφέ λάμψης
     ctx.shadowColor = '#00d4ff';
     ctx.shadowBlur = 30;
     ctx.strokeStyle = 'rgba(0, 212, 255, 0.65)';
@@ -803,7 +784,6 @@ function drawSnake(snake){
     }
     ctx.stroke();
     
-    // Εσωτερική λεπτή γραμμή
     ctx.shadowBlur = 10;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.lineWidth = 3;
@@ -816,13 +796,11 @@ function drawSnake(snake){
     ctx.restore();
   }
 
-  // Σχεδίαση κύβων (από πίσω προς τα μπροστά)
   for(let i=positions.length-1; i>=1; i--){
     drawCube3D(positions[i].x, positions[i].y, snake.segments[i].value, 1);
   }
   drawCube3D(positions[0].x, positions[0].y, snake.segments[0].value, 1.2);
   
-  // Όνομα
   ctx.save(); ctx.font = "700 12px sans-serif"; ctx.fillStyle = '#ffffff'; ctx.textAlign='center'; 
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
   ctx.fillText(snake.isPlayer ? 'You' : snake.name, positions[0].x-camera.x, positions[0].y-camera.y-26); 
@@ -859,7 +837,6 @@ function frame(ts){
   const dt = Math.min((ts-lastT)/1000, 0.05);
   lastT = ts;
 
-  // Δημιουργία αντικειμένων δαπέδου
   if(running && floorItems.length < 6) {
     itemSpawnTimer -= dt;
     if(itemSpawnTimer <= 0) { spawnFloorItem(); itemSpawnTimer = rnd(4, 8); }
@@ -870,7 +847,7 @@ function frame(ts){
   resolveCombat();
   floorTime += dt; 
 
-  if(running && player.alive){
+  if(running && player && player.alive){
     player.update(dt); eatCubes(player); eatFloorItems(player);
     
     timeLeft -= dt; elapsedSinceLB += dt;
@@ -887,16 +864,16 @@ function frame(ts){
   }
 
   if(screenShake > 0) screenShake -= dt;
-  let cx = player.head.x - (W/2) / CAMERA_ZOOM;
-  let cy = player.head.y - (H/2) / CAMERA_ZOOM;
+  let cx = player ? player.head.x - (W/2) / CAMERA_ZOOM : 0;
+  let cy = player ? player.head.y - (H/2) / CAMERA_ZOOM : 0;
   if(screenShake > 0) { cx += rnd(-10, 10) * screenShake; cy += rnd(-10, 10) * screenShake; }
   camera.x = cx; camera.y = cy;
 
   ctx.clearRect(0,0,W,H); ctx.save(); ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
   drawFloor(); drawObstacles(); drawFloorItems();
   cubes.forEach(c=>drawCube3D(c.x,c.y,c.value,0.85));
-  bots.forEach(b=>{ if(b.alive) drawSnake(b); });
-  if(player.alive) drawSnake(player);
+  bots.forEach(b=>{ if(b && b.alive) drawSnake(b); });
+  if(player && player.alive) drawSnake(player);
   drawParticles(dt); drawFloaters(dt);
   ctx.restore(); 
   requestAnimationFrame(frame);
@@ -906,7 +883,7 @@ requestAnimationFrame(frame);
 function startGame(){
   if(!document.getElementById('modeSelectMsg').classList.contains('hidden')) return;
   
-  if(gameStartedOnce && (!player.alive || timeLeft <= 0 || gameMode === 'timed')){ initWorld(); 
+  if(gameStartedOnce && (!player || !player.alive || (gameMode === 'timed' && timeLeft <= 0))){ initWorld(); 
     ['pwBoost', 'pwMagnet', 'pwShield'].forEach(id => { const el = document.getElementById(id); el.classList.remove('active-buff', 'cooldown'); clearInterval(el._iv); el.querySelector('.cd').style.display = 'none'; });
   }
   gameStartedOnce = true; renderLeaderboard();
@@ -919,15 +896,17 @@ function endGame(survived){
   running = false;
   const title = document.getElementById('endTitle');
   const body = document.getElementById('endBody');
+  if(!player) return;
+  
   if(gameMode === 'timed') {
-    const all = [player, ...bots].filter(s=>s.alive);
+    const all = [player, ...bots].filter(s=>s && s.alive);
     all.sort((a,b)=>b.score-a.score);
     const rank = 1 + all.filter(s=>s.score>player.score).length;
     title.innerHTML = '⏱️ Τέλος Χρόνου! 🏆';
     body.textContent = `Σκορ: ${player.score} · Θέση #${rank} στο δωμάτιο`;
   } else {
     title.innerHTML = survived ? 'Επιβίωσες! 🏆' : 'Game Over 💀';
-    const all = [player, ...bots].filter(s=>s!==player);
+    const all = [player, ...bots].filter(s=>s && s!==player);
     const rank = 1 + all.filter(s=>s.score>player.score).length;
     body.textContent = `Σκορ: ${player.score} · Θέση #${rank} στο δωμάτιο`;
   }
@@ -938,9 +917,9 @@ document.getElementById('restartBtn').addEventListener('click', () => {
   document.getElementById('endMsg').classList.add('hidden');
   document.getElementById('modeSelectMsg').classList.remove('hidden');
   running = false;
+  if(respawnTimer) { clearTimeout(respawnTimer); respawnTimer = null; }
 });
 
-// Επιλογή Μοντέλου
 document.getElementById('modeTimeBtn').addEventListener('click', () => {
   gameMode = 'timed';
   document.getElementById('modeSelectMsg').classList.add('hidden');
