@@ -1108,7 +1108,7 @@ function setupPowerupBtn(btnId, type, msg, color) {
         updateCoinsUI();
         player[type + 'T'] = 5.0; // 5 seconds
         player[type + 'Cd'] = 20.0;
-        toast(msg + ' (-50)', color);
+        toast(msg + ' (−50 coins)', color);
         screenShake = 0.15;
         updateCooldownVisual(document.getElementById(btnId), player, type);
     });
@@ -1164,6 +1164,10 @@ function eatCubes(snake){
       cubes.splice(i,1);
       snake.grow(c.value); 
       if(snake.isPlayer){ 
+          // Points earned become coins
+          save.coins += c.value;
+          saveGame();
+          updateCoinsUI();
           burst(c.x,c.y, '#ffffff', 8); 
           playSound('eat');
       }
@@ -1181,15 +1185,17 @@ function eatFloorItems(snake){
       // Player pays 25 coins for floor powerups
       if (snake.isPlayer) {
         if (save.coins < 25) {
+          toast('Need 25 coins!', '#ff4d6d');
+          spawnText(item.x, item.y, 'Need 25 coins!', '#ff4d6d');
           continue; // can't afford, leave it
         }
         save.coins -= 25;
         saveGame();
         updateCoinsUI();
       }
-      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, '⚡ SPEED -25', '#ffcc00'); }
-      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, '🛡️ SHIELD -25', '#00d4ff'); }
-      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, '🧲 MAGNET -25', '#4ecdc4'); }
+      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, '⚡ SPEED  25 coins', '#ffcc00'); }
+      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, '🛡️ SHIELD  25 coins', '#00d4ff'); }
+      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, '🧲 MAGNET  25 coins', '#4ecdc4'); }
       
       if(snake.isPlayer) {
         playSound('merge');
@@ -1517,15 +1523,11 @@ function startGame(mode){
 
 function endGame(survived, diedEarly){
   running = false;
-  // Award coins based on score (persist)
-  const earned = Math.floor(player.score / 4);
-  if (earned > 0) {
-    save.coins += earned;
-    saveGame();
-    updateCoinsUI();
-  }
+  // Coins are already earned while collecting cubes — just save
+  saveGame();
+  updateCoinsUI();
   document.getElementById('endTitle').innerHTML = survived ? 'You Survived! 🏆' : 'Game Over';
-  document.getElementById('endBody').textContent = `Your score: ${player.score}` + (earned > 0 ? `  |  +${earned} coins` : '');
+  document.getElementById('endBody').textContent = `Your score: ${player.score}  |  Coins: ${save.coins}`;
   
   const continueBtn = document.getElementById('continueBtn');
   if(diedEarly && !isEndless && timeLeft > 0 && !hasContinued) {
