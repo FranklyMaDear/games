@@ -23,13 +23,13 @@
     touch-action:none; overscroll-behavior:none;
   }
   
-  #wrap{position:fixed;inset:0;}
+  #wrap{position:fixed;inset:0; touch-action:none;}
   canvas{display:block;width:100%;height:100%;}
 
   .hud{position:fixed;inset:0;pointer-events:none;z-index:5;}
   .hud > *{pointer-events:auto;}
 
-  .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 0;}
+  .topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 0; pointer-events:none;}
   
   .stat{display:flex;align-items:center;gap:6px;background:linear-gradient(180deg,#1c1f2a,#14161f);border:1px solid var(--line);border-radius:999px;padding:6px 14px 6px 8px;font-weight:700;font-size:15px;box-shadow:0 4px 10px #0006;}
   .stat .dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
@@ -106,42 +106,17 @@
 
   .control-zone {
     position: absolute;
-    bottom: 5%;
+    bottom: 8%;
     left: 50%;
     transform: translateX(-50%);
-    width: 160px;
-    height: 160px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    touch-action: none;
-    z-index: 10;
-    pointer-events: auto; 
-  }
-  .circular-joystick {
-    width: 140px;
-    height: 140px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.2), inset 0 0 25px rgba(255, 255, 255, 0.08);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    transition: opacity 0.2s ease;
-  }
-  .joy-inner {
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-    transition: transform 0.05s linear;
     pointer-events: none;
+    z-index: 10;
+  }
+  .infinity-icon {
+    font-size: 90px;
+    color: rgba(255, 255, 255, 0.4);
+    text-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+    transition: opacity 0.3s ease;
   }
 </style>
 </head>
@@ -183,9 +158,7 @@
     </div>
 
     <div class="control-zone" id="controlZone">
-      <div class="circular-joystick" id="joyCenter">
-        <div class="joy-inner" id="joyKnob"></div>
-      </div>
+      <div class="infinity-icon" id="joyCenter">♾️</div>
     </div>
 
   </div>
@@ -195,15 +168,12 @@
 (function(){
 "use strict";
 
-document.addEventListener('touchmove', function(e) {
-  if (e.target.tagName !== 'BUTTON') { e.preventDefault(); }
-}, { passive: false });
+document.addEventListener('contextmenu', event => event.preventDefault());
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let W, H, DPR;
 
-// Επαναφορά στο αυθεντικό Zoom για να μη φαίνεται σαν "πολυκατοικία"
 const CAMERA_ZOOM = 1.05;
 
 function resize(){
@@ -230,6 +200,107 @@ function getScaleForValue(val) {
     return 1.0 + Math.min(10, Math.max(0, Math.log2(val) - 1)) * 0.05;
 }
 
+// ----------------------------------------------------
+// Σύστημα Σχεδιασμού Κύβων (3D - Όλες οι πλευρές)
+// ----------------------------------------------------
+const CUBE_COLORS = {
+  2:    { top:'#DEB887', right:'#C19A6B', bottom:'#8B5A2B' }, // Wood
+  4:    { top:'#ffffff', right:'#A5D6A7', bottom:'#388E3C' }, // WhiteGreen
+  8:    { top:'#ffffff', right:'#EF9A9A', bottom:'#D32F2F' }, // WhiteRed
+  16:   { top:'#E0F7FA', right:'#80DEEA', bottom:'#00BCD4' }, // Ice
+  32:   { top:'#ffffff', right:'#9E9E9E', bottom:'#111111' }, // Zebra
+  64:   { top:'#FFC107', right:'#FF9800', bottom:'#FF5722' }, // Lava
+  128:  { top:'#333333', right:'#111111', bottom:'#000000' }, // Neon
+  256:  { top:'#4A148C', right:'#311B92', bottom:'#1A0B2E' }, // Galaxy
+  512:  { top:'#FF6B6B', right:'#4ECDC4', bottom:'#45B7D1' }, // Rainbow
+  1024: { top:'#FFF59D', right:'#FBC02D', bottom:'#F57F17' }, // Gold
+  2048: { top:'#FFE082', right:'#F9A825', bottom:'#E65100' }, 
+  5096: { top:'#FFFFFF', right:'#FFD700', bottom:'#FF8C00' },
+};
+
+function getCubeColors(v) {
+  if(v>=5096) return CUBE_COLORS[5096];
+  let val = 2;
+  while(val < v && val <= 5096) val *= 2;
+  return CUBE_COLORS[val] || CUBE_COLORS[2];
+}
+
+function drawCube(x, y, value, scaleMultiplier = 1) {
+    const sx = x - camera.x, sy = y - camera.y;
+    if(sx < -80 || sx > (W/CAMERA_ZOOM)+80 || sy < -80 || sy > (H/CAMERA_ZOOM)+80) return;
+
+    const valScale = getScaleForValue(value);
+    const s = 14 * valScale * scaleMultiplier; 
+    const d = 10 * valScale * scaleMultiplier; 
+    
+    const c = getCubeColors(value);
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    
+    // Σκιά
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(-s + d + 4, s + 4);
+    ctx.lineTo(s + d + 4, s + 4);
+    ctx.lineTo(s + d + d + 4, s + d + 4);
+    ctx.lineTo(-s + d + 4, s + d + 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Κάτω / Μπροστινή πλευρά
+    ctx.fillStyle = c.bottom;
+    ctx.beginPath();
+    ctx.moveTo(-s, s);
+    ctx.lineTo(s, s);
+    ctx.lineTo(s + d, s + d);
+    ctx.lineTo(-s + d, s + d);
+    ctx.closePath();
+    ctx.fill();
+
+    // Δεξιά πλαϊνή πλευρά
+    ctx.fillStyle = c.right;
+    ctx.beginPath();
+    ctx.moveTo(s, -s);
+    ctx.lineTo(s + d, -s + d);
+    ctx.lineTo(s + d, s + d);
+    ctx.lineTo(s, s);
+    ctx.closePath();
+    ctx.fill();
+
+    // Πάνω / Μπροστινή πλευρά
+    ctx.fillStyle = c.top;
+    ctx.beginPath();
+    ctx.moveTo(-s, -s);
+    ctx.lineTo(s, -s);
+    ctx.lineTo(s + d, -s + d);
+    ctx.lineTo(-s + d, -s + d);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Φωτεινή γραμμή
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-s+1, -s+1);
+    ctx.lineTo(s-1, -s+1);
+    ctx.stroke();
+
+    // Αριθμός
+    ctx.font = `800 ${Math.max(10, 16 * valScale * scaleMultiplier)}px 'Baloo 2', system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    
+    // Χρώμα κειμένου (μαύρο στους ανοιχτόχρωμους, λευκό στους σκούρους)
+    ctx.fillStyle = (value===2 || value===4 || value===8 || value===32 || value===1024 || value===2048) ? '#111' : '#fff';
+    
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'; 
+    ctx.shadowBlur = 2; 
+    ctx.shadowOffsetY = 1;
+    
+    ctx.fillText(String(value), d*0.4, -d*0.2);
+    ctx.restore();
+}
+
 let floorItems = [];  
 let cubes = [];      
 let obstacles = []; 
@@ -251,9 +322,9 @@ class Snake{
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
     
-    // Αρχική - Φυσιολογική ταχύτητα
-    this.baseSpeed = 2.5;
-    this.boostSpeed = 4.8;
+    // Μειωμένη - Φυσιολογική Ταχύτητα
+    this.baseSpeed = 1.6;
+    this.boostSpeed = 3.2;
     this.boostT = 0; 
     
     this.path = [{x,y}];
@@ -481,68 +552,54 @@ function spawnFloorItem() {
   floorItems.push({ x, y, type, life: 15.0, angle: 0 });
 }
 
-const joyZone = document.getElementById('controlZone');
-const joyCenter = document.getElementById('joyCenter');
-const joyKnob = document.getElementById('joyKnob');
-let joy = { active: false, pointerId: null };
+// ----------------------------------------------------
+// Σύστημα Χειριστηρίου σε όλη την οθόνη (Full Screen)
+// ----------------------------------------------------
+let joyStartX = 0;
+let joyStartY = 0;
+let joyActive = false;
+let joyPointerId = null;
+const wrap = document.getElementById('wrap');
 
-function updateJoystick(e) {
-  const rect = joyZone.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
+wrap.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button') || e.target.closest('.leaderboard') || e.target.closest('.pw')) return;
+  if (!running) return;
   
-  let clientX = e.clientX;
-  let clientY = e.clientY;
+  joyActive = true;
+  joyPointerId = e.pointerId;
+  joyStartX = e.clientX;
+  joyStartY = e.clientY;
   
-  if(clientX === undefined && e.touches && e.touches.length > 0){
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  } else if (clientX === undefined) {
-    clientX = cx; clientY = cy;
+  document.getElementById('joyCenter').style.display = 'none'; // Κρύβει το ♾️ οριστικά
+  
+  if(wrap.setPointerCapture) wrap.setPointerCapture(e.pointerId);
+});
+
+wrap.addEventListener('pointermove', (e) => {
+  if (!joyActive || e.pointerId !== joyPointerId) return;
+  
+  let dx = e.clientX - joyStartX;
+  let dy = e.clientY - joyStartY;
+  
+  if (Math.hypot(dx, dy) > 5 && player && player.alive) {
+    player.targetAngle = Math.atan2(dy, dx);
   }
-  
-  let dx = clientX - cx;
-  let dy = clientY - cy;
-  
-  const d = Math.hypot(dx, dy);
-  const ang = Math.atan2(dy, dx);
-  const r = Math.min(d, 45);
-  const kx = Math.cos(ang) * r, ky = Math.sin(ang) * r;
-  
-  joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-  if (d > 5 && player && player.alive) { player.targetAngle = ang; }
-}
+});
 
-function startJoystick(e) {
-  if(!running) return; 
-  joyCenter.style.opacity = '0';
-  joy.active = true;
-  joy.pointerId = e.pointerId || (e.changedTouches ? e.changedTouches[0].identifier : null);
-  
-  if (e.pointerId && joyZone.setPointerCapture) {
-    joyZone.setPointerCapture(e.pointerId);
+wrap.addEventListener('pointerup', (e) => {
+  if (e.pointerId === joyPointerId) {
+    joyActive = false;
+    joyPointerId = null;
+    if(wrap.releasePointerCapture) wrap.releasePointerCapture(e.pointerId);
   }
-  
-  updateJoystick(e);
-  if(e.cancelable) e.preventDefault();
-}
-
-function moveJoystick(e) {
-  if(!joy.active) return;
-  updateJoystick(e);
-  if(e.cancelable) e.preventDefault();
-}
-
-function joyReset() {
-  joy.active = false;
-  joy.pointerId = null;
-  joyKnob.style.transform = 'translate(-50%, -50%)';
-}
-
-joyZone.addEventListener('pointerdown', startJoystick);
-joyZone.addEventListener('pointermove', moveJoystick);
-joyZone.addEventListener('pointerup', joyReset);
-joyZone.addEventListener('pointercancel', joyReset);
+});
+wrap.addEventListener('pointercancel', (e) => {
+  if (e.pointerId === joyPointerId) {
+    joyActive = false;
+    joyPointerId = null;
+    if(wrap.releasePointerCapture) wrap.releasePointerCapture(e.pointerId);
+  }
+});
 
 function triggerPowerup(type, btnId, msg, color) {
   if(!player || !player.alive) return;
@@ -738,169 +795,6 @@ function drawObstacles() {
   });
 }
 
-const textureCache = {};
-
-function getCubeTexture(value) {
-    if(textureCache[value]) return textureCache[value];
-    const cv = document.createElement("canvas");
-    cv.width = cv.height = 128; 
-    const g = cv.getContext("2d"); 
-    
-    let skin = 'wood';
-    if(value === 4) skin = 'whitegreen';
-    else if(value === 8) skin = 'whitered';
-    else if(value === 16) skin = 'ice';
-    else if(value === 32) skin = 'zebra';
-    else if(value === 64) skin = 'lava';
-    else if(value === 128) skin = 'neon';
-    else if(value === 256) skin = 'galaxy';
-    else if(value === 512) skin = 'rainbow';
-    else if(value >= 1024) skin = 'gold';
-
-    if (skin === 'wood') { 
-        g.fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    else if (skin === 'whitered' || skin === 'whitegreen') { 
-        g.fillStyle = "white";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill();
-        g.fillStyle = skin === 'whitered' ? "#D32F2F" : "#388E3C";
-        g.save();
-        g.clip(); 
-        for (let i = -128; i < 256; i += 32) { 
-            g.beginPath();
-            g.moveTo(i, 0);
-            g.lineTo(i + 20, 0);
-            g.lineTo(i - 108, 128);
-            g.lineTo(i - 128, 128);
-            g.fill(); 
-        }
-        g.restore(); 
-    } 
-    else if (skin === 'zebra') { 
-        g.fillStyle = "white";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill();
-        g.fillStyle = "#111";
-        g.save();
-        g.clip(); 
-        for (let i = 0; i < 128; i += 24) { 
-            g.beginPath();
-            g.moveTo(0, i);
-            g.bezierCurveTo(40, i + 15, 80, i - 15, 128, i);
-            g.lineTo(128, i + 10);
-            g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
-            g.fill(); 
-        }
-        g.restore(); 
-    } 
-    else if (skin === 'rainbow') { 
-        let grad = g.createLinearGradient(0, 0, 128, 128);
-        ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
-        g.fillStyle = grad;
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    else if (skin === 'gold') { 
-        let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
-        grad.addColorStop(0, "#FFF59D");
-        grad.addColorStop(0.6, "#FBC02D");
-        grad.addColorStop(1, "#F57F17");
-        g.fillStyle = grad;
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    else if (skin === 'neon') { 
-        g.fillStyle = "#111";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill();
-        g.strokeStyle = "hsl(" + ((Math.log2(value) * 30) % 360) + ", 100%, 50%)";
-        g.lineWidth = 6;
-        g.stroke(); 
-    } 
-    else if (skin === 'galaxy') { 
-        g.fillStyle = "#1A0B2E";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill();
-        g.fillStyle = "white"; 
-        for (let i = 0; i < 30; i++) { 
-            g.beginPath();
-            g.arc(Math.random() * 128, Math.random() * 128, Math.random() * 2, 0, 7);
-            g.fill(); 
-        } 
-    } 
-    else if (skin === 'ice') { 
-        let grad = g.createLinearGradient(0, 0, 128, 128);
-        grad.addColorStop(0, "#E0F7FA");
-        grad.addColorStop(1, "#00BCD4");
-        g.fillStyle = grad;
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    else if (skin === 'lava') { 
-        let grad = g.createLinearGradient(0, 0, 128, 128);
-        grad.addColorStop(0, "#FF5722");
-        grad.addColorStop(1, "#FFC107");
-        g.fillStyle = grad;
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    else { 
-        g.fillStyle = "#111";
-        roundRect(g, 4, 4, 120, 120, 22);
-        g.fill(); 
-    } 
-    
-    const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; 
-    const hasBadge = badgeSkins.indexOf(skin) !== -1; 
-    if (hasBadge) { 
-        g.save();
-        g.shadowColor = "rgba(0,0,0,0.35)";
-        g.shadowBlur = 7;
-        g.shadowOffsetY = 2;
-        g.beginPath();
-        g.arc(64, 66, 37, 0, Math.PI * 2);
-        g.fillStyle = "rgba(255,255,255,0.96)";
-        g.fill();
-        g.restore();
-        g.lineWidth = 3;
-        g.strokeStyle = "rgba(0,0,0,0.12)";
-        g.beginPath();
-        g.arc(64, 66, 37, 0, Math.PI * 2);
-        g.stroke(); 
-    }
-    g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
-    g.fillText(value, 64, hasBadge ? 66 : 68); 
-    
-    textureCache[value] = cv;
-    return cv;
-}
-
-function drawCube(x, y, value, scaleMultiplier = 1) {
-    const sx = x - camera.x, sy = y - camera.y;
-    if(sx < -80 || sx > (W/CAMERA_ZOOM)+80 || sy < -80 || sy > (H/CAMERA_ZOOM)+80) return;
-
-    const valScale = getScaleForValue(value);
-    const size = 42 * valScale * scaleMultiplier; 
-    
-    const tex = getCubeTexture(value);
-
-    ctx.save();
-    ctx.translate(sx, sy);
-
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 8 * valScale;
-    ctx.shadowOffsetY = 4 * valScale;
-
-    ctx.drawImage(tex, -size/2, -size/2, size, size);
-    ctx.restore();
-}
-
 function drawSnake(snake){
   const positions = snake.segmentPositions();
   if(!positions.length) return;
@@ -937,7 +831,7 @@ function drawSnake(snake){
   ctx.save(); ctx.font = "800 13px 'Baloo 2', sans-serif"; ctx.fillStyle = '#ffffff'; ctx.textAlign='center'; 
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
   const headScale = getScaleForValue(snake.segments[0].value);
-  ctx.fillText(snake.isPlayer ? 'You' : snake.name, positions[0].x-camera.x, positions[0].y-camera.y-(28*headScale)); 
+  ctx.fillText(snake.isPlayer ? 'You' : snake.name, positions[0].x-camera.x, positions[0].y-camera.y-(20*headScale)); 
   ctx.restore();
 }
 
@@ -1058,7 +952,7 @@ function startGame(mode){
      el.querySelector('.cd').style.display = 'none';
   });
   
-  joyCenter.style.opacity = '1';
+  document.getElementById('joyCenter').style.display = 'block';
   document.getElementById('startMsg').classList.add('hidden');
   document.getElementById('endMsg').classList.add('hidden');
   renderLeaderboard();
