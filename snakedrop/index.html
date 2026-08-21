@@ -557,21 +557,27 @@ function updatePointsUI() {
 }
 updatePointsUI();
 
-// Auto: every 10 points → 1 coin (100 points = 10 coins)
+// Πόντοι συσσωρεύονται κανονικά.
+// Κάθε φορά που το σύνολο περνάει πολλαπλάσιο του 10 → +1 coin αυτόματα
+// (10 πόντοι = 1 coin, 100 πόντοι = 10 coins)
 function addPoints(amount) {
     if (amount <= 0) return;
+    const oldPoints = save.points;
     save.points += amount;
-    // Convert every full 10 points into 1 coin automatically
-    const gainedCoins = Math.floor(save.points / 10);
+    // Κάθε 10 πόντοι = 1 coin (αυτόματα όταν περνάει πολλαπλάσιο)
+    const gainedCoins = Math.floor(save.points / 10) - Math.floor(oldPoints / 10);
     if (gainedCoins > 0) {
         save.coins += gainedCoins;
-        save.points = save.points % 10; // keep only the remainder
+        // μικρό feedback χωρίς νέο ήχο
+        if (gainedCoins >= 1) {
+            toast(`+${gainedCoins} coin${gainedCoins > 1 ? 's' : ''}!`, '#ffd23f');
+        }
     }
     saveGame();
     updatePointsUI();
 }
 
-// Manual convert still available (converts remaining points if >= 10)
+// Χειροκίνητη μετατροπή (προαιρετική) – μετατρέπει πόντους σε coins χωρίς να τους μηδενίζει εντελώς
 function convertPointsToCoins() {
     if (save.points < 10) {
         toast('Need at least 10 points!', '#ff4d6d');
@@ -1147,6 +1153,8 @@ const wrap = document.getElementById('wrap');
 let joyStartX = 0, joyStartY = 0, joyActive = false, joyPointerId = null;
 
 wrap.addEventListener('pointerdown', (e) => {
+  // Unlock audio on first interaction (required by browsers)
+  getAudioCtx();
   if (e.target.closest('button') || e.target.closest('.hud .leaderboard') || e.target.closest('.pw') || e.target.closest('.overlay:not(.hidden)')) return;
   if (!running) return;
   
@@ -1938,6 +1946,7 @@ function frame(ts){
 requestAnimationFrame(frame);
 
 function startGame(mode){
+  getAudioCtx(); // ensure sounds are unlocked
   initWorld(mode); 
   ['pwBoost', 'pwMagnet', 'pwShield'].forEach(id => {
      const el = document.getElementById(id);
