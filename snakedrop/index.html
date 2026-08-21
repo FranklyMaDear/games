@@ -85,6 +85,20 @@
   .pw.active-buff .cd{display:block; background:var(--good); color:#000;}
   .pw-ad { position: absolute; top: -6px; right: -6px; font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; background: #ffd23f; color: #1a1200; border-radius: 50%; min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); padding: 0 3px; line-height: 1; }
 
+  /* Hold-to-charge circular progress for Speed Boost */
+  .boost-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: conic-gradient(#ffd23f var(--boost-pct, 0%), transparent 0);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    pointer-events: none;
+    opacity: 0.95;
+    transition: opacity 0.15s;
+  }
+  .pw.holding .boost-ring { opacity: 1; filter: drop-shadow(0 0 6px #ffd23f); }
+
   .overlay { position: fixed; inset: 0; background: rgba(11, 12, 16, .85); display: flex; align-items: center; justify-content: center; z-index: 30; backdrop-filter: blur(4px); pointer-events: auto; }
   
   .center-msg{
@@ -272,6 +286,10 @@
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button id="btnOpenShop" class="btn-shop">🛒 eShop</button>
         <div class="stat score"><div class="dot">◆</div><span id="pointsVal">0</span></div>
+        <div class="stat score" style="cursor:pointer;" id="btnConvertCoins" title="Convert 100 points → 10 coins">
+          <div class="dot" style="background:radial-gradient(circle at 30% 30%,#fde68a,#f59e0b);">🪙</div>
+          <span id="coinsVal">0</span>
+        </div>
         <div class="stat timer" id="timerUI"><span id="timerVal">05:00</span></div>
       </div>
     </div>
@@ -282,9 +300,12 @@
     </div>
 
     <div class="powerbar">
-      <div class="pw" id="pwBoost" title="Speed (50 points)">⚡<span class="pw-ad">50</span><span class="cd" id="cdBoost"></span></div>
-      <div class="pw" id="pwMagnet" title="Magnet (50 points)">🧲<span class="pw-ad">50</span><span class="cd" id="cdMagnet"></span></div>
-      <div class="pw" id="pwShield" title="Shield (50 points)">🛡️<span class="pw-ad">50</span><span class="cd" id="cdShield"></span></div>
+      <div class="pw" id="pwBoost" title="Hold for Speed Boost (50 coins)">
+        <div class="boost-ring" id="boostRing"></div>
+        ⚡<span class="pw-ad">50</span><span class="cd" id="cdBoost"></span>
+      </div>
+      <div class="pw" id="pwMagnet" title="Magnet (50 coins)">🧲<span class="pw-ad">50</span><span class="cd" id="cdMagnet"></span></div>
+      <div class="pw" id="pwShield" title="Shield (50 coins)">🛡️<span class="pw-ad">50</span><span class="cd" id="cdShield"></span></div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -310,6 +331,9 @@
             <span>Endless<br><span class="mode-sub">Play as long as you can</span></span>
           </button>
         </div>
+        <button id="btnShare" class="btn-alt" style="margin-top:14px; width:100%; padding:12px; border-radius:16px; font-size:16px; font-weight:800; border:none; cursor:pointer; background:linear-gradient(180deg,#60a5fa,#3b82f6); color:#fff; box-shadow:0 6px 0 #1d4ed8;">
+          📤 Share Game
+        </button>
       </div>
     </div>
 
@@ -489,7 +513,8 @@ const DEFAULT_SAVE = {
     ownedBoards: ['board_wood'], equippedBoard: 'board_wood',
     ownedEffects: ['eff_none'], equippedEffect: 'eff_none',
     ownedSounds: ['snd_default'], equippedSound: 'snd_default',
-    points: 200  // single points system
+    points: 200,
+    coins: 20   // 100 points = 10 coins
 };
 let save = Object.assign({}, DEFAULT_SAVE);
 
@@ -500,11 +525,10 @@ try {
         save = Object.assign({}, DEFAULT_SAVE, parsed);
         if (!save.ownedCubes.includes('multi')) save.ownedCubes.unshift('multi');
         if (!save.equippedCube) save.equippedCube = 'multi';
-        // migrate old coins -> points
-        if (typeof save.points !== 'number') {
-            save.points = (typeof save.coins === 'number') ? save.coins : 200;
+        if (typeof save.points !== 'number') save.points = 200;
+        if (typeof save.coins !== 'number') {
+            save.coins = Math.floor(save.points / 10);
         }
-        delete save.coins;
     }
 } catch(e){}
 
@@ -513,6 +537,7 @@ if(!save.equippedBoard) save.equippedBoard = 'board_wood';
 if(!save.equippedEffect) save.equippedEffect = 'eff_none';
 if(!save.equippedSound) save.equippedSound = 'snd_default';
 if (typeof save.points !== 'number') save.points = 200;
+if (typeof save.coins !== 'number') save.coins = Math.floor(save.points / 10);
 
 function saveGame() {
     try {
@@ -527,8 +552,26 @@ function saveGame() {
 function updatePointsUI() {
     const el = document.getElementById('pointsVal');
     if (el) el.textContent = save.points;
+    const coinEl = document.getElementById('coinsVal');
+    if (coinEl) coinEl.textContent = save.coins;
 }
 updatePointsUI();
+
+// 100 points → 10 coins
+function convertPointsToCoins() {
+    if (save.points < 100) {
+        toast('Need at least 100 points!', '#ff4d6d');
+        return;
+    }
+    const batches = Math.floor(save.points / 100);
+    const usedPts = batches * 100;
+    const gained = batches * 10;
+    save.points -= usedPts;
+    save.coins += gained;
+    saveGame();
+    updatePointsUI();
+    toast(`+${gained} coins! (−${usedPts} points)`, '#4ade80');
+}
 
 let activeShopTab = 'cubes';
 
@@ -551,7 +594,7 @@ function renderShop() {
         const div = document.createElement('div');
         div.className = `shop-item ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''}`;
         
-        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '50 points');
+        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '100 🪙');
         
         div.innerHTML = `
             <div style="font-size:28px;">${item.icon}</div>
@@ -571,12 +614,12 @@ function renderShop() {
                 renderShop();
                 toast('Equipped ' + item.name);
             } else {
-                // Buy with 50 points
-                if (save.points < 50) {
-                    toast('Need 50 points!', '#ff4d6d');
+                // Buy with 100 coins
+                if (save.coins < 100) {
+                    toast('Need 100 coins!', '#ff4d6d');
                     return;
                 }
-                save.points -= 50;
+                save.coins -= 100;
                 save[props.owned].push(item.id);
                 save[props.equip] = item.id;
                 if (activeShopTab === 'cubes') {
@@ -585,7 +628,7 @@ function renderShop() {
                 saveGame();
                 updatePointsUI();
                 renderShop();
-                toast('Bought & equipped ' + item.name);
+                toast('Bought & equipped ' + item.name + ' (−100 coins)');
             }
         };
         container.appendChild(div);
@@ -1209,32 +1252,107 @@ document.getElementById('adBubble').addEventListener('click', () => {
     }, 'reward-start-x16');
 });
 
-// Powerup Buttons
+// Powerup Buttons (Magnet & Shield remain click-to-activate)
 function setupPowerupBtn(btnId, type, msg, color) {
     document.getElementById(btnId).addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if(!player || !player.alive) return;
         if(player[type + 'Cd'] > 0) return;
         
-        // Cost 50 points
-        if (save.points < 50) {
-            toast('Need 50 points!', '#ff4d6d');
+        // Cost 50 coins
+        if (save.coins < 50) {
+            toast('Need 50 coins!', '#ff4d6d');
             return;
         }
-        save.points -= 50;
+        save.coins -= 50;
         saveGame();
         updatePointsUI();
         player[type + 'T'] = 5.0; // 5 seconds
         player[type + 'Cd'] = 20.0;
-        toast(msg + ' (−50 points)', color);
+        toast(msg + ' (−50 coins)', color);
         screenShake = 0.15;
         updateCooldownVisual(document.getElementById(btnId), player, type);
     });
 }
 
-setupPowerupBtn('pwBoost', 'boost', 'Speed Boost!', '#ffd23f');
 setupPowerupBtn('pwMagnet', 'magnet', 'Magnet Active!', '#4ecdc4');
 setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
+
+// ===== HOLD-TO-CHARGE SPEED BOOST =====
+(function setupHoldBoost() {
+  const btn = document.getElementById('pwBoost');
+  const ring = document.getElementById('boostRing');
+  let holding = false;
+  let charge = 0;          // 0 → 1
+  let paid = false;        // charge coins only once per hold
+  const CHARGE_RATE = 0.9; // full charge in ~1.1s
+  const DECAY_RATE = 1.6;  // how fast it empties when released
+  const MAX_SPEED = 6.8;   // top speed when fully charged
+  const MIN_SPEED = 3.0;   // base speed
+
+  function setRing(pct) {
+    if (ring) ring.style.setProperty('--boost-pct', (pct * 100) + '%');
+  }
+
+  function onDown(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!player || !player.alive) return;
+    if (player.boostCd > 0) return;
+    holding = true;
+    btn.classList.add('holding');
+    if (!paid) {
+      if (save.coins < 50) {
+        toast('Need 50 coins!', '#ff4d6d');
+        holding = false;
+        btn.classList.remove('holding');
+        return;
+      }
+      save.coins -= 50;
+      paid = true;
+      saveGame();
+      updatePointsUI();
+      toast('Speed charged! (−50 coins)', '#ffd23f');
+    }
+  }
+
+  function onUp(e) {
+    if (!holding) return;
+    holding = false;
+    btn.classList.remove('holding');
+    // start short cooldown after full release
+    if (charge > 0.15) {
+      player.boostCd = 8.0;
+      updateCooldownVisual(btn, player, 'boost');
+    }
+    paid = false;
+  }
+
+  btn.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Update loop injection – runs every frame via existing update
+  const origUpdate = Snake.prototype.update;
+  Snake.prototype.update = function(dt) {
+    origUpdate.call(this, dt);
+    if (!this.isPlayer) return;
+
+    if (holding) {
+      charge = Math.min(1, charge + CHARGE_RATE * dt);
+      this.boostT = 0.05; // keep “active” flag
+    } else {
+      charge = Math.max(0, charge - DECAY_RATE * dt);
+    }
+
+    // dynamic speed based on charge
+    this.baseSpeed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * charge;
+    this.boostSpeed = this.baseSpeed; // override old fixed boost
+
+    setRing(charge);
+  };
+})();
 
 function updateCooldownVisual(el, p, type) {
   const cdEl = el.querySelector('.cd');
@@ -1299,20 +1417,20 @@ function eatFloorItems(snake){
   for(let i=floorItems.length-1; i>=0; i--){
     const item = floorItems[i];
     if(dist2(headPos.x, headPos.y, item.x, item.y) < 35*35){
-      // Player pays 25 points for floor powerups
+      // Player pays 25 coins for floor powerups
       if (snake.isPlayer) {
-        if (save.points < 25) {
-          toast('You need 25 points', '#ff4d6d');
-          spawnText(item.x, item.y, 'You need 25 points', '#ff4d6d');
+        if (save.coins < 25) {
+          toast('You need 25 coins', '#ff4d6d');
+          spawnText(item.x, item.y, 'You need 25 coins', '#ff4d6d');
           continue; // can't afford, leave it
         }
-        save.points -= 25;
+        save.coins -= 25;
         saveGame();
         updatePointsUI();
       }
-      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, 'SPEED  25 points', '#ffcc00'); }
-      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, 'SHIELD  25 points', '#00d4ff'); }
-      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, 'MAGNET  25 points', '#4ecdc4'); }
+      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, 'SPEED  25 coins', '#ffcc00'); }
+      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, 'SHIELD  25 coins', '#00d4ff'); }
+      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, 'MAGNET  25 coins', '#4ecdc4'); }
       
       if(snake.isPlayer) {
         playSound('merge');
@@ -1876,6 +1994,37 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('endModal').classList.add('hidden');
     document.getElementById('startModal').classList.remove('hidden');
     requestInterstitialAd();
+});
+
+// Coins convert button
+document.getElementById('btnConvertCoins').addEventListener('click', (e) => {
+  e.stopPropagation();
+  convertPointsToCoins();
+});
+
+// Share button
+document.getElementById('btnShare').addEventListener('click', async () => {
+  const shareData = {
+    title: 'Snake Drop – Games by Aziram',
+    text: 'Play Snake Drop! Merge cubes, grow your snake and climb the leaderboard!',
+    url: window.location.href
+  };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+    } else {
+      await navigator.clipboard.writeText(shareData.url);
+      toast('Link copied!', '#4ade80');
+    }
+  } catch (err) {
+    // user cancelled or not supported
+    try {
+      await navigator.clipboard.writeText(shareData.url);
+      toast('Link copied!', '#4ade80');
+    } catch(e2) {
+      toast('Share not available', '#ff4d6d');
+    }
+  }
 });
 
 spawnObstacles();
