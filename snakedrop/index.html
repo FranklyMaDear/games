@@ -295,12 +295,12 @@
       </div>
     </div>
     
-    <div style="position:absolute; top:14px; right:14px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+    <div style="position:absolute; top:14px; right:14px; display:flex; flex-direction:row; gap:8px; align-items:flex-start;">
+      <button id="btnMap" class="btn-shop" style="padding:6px 12px; font-size:13px; background:linear-gradient(180deg,#6366f1,#4f46e5); box-shadow:0 4px 0 #3730a3,0 6px 10px rgba(0,0,0,0.5);">🗺️ Map</button>
       <div class="leaderboard" id="leaderboardPanel">
-        <div class="lb-title">Leaderboard</div>
+        <div class="lb-title">Score</div>
         <div id="lbRows"></div>
       </div>
-      <button id="btnMap" class="btn-shop" style="padding:6px 12px; font-size:13px; background:linear-gradient(180deg,#6366f1,#4f46e5); box-shadow:0 4px 0 #3730a3,0 6px 10px rgba(0,0,0,0.5);">🗺️ Map</button>
     </div>
 
     <div class="powerbar">
@@ -331,15 +331,12 @@
             <span>5 Minutes<br><span class="mode-sub">Classic timed run</span></span>
           </button>
           <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
-            <div style="text-align:center; font-weight:800; font-size:14px; color:#f9a8d4;">🏆 Win Mode – Choose Difficulty</div>
+            <div style="text-align:center; font-weight:800; font-size:15px; color:#f9a8d4; margin-top:4px;">🏆 Win to Win</div>
             <button class="mode-btn" id="btnWinEasy" style="background:linear-gradient(180deg,#86efac,#22c55e);color:#052e16;box-shadow:0 4px 0 #15803d; padding:10px; font-size:15px;">
               Easy – 15 opponents
             </button>
-            <button class="mode-btn" id="btnWinMed" style="background:linear-gradient(180deg,#fde68a,#f59e0b);color:#451a03;box-shadow:0 4px 0 #b45309; padding:10px; font-size:15px;">
-              Medium – 30 opponents
-            </button>
             <button class="mode-btn" id="btnWinHard" style="background:linear-gradient(180deg,#fca5a5,#ef4444);color:#fff;box-shadow:0 4px 0 #b91c1c; padding:10px; font-size:15px;">
-              Hard – 50 opponents
+              Hard – 40 opponents
             </button>
           </div>
           <button class="mode-btn endless" id="btnEndless">
@@ -647,14 +644,15 @@ const SHOP_DATA = {
   ],
   avatar: [
       { id: 'acc_none', name: 'None', icon: '✖️' },
-      { id: 'acc_crown', name: 'Crown', icon: '👑' },
-      { id: 'acc_hat', name: 'Top Hat', icon: '🎩' },
+      { id: 'acc_crown', name: 'Golden Crown', icon: '👑' },
+      { id: 'acc_mustache', name: 'Mustache', icon: '🥸' },
       { id: 'acc_glasses', name: 'Cool Glasses', icon: '😎' },
-      { id: 'acc_antenna', name: 'Antenna', icon: '📡' },
-      { id: 'acc_bow', name: 'Bow', icon: '🎀' },
-      { id: 'acc_star', name: 'Star', icon: '⭐' },
-      { id: 'acc_fire', name: 'Fire', icon: '🔥' },
-      { id: 'acc_ice', name: 'Ice', icon: '❄️' }
+      { id: 'acc_fire', name: 'Burning Fire', icon: '🔥' },
+      { id: 'acc_tornado', name: 'Tornado', icon: '🌪️' },
+      { id: 'acc_cloud', name: 'Cloud', icon: '☁️' },
+      { id: 'acc_star', name: 'Shining Star', icon: '⭐' },
+      { id: 'acc_rainbow', name: 'Rainbow Aura', icon: '🌈' },
+      { id: 'acc_spark', name: 'Sparks', icon: '✨' }
   ]
 };
 
@@ -1385,11 +1383,10 @@ function makeBot(){
 
 function initWorld(mode){
   isEndless = (mode === 'endless');
-  isWin30 = (mode === 'winEasy' || mode === 'winMed' || mode === 'winHard');
+  isWin30 = (mode === 'winEasy' || mode === 'winHard');
   killsCount = 0;
   if (mode === 'winEasy') killsNeeded = 15;
-  else if (mode === 'winMed') killsNeeded = 30;
-  else if (mode === 'winHard') killsNeeded = 50;
+  else if (mode === 'winHard') killsNeeded = 40;
   else killsNeeded = 0;
   timeLeft = (isEndless || isWin30) ? Infinity : 300; 
   hasContinued = false;
@@ -1802,18 +1799,59 @@ function resolveCombat(){
 function botAI(bot, dt){
   bot.retargetT -= dt;
   if(bot.retargetT<=0){
-    bot.retargetT = rnd(0.6,1.4);
+    bot.retargetT = rnd(0.4, 1.0);
     const hp = bot.head;
-    let best=null, bestD=520*520;
+    const myVal = bot.headValue;
+    
+    // 1. Prefer nearby cubes we can eat
+    let bestCube = null, bestCubeD = 600*600;
     for(const c of cubes){
-      if(c.value > bot.headValue) continue;
-      if(dist2(hp.x,hp.y,c.x,c.y)<bestD){ bestD=dist2(hp.x,hp.y,c.x,c.y); best=c; }
+      if(c.value > myVal) continue;
+      const d = dist2(hp.x, hp.y, c.x, c.y);
+      if(d < bestCubeD){ bestCubeD = d; bestCube = c; }
     }
-    if(best && Math.random()>0.15) bot.targetAngle = Math.atan2(best.y-hp.y, best.x-hp.x);
-    else bot.targetAngle = bot.angle + rnd(-1.4,1.4);
+    
+    // 2. Sometimes chase weaker bots (hunting)
+    let bestPrey = null, bestPreyD = 450*450;
+    if (Math.random() < 0.45) {
+      for(const other of bots){
+        if(other === bot || !other.alive) continue;
+        if(other.headValue >= myVal) continue;
+        const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
+        if(d < bestPreyD){ bestPreyD = d; bestPrey = other; }
+      }
+      // also consider player if weaker
+      if(player && player.alive && player.headValue < myVal){
+        const d = dist2(hp.x, hp.y, player.head.x, player.head.y);
+        if(d < bestPreyD){ bestPreyD = d; bestPrey = player; }
+      }
+    }
+    
+    // 3. Flee from stronger nearby threats
+    let threat = null, threatD = 280*280;
+    for(const other of [player, ...bots]){
+      if(!other || other === bot || !other.alive) continue;
+      if(other.headValue <= myVal) continue;
+      const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
+      if(d < threatD){ threatD = d; threat = other; }
+    }
+    
+    if(threat && Math.random() < 0.7){
+      // run away
+      bot.targetAngle = Math.atan2(hp.y - threat.head.y, hp.x - threat.head.x);
+    } else if(bestPrey && bestPreyD < bestCubeD * 1.4){
+      bot.targetAngle = Math.atan2(bestPrey.head.y - hp.y, bestPrey.head.x - hp.x);
+    } else if(bestCube){
+      bot.targetAngle = Math.atan2(bestCube.y - hp.y, bestCube.x - hp.x);
+    } else {
+      bot.targetAngle = bot.angle + rnd(-1.2, 1.2);
+    }
   }
-  const hp = bot.head, margin = 160;
-  if(hp.x<margin || hp.x>ARENA-margin || hp.y<margin || hp.y>ARENA-margin) bot.targetAngle = Math.atan2(ARENA/2-hp.y, ARENA/2-hp.x);
+  // Strong wall avoidance
+  const hp = bot.head, margin = 220;
+  if(hp.x < margin || hp.x > ARENA - margin || hp.y < margin || hp.y > ARENA - margin){
+    bot.targetAngle = Math.atan2(ARENA/2 - hp.y, ARENA/2 - hp.x);
+  }
 }
 
 function renderLeaderboard(){
@@ -2087,31 +2125,71 @@ function drawSnake(snake){
   const hp = positions[0];
   drawCube(hp.x, hp.y, snake.segments[0].value, 1.15); 
   
-  // Simple accessories on player head only
+  // Animated Avatar effects on player head
   if (snake.isPlayer && save.equippedAccessory && save.equippedAccessory !== 'acc_none') {
     const sx = hp.x - camera.x, sy = hp.y - camera.y;
     const hScale = 1.0 + Math.min(10, Math.max(0, Math.log2(snake.segments[0].value) - 1)) * 0.05;
     const size = 36 * 1.15 * hScale;
+    const acc = save.equippedAccessory;
+    const t = floorTime;
+    
     ctx.save();
-    ctx.translate(sx, sy - size * 0.55);
-    ctx.font = `${Math.floor(22 * hScale)}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const icons = {
-      acc_crown: '👑',
-      acc_hat: '🎩',
-      acc_glasses: '😎',
-      acc_antenna: '📡',
-      acc_bow: '🎀',
-      acc_star: '⭐',
-      acc_fire: '🔥',
-      acc_ice: '❄️'
-    };
-    const icon = icons[save.equippedAccessory] || '';
-    if (icon) {
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(icon, 0, 0);
+    
+    if (acc === 'acc_mustache') {
+      // Mustache under the number
+      ctx.font = `${Math.floor(16 * hScale)}px serif`;
+      ctx.fillText('🥸', sx, sy + size * 0.28);
+    } else if (acc === 'acc_glasses') {
+      ctx.font = `${Math.floor(20 * hScale)}px serif`;
+      ctx.fillText('😎', sx, sy - size * 0.15);
+    } else if (acc === 'acc_crown') {
+      ctx.font = `${Math.floor(22 * hScale)}px serif`;
+      ctx.shadowColor = '#ffd23f';
+      ctx.shadowBlur = 8;
+      ctx.fillText('👑', sx, sy - size * 0.62 + Math.sin(t * 3) * 2);
+    } else if (acc === 'acc_fire') {
+      // Flickering fire
+      const flicker = 0.85 + Math.sin(t * 12) * 0.15;
+      ctx.globalAlpha = flicker;
+      ctx.font = `${Math.floor(24 * hScale)}px serif`;
+      ctx.shadowColor = '#ff4500';
+      ctx.shadowBlur = 12;
+      ctx.fillText('🔥', sx + Math.sin(t * 8) * 2, sy - size * 0.7 + Math.sin(t * 10) * 3);
+      ctx.globalAlpha = 1;
+    } else if (acc === 'acc_tornado') {
+      // Spinning tornado
+      ctx.save();
+      ctx.translate(sx, sy - size * 0.65);
+      ctx.rotate(t * 4);
+      ctx.font = `${Math.floor(22 * hScale)}px serif`;
+      ctx.fillText('🌪️', 0, 0);
+      ctx.restore();
+    } else if (acc === 'acc_cloud') {
+      ctx.font = `${Math.floor(22 * hScale)}px serif`;
+      ctx.globalAlpha = 0.9;
+      ctx.fillText('☁️', sx + Math.sin(t * 1.5) * 4, sy - size * 0.7);
+      ctx.globalAlpha = 1;
+    } else if (acc === 'acc_star') {
+      const pulse = 1 + Math.sin(t * 5) * 0.15;
+      ctx.font = `${Math.floor(22 * hScale * pulse)}px serif`;
+      ctx.shadowColor = '#ffd23f';
+      ctx.shadowBlur = 10;
+      ctx.fillText('⭐', sx, sy - size * 0.65);
+    } else if (acc === 'acc_rainbow') {
+      ctx.font = `${Math.floor(20 * hScale)}px serif`;
+      ctx.globalAlpha = 0.85 + Math.sin(t * 3) * 0.15;
+      ctx.fillText('🌈', sx, sy - size * 0.68);
+      ctx.globalAlpha = 1;
+    } else if (acc === 'acc_spark') {
+      // Multiple sparks
+      for (let i = 0; i < 3; i++) {
+        const a = t * 3 + i * 2.1;
+        const r = 12 + Math.sin(t * 4 + i) * 4;
+        ctx.font = `${Math.floor(14 * hScale)}px serif`;
+        ctx.fillText('✨', sx + Math.cos(a) * r, sy - size * 0.5 + Math.sin(a) * r * 0.6);
+      }
     }
     ctx.restore();
   }
@@ -2312,7 +2390,6 @@ document.getElementById('continueBtn').addEventListener('click', () => {
 
 document.getElementById('btn5Min').addEventListener('click', () => startGame('5min'));
 document.getElementById('btnWinEasy').addEventListener('click', () => startGame('winEasy'));
-document.getElementById('btnWinMed').addEventListener('click', () => startGame('winMed'));
 document.getElementById('btnWinHard').addEventListener('click', () => startGame('winHard'));
 document.getElementById('btnEndless').addEventListener('click', () => startGame('endless'));
 document.getElementById('restartBtn').addEventListener('click', () => {
