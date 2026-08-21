@@ -902,34 +902,35 @@
             .help-panel .pbtn { width: 70px; height: 70px; font-size: 28px; border-radius: 16px; }
         }
 
-        /* Desktop / wide screens: left HUD + right board layout */
-        @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+        /* Desktop / wide screens ONLY – mobile unchanged */
+        @media (min-width: 768px) and (min-aspect-ratio: 1.15) {
             #shopRollup {
-                left: 18px;
-                right: auto;
-                transform: translate(0, -100%);
-                width: 320px;
-                max-width: 34vw;
-                border-radius: 0 0 20px 20px;
+                left: 12px !important;
+                right: auto !important;
+                transform: translate(0, -100%) !important;
+                width: min(340px, 32vw) !important;
+                max-width: 340px !important;
+                border-radius: 0 0 22px 22px !important;
             }
             #shopRollup.open {
-                transform: translate(0, 0);
+                transform: translate(0, 0) !important;
             }
             .top-toggle-handle {
-                left: 50%;
+                left: 50% !important;
             }
             .shop-panel {
-                left: 0;
-                right: auto;
-                width: 340px;
-                max-width: 36vw;
-                border-radius: 0 0 18px 0;
-                justify-content: flex-start;
-                padding-left: 16px;
+                left: 0 !important;
+                right: auto !important;
+                width: min(360px, 34vw) !important;
+                max-width: 360px !important;
+                border-radius: 0 0 18px 0 !important;
+                justify-content: flex-start !important;
+                padding-left: 14px !important;
             }
             .help-panel {
-                right: 0;
-                top: 50%;
+                right: 0 !important;
+                left: auto !important;
+                top: 50% !important;
             }
         }
     </style>
@@ -2020,10 +2021,10 @@
 
             function pickNextState() { 
                 const r = Math.random(); 
-                const isWide = (window.innerWidth / window.innerHeight > 1.25 && window.innerWidth >= 900);
+                const isWide = window.innerWidth >= 768 && (window.innerWidth / window.innerHeight) >= 1.15;
                 if (r < 0.45) { 
                     petState = 'walk'; 
-                    if (isWide) wanderTargetX = -0.7 + Math.random() * 0.4; // stay left
+                    if (isWide) wanderTargetX = -0.78 + Math.random() * 0.35; // stay left of board
                     else wanderTargetX = -0.6 + Math.random() * 1.25; 
                     petStateTimer = 10; 
                 } else if (r < 0.62) { 
@@ -2406,18 +2407,29 @@
                 if (width === 0 || height === 0) return;
                 renderer.setSize(width, height);
                 camera.aspect = width / height; 
-                const dist = (BOARD_H / 2 + 3.5) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
                 
-                // Desktop (wide): shift board to the right, leave left side for the girl + HUD
-                const isWide = width / height > 1.25 && width >= 900;
+                // Desktop only (matches CSS media query). Mobile keeps original centered layout.
+                const isWide = width >= 768 && (width / height) >= 1.15;
+                
                 if (isWide) {
-                    // Board sits on the right half of the view
-                    boardGroup.position.x = 1.6;
-                    camera.position.set(0.9, -1.6, dist - 1.2);
-                    camera.lookAt(0.9, -1.0, 0);
-                    girlNdcX = -0.55; // left side of screen
+                    // Larger board, pushed to the RIGHT half of the screen
+                    boardGroup.scale.set(1.35, 1.35, 1.35);
+                    boardGroup.position.x = 2.8;
+                    boardGroup.position.y = -0.15;
+                    boardGroup.position.z = -0.6;
+                    
+                    // Camera focuses on the right side so the board fills from center → right edge
+                    const dist = (BOARD_H * 1.35 / 2 + 2.8) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+                    camera.position.set(2.2, -1.4, dist - 0.8);
+                    camera.lookAt(2.2, -0.9, 0);
+                    girlNdcX = -0.62; // firmly on the left
                 } else {
+                    // Original mobile layout – do not change
+                    boardGroup.scale.set(1, 1, 1);
                     boardGroup.position.x = 0;
+                    boardGroup.position.y = -0.05;
+                    boardGroup.position.z = -1.0;
+                    const dist = (BOARD_H / 2 + 3.5) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
                     camera.position.set(0, -1.8, dist - 1.5);
                     camera.lookAt(0, -1.2, 0);
                     girlNdcX = 0.28;
@@ -3324,10 +3336,10 @@
                             const dir = Math.sign(wanderTargetX - girlNdcX); 
                             if (dir !== 0) faceDir = dir;
                             girlNdcX += dir * 0.11 * dt;
-                            // Keep girl on the left half when desktop layout is active
-                            const isWide = (window.innerWidth / window.innerHeight > 1.25 && window.innerWidth >= 900);
+                            // Keep girl on the left when desktop layout is active
+                            const isWide = window.innerWidth >= 768 && (window.innerWidth / window.innerHeight) >= 1.15;
                             if (isWide) {
-                                girlNdcX = Math.max(-0.75, Math.min(-0.25, girlNdcX));
+                                girlNdcX = Math.max(-0.82, Math.min(-0.30, girlNdcX));
                             } else {
                                 girlNdcX = Math.max(-0.6, Math.min(0.55, girlNdcX));
                             }
