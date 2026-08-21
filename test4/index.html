@@ -619,7 +619,9 @@
             animation: pop .25s cubic-bezier(.34, 1.56, .64, 1);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
         }
         #shopModal .card {
             width: 100vw;
@@ -880,6 +882,24 @@
             .shop-panel .chip.coin-chip .big { font-size: 14px; }
             .shop-panel .hud-btn { font-size: 12px; padding: 6px 10px; }
             .help-panel .pbtn { width: 72px; height: 72px; font-size: 30px; }
+        }
+        @media (max-height: 750px) {
+            .overlay {
+                padding: 15px 0;
+                align-items: flex-start;
+            }
+            .card {
+                padding: 12px;
+                margin: auto;
+            }
+            .card h2 { font-size: 20px !important; margin-bottom: 4px !important; }
+            #tutorialTitle { font-size: 24px !important; margin-bottom: 5px !important; }
+            #tutorialText { font-size: 13px !important; line-height: 1.3 !important; }
+            #tutorialText p { margin-bottom: 8px !important; }
+            .btn { padding: 8px 16px; font-size: 14px; margin-top: 4px; }
+
+            .help-panel { max-height: 85vh; padding: 8px; }
+            .help-panel .pbtn { width: 70px; height: 70px; font-size: 28px; border-radius: 16px; }
         }
     </style>
 </head>
@@ -1275,9 +1295,6 @@
             let currentMainTab = 'cubes';
             let currentPetSubTab = 'pet_hair';
 
-            // ============================================================
-            //   ΔΙΟΡΘΩΣΗ 1: ΝΕΑ ΠΕΔΙΑ ΣΤΟ DEFAULT_SAVE ΓΙΑ ΑΠΟΘΗΚΕΥΣΗ ΠΡΟΟΔΟΥ
-            // ============================================================
             const DEFAULT_SAVE = {
                 coins: 100, level: 0, score: 0, lang: 'en', muted: false,
                 ownedCubes: ['wood'], equippedCube: 'wood',
@@ -1290,7 +1307,6 @@
                 ownedShoes: ['shoe_wood'], equippedShoes: 'shoe_wood',
                 ownedProps: ['prop_none'], equippedProps: 'prop_none',
                 bestClassic: 0, bestTimeAttack: 0,
-                // ΝΕΑ ΠΕΔΙΑ ΓΙΑ ΑΠΟΘΗΚΕΥΣΗ ΠΡΟΟΔΟΥ (Πλέγμα και τρέχων κύβος)
                 boardState: [],
                 currentCubeValue: 0,
                 currentCubeCol: 2
@@ -1300,7 +1316,7 @@
 
             function loadSave(callback) {
                 try {
-                    const r = localStorage.getItem("drop2048-frankly-v23");
+                    const r = localStorage.getItem("drop4096-frankly-v1");
                     if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
                 } catch (e) { console.warn('Load save error', e); }
 
@@ -1320,9 +1336,6 @@
                 }
             }
 
-            // ============================================================
-            //   ΔΙΟΡΘΩΣΗ 2: Η persist() τώρα σειριοποιεί ΟΛΟΚΛΗΡΟ το ταμπλό
-            // ============================================================
             function persist() {
                 const serializedBoard = [];
                 for (let c = 0; c < COLS; c++) {
@@ -1338,7 +1351,7 @@
 
                 try { 
                     const dataStr = JSON.stringify(save);
-                    localStorage.setItem("drop2048-frankly-v23", dataStr);
+                    localStorage.setItem("drop4096-frankly-v1", dataStr);
                     
                     if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
                         ytgame.game.saveData(dataStr);
@@ -2416,11 +2429,17 @@
                     a.t += dt / a.dur; const k = a.t >= 1 ? 1 : a.ease(a.t); for (const p in a.to) a.obj[p] = a.from[p] + (a.to[p] - a.from[p]) * k; if (a.t >= 1) { anims.splice(i, 1); if (a.done) a.done(); } } }
 
             // ============================================================
-            //   ΔΙΟΡΘΩΣΗ 3: ΝΕΑ ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΑΠΟΚΑΤΑΣΤΑΣΗ ΠΡΟΟΔΟΥ
+            //   ΔΙΟΡΘΩΣΗ: ΑΣΦΑΛΗΣ ΑΠΟΚΑΤΑΣΤΑΣΗ ΠΡΟΟΔΟΥ
             // ============================================================
             function restoreGameFromSave() {
+                if (!grid || grid.length !== COLS) {
+                    grid = [];
+                    for (let c = 0; c < COLS; c++) {
+                        grid.push(new Array(ROWS).fill(null));
+                    }
+                }
+
                 if (save.boardState && save.boardState.length === COLS) {
-                    // Καθαρισμός grid
                     for (let c = 0; c < COLS; c++) {
                         for (let r = 0; r < ROWS; r++) {
                             if (grid[c] && grid[c][r]) {
@@ -2430,7 +2449,6 @@
                         }
                     }
 
-                    // Αποκατάσταση κύβων
                     for (let c = 0; c < COLS; c++) {
                         for (let r = 0; r < ROWS; r++) {
                             const val = save.boardState[c][r];
@@ -2440,7 +2458,6 @@
                         }
                     }
 
-                    // Αποκατάσταση τρέχοντος κύβου
                     if (save.currentCubeValue > 0) {
                         if (currentCube) boardGroup.remove(currentCube);
                         currentCube = makeCube(save.currentCubeValue);
@@ -2509,7 +2526,14 @@
                 currentCube.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
                 currentCube.scale.set(.3, .3, .3);
                 boardGroup.add(currentCube);
-                tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2); 
+                
+                // ΔΙΟΡΘΩΣΗ: Προστέθηκε το callback στο tween για να ξαναϋπολογιστεί το μέγεθος μετά το animation
+                tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2, null, function() {
+                    updateDropIndicator(aimCol);
+                });
+                
+                // Αρχική κλήση για να εμφανιστεί σωστά η γραμμή όσο ο κύβος έχει scale 0.3
+                updateDropIndicator(aimCol);
             }
 
             function setAim(c, instant) { 
@@ -2522,24 +2546,33 @@
                 updateDropIndicator(aimCol);
             }
 
+            // ============================================================
+            //   ΔΙΟΡΘΩΣΗ: Η ΓΡΑΜΜΟΥΛΑ ΥΠΟΛΟΓΙΖΕΙ ΤΟ ΠΡΑΓΜΑΤΙΚΟ ΥΨΟΣ ΤΟΥ ΚΥΒΟΥ
+            // ============================================================
             function updateDropIndicator(col) {
                 const elem = document.getElementById('dropIndicator');
                 if(!elem) return;
                 const targetPos = new THREE.Vector3();
+                let scaleY = 1;
+                
                 if (currentCube && !busy) {
                     currentCube.getWorldPosition(targetPos);
+                    scaleY = currentCube.scale.y;
                 } else {
                     const p = cellPos(col, 0);
                     targetPos.set(p.x, launchY, 0.1);
                     boardGroup.localToWorld(targetPos);
                 }
-                const cubeHalfHeight = CELL * 0.92 / 2;
+                
+                const cubeHalfHeight = (CELL * 0.92 / 2) * scaleY;
                 const bottomPos = targetPos.clone().add(new THREE.Vector3(0, -cubeHalfHeight, 0));
                 bottomPos.project(camera);
+                
                 const x = (bottomPos.x * .5 + .5) * window.innerWidth;
                 const y = (-bottomPos.y * .5 + .5) * window.innerHeight;
                 const colWidth = window.innerWidth / COLS;
                 const pxWidth = colWidth - 8;
+                
                 elem.style.width = pxWidth + 'px';
                 elem.style.left = (x - pxWidth / 2) + 'px';
                 elem.style.top = (y + 8) + 'px';
@@ -3296,11 +3329,7 @@
                     if (typeof ytgame !== 'undefined' && ytgame.system) {
                         if (typeof ytgame.system.onPause === 'function') {
                             ytgame.system.onPause(function() {
-                                // ============================================================
-                                //   ΔΙΟΡΘΩΣΗ 4: ΚΑΛΟΥΜΕ persist() ΥΠΟΧΡΕΩΤΙΚΑ ΣΤΟ onPause
-                                // ============================================================
-                                persist(); 
-                                
+                                persist(); // Αποθήκευση προόδου πριν την παύση
                                 isSdkPaused = true;
                                 paused = true;
                                 document.getElementById('pauseOverlay').classList.remove('hidden');
@@ -3349,9 +3378,6 @@
                     }
                     isGameReady = true;
 
-                    // ============================================================
-                    //   ΔΙΟΡΘΩΣΗ 5: ΑΠΟΚΑΤΑΣΤΑΣΗ ΠΡΟΟΔΟΥ ΑΝΤΙ ΓΙΑ newBoard
-                    // ============================================================
                     const restored = restoreGameFromSave();
                     if (!restored) {
                         newBoard();
