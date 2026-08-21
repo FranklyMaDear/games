@@ -664,7 +664,6 @@ const SHOP_DATA = {
       { id: 'acc_tornado', name: 'Tornado', icon: '🌪️' },
       { id: 'acc_cloud', name: 'Cloud', icon: '☁️' },
       { id: 'acc_star', name: 'Shining Star', icon: '⭐' },
-      { id: 'acc_rainbow', name: 'Rainbow Aura', icon: '🌈' },
       { id: 'acc_spark', name: 'Sparks', icon: '✨' }
   ]
 };
@@ -1201,7 +1200,8 @@ class Snake {
     this.angle += clamp(da, -turnRate, turnRate);
     if (Math.abs(da) < 0.4) { this.angle += da * 0.08; }
 
-    const spd = (this.boostT > 0) ? this.boostSpeed : this.baseSpeed;
+    // Frame-rate independent speed (60 FPS base)
+    const spd = ((this.boostT > 0) ? this.boostSpeed : this.baseSpeed) * (dt * 60);
     
     const h = this.head;
     let nx = h.x + Math.cos(this.angle)*spd;
@@ -1652,7 +1652,7 @@ function eatCubes(snake){
   if (!snake.segments || snake.segments.length === 0) return;
   const headPos = snake.segmentPositions()[0];
   const magnetActive = snake.magnetT > 0;
-  const pickR = magnetActive ? 140 : 28;
+  const pickR = magnetActive ? 160 : 38;
   for(let i=cubes.length-1;i>=0;i--){
     const c = cubes[i];
     if(c.value > snake.headValue) continue;
@@ -1779,59 +1779,63 @@ function resolveCombat(){
 
 function botAI(bot, dt){
   bot.retargetT -= dt;
-  if(bot.retargetT<=0){
-    bot.retargetT = rnd(0.4, 1.0);
-    const hp = bot.head;
-    const myVal = bot.headValue;
-    
-    // 1. Prefer nearby cubes we can eat
-    let bestCube = null, bestCubeD = 600*600;
-    for(const c of cubes){
-      if(c.value > myVal) continue;
-      const d = dist2(hp.x, hp.y, c.x, c.y);
-      if(d < bestCubeD){ bestCubeD = d; bestCube = c; }
-    }
-    
-    // 2. Sometimes chase weaker bots (hunting)
-    let bestPrey = null, bestPreyD = 450*450;
-    if (Math.random() < 0.45) {
-      for(const other of bots){
-        if(other === bot || !other.alive) continue;
-        if(other.headValue >= myVal) continue;
-        const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
-        if(d < bestPreyD){ bestPreyD = d; bestPrey = other; }
-      }
-      // also consider player if weaker
-      if(player && player.alive && player.headValue < myVal){
-        const d = dist2(hp.x, hp.y, player.head.x, player.head.y);
-        if(d < bestPreyD){ bestPreyD = d; bestPrey = player; }
-      }
-    }
-    
-    // 3. Flee from stronger nearby threats
-    let threat = null, threatD = 280*280;
-    for(const other of [player, ...bots]){
-      if(!other || other === bot || !other.alive) continue;
-      if(other.headValue <= myVal) continue;
-      const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
-      if(d < threatD){ threatD = d; threat = other; }
-    }
-    
-    if(threat && Math.random() < 0.7){
-      // run away
-      bot.targetAngle = Math.atan2(hp.y - threat.head.y, hp.x - threat.head.x);
-    } else if(bestPrey && bestPreyD < bestCubeD * 1.4){
-      bot.targetAngle = Math.atan2(bestPrey.head.y - hp.y, bestPrey.head.x - hp.x);
-    } else if(bestCube){
-      bot.targetAngle = Math.atan2(bestCube.y - hp.y, bestCube.x - hp.x);
-    } else {
-      bot.targetAngle = bot.angle + rnd(-1.2, 1.2);
-    }
-  }
-  // Strong wall avoidance
-  const hp = bot.head, margin = 220;
+  const hp = bot.head;
+  
+  // Always pull away from walls / corners (unstick)
+  const margin = 280;
   if(hp.x < margin || hp.x > ARENA - margin || hp.y < margin || hp.y > ARENA - margin){
     bot.targetAngle = Math.atan2(ARENA/2 - hp.y, ARENA/2 - hp.x);
+    bot.retargetT = 0.3;
+    return;
+  }
+  
+  if(bot.retargetT > 0) return;
+  bot.retargetT = rnd(0.35, 0.9);
+  
+  const myVal = bot.headValue;
+  
+  // 1. Collect cubes aggressively (grow first)
+  let bestCube = null, bestCubeD = 700*700;
+  for(const c of cubes){
+    if(c.value > myVal) continue;
+    const d = dist2(hp.x, hp.y, c.x, c.y);
+    // prefer closer + slightly higher value
+    const score = d - c.value * 800;
+    if(score < bestCubeD){ bestCubeD = score; bestCube = c; }
+  }
+  
+  // 2. Hunt weaker opponents
+  let bestPrey = null, bestPreyD = 500*500;
+  if (Math.random() < 0.55) {
+    for(const other of bots){
+      if(other === bot || !other.alive) continue;
+      if(other.headValue >= myVal) continue;
+      const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
+      if(d < bestPreyD){ bestPreyD = d; bestPrey = other; }
+    }
+    if(player && player.alive && player.headValue < myVal){
+      const d = dist2(hp.x, hp.y, player.head.x, player.head.y);
+      if(d < bestPreyD){ bestPreyD = d; bestPrey = player; }
+    }
+  }
+  
+  // 3. Flee stronger threats
+  let threat = null, threatD = 320*320;
+  for(const other of [player, ...bots]){
+    if(!other || other === bot || !other.alive) continue;
+    if(other.headValue <= myVal) continue;
+    const d = dist2(hp.x, hp.y, other.head.x, other.head.y);
+    if(d < threatD){ threatD = d; threat = other; }
+  }
+  
+  if(threat && Math.random() < 0.75){
+    bot.targetAngle = Math.atan2(hp.y - threat.head.y, hp.x - threat.head.x);
+  } else if(bestPrey && bestPreyD < 380*380){
+    bot.targetAngle = Math.atan2(bestPrey.head.y - hp.y, bestPrey.head.x - hp.x);
+  } else if(bestCube){
+    bot.targetAngle = Math.atan2(bestCube.y - hp.y, bestCube.x - hp.x);
+  } else {
+    bot.targetAngle = bot.angle + rnd(-1.0, 1.0);
   }
 }
 
@@ -2158,11 +2162,6 @@ function drawSnake(snake){
       ctx.shadowColor = '#ffd23f';
       ctx.shadowBlur = 10;
       ctx.fillText('⭐', sx, sy - size * 0.65);
-    } else if (acc === 'acc_rainbow') {
-      ctx.font = `${Math.floor(20 * hScale)}px serif`;
-      ctx.globalAlpha = 0.85 + Math.sin(t * 3) * 0.15;
-      ctx.fillText('🌈', sx, sy - size * 0.68);
-      ctx.globalAlpha = 1;
     } else if (acc === 'acc_spark') {
       // Multiple sparks
       for (let i = 0; i < 3; i++) {
@@ -2294,7 +2293,7 @@ function frame(ts){
   ctx.clearRect(0,0,W,H); ctx.save(); ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
   
   drawFloor(); drawObstacles(); drawFloorItems();
-  cubes.forEach(c=>drawCube(c.x,c.y,c.value, 0.85));
+  cubes.forEach(c=>drawCube(c.x,c.y,c.value, 1.25));
   bots.forEach(b=>{ if(b.alive) drawSnake(b); });
   if(player && player.alive) drawSnake(player);
   drawParticles(dt); drawFloaters(dt);
