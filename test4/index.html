@@ -901,6 +901,37 @@
             .help-panel { max-height: 85vh; padding: 8px; }
             .help-panel .pbtn { width: 70px; height: 70px; font-size: 28px; border-radius: 16px; }
         }
+
+        /* Desktop / wide screens: left HUD + right board layout */
+        @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+            #shopRollup {
+                left: 18px;
+                right: auto;
+                transform: translate(0, -100%);
+                width: 320px;
+                max-width: 34vw;
+                border-radius: 0 0 20px 20px;
+            }
+            #shopRollup.open {
+                transform: translate(0, 0);
+            }
+            .top-toggle-handle {
+                left: 50%;
+            }
+            .shop-panel {
+                left: 0;
+                right: auto;
+                width: 340px;
+                max-width: 36vw;
+                border-radius: 0 0 18px 0;
+                justify-content: flex-start;
+                padding-left: 16px;
+            }
+            .help-panel {
+                right: 0;
+                top: 50%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -926,8 +957,9 @@
             </div>
         </div>
         
-        <div style="display: flex; width: 100%; justify-content: center;">
+        <div style="display: flex; width: 100%; justify-content: center; align-items: center; gap: 10px;">
             <div id="btnLeaderboardTop" class="top-btn-leaderboard">🏆 SCORE</div>
+            <button class="hud-btn icon-btn" id="btnSound" style="min-width:44px; padding:6px 10px; font-size:18px; border-radius:12px;">🔊</button>
         </div>
 
         <div id="topToggleBtn" class="top-toggle-handle">
@@ -939,7 +971,6 @@
         <div class="chip"><div><small id="lblLevel">LEVEL</small><span class="big" id="hudLevel">1</span></div></div>
         <div class="chip score-chip"><div><small id="lblScore">SCORE</small><span class="big" id="hudScore">0</span></div></div>
         <div class="chip coin-chip">💎 <span class="big" id="hudCoins">100</span></div>
-        <button class="hud-btn icon-btn" id="btnSound">🔊</button>
         <button class="hud-btn icon-btn" id="btnLang">EN</button>
     </div>
 
@@ -1313,30 +1344,59 @@
             };
 
             let save = Object.assign({}, DEFAULT_SAVE);
+            let cloudDataLoaded = false; // MUST await loadData before any saveData (YT Playables requirement)
 
             function loadSave(callback) {
-                try {
-                    const r = localStorage.getItem("drop4096-frankly-v1");
-                    if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
-                } catch (e) { console.warn('Load save error', e); }
+                // Prefer cloud load; localStorage is only fallback when not in Playables
+                const finish = function() {
+                    cloudDataLoaded = true;
+                    if (callback) callback();
+                };
 
-                if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.loadData) {
+                if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.loadData === 'function') {
                     try {
                         ytgame.game.loadData().then(function(dataStr) {
-                            if (dataStr) {
-                                save = Object.assign({}, DEFAULT_SAVE, JSON.parse(dataStr));
+                            if (dataStr && typeof dataStr === 'string' && dataStr.length > 0) {
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    save = Object.assign({}, DEFAULT_SAVE, parsed);
+                                } catch (parseErr) {
+                                    console.warn('Cloud save parse error', parseErr);
+                                }
+                            } else {
+                                // No cloud data yet – try localStorage once as seed (only outside strict Playables)
+                                try {
+                                    const r = localStorage.getItem("drop4096-frankly-v1");
+                                    if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
+                                } catch (e) {}
                             }
-                            if (callback) callback();
-                        }).catch(function() {
-                            if (callback) callback();
+                            finish();
+                        }).catch(function(err) {
+                            console.warn('loadData failed', err);
+                            try {
+                                const r = localStorage.getItem("drop4096-frankly-v1");
+                                if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
+                            } catch (e) {}
+                            finish();
                         });
-                    } catch(e) { if(callback) callback(); }
+                    } catch (e) {
+                        console.warn('loadData exception', e);
+                        finish();
+                    }
                 } else {
-                    if (callback) callback();
+                    try {
+                        const r = localStorage.getItem("drop4096-frankly-v1");
+                        if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
+                    } catch (e) { console.warn('Load save error', e); }
+                    finish();
                 }
             }
 
             function persist() {
+                if (!cloudDataLoaded) {
+                    // YT requirement: never call saveData before loadData has resolved
+                    return;
+                }
                 const serializedBoard = [];
                 for (let c = 0; c < COLS; c++) {
                     const colArray = [];
@@ -1348,15 +1408,22 @@
                 save.boardState = serializedBoard;
                 save.currentCubeValue = currentCube ? currentCube.userData.value : 0;
                 save.currentCubeCol = aimCol;
+                save.coins = coins;
+                save.score = score;
+                save.level = level;
 
-                try { 
+                try {
                     const dataStr = JSON.stringify(save);
-                    localStorage.setItem("drop4096-frankly-v1", dataStr);
-                    
-                    if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
-                        ytgame.game.saveData(dataStr);
+                    // Always keep a local mirror for non-Playables / debug
+                    try { localStorage.setItem("drop4096-frankly-v1", dataStr); } catch (e) {}
+
+                    if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.saveData === 'function') {
+                        // Fire-and-forget is fine; the API returns a Promise but we do not need to await for gameplay
+                        ytgame.game.saveData(dataStr).catch(function(err) {
+                            console.warn('saveData failed', err);
+                        });
                     }
-                    
+
                     if (typeof mcplay !== 'undefined' && typeof mcplay.saveData === 'function') {
                         mcplay.saveData(dataStr);
                     } else if (typeof window !== 'undefined' && window.mcplay && typeof window.mcplay.saveData === 'function') {
@@ -1951,7 +2018,22 @@
             const SKIN = 0xffd9bd;
             const BLONDE = 0xf6cf5e;
 
-            function pickNextState() { const r = Math.random(); if (r < 0.45) { petState = 'walk'; wanderTargetX = -0.6 + Math.random() * 1.25; petStateTimer = 10; } else if (r < 0.62) { petState = 'hop'; petStateTimer = 1.3; } else { petState = 'stand'; petStateTimer = 2 + Math.random() * 3; } }
+            function pickNextState() { 
+                const r = Math.random(); 
+                const isWide = (window.innerWidth / window.innerHeight > 1.25 && window.innerWidth >= 900);
+                if (r < 0.45) { 
+                    petState = 'walk'; 
+                    if (isWide) wanderTargetX = -0.7 + Math.random() * 0.4; // stay left
+                    else wanderTargetX = -0.6 + Math.random() * 1.25; 
+                    petStateTimer = 10; 
+                } else if (r < 0.62) { 
+                    petState = 'hop'; 
+                    petStateTimer = 1.3; 
+                } else { 
+                    petState = 'stand'; 
+                    petStateTimer = 2 + Math.random() * 3; 
+                } 
+            }
 
             let speechTimer = null;
 
@@ -2325,8 +2407,21 @@
                 renderer.setSize(width, height);
                 camera.aspect = width / height; 
                 const dist = (BOARD_H / 2 + 3.5) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-                camera.position.set(0, -1.8, dist - 1.5);
-                camera.lookAt(0, -1.2, 0);
+                
+                // Desktop (wide): shift board to the right, leave left side for the girl + HUD
+                const isWide = width / height > 1.25 && width >= 900;
+                if (isWide) {
+                    // Board sits on the right half of the view
+                    boardGroup.position.x = 1.6;
+                    camera.position.set(0.9, -1.6, dist - 1.2);
+                    camera.lookAt(0.9, -1.0, 0);
+                    girlNdcX = -0.55; // left side of screen
+                } else {
+                    boardGroup.position.x = 0;
+                    camera.position.set(0, -1.8, dist - 1.5);
+                    camera.lookAt(0, -1.2, 0);
+                    girlNdcX = 0.28;
+                }
                 camera.updateProjectionMatrix();
                 layoutScenery();
                 updateGirlScreenPosition(); 
@@ -2551,7 +2646,7 @@
             // ============================================================
             function updateDropIndicator(col) {
                 const elem = document.getElementById('dropIndicator');
-                if(!elem) return;
+                if(!elem || !camera || !boardGroup) return;
                 const targetPos = new THREE.Vector3();
                 let scaleY = 1;
                 
@@ -2566,16 +2661,24 @@
                 
                 const cubeHalfHeight = (CELL * 0.92 / 2) * scaleY;
                 const bottomPos = targetPos.clone().add(new THREE.Vector3(0, -cubeHalfHeight, 0));
+                
+                // Project left and right edges of the cube so the indicator width matches the real on-screen cube
+                const halfCell = (CELL * 0.92 / 2) * (currentCube ? currentCube.scale.x : 1);
+                const leftWorld = bottomPos.clone().add(new THREE.Vector3(-halfCell, 0, 0));
+                const rightWorld = bottomPos.clone().add(new THREE.Vector3(halfCell, 0, 0));
+                leftWorld.project(camera);
+                rightWorld.project(camera);
                 bottomPos.project(camera);
                 
+                const xL = (leftWorld.x * .5 + .5) * window.innerWidth;
+                const xR = (rightWorld.x * .5 + .5) * window.innerWidth;
                 const x = (bottomPos.x * .5 + .5) * window.innerWidth;
                 const y = (-bottomPos.y * .5 + .5) * window.innerHeight;
-                const colWidth = window.innerWidth / COLS;
-                const pxWidth = colWidth - 8;
+                const pxWidth = Math.max(20, Math.abs(xR - xL) - 4);
                 
                 elem.style.width = pxWidth + 'px';
                 elem.style.left = (x - pxWidth / 2) + 'px';
-                elem.style.top = (y + 8) + 'px';
+                elem.style.top = (y + 6) + 'px';
             }
 
             function launch() { 
@@ -2657,17 +2760,14 @@
                         save.score = score;
                         if (newVal > biggestTile) biggestTile = newVal;
                         
-                        if (newVal >= 128) {
-                            coins += 5;
-                            save.coins = coins;
-                            toast("🎉 +5 💎"); 
-                        } else {
-                            coins += 1;
-                            save.coins = coins;
-                            toast("+1 💎");
-                        }
+                        // 100 points = 50 diamonds  →  0.5 diamonds per point
+                        const diamondsEarned = Math.max(1, Math.floor(newVal * 0.5));
+                        coins += diamondsEarned;
+                        save.coins = coins;
+                        toast((diamondsEarned >= 5 ? "🎉 " : "") + "+" + diamondsEarned + " 💎");
 
-                        updateHUD(); 
+                        updateHUD();
+                        persist(); // save progress + crystal balance immediately 
                         let left = same.length; 
                         const tp = cellPos(c, r);
                         same.forEach(function(n) { 
@@ -2735,9 +2835,11 @@
                 if (!win) return false; 
                 if (!winShown) { 
                     winShown = true;
-                    coins += 25;
+                    // Bonus on level complete: still generous, scaled to score rate
+                    const winBonus = Math.max(25, Math.floor(score * 0.05));
+                    coins += winBonus;
                     save.coins = coins;
-                    toast("🎉 +25 💎");
+                    toast("🎉 +" + winBonus + " 💎");
                     if (gameMode === 'classic') save.bestClassic = Math.max(save.bestClassic, score);
                     else save.bestTimeAttack = Math.max(save.bestTimeAttack, score);
                     save.level = level + 1;
@@ -3222,6 +3324,13 @@
                             const dir = Math.sign(wanderTargetX - girlNdcX); 
                             if (dir !== 0) faceDir = dir;
                             girlNdcX += dir * 0.11 * dt;
+                            // Keep girl on the left half when desktop layout is active
+                            const isWide = (window.innerWidth / window.innerHeight > 1.25 && window.innerWidth >= 900);
+                            if (isWide) {
+                                girlNdcX = Math.max(-0.75, Math.min(-0.25, girlNdcX));
+                            } else {
+                                girlNdcX = Math.max(-0.6, Math.min(0.55, girlNdcX));
+                            }
                             stepAccum += dt; 
                             if (stepAccum > 0.36) { stepAccum = 0;
                                 stepSFX(); } 
@@ -3399,10 +3508,18 @@
                     cvs.addEventListener("pointermove", function(e) { 
                         if (busy || !currentCube || gameOver || isSdkPaused || paused) return; 
                         const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; 
-                        const colWidth = window.innerWidth / COLS;
-                        let col = Math.floor(cx / colWidth);
-                        col = Math.max(0, Math.min(COLS - 1, col));
-                        setAim(col); 
+                        // Map screen X to board columns using actual projected cell centers
+                        let bestCol = 0, bestDist = Infinity;
+                        for (let c = 0; c < COLS; c++) {
+                            const p = cellPos(c, 0);
+                            const world = new THREE.Vector3(p.x, launchY, 0.1);
+                            boardGroup.localToWorld(world);
+                            world.project(camera);
+                            const screenX = (world.x * 0.5 + 0.5) * window.innerWidth;
+                            const d = Math.abs(cx - screenX);
+                            if (d < bestDist) { bestDist = d; bestCol = c; }
+                        }
+                        setAim(bestCol); 
                     });
                     cvs.addEventListener("pointerdown", onTap); 
                     if (!window.PointerEvent) { cvs.addEventListener("touchstart", onTap, { passive: true }); }
