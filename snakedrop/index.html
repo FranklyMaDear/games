@@ -295,18 +295,21 @@
       </div>
     </div>
     
-    <div class="leaderboard" id="leaderboardPanel">
-      <div class="lb-title">Leaderboard</div>
-      <div id="lbRows"></div>
+    <div style="position:absolute; top:14px; right:14px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+      <div class="leaderboard" id="leaderboardPanel">
+        <div class="lb-title">Leaderboard</div>
+        <div id="lbRows"></div>
+      </div>
+      <button id="btnMap" class="btn-shop" style="padding:6px 12px; font-size:13px; background:linear-gradient(180deg,#6366f1,#4f46e5); box-shadow:0 4px 0 #3730a3,0 6px 10px rgba(0,0,0,0.5);">🗺️ Map</button>
     </div>
 
     <div class="powerbar">
-      <div class="pw" id="pwBoost" title="Hold for Speed Boost (Watch Ad)">
+      <div class="pw" id="pwBoost" title="Hold for Speed Boost (25 coins)">
         <div class="boost-ring" id="boostRing"></div>
-        ⚡<span class="pw-ad">🎬</span><span class="cd" id="cdBoost"></span>
+        ⚡<span class="pw-ad">25</span><span class="cd" id="cdBoost"></span>
       </div>
-      <div class="pw" id="pwMagnet" title="Magnet (Watch Ad)">🧲<span class="pw-ad">🎬</span><span class="cd" id="cdMagnet"></span></div>
-      <div class="pw" id="pwShield" title="Shield (Watch Ad)">🛡️<span class="pw-ad">🎬</span><span class="cd" id="cdShield"></span></div>
+      <div class="pw" id="pwMagnet" title="Magnet (25 coins)">🧲<span class="pw-ad">25</span><span class="cd" id="cdMagnet"></span></div>
+      <div class="pw" id="pwShield" title="Shield (25 coins)">🛡️<span class="pw-ad">25</span><span class="cd" id="cdShield"></span></div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -327,10 +330,18 @@
             <span>⏳</span>
             <span>5 Minutes<br><span class="mode-sub">Classic timed run</span></span>
           </button>
-          <button class="mode-btn" id="btnWin30" style="background:linear-gradient(180deg,#f472b6,#db2777);color:#fff;box-shadow:0 6px 0 #9d174d,0 10px 20px rgba(0,0,0,0.25);">
-            <span>🏆</span>
-            <span>Win 30<br><span class="mode-sub">Defeat 30 opponents</span></span>
-          </button>
+          <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+            <div style="text-align:center; font-weight:800; font-size:14px; color:#f9a8d4;">🏆 Win Mode – Choose Difficulty</div>
+            <button class="mode-btn" id="btnWinEasy" style="background:linear-gradient(180deg,#86efac,#22c55e);color:#052e16;box-shadow:0 4px 0 #15803d; padding:10px; font-size:15px;">
+              Easy – 15 opponents
+            </button>
+            <button class="mode-btn" id="btnWinMed" style="background:linear-gradient(180deg,#fde68a,#f59e0b);color:#451a03;box-shadow:0 4px 0 #b45309; padding:10px; font-size:15px;">
+              Medium – 30 opponents
+            </button>
+            <button class="mode-btn" id="btnWinHard" style="background:linear-gradient(180deg,#fca5a5,#ef4444);color:#fff;box-shadow:0 4px 0 #b91c1c; padding:10px; font-size:15px;">
+              Hard – 50 opponents
+            </button>
+          </div>
           <button class="mode-btn endless" id="btnEndless">
             <span>♾️</span>
             <span>Endless<br><span class="mode-sub">Play as long as you can</span></span>
@@ -363,6 +374,27 @@
         </div>
         <div class="shop-items" id="shopContainer"></div>
         <button class="btn btn-danger" id="btnCloseShop" style="margin-top: 12px; margin-bottom:0;">Close</button>
+      </div>
+    </div>
+
+    <!-- Stylish Buy Modal -->
+    <div class="overlay hidden" id="buyModal">
+      <div class="center-msg" style="min-width:280px; border:2px solid #ffd23f; box-shadow:0 0 30px rgba(255,210,63,0.35), 0 24px 60px #000c;">
+        <h1 style="font-size:22px; margin-bottom:8px;" id="buyTitle">Buy item?</h1>
+        <p style="color:#ffd23f; font-size:15px; margin-bottom:18px;" id="buyDesc">Choose how to pay</p>
+        <button class="btn" id="buyPay50" style="margin-bottom:10px;">💰 Pay 50 coins</button>
+        <button class="btn btn-alt" id="buyPayAd" style="margin-bottom:10px;">🎬 Watch Ad (25 coins)</button>
+        <button class="btn btn-danger" id="buyCancel" style="margin-bottom:0;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Mini Map Modal -->
+    <div class="overlay hidden" id="mapModal">
+      <div class="center-msg" style="min-width:300px; max-width:90vw;">
+        <h1 style="font-size:20px; margin-bottom:10px;">🗺️ Live Map</h1>
+        <canvas id="miniMap" width="280" height="280" style="width:100%; max-width:280px; border-radius:12px; background:#0f172a; border:2px solid #334155;"></canvas>
+        <p style="font-size:12px; color:#94a3b8; margin:8px 0 12px;">🟢 You &nbsp; 🔴 Opponents</p>
+        <button class="btn btn-danger" id="btnCloseMap" style="margin-bottom:0;">Close</button>
       </div>
     </div>
 
@@ -752,41 +784,8 @@ function renderShop() {
                 renderShop();
                 toast('Equipped ' + item.name);
             } else {
-                // Choice: 50 coins or Ad for 25 coins
-                const useAd = confirm('Buy "' + item.name + '"?\n\nOK = Pay 50 coins\nCancel = Watch Ad (only 25 coins)');
-                if (useAd) {
-                    if (save.coins < 50) {
-                        toast('Need 50 coins!', '#ff4d6d');
-                        return;
-                    }
-                    save.coins -= 50;
-                    save[props.owned].push(item.id);
-                    save[props.equip] = item.id;
-                    if (activeShopTab === 'cubes') {
-                        for (const k in textureCache) delete textureCache[k];
-                    }
-                    saveGame();
-                    updatePointsUI();
-                    renderShop();
-                    toast('Bought & equipped ' + item.name);
-                } else {
-                    watchAd(() => {
-                        if (save.coins < 25) {
-                            toast('Need 25 coins!', '#ff4d6d');
-                            return;
-                        }
-                        save.coins -= 25;
-                        save[props.owned].push(item.id);
-                        save[props.equip] = item.id;
-                        if (activeShopTab === 'cubes') {
-                            for (const k in textureCache) delete textureCache[k];
-                        }
-                        saveGame();
-                        updatePointsUI();
-                        renderShop();
-                        toast('Bought with Ad! (−25 coins)');
-                    }, 'reward-shop-item');
-                }
+                // Stylish buy modal
+                showBuyModal(item, props);
             }
         };
         container.appendChild(div);
@@ -808,6 +807,97 @@ document.getElementById('btnOpenShop').onclick = () => {
 };
 document.getElementById('btnCloseShop').onclick = () => {
     document.getElementById('shopModal').classList.add('hidden');
+};
+
+// Stylish Buy Modal logic
+let pendingBuyItem = null;
+let pendingBuyProps = null;
+
+function showBuyModal(item, props) {
+    pendingBuyItem = item;
+    pendingBuyProps = props;
+    document.getElementById('buyTitle').textContent = 'Buy "' + item.name + '"?';
+    document.getElementById('buyDesc').textContent = item.icon + '  Choose payment method';
+    document.getElementById('buyModal').classList.remove('hidden');
+}
+
+function completePurchase(cost) {
+    if (!pendingBuyItem || !pendingBuyProps) return;
+    if (save.coins < cost) {
+        toast('Need ' + cost + ' coins!', '#ff4d6d');
+        return;
+    }
+    save.coins -= cost;
+    save[pendingBuyProps.owned].push(pendingBuyItem.id);
+    save[pendingBuyProps.equip] = pendingBuyItem.id;
+    if (activeShopTab === 'cubes') {
+        for (const k in textureCache) delete textureCache[k];
+    }
+    saveGame();
+    updatePointsUI();
+    renderShop();
+    document.getElementById('buyModal').classList.add('hidden');
+    toast('Bought & equipped ' + pendingBuyItem.name + (cost === 25 ? ' (Ad)' : ''));
+    pendingBuyItem = null;
+    pendingBuyProps = null;
+}
+
+document.getElementById('buyPay50').onclick = () => completePurchase(50);
+document.getElementById('buyPayAd').onclick = () => {
+    document.getElementById('buyModal').classList.add('hidden');
+    watchAd(() => completePurchase(25), 'reward-shop-item');
+};
+document.getElementById('buyCancel').onclick = () => {
+    document.getElementById('buyModal').classList.add('hidden');
+    pendingBuyItem = null;
+    pendingBuyProps = null;
+};
+
+// Mini Map
+function drawMiniMap() {
+  const canvas = document.getElementById('miniMap');
+  if (!canvas) return;
+  const g = canvas.getContext('2d');
+  const size = 280;
+  g.clearRect(0, 0, size, size);
+  g.fillStyle = '#0f172a';
+  g.fillRect(0, 0, size, size);
+  // grid
+  g.strokeStyle = '#1e293b';
+  g.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const p = (i / 10) * size;
+    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, size); g.stroke();
+    g.beginPath(); g.moveTo(0, p); g.lineTo(size, p); g.stroke();
+  }
+  const scale = size / ARENA;
+  // bots
+  bots.forEach(b => {
+    if (!b.alive || !b.head) return;
+    g.fillStyle = '#ef4444';
+    g.beginPath();
+    g.arc(b.head.x * scale, b.head.y * scale, 4, 0, Math.PI * 2);
+    g.fill();
+  });
+  // player
+  if (player && player.alive && player.head) {
+    g.fillStyle = '#4ade80';
+    g.beginPath();
+    g.arc(player.head.x * scale, player.head.y * scale, 6, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#fff';
+    g.lineWidth = 1.5;
+    g.stroke();
+  }
+}
+
+document.getElementById('btnMap').onclick = (e) => {
+  e.stopPropagation();
+  drawMiniMap();
+  document.getElementById('mapModal').classList.remove('hidden');
+};
+document.getElementById('btnCloseMap').onclick = () => {
+  document.getElementById('mapModal').classList.add('hidden');
 };
 
 // Sound mute / unmute button
@@ -1295,9 +1385,12 @@ function makeBot(){
 
 function initWorld(mode){
   isEndless = (mode === 'endless');
-  isWin30 = (mode === 'win30');
+  isWin30 = (mode === 'winEasy' || mode === 'winMed' || mode === 'winHard');
   killsCount = 0;
-  killsNeeded = isWin30 ? 30 : 0;
+  if (mode === 'winEasy') killsNeeded = 15;
+  else if (mode === 'winMed') killsNeeded = 30;
+  else if (mode === 'winHard') killsNeeded = 50;
+  else killsNeeded = 0;
   timeLeft = (isEndless || isWin30) ? Infinity : 300; 
   hasContinued = false;
 
@@ -1311,7 +1404,8 @@ function initWorld(mode){
   
   player = new Snake(ARENA/2, ARENA/2, true, "You");
   player.segments = [{value: startVal, t:0}]; 
-  for(let i=0;i<30;i++) bots.push(makeBot());
+  const botCount = isWin30 ? killsNeeded : 30;
+  for(let i=0;i<botCount;i++) bots.push(makeBot());
 }
 
 function spawnFloorItem() {
@@ -1446,21 +1540,25 @@ document.getElementById('adBubble').addEventListener('click', () => {
     }, 'reward-start-x16');
 });
 
-// Powerup Buttons (Magnet & Shield) – require watching an ad
+// Powerup Buttons (Magnet & Shield) – cost 25 coins
 function setupPowerupBtn(btnId, type, msg, color) {
     document.getElementById(btnId).addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if(!player || !player.alive) return;
         if(player[type + 'Cd'] > 0) return;
         
-        // Watch ad to activate
-        watchAd(() => {
-            player[type + 'T'] = 5.0; // 5 seconds
-            player[type + 'Cd'] = 20.0;
-            toast(msg, color);
-            screenShake = 0.15;
-            updateCooldownVisual(document.getElementById(btnId), player, type);
-        }, 'reward-powerup-' + type);
+        if (save.coins < 25) {
+            toast('Need 25 coins!', '#ff4d6d');
+            return;
+        }
+        save.coins -= 25;
+        saveGame();
+        updatePointsUI();
+        player[type + 'T'] = 5.0;
+        player[type + 'Cd'] = 20.0;
+        toast(msg + ' (−25 coins)', color);
+        screenShake = 0.15;
+        updateCooldownVisual(document.getElementById(btnId), player, type);
     });
 }
 
@@ -1489,14 +1587,15 @@ setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
     if (!player || !player.alive) return;
     if (player.boostCd > 0) return;
     if (!paid) {
-      // Watch ad once to unlock the hold-boost for this session charge
-      watchAd(() => {
-        paid = true;
-        holding = true;
-        btn.classList.add('holding');
-        toast('Speed Boost unlocked!', '#ffd23f');
-      }, 'reward-powerup-boost');
-      return;
+      if (save.coins < 25) {
+        toast('Need 25 coins!', '#ff4d6d');
+        return;
+      }
+      save.coins -= 25;
+      paid = true;
+      saveGame();
+      updatePointsUI();
+      toast('Speed Boost (−25 coins)', '#ffd23f');
     }
     holding = true;
     btn.classList.add('holding');
@@ -2175,11 +2274,11 @@ function endGame(survived, diedEarly){
   saveGame();
   updatePointsUI();
   if (isWin30 && survived) {
-    document.getElementById('endTitle').innerHTML = 'Victory! 🏆 30 Opponents Defeated!';
+    document.getElementById('endTitle').innerHTML = `Victory! 🏆 ${killsNeeded} Opponents Defeated!`;
   } else {
     document.getElementById('endTitle').innerHTML = survived ? 'You Survived! 🏆' : 'Game Over';
   }
-  document.getElementById('endBody').textContent = `Your score: ${player.score}  |  Points: ${save.points}` + (isWin30 ? `  |  Kills: ${killsCount}` : '');
+  document.getElementById('endBody').textContent = `Your score: ${player.score}  |  Points: ${save.points}` + (isWin30 ? `  |  Kills: ${killsCount}/${killsNeeded}` : '');
   
   const continueBtn = document.getElementById('continueBtn');
   if(diedEarly && !isEndless && !isWin30 && timeLeft > 0 && !hasContinued) {
@@ -2212,7 +2311,9 @@ document.getElementById('continueBtn').addEventListener('click', () => {
 });
 
 document.getElementById('btn5Min').addEventListener('click', () => startGame('5min'));
-document.getElementById('btnWin30').addEventListener('click', () => startGame('win30'));
+document.getElementById('btnWinEasy').addEventListener('click', () => startGame('winEasy'));
+document.getElementById('btnWinMed').addEventListener('click', () => startGame('winMed'));
+document.getElementById('btnWinHard').addEventListener('click', () => startGame('winHard'));
 document.getElementById('btnEndless').addEventListener('click', () => startGame('endless'));
 document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('endModal').classList.add('hidden');
