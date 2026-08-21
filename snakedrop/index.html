@@ -285,8 +285,9 @@
     <div class="topbar">
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button id="btnOpenShop" class="btn-shop">🛒 eShop</button>
+        <button id="btnMute" class="btn-shop" style="background:linear-gradient(180deg,#64748b,#475569);box-shadow:0 4px 0 #334155,0 6px 10px rgba(0,0,0,0.5);">🔊 Sound</button>
         <div class="stat score"><div class="dot">◆</div><span id="pointsVal">0</span></div>
-        <div class="stat score" style="cursor:pointer;" id="btnConvertCoins" title="Convert points → coins (10 points = 1 coin)">
+        <div class="stat score" style="cursor:pointer;" id="btnConvertCoins" title="Convert points → coins (2 points = 1 coin)">
           <div class="dot" style="background:radial-gradient(circle at 30% 30%,#fde68a,#f59e0b);">🪙</div>
           <span id="coinsVal">0</span>
         </div>
@@ -300,12 +301,12 @@
     </div>
 
     <div class="powerbar">
-      <div class="pw" id="pwBoost" title="Hold for Speed Boost (50 coins)">
+      <div class="pw" id="pwBoost" title="Hold for Speed Boost (Watch Ad)">
         <div class="boost-ring" id="boostRing"></div>
-        ⚡<span class="pw-ad">50</span><span class="cd" id="cdBoost"></span>
+        ⚡<span class="pw-ad">🎬</span><span class="cd" id="cdBoost"></span>
       </div>
-      <div class="pw" id="pwMagnet" title="Magnet (50 coins)">🧲<span class="pw-ad">50</span><span class="cd" id="cdMagnet"></span></div>
-      <div class="pw" id="pwShield" title="Shield (50 coins)">🛡️<span class="pw-ad">50</span><span class="cd" id="cdShield"></span></div>
+      <div class="pw" id="pwMagnet" title="Magnet (Watch Ad)">🧲<span class="pw-ad">🎬</span><span class="cd" id="cdMagnet"></span></div>
+      <div class="pw" id="pwShield" title="Shield (Watch Ad)">🛡️<span class="pw-ad">🎬</span><span class="cd" id="cdShield"></span></div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -325,6 +326,10 @@
           <button class="mode-btn timed" id="btn5Min">
             <span>⏳</span>
             <span>5 Minutes<br><span class="mode-sub">Classic timed run</span></span>
+          </button>
+          <button class="mode-btn" id="btnWin30" style="background:linear-gradient(180deg,#f472b6,#db2777);color:#fff;box-shadow:0 6px 0 #9d174d,0 10px 20px rgba(0,0,0,0.25);">
+            <span>🏆</span>
+            <span>Win 30<br><span class="mode-sub">Defeat 30 opponents</span></span>
           </button>
           <button class="mode-btn endless" id="btnEndless">
             <span>♾️</span>
@@ -667,27 +672,23 @@ function addPoints(amount) {
     if (amount <= 0) return;
     const oldPoints = save.points;
     save.points += amount;
-    // Κάθε 10 πόντοι = 1 coin (αυτόματα όταν περνάει πολλαπλάσιο)
-    const gainedCoins = Math.floor(save.points / 10) - Math.floor(oldPoints / 10);
+    // 2 πόντοι = 1 coin  (100 πόντοι = 50 coins) – χωρίς toast
+    const gainedCoins = Math.floor(save.points / 2) - Math.floor(oldPoints / 2);
     if (gainedCoins > 0) {
         save.coins += gainedCoins;
-        // μικρό feedback χωρίς νέο ήχο
-        if (gainedCoins >= 1) {
-            toast(`+${gainedCoins} coin${gainedCoins > 1 ? 's' : ''}!`, '#ffd23f');
-        }
     }
     saveGame();
     updatePointsUI();
 }
 
-// Χειροκίνητη μετατροπή (προαιρετική) – μετατρέπει πόντους σε coins χωρίς να τους μηδενίζει εντελώς
+// Χειροκίνητη μετατροπή (2 πόντοι = 1 coin)
 function convertPointsToCoins() {
-    if (save.points < 10) {
-        toast('Need at least 10 points!', '#ff4d6d');
+    if (save.points < 2) {
+        toast('Need at least 2 points!', '#ff4d6d');
         return;
     }
-    const gained = Math.floor(save.points / 10);
-    const usedPts = gained * 10;
+    const gained = Math.floor(save.points / 2);
+    const usedPts = gained * 2;
     save.points -= usedPts;
     save.coins += gained;
     saveGame();
@@ -718,19 +719,20 @@ function renderShop() {
         const div = document.createElement('div');
         div.className = `shop-item ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''}`;
         
-        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '100 🪙');
+        const isFree = item.id.includes('_none') || item.id === 'multi' || item.id === 'board_wood' || item.id === 'eff_none' || item.id === 'snd_default';
+        let status = isEquipped ? 'EQUIPPED' : (isOwned ? 'SELECT' : '50 🪙');
         
         div.innerHTML = `
             <div style="font-size:28px;">${item.icon}</div>
             <h3>${item.name}</h3>
             <div class="price">${status}</div>
+            ${!isOwned && !isFree ? '<div style="font-size:10px;color:#0d9488;margin-top:2px;">🎬 Ad = 25🪙</div>' : ''}
         `;
         
         div.onclick = () => {
             if (isEquipped) return;
-            if (isOwned) {
+            if (isOwned || isFree) {
                 save[props.equip] = item.id;
-                // Clear texture cache so new skin applies immediately
                 if (activeShopTab === 'cubes') {
                     for (const k in textureCache) delete textureCache[k];
                 }
@@ -741,24 +743,47 @@ function renderShop() {
                 renderShop();
                 toast('Equipped ' + item.name);
             } else {
-                // Buy with 100 coins
-                if (save.coins < 100) {
-                    toast('Need 100 coins!', '#ff4d6d');
-                    return;
+                // Choice: 50 coins or Ad for 25 coins
+                const useAd = confirm('Buy "' + item.name + '"?\n\nOK = Pay 50 coins\nCancel = Watch Ad (only 25 coins)');
+                if (useAd) {
+                    if (save.coins < 50) {
+                        toast('Need 50 coins!', '#ff4d6d');
+                        return;
+                    }
+                    save.coins -= 50;
+                    save[props.owned].push(item.id);
+                    save[props.equip] = item.id;
+                    if (activeShopTab === 'cubes') {
+                        for (const k in textureCache) delete textureCache[k];
+                    }
+                    if (activeShopTab === 'music') {
+                        startMusic(item.id);
+                    }
+                    saveGame();
+                    updatePointsUI();
+                    renderShop();
+                    toast('Bought & equipped ' + item.name);
+                } else {
+                    watchAd(() => {
+                        if (save.coins < 25) {
+                            toast('Need 25 coins!', '#ff4d6d');
+                            return;
+                        }
+                        save.coins -= 25;
+                        save[props.owned].push(item.id);
+                        save[props.equip] = item.id;
+                        if (activeShopTab === 'cubes') {
+                            for (const k in textureCache) delete textureCache[k];
+                        }
+                        if (activeShopTab === 'music') {
+                            startMusic(item.id);
+                        }
+                        saveGame();
+                        updatePointsUI();
+                        renderShop();
+                        toast('Bought with Ad! (−25 coins)');
+                    }, 'reward-shop-item');
                 }
-                save.coins -= 100;
-                save[props.owned].push(item.id);
-                save[props.equip] = item.id;
-                if (activeShopTab === 'cubes') {
-                    for (const k in textureCache) delete textureCache[k];
-                }
-                if (activeShopTab === 'music') {
-                    startMusic(item.id);
-                }
-                saveGame();
-                updatePointsUI();
-                renderShop();
-                toast('Bought & equipped ' + item.name + ' (−100 coins)');
             }
         };
         container.appendChild(div);
@@ -780,6 +805,23 @@ document.getElementById('btnOpenShop').onclick = () => {
 };
 document.getElementById('btnCloseShop').onclick = () => {
     document.getElementById('shopModal').classList.add('hidden');
+};
+
+// Sound mute / unmute button
+document.getElementById('btnMute').onclick = () => {
+    muted = !muted;
+    const btn = document.getElementById('btnMute');
+    if (muted) {
+        btn.textContent = '🔇 Muted';
+        stopMusic();
+    } else {
+        btn.textContent = '🔊 Sound';
+        getAudioCtx();
+        if (running && save.equippedMusic && save.equippedMusic !== 'music_none') {
+            startMusic(save.equippedMusic);
+        }
+    }
+    toast(muted ? 'Sound OFF' : 'Sound ON', muted ? '#ff4d6d' : '#4ade80');
 };
 
 // ==========================================
@@ -1011,6 +1053,9 @@ let floaters = [];
 let player, bots = [];
 let running = false;
 let isEndless = false;
+let isWin30 = false;
+let killsNeeded = 0;
+let killsCount = 0;
 let timeLeft = 300; 
 let elapsedSinceLB = 0;
 let camera = {x:0,y:0};
@@ -1229,17 +1274,21 @@ function makeBot(){
   do { bx = rnd(200,ARENA-200); by = rnd(200,ARENA-200); } while(isInsideObstacle(bx, by, 40));
   const baseName = NAMES[Math.floor(Math.random() * NAMES.length)];
   const s = new Snake(bx, by, false, baseName + (Math.random() > 0.7 ? Math.floor(rnd(1, 99)) : ''));
-  for(let i=0;i<Math.floor(rnd(1,4));i++) s.grow(VALUES[Math.floor(rnd(0,3))]);
+  // Always start from 2 to keep the game harder / longer
+  s.segments = [{value: 2, t:0}];
   s.retargetT = 0;
   return s;
 }
 
 function initWorld(mode){
   isEndless = (mode === 'endless');
-  timeLeft = isEndless ? Infinity : 300; 
+  isWin30 = (mode === 'win30');
+  killsCount = 0;
+  killsNeeded = isWin30 ? 30 : 0;
+  timeLeft = (isEndless || isWin30) ? Infinity : 300; 
   hasContinued = false;
 
-  if(isEndless) { document.getElementById('timerUI').classList.add('hidden'); }
+  if(isEndless || isWin30) { document.getElementById('timerUI').classList.add('hidden'); }
   else { document.getElementById('timerUI').classList.remove('hidden'); }
 
   floorItems = [];
@@ -1384,26 +1433,21 @@ document.getElementById('adBubble').addEventListener('click', () => {
     }, 'reward-start-x16');
 });
 
-// Powerup Buttons (Magnet & Shield remain click-to-activate)
+// Powerup Buttons (Magnet & Shield) – require watching an ad
 function setupPowerupBtn(btnId, type, msg, color) {
     document.getElementById(btnId).addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if(!player || !player.alive) return;
         if(player[type + 'Cd'] > 0) return;
         
-        // Cost 50 coins
-        if (save.coins < 50) {
-            toast('Need 50 coins!', '#ff4d6d');
-            return;
-        }
-        save.coins -= 50;
-        saveGame();
-        updatePointsUI();
-        player[type + 'T'] = 5.0; // 5 seconds
-        player[type + 'Cd'] = 20.0;
-        toast(msg + ' (−50 coins)', color);
-        screenShake = 0.15;
-        updateCooldownVisual(document.getElementById(btnId), player, type);
+        // Watch ad to activate
+        watchAd(() => {
+            player[type + 'T'] = 5.0; // 5 seconds
+            player[type + 'Cd'] = 20.0;
+            toast(msg, color);
+            screenShake = 0.15;
+            updateCooldownVisual(document.getElementById(btnId), player, type);
+        }, 'reward-powerup-' + type);
     });
 }
 
@@ -1431,21 +1475,18 @@ setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
     e.preventDefault();
     if (!player || !player.alive) return;
     if (player.boostCd > 0) return;
+    if (!paid) {
+      // Watch ad once to unlock the hold-boost for this session charge
+      watchAd(() => {
+        paid = true;
+        holding = true;
+        btn.classList.add('holding');
+        toast('Speed Boost unlocked!', '#ffd23f');
+      }, 'reward-powerup-boost');
+      return;
+    }
     holding = true;
     btn.classList.add('holding');
-    if (!paid) {
-      if (save.coins < 50) {
-        toast('Need 50 coins!', '#ff4d6d');
-        holding = false;
-        btn.classList.remove('holding');
-        return;
-      }
-      save.coins -= 50;
-      paid = true;
-      saveGame();
-      updatePointsUI();
-      toast('Speed charged! (−50 coins)', '#ffd23f');
-    }
   }
 
   function onUp(e) {
@@ -1547,20 +1588,10 @@ function eatFloorItems(snake){
   for(let i=floorItems.length-1; i>=0; i--){
     const item = floorItems[i];
     if(dist2(headPos.x, headPos.y, item.x, item.y) < 35*35){
-      // Player pays 25 coins for floor powerups
-      if (snake.isPlayer) {
-        if (save.coins < 25) {
-          toast('You need 25 coins', '#ff4d6d');
-          spawnText(item.x, item.y, 'You need 25 coins', '#ff4d6d');
-          continue; // can't afford, leave it
-        }
-        save.coins -= 25;
-        saveGame();
-        updatePointsUI();
-      }
-      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, 'SPEED  25 coins', '#ffcc00'); }
-      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, 'SHIELD  25 coins', '#00d4ff'); }
-      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, 'MAGNET  25 coins', '#4ecdc4'); }
+      // Floor powerups are FREE
+      if(item.type === 'speed'){ snake.boostT = 5.0; spawnText(item.x, item.y, 'SPEED FREE', '#ffcc00'); }
+      else if(item.type === 'shield'){ snake.shieldT = 5.0; spawnText(item.x, item.y, 'SHIELD FREE', '#00d4ff'); }
+      else if(item.type === 'magnet'){ snake.magnetT = 5.0; spawnText(item.x, item.y, 'MAGNET FREE', '#4ecdc4'); }
       
       if(snake.isPlayer) {
         playSound('merge');
@@ -1583,8 +1614,17 @@ function killSnake(snake){
   });
   if(snake.isPlayer){ playSound('cut'); endGame(false, true); } 
   else {
+    // Player killed a bot
+    if (player && player.alive) {
+      killsCount++;
+      if (isWin30 && killsCount >= killsNeeded) {
+        endGame(true, false);
+        return;
+      }
+    }
     const idx = bots.indexOf(snake);
     if(idx>=0) bots.splice(idx,1);
+    // Always respawn a new bot starting from 2
     if(bots.length < 30) bots.push(makeBot());
   }
 }
@@ -2114,11 +2154,15 @@ function endGame(survived, diedEarly){
   stopMusic();
   saveGame();
   updatePointsUI();
-  document.getElementById('endTitle').innerHTML = survived ? 'You Survived! 🏆' : 'Game Over';
-  document.getElementById('endBody').textContent = `Your score: ${player.score}  |  Points: ${save.points}`;
+  if (isWin30 && survived) {
+    document.getElementById('endTitle').innerHTML = 'Victory! 🏆 30 Opponents Defeated!';
+  } else {
+    document.getElementById('endTitle').innerHTML = survived ? 'You Survived! 🏆' : 'Game Over';
+  }
+  document.getElementById('endBody').textContent = `Your score: ${player.score}  |  Points: ${save.points}` + (isWin30 ? `  |  Kills: ${killsCount}` : '');
   
   const continueBtn = document.getElementById('continueBtn');
-  if(diedEarly && !isEndless && timeLeft > 0 && !hasContinued) {
+  if(diedEarly && !isEndless && !isWin30 && timeLeft > 0 && !hasContinued) {
       continueBtn.classList.remove('hidden');
   } else {
       continueBtn.classList.add('hidden');
@@ -2148,6 +2192,7 @@ document.getElementById('continueBtn').addEventListener('click', () => {
 });
 
 document.getElementById('btn5Min').addEventListener('click', () => startGame('5min'));
+document.getElementById('btnWin30').addEventListener('click', () => startGame('win30'));
 document.getElementById('btnEndless').addEventListener('click', () => startGame('endless'));
 document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('endModal').classList.add('hidden');
