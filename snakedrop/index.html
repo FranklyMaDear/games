@@ -295,9 +295,9 @@
       </div>
     </div>
     
-    <div style="position:absolute; top:14px; right:14px; display:flex; flex-direction:row; gap:8px; align-items:flex-start;">
-      <button id="btnMap" class="btn-shop" style="padding:6px 12px; font-size:13px; background:linear-gradient(180deg,#6366f1,#4f46e5); box-shadow:0 4px 0 #3730a3,0 6px 10px rgba(0,0,0,0.5);">🗺️ Map</button>
-      <div class="leaderboard" id="leaderboardPanel">
+    <div style="position:absolute; top:12px; right:12px; display:flex; flex-direction:row; gap:10px; align-items:flex-start; z-index:20;">
+      <button id="btnMap" style="flex-shrink:0; background:linear-gradient(180deg,#6366f1,#4f46e5); color:#fff; border:none; border-radius:999px; padding:7px 14px; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 4px 0 #3730a3,0 6px 10px rgba(0,0,0,0.4);">🗺️ Map</button>
+      <div class="leaderboard" id="leaderboardPanel" style="margin:0; position:relative; top:auto; right:auto;">
         <div class="lb-title">Score</div>
         <div id="lbRows"></div>
       </div>
@@ -330,15 +330,10 @@
             <span>⏳</span>
             <span>5 Minutes<br><span class="mode-sub">Classic timed run</span></span>
           </button>
-          <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
-            <div style="text-align:center; font-weight:800; font-size:15px; color:#f9a8d4; margin-top:4px;">🏆 Win to Win</div>
-            <button class="mode-btn" id="btnWinEasy" style="background:linear-gradient(180deg,#86efac,#22c55e);color:#052e16;box-shadow:0 4px 0 #15803d; padding:10px; font-size:15px;">
-              Easy – 15 opponents
-            </button>
-            <button class="mode-btn" id="btnWinHard" style="background:linear-gradient(180deg,#fca5a5,#ef4444);color:#fff;box-shadow:0 4px 0 #b91c1c; padding:10px; font-size:15px;">
-              Hard – 40 opponents
-            </button>
-          </div>
+          <button class="mode-btn" id="btnWinToWin" style="background:linear-gradient(180deg,#f472b6,#db2777);color:#fff;box-shadow:0 6px 0 #9d174d,0 10px 20px rgba(0,0,0,0.25);">
+            <span>🏆</span>
+            <span>Win to Win<br><span class="mode-sub">Defeat all opponents</span></span>
+          </button>
           <button class="mode-btn endless" id="btnEndless">
             <span>♾️</span>
             <span>Endless<br><span class="mode-sub">Play as long as you can</span></span>
@@ -356,6 +351,24 @@
         <p id="endBody">Your score: 0</p>
         <button class="btn btn-alt hidden" id="continueBtn">Continue 🎬</button>
         <button class="btn" id="restartBtn">Play Again</button>
+      </div>
+    </div>
+
+    <!-- Win to Win Difficulty Modal -->
+    <div class="overlay hidden" id="winDiffModal">
+      <div class="center-msg" style="min-width:280px;">
+        <h1 style="font-size:22px;">🏆 Win to Win</h1>
+        <p style="margin-bottom:14px;">Choose difficulty</p>
+        <button class="mode-btn" id="btnWinEasy" style="background:linear-gradient(180deg,#86efac,#22c55e);color:#052e16;box-shadow:0 5px 0 #15803d; margin-bottom:10px; width:100%;">
+          Easy – 15 opponents
+        </button>
+        <button class="mode-btn" id="btnWinMed" style="background:linear-gradient(180deg,#fde68a,#f59e0b);color:#451a03;box-shadow:0 5px 0 #b45309; margin-bottom:10px; width:100%;">
+          Medium – 30 opponents
+        </button>
+        <button class="mode-btn" id="btnWinHard" style="background:linear-gradient(180deg,#fca5a5,#ef4444);color:#fff;box-shadow:0 5px 0 #b91c1c; margin-bottom:10px; width:100%;">
+          Hard – 50 opponents
+        </button>
+        <button class="btn btn-danger" id="btnWinCancel" style="margin-bottom:0; width:100%;">Cancel</button>
       </div>
     </div>
 
@@ -1160,8 +1173,8 @@ class Snake {
     this.angle = rnd(0, Math.PI*2);
     this.targetAngle = this.angle;
     
-    this.baseSpeed = 1.7;
-    this.boostSpeed = 3.2;
+    this.baseSpeed = 1.8;
+    this.boostSpeed = 4.2;
     this.boostT = 0; 
     
     this.path = [{x,y}];
@@ -1383,10 +1396,11 @@ function makeBot(){
 
 function initWorld(mode){
   isEndless = (mode === 'endless');
-  isWin30 = (mode === 'winEasy' || mode === 'winHard');
+  isWin30 = (mode === 'winEasy' || mode === 'winMed' || mode === 'winHard');
   killsCount = 0;
   if (mode === 'winEasy') killsNeeded = 15;
-  else if (mode === 'winHard') killsNeeded = 40;
+  else if (mode === 'winMed') killsNeeded = 30;
+  else if (mode === 'winHard') killsNeeded = 50;
   else killsNeeded = 0;
   timeLeft = (isEndless || isWin30) ? Infinity : 300; 
   hasContinued = false;
@@ -1562,78 +1576,45 @@ function setupPowerupBtn(btnId, type, msg, color) {
 setupPowerupBtn('pwMagnet', 'magnet', 'Magnet Active!', '#4ecdc4');
 setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
 
-// ===== HOLD-TO-CHARGE SPEED BOOST =====
-(function setupHoldBoost() {
+// ===== SPEED BOOST (simple & stable) =====
+(function setupBoost() {
   const btn = document.getElementById('pwBoost');
   const ring = document.getElementById('boostRing');
-  let holding = false;
-  let charge = 0;          // 0 → 1
-  let paid = false;        // charge coins only once per hold
-  const CHARGE_RATE = 0.9; // full charge in ~1.1s
-  const DECAY_RATE = 1.6;  // how fast it empties when released
-  const MAX_SPEED = 4.0;   // top speed when fully charged (normal feel)
-  const MIN_SPEED = 1.7;   // base speed (much slower / natural)
 
   function setRing(pct) {
     if (ring) ring.style.setProperty('--boost-pct', (pct * 100) + '%');
   }
 
-  function onDown(e) {
+  btn.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
     if (!player || !player.alive) return;
     if (player.boostCd > 0) return;
-    if (!paid) {
-      if (save.coins < 25) {
-        toast('Need 25 coins!', '#ff4d6d');
-        return;
-      }
-      save.coins -= 25;
-      paid = true;
-      saveGame();
-      updatePointsUI();
-      toast('Speed Boost (−25 coins)', '#ffd23f');
+    if (player.boostT > 0) return;
+
+    if (save.coins < 25) {
+      toast('Need 25 coins!', '#ff4d6d');
+      return;
     }
-    holding = true;
-    btn.classList.add('holding');
-  }
+    save.coins -= 25;
+    saveGame();
+    updatePointsUI();
 
-  function onUp(e) {
-    if (!holding) return;
-    holding = false;
-    btn.classList.remove('holding');
-    // start short cooldown after full release
-    if (charge > 0.15) {
-      player.boostCd = 8.0;
-      updateCooldownVisual(btn, player, 'boost');
-    }
-    paid = false;
-  }
+    // Activate boost for 4 seconds – clearly faster
+    player.boostT = 4.0;
+    player.boostCd = 10.0;
+    player.baseSpeed = 1.8;   // keep base stable
+    player.boostSpeed = 4.2;  // clear acceleration
+    toast('Speed Boost! (−25 coins)', '#ffd23f');
+    updateCooldownVisual(btn, player, 'boost');
+  });
 
-  btn.addEventListener('pointerdown', onDown);
-  window.addEventListener('pointerup', onUp);
-  window.addEventListener('pointercancel', onUp);
-  btn.addEventListener('contextmenu', e => e.preventDefault());
-
-  // Update loop injection – runs every frame via existing update
-  const origUpdate = Snake.prototype.update;
-  Snake.prototype.update = function(dt) {
-    origUpdate.call(this, dt);
-    if (!this.isPlayer) return;
-
-    if (holding) {
-      charge = Math.min(1, charge + CHARGE_RATE * dt);
-      this.boostT = 0.05; // keep “active” flag
-    } else {
-      charge = Math.max(0, charge - DECAY_RATE * dt);
-    }
-
-    // dynamic speed based on charge
-    this.baseSpeed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * charge;
-    this.boostSpeed = this.baseSpeed; // override old fixed boost
-
-    setRing(charge);
-  };
+  // Keep ring visual in sync
+  setInterval(() => {
+    if (!player) return;
+    const pct = player.boostT > 0 ? Math.min(1, player.boostT / 4) : 0;
+    setRing(pct);
+  }, 100);
 })();
 
 function updateCooldownVisual(el, p, type) {
@@ -2389,8 +2370,24 @@ document.getElementById('continueBtn').addEventListener('click', () => {
 });
 
 document.getElementById('btn5Min').addEventListener('click', () => startGame('5min'));
-document.getElementById('btnWinEasy').addEventListener('click', () => startGame('winEasy'));
-document.getElementById('btnWinHard').addEventListener('click', () => startGame('winHard'));
+document.getElementById('btnWinToWin').addEventListener('click', () => {
+  document.getElementById('winDiffModal').classList.remove('hidden');
+});
+document.getElementById('btnWinEasy').addEventListener('click', () => {
+  document.getElementById('winDiffModal').classList.add('hidden');
+  startGame('winEasy');
+});
+document.getElementById('btnWinMed').addEventListener('click', () => {
+  document.getElementById('winDiffModal').classList.add('hidden');
+  startGame('winMed');
+});
+document.getElementById('btnWinHard').addEventListener('click', () => {
+  document.getElementById('winDiffModal').classList.add('hidden');
+  startGame('winHard');
+});
+document.getElementById('btnWinCancel').addEventListener('click', () => {
+  document.getElementById('winDiffModal').classList.add('hidden');
+});
 document.getElementById('btnEndless').addEventListener('click', () => startGame('endless'));
 document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('endModal').classList.add('hidden');
