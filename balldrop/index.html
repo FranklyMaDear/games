@@ -1006,18 +1006,19 @@
         @media (min-width: 768px) and (min-aspect-ratio: 1.15) {
             /* Clean fixed left panel, fully inside its frame, left of the board */
             #shopRollup {
-                left: 24px !important;
+                left: 16px !important;
                 right: auto !important;
                 top: 50% !important;
                 bottom: auto !important;
                 transform: translate(0, -50%) !important;
-                width: 250px !important;
-                max-width: 22vw !important;
+                width: 280px !important;
+                min-width: 240px !important;
+                max-width: 30vw !important;
                 box-sizing: border-box !important;
-                overflow: hidden !important;
+                overflow: visible !important;
                 border-radius: 16px !important;
-                padding: 12px !important;
-                gap: 8px !important;
+                padding: 14px !important;
+                gap: 10px !important;
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: stretch !important;
@@ -1043,47 +1044,56 @@
                 box-sizing: border-box !important;
             }
             #shopRollup .sr-btns {
-                justify-content: space-between !important;
+                justify-content: center !important;
             }
             #shopRollup .sr-info {
                 display: flex !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
                 justify-content: center !important;
-                flex-wrap: nowrap !important;
+                flex-wrap: wrap !important;
                 gap: 6px !important;
-                overflow: hidden !important;
+                overflow: visible !important;
             }
             #shopRollup .top-btn-shop {
-                flex: 1 1 0 !important;
-                font-size: 12px !important;
-                padding: 8px 6px !important;
+                flex: 1 1 auto !important;
+                font-size: 14px !important;
+                padding: 10px 12px !important;
                 text-align: center !important;
                 justify-content: center !important;
                 white-space: nowrap !important;
                 min-width: 0 !important;
             }
-            /* HELP stays on the far right edge — outside the play area */
+            /* HELP on far right – compact, no scroll */
             #helpRollup {
                 right: 0 !important;
                 top: 50% !important;
                 transform: translateY(-50%) !important;
                 z-index: 25 !important;
+                max-height: 92vh !important;
             }
             #helpTabBtn {
-                font-size: 15px !important;
-                padding: 22px 12px !important;
-                letter-spacing: 5px !important;
+                font-size: 14px !important;
+                padding: 18px 10px !important;
+                letter-spacing: 4px !important;
                 border-radius: 14px 0 0 14px !important;
             }
             #helpRollup.open .help-panel {
-                width: 130px !important;
-                padding: 14px 12px !important;
+                width: 96px !important;
+                padding: 8px 6px !important;
+                max-height: 92vh !important;
+                overflow-y: visible !important;
+                gap: 6px !important;
             }
             .help-panel .pbtn {
-                width: 104px !important;
-                height: 92px !important;
-                font-size: 38px !important;
+                width: 78px !important;
+                height: 68px !important;
+                font-size: 28px !important;
+                border-radius: 16px !important;
+                box-shadow: 0 4px 0 #5c7a3a !important;
+            }
+            .help-panel .pbtn .cost {
+                font-size: 11px !important;
             }
             #shopRollup .top-btn-info {
                 font-size: 11px !important;
@@ -3100,16 +3110,24 @@
                 return createPhysicsBall(value, p.x, p.y, 0, false);
             }
 
-            function spawnCurrent() { 
-                if (currentCube) {
-                    boardGroup.remove(currentCube);
-                    currentCube = null;
-                }
+            function clearHeldBall() {
+                // Safe cleanup of the aiming ball (mesh + label + any tweens on them)
                 if (currentBall) {
-                    if (currentBall.mesh) boardGroup.remove(currentBall.mesh);
-                    if (currentBall.label) boardGroup.remove(currentBall.label);
+                    if (currentBall.label) {
+                        try { if (currentBall.label.parent) currentBall.label.parent.remove(currentBall.label); } catch (e) {}
+                    }
+                    if (currentBall.mesh) {
+                        try { if (currentBall.mesh.parent) currentBall.mesh.parent.remove(currentBall.mesh); } catch (e) {}
+                    }
                     currentBall = null;
                 }
+                if (currentCube) {
+                    try { if (currentCube.parent) currentCube.parent.remove(currentCube); } catch (e) {}
+                    currentCube = null;
+                }
+            }
+
+            function pickSpawnValue(avoidValue) {
                 let maxOnBoard = 4;
                 for (let i = 0; i < balls.length; i++) {
                     maxOnBoard = Math.max(maxOnBoard, balls[i].value);
@@ -3119,7 +3137,20 @@
                     pool.push(v);
                     if (v === 2 || v === 4) pool.push(v);
                 }
-                const val = pool[Math.floor(Math.random() * pool.length)] || 2;
+                if (!pool.length) pool.push(2);
+                // Prefer a different value than the one we are replacing (shuffle)
+                let candidates = pool;
+                if (avoidValue != null) {
+                    const filtered = pool.filter(function(v) { return v !== avoidValue; });
+                    if (filtered.length) candidates = filtered;
+                }
+                return candidates[Math.floor(Math.random() * candidates.length)] || 2;
+            }
+
+            function spawnCurrent(opts) {
+                opts = opts || {};
+                clearHeldBall();
+                const val = pickSpawnValue(opts.avoidValue);
                 const radius = valueToRadius(val);
                 currentCube = makeBallMesh(val);
                 currentCube.position.set(aimX, launchY, 0);
@@ -3137,6 +3168,16 @@
                 });
                 tween(label.scale, { x: radius * 1.85, y: radius * 1.85, z: 1 }, 0.18);
                 updateDropIndicatorFromX(aimX);
+            }
+
+            function removePhysicsBall(ball) {
+                if (!ball) return;
+                try {
+                    if (ball.mesh && ball.mesh.parent) ball.mesh.parent.remove(ball.mesh);
+                    if (ball.label && ball.label.parent) ball.label.parent.remove(ball.label);
+                    if (ball.body && world) world.remove(ball.body);
+                } catch (e) {}
+                balls = balls.filter(function(bb) { return bb.id !== ball.id; });
             }
 
             function setAim(c, instant) {
@@ -3416,22 +3457,49 @@
                 }
 
                 if (hammerMode) {
+                    // Pick the ball under the finger / cursor and destroy it
+                    const x = cx / innerWidth * 2 - 1;
+                    const y = -(cy / innerHeight * 2 - 1);
+                    if (pointer && raycaster && camera) {
+                        pointer.set(x, y);
+                        raycaster.setFromCamera(pointer, camera);
+                        const meshes = [];
+                        for (let i = 0; i < balls.length; i++) {
+                            if (balls[i].mesh) meshes.push(balls[i].mesh);
+                        }
+                        const hits = meshes.length ? raycaster.intersectObjects(meshes, false) : [];
+                        let target = null;
+                        if (hits.length > 0) {
+                            const hitMesh = hits[0].object;
+                            for (let i = 0; i < balls.length; i++) {
+                                if (balls[i].mesh === hitMesh || (balls[i].mesh && balls[i].mesh.children && balls[i].mesh.children.indexOf(hitMesh) >= 0)) {
+                                    target = balls[i];
+                                    break;
+                                }
+                            }
+                        }
+                        // Fallback: nearest ball in board-space to click X/Y
+                        if (!target && balls.length) {
+                            const boardX = clientToBoardX(cx);
+                            let bestD = 2.2, nearest = null;
+                            for (let i = 0; i < balls.length; i++) {
+                                const b = balls[i];
+                                if (!b.body) continue;
+                                const d = Math.hypot(b.body.position.x - boardX, b.body.position.y - (FLOOR_Y + 1.5));
+                                if (d < bestD) { bestD = d; nearest = b; }
+                            }
+                            target = nearest;
+                        }
+                        if (target) {
+                            removePhysicsBall(target);
+                            playSound('hammer');
+                            toast('🔨');
+                        } else {
+                            toast(lang === 'el' ? 'Επίλεξε μπάλα' : 'Pick a ball');
+                        }
+                    }
                     hammerMode = false;
                     updateHUD();
-                    let nearest = null, bestD = 1.5;
-                    for (let i = 0; i < balls.length; i++) {
-                        const b = balls[i];
-                        const d = Math.hypot(b.body.position.x - aimX, b.body.position.y - (TOP_Y - 1));
-                        if (d < bestD) { bestD = d; nearest = b; }
-                    }
-                    if (nearest) {
-                        boardGroup.remove(nearest.mesh);
-                        if (nearest.label) boardGroup.remove(nearest.label);
-                        world.remove(nearest.body);
-                        balls = balls.filter(function(bb) { return bb.id !== nearest.id; });
-                        playSound('hammer');
-                        toast('🔨');
-                    }
                     return;
                 }
 
@@ -4353,7 +4421,7 @@
 
             function activateHammer() {
                 hammerMode = true;
-                toast(TT().hammer_toast);
+                toast(TT().hammer_toast || (lang === 'el' ? '🔨 Επίλεξε μπάλα' : '🔨 Pick a ball'));
                 playSound('hammer');
                 updateHUD();
             }
@@ -4364,17 +4432,21 @@
             };
 
             function activateShuffle() {
-                if (currentCube) {
-                    boardGroup.remove(currentCube);
-                    currentCube = null;
-                    currentBall = null;
-                }
-                spawnCurrent();
+                // Give a different launch number – safe cleanup avoids stuck balls / crashes
+                if (busy || gameOver) return;
+                const prev = (currentBall && currentBall.value) || (currentCube && currentCube.userData && currentCube.userData.value) || null;
+                clearHeldBall();
+                spawnCurrent({ avoidValue: prev });
                 setAimX(aimX);
                 playSound('shuffle');
             }
             document.getElementById('btnShuffle').onclick = function() { 
-                if (busy || !currentCube || gameOver || isSdkPaused || paused) return;
+                if (busy || gameOver || isSdkPaused || paused) return;
+                if (!currentCube && !currentBall) {
+                    // Recover if held ball was lost
+                    spawnCurrent();
+                    return;
+                }
                 if (!spendHelpDiamonds()) return;
                 activateShuffle();
             };
