@@ -1137,7 +1137,7 @@
         </div>
         <div class="sr-row sr-score">
             <div id="btnLeaderboardTop" class="top-btn-leaderboard">🏆 SCORE</div>
-            <button class="hud-btn icon-btn" id="btnSound" title="Sound">ON</button>
+            <button class="hud-btn icon-btn" id="btnSound" title="Sound">🔇</button>
         </div>
         <div id="topToggleBtn" class="top-toggle-handle">
             <span id="topToggleArrow" style="color: #ffda85; font-size: 12px; font-weight: 900;">▼</span>
@@ -3435,7 +3435,19 @@
                 if (!document.getElementById('shopModal').classList.contains('hidden')) renderShop(); 
             }
 
-            function updateSoundBtn() { var b = document.getElementById('btnSound'); if (b) b.textContent = muted ? 'OFF' : 'ON'; }
+            function updateSoundBtn() {
+                var b = document.getElementById('btnSound');
+                if (b) b.textContent = muted ? '🔇' : '🔊';
+            }
+
+            function stopMusic() {
+                if (musicTimer) {
+                    clearInterval(musicTimer);
+                    musicTimer = null;
+                }
+                musicStarted = false;
+            }
+
 
             let toastTimer;
             function toast(msg) {
@@ -3823,8 +3835,7 @@
                     document.getElementById('timer').classList.add('hidden');
                 }
 
-                if (!musicStarted) startMusic();
-
+                // Music starts only when the player presses the speaker button
                 announceMission(400);
                 document.getElementById('loseModal').classList.add('hidden');
                 document.getElementById('timeUpModal').classList.add('hidden');
@@ -4198,9 +4209,15 @@
                     save.muted = muted;
                     persist();
                     updateSoundBtn(); 
-                    if (muted) { try { speechSynthesis.cancel(); } catch (e) {}
-                        isTalking = false; }
-                    toast(muted ? TT().muted : TT().unmuted); 
+                    if (muted) {
+                        try { speechSynthesis.cancel(); } catch (e) {}
+                        isTalking = false;
+                        stopMusic();
+                        toast(TT().muted);
+                    } else {
+                        startMusic();
+                        toast(TT().unmuted);
+                    }
                 };
                 
                 document.getElementById('btnLang').onclick = function() { 
@@ -4211,16 +4228,18 @@
                     applyLang(); 
                 };
 
-                startMusic();
+                // Do NOT auto-start music – only when player presses the speaker button
 
                 loadSave(function() {
                     coins = save.coins || 100;
                     level = save.level || 0;
                     score = save.score || 0;
                     lang = 'en'; // always start in English as requested
-                    muted = !!save.muted; 
+                    muted = true; // always start silent; music only after speaker press
+                    save.muted = true;
                     bestClassic = save.bestClassic || 0;
                     bestTimeAttack = save.bestTimeAttack || 0;
+                    updateSoundBtn();
                     // Initial cloud write so certification detects saveData API
                     setTimeout(function() { persist(); }, 100);
                     setTimeout(bootGame, 300);
