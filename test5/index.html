@@ -62,12 +62,13 @@
         }
         #dropIndicator {
             position: fixed;
-            height: 12px;
+            height: 14px;
             z-index: 15;
-            border-radius: 8px;
+            border-radius: 10px;
             pointer-events: none;
             transition: left 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), width 0.08s cubic-bezier(0.0, 0.0, 0.2, 1);
             animation: rainbowIndicator 1.2s infinite linear;
+            box-shadow: 0 0 14px rgba(255, 140, 60, 0.75);
         }
 
         @keyframes rainbowGlow {
@@ -1857,13 +1858,51 @@
             }
 
             function makeSkyTexture() {
-                return canvasTex(64, 512, function(g, w, h) {
+                return canvasTex(512, 512, function(g, w, h) {
+                    // Deep space gradient
                     const grad = g.createLinearGradient(0, 0, 0, h);
-                    grad.addColorStop(0, '#42A5F5');
-                    grad.addColorStop(0.5, '#90CAF9');
-                    grad.addColorStop(1, '#E3F2FD');
+                    grad.addColorStop(0, '#050510');
+                    grad.addColorStop(0.45, '#0a0a2e');
+                    grad.addColorStop(0.75, '#12124a');
+                    grad.addColorStop(1, '#1a1040');
                     g.fillStyle = grad;
                     g.fillRect(0, 0, w, h);
+                    // Stars
+                    for (let i = 0; i < 220; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const r = Math.random() * 1.6 + 0.3;
+                        const a = 0.4 + Math.random() * 0.6;
+                        g.fillStyle = 'rgba(255,255,255,' + a + ')';
+                        g.beginPath();
+                        g.arc(x, y, r, 0, Math.PI * 2);
+                        g.fill();
+                    }
+                    // A few brighter stars
+                    for (let i = 0; i < 18; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h * 0.85;
+                        g.fillStyle = 'rgba(200,220,255,0.95)';
+                        g.beginPath();
+                        g.arc(x, y, 1.8, 0, Math.PI * 2);
+                        g.fill();
+                        g.fillStyle = 'rgba(180,200,255,0.35)';
+                        g.beginPath();
+                        g.arc(x, y, 4, 0, Math.PI * 2);
+                        g.fill();
+                    }
+                    // Soft nebula patches
+                    for (let i = 0; i < 5; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const rad = 40 + Math.random() * 80;
+                        const ng = g.createRadialGradient(x, y, 0, x, y, rad);
+                        const hue = 240 + Math.random() * 80;
+                        ng.addColorStop(0, 'hsla(' + hue + ',70%,55%,0.18)');
+                        ng.addColorStop(1, 'hsla(' + hue + ',70%,40%,0)');
+                        g.fillStyle = ng;
+                        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+                    }
                 });
             }
 
@@ -2083,34 +2122,14 @@
             }
 
             function initScenery() {
+                // Space theme only – no sun, clouds, grass, or flowers
                 skyPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeSkyTexture(), depthWrite: false }));
                 skyPlane.renderOrder = -10;
                 scene.add(skyPlane);
-
-                sunGroup = new THREE.Group();
-                sunGroup.add(create3DSun());
-                sunGroup.renderOrder = -8;
-                scene.add(sunGroup);
-
-                for (let i = 0; i < 5; i++) {
-                    const c = create3DCloud();
-                    c.renderOrder = -7;
-                    c.userData.speed = 0.15 + Math.random() * 0.3;
-                    c.userData.ny = 0.65 + Math.random() * 0.30;
-                    scene.add(c);
-                    clouds.push(c);
-                }
-
-                grassPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeGrassTexture(), transparent: true, depthWrite: false }));
-                grassPlane.renderOrder = -5;
-                scene.add(grassPlane);
-
-                for (let i = 0; i < 28; i++) {
-                    const fl = createDynamicFlower(i);
-                    scene.add(fl);
-                    flowers.push(fl);
-                }
-
+                sunGroup = null;
+                grassPlane = null;
+                clouds.length = 0;
+                flowers.length = 0;
                 layoutScenery();
             }
 
@@ -2121,59 +2140,10 @@
                 const dSky = 45;
                 const sSky = viewSizeAt(dSky);
                 skyPlane.position.copy(unprojectToDist(0, 0, dSky));
-                skyPlane.scale.set(sSky.w * 1.4, sSky.h * 1.4, 1);
-
-                const dSun = 40;
-                sunGroup.position.copy(unprojectToDist(-0.6, 0.85, dSun));
-                sunGroup.scale.setScalar(1.8);
-
-                const dCloud = 36;
-                const sCloud = viewSizeAt(dCloud);
-                cloudHalfW = sCloud.w * 0.75;
-                clouds.forEach(function(c, i) {
-                    const p = unprojectToDist(0, c.userData.ny, dCloud);
-                    c.position.set(p.x - sCloud.w * 0.6 + i * sCloud.w * 0.35, p.y, p.z);
-                    const cw = 1.0 + (i % 3) * 0.5;
-                    c.scale.setScalar(cw);
-                });
-
-                const dGrass = 20;
-                const sGrass = viewSizeAt(dGrass);
-                const gp = unprojectToDist(0, -0.5, dGrass);
-                grassPlane.position.copy(gp);
-                grassPlane.scale.set(sGrass.w * 1.15, sGrass.h * 0.35, 1);
-
-                const isWideLayout = window.innerWidth >= 768 && (window.innerWidth / window.innerHeight) >= 1.15;
-                // Board world bounds (for hiding flowers that sit inside the frame)
-                let boardMinX = -999, boardMaxX = 999, boardMinY = -999, boardMaxY = 999;
-                if (isWideLayout && boardGroup) {
-                    // Tight bounds: only hide flowers truly inside the brown frame
-                    const halfW = (typeof BOARD_W !== 'undefined' ? BOARD_W : 5) * 0.5 * boardGroup.scale.x + 0.35;
-                    const halfH = (typeof BOARD_H !== 'undefined' ? BOARD_H : 6) * 0.5 * boardGroup.scale.y + 0.35;
-                    boardMinX = boardGroup.position.x - halfW;
-                    boardMaxX = boardGroup.position.x + halfW;
-                    boardMinY = boardGroup.position.y - halfH;
-                    boardMaxY = boardGroup.position.y + halfH;
-                }
-                flowers.forEach(function(fl) {
-                    const u = fl.userData;
-                    const spreadW = sGrass.w * 1.0;
-                    // Full grass spread (same as before / mobile)
-                    const x = spreadW * u.nx;
-                    const y = gp.y + 0.1 - u.nyOffset;
-                    const z = gp.z + 0.2 + u.nz;
-                    fl.position.set(x, y, z);
-                    // Desktop only: hide flowers that fall inside the game board frame
-                    if (isWideLayout) {
-                        const insideBoard = (x >= boardMinX && x <= boardMaxX && y >= boardMinY && y <= boardMaxY);
-                        fl.visible = !insideBoard;
-                    } else {
-                        fl.visible = true;
-                    }
-                });
+                skyPlane.scale.set(sSky.w * 1.5, sSky.h * 1.5, 1);
             }
 
-            function updateClouds(dt) { clouds.forEach(function(c) { c.position.x += c.userData.speed * dt; if (c.position.x > cloudHalfW) c.position.x = -cloudHalfW; }); }
+            function updateClouds(dt) { /* space theme: no clouds */ }
 
             let girl, girlCore, sockets = {}, mouthMesh, eyeL, eyeR, browL, browR, dressMesh, hairGroup, accessoryGroup;
             let shoeMaterial;
@@ -2587,7 +2557,7 @@
                 renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
                 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 scene = new THREE.Scene();
-                scene.background = new THREE.Color(0x8FD0F5);
+                scene.background = new THREE.Color(0x050510);
                 camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 120);
                 scene.add(new THREE.AmbientLight(0xfff4e0, 0.85));
                 const sun = new THREE.DirectionalLight(0xfff2cc, 0.95);
@@ -2701,82 +2671,87 @@
 
             function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (CELL + GAP) }; }
 
-            function numberTexture(value) { const cv = document.createElement("canvas");
-                cv.width = cv.height = 128; const g = cv.getContext("2d"); const skin = save.equippedCube; if (skin === 'wood') { g.fillStyle = value >= 128 ? "#8B5A2B" : "#DEB887";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'whitered' || skin === 'whitegreen') { g.fillStyle = "white";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = skin === 'whitered' ? "#D32F2F" : "#388E3C";
-                    g.save();
-                    g.clip(); for (let i = -128; i < 256; i += 32) { g.beginPath();
-                        g.moveTo(i, 0);
-                        g.lineTo(i + 20, 0);
-                        g.lineTo(i - 108, 128);
-                        g.lineTo(i - 128, 128);
-                        g.fill(); }
-                    g.restore(); } else if (skin === 'zebra') { g.fillStyle = "white";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = "#111";
-                    g.save();
-                    g.clip(); for (let i = 0; i < 128; i += 24) { g.beginPath();
-                        g.moveTo(0, i);
-                        g.bezierCurveTo(40, i + 15, 80, i - 15, 128, i);
-                        g.lineTo(128, i + 10);
-                        g.bezierCurveTo(80, i - 5, 40, i + 25, 0, i + 10);
-                        g.fill(); }
-                    g.restore(); } else if (skin === 'rainbow') { let grad = g.createLinearGradient(0, 0, 128, 128);['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'].forEach(function(c, i) { grad.addColorStop(i / 6, c); });
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'gold') { let grad = g.createRadialGradient(64, 64, 0, 64, 64, 90);
-                    grad.addColorStop(0, "#FFF59D");
-                    grad.addColorStop(0.6, "#FBC02D");
-                    grad.addColorStop(1, "#F57F17");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'neon') { g.fillStyle = "#111";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.strokeStyle = "hsl(" + ((Math.log2(value) * 30) % 360) + ", 100%, 50%)";
-                    g.lineWidth = 6;
-                    g.stroke(); } else if (skin === 'galaxy') { g.fillStyle = "#1A0B2E";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill();
-                    g.fillStyle = "white"; for (let i = 0; i < 30; i++) { g.beginPath();
-                        g.arc(Math.random() * 128, Math.random() * 128, Math.random() * 2, 0, 7);
-                        g.fill(); } } else if (skin === 'ice') { let grad = g.createLinearGradient(0, 0, 128, 128);
-                    grad.addColorStop(0, "#E0F7FA");
-                    grad.addColorStop(1, "#00BCD4");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else if (skin === 'lava') { let grad = g.createLinearGradient(0, 0, 128, 128);
-                    grad.addColorStop(0, "#FF5722");
-                    grad.addColorStop(1, "#FFC107");
-                    g.fillStyle = grad;
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else { g.fillStyle = "#111";
-                    roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
-                    g.shadowColor = "rgba(0,0,0,0.35)";
-                    g.shadowBlur = 7;
-                    g.shadowOffsetY = 2;
-                    g.beginPath();
-                    g.arc(64, 66, 37, 0, Math.PI * 2);
-                    g.fillStyle = "rgba(255,255,255,0.96)";
-                    g.fill();
-                    g.restore();
-                    g.lineWidth = 3;
-                    g.strokeStyle = "rgba(0,0,0,0.12)";
-                    g.beginPath();
-                    g.arc(64, 66, 37, 0, Math.PI * 2);
-                    g.stroke(); }
-                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
-                g.textAlign = "center";
-                g.textBaseline = "middle";
-                g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
-                g.fillText(value, 64, hasBadge ? 66 : 68); const t = new THREE.CanvasTexture(cv);
-                t.anisotropy = 4; return t; }
+            function numberTexture(value) {
+                // Sphere-friendly circular texture: solid color + big centered number
+                // Avoids polar stretching by using a radial design and mapping the number at the equator-facing area
+                const cv = document.createElement('canvas');
+                cv.width = cv.height = 256;
+                const g = cv.getContext('2d');
+                const skin = (save && save.equippedCube) ? save.equippedCube : 'default';
+
+                // Full clear
+                g.clearRect(0, 0, 256, 256);
+
+                // Base circle fill (covers most of sphere when viewed from front)
+                const baseColors = {
+                    2: '#A8E6CF', 4: '#DCEDC1', 8: '#FFD3B6', 16: '#FFAAA5',
+                    32: '#FF8B94', 64: '#F9C5D1', 128: '#C5B4E3', 256: '#9BB7D4',
+                    512: '#7EC8E3', 1024: '#5B9BD5', 2048: '#F7B267', 4096: '#F4845F',
+                    8192: '#E36387'
+                };
+                let fillCol = baseColors[value] || '#DDDDDD';
+                if (skin === 'wood') fillCol = value >= 128 ? '#8B5A2B' : '#DEB887';
+                else if (skin === 'gold') fillCol = '#FBC02D';
+                else if (skin === 'neon') fillCol = '#111111';
+                else if (skin === 'rainbow') fillCol = '#FF6B6B';
+
+                // Soft radial sphere shading
+                const rg = g.createRadialGradient(110, 100, 20, 128, 128, 128);
+                rg.addColorStop(0, fillCol);
+                // darken edges slightly
+                rg.addColorStop(1, shadeColor(fillCol, -35));
+                g.fillStyle = rg;
+                g.beginPath();
+                g.arc(128, 128, 126, 0, Math.PI * 2);
+                g.fill();
+
+                // Highlight
+                const hg = g.createRadialGradient(95, 85, 5, 95, 85, 55);
+                hg.addColorStop(0, 'rgba(255,255,255,0.45)');
+                hg.addColorStop(1, 'rgba(255,255,255,0)');
+                g.fillStyle = hg;
+                g.beginPath();
+                g.arc(95, 85, 55, 0, Math.PI * 2);
+                g.fill();
+
+                // Number – large, centered, high contrast
+                const str = String(value);
+                let fontSize = str.length >= 4 ? 72 : str.length === 3 ? 92 : 110;
+                g.font = '800 ' + fontSize + "px 'Baloo 2', system-ui, sans-serif";
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                // Shadow
+                g.fillStyle = 'rgba(0,0,0,0.35)';
+                g.fillText(str, 130, 134);
+                // Main
+                const textCol = (skin === 'wood' && value < 128) ? '#2F1B0D' : '#FFFFFF';
+                g.fillStyle = textCol;
+                g.fillText(str, 128, 130);
+                // Subtle outline for readability
+                g.lineWidth = 3;
+                g.strokeStyle = 'rgba(0,0,0,0.25)';
+                g.strokeText(str, 128, 130);
+
+                const t = new THREE.CanvasTexture(cv);
+                t.anisotropy = 4;
+                t.needsUpdate = true;
+                return t;
+            }
+
+            function shadeColor(hex, percent) {
+                try {
+                    let c = hex.replace('#','');
+                    if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+                    const num = parseInt(c, 16);
+                    let r = (num >> 16) + percent;
+                    let g = ((num >> 8) & 0x00FF) + percent;
+                    let b = (num & 0x0000FF) + percent;
+                    r = Math.max(0, Math.min(255, r));
+                    g = Math.max(0, Math.min(255, g));
+                    b = Math.max(0, Math.min(255, b));
+                    return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                } catch (e) { return hex; }
+            }
 
             function roundRect(g, x, y, w, h, r) { g.beginPath();
                 g.moveTo(x + r, y);
@@ -2794,16 +2769,55 @@
             function makeBallMesh(value) {
                 const radius = valueToRadius(value);
                 const tex = numberTexture(value);
-                const geo = new THREE.SphereGeometry(radius, 24, 20);
+                // Higher segment count for smoother spheres
+                const geo = new THREE.SphereGeometry(radius, 32, 24);
                 const mat = new THREE.MeshLambertMaterial({
                     map: tex,
-                    color: valueToColor(value),
+                    color: 0xffffff, // texture carries color; avoid double-tinting
                     transparent: false
                 });
                 const m = new THREE.Mesh(geo, mat);
                 m.userData.value = value;
                 m.userData.radius = radius;
+
+                // Billboard number label for perfect readability (always faces camera)
+                const label = makeNumberSprite(value, radius);
+                if (label) {
+                    m.add(label);
+                    m.userData.label = label;
+                }
                 return m;
+            }
+
+            function makeNumberSprite(value, radius) {
+                const cv = document.createElement('canvas');
+                cv.width = 128; cv.height = 128;
+                const g = cv.getContext('2d');
+                g.clearRect(0, 0, 128, 128);
+                const str = String(value);
+                let fs = str.length >= 4 ? 36 : str.length === 3 ? 46 : 56;
+                g.font = '800 ' + fs + "px 'Baloo 2', system-ui, sans-serif";
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                g.lineWidth = 6;
+                g.strokeStyle = 'rgba(0,0,0,0.55)';
+                g.strokeText(str, 64, 66);
+                g.fillStyle = '#FFFFFF';
+                g.fillText(str, 64, 66);
+                const tex = new THREE.CanvasTexture(cv);
+                tex.needsUpdate = true;
+                const mat = new THREE.SpriteMaterial({
+                    map: tex,
+                    transparent: true,
+                    depthTest: true,
+                    depthWrite: false
+                });
+                const spr = new THREE.Sprite(mat);
+                // Slightly in front of sphere surface
+                const s = radius * 1.55;
+                spr.scale.set(s, s, 1);
+                spr.position.set(0, 0, radius * 0.15);
+                return spr;
             }
 
             function createPhysicsBall(value, x, y, z, isStatic) {
@@ -2945,13 +2959,16 @@
             }
 
             function updateDropIndicatorFromX(x) {
+                // Place the control indicator at the BOTTOM of the board (not under the falling ball)
                 const elem = document.getElementById('dropIndicator');
                 if (!elem || !camera || !boardGroup) return;
-                const targetPos = new THREE.Vector3(x, launchY, 0);
-                boardGroup.localToWorld(targetPos);
                 const r = currentBall ? currentBall.radius : 0.4;
-                const leftWorld = targetPos.clone().add(new THREE.Vector3(-r, 0, 0));
-                const rightWorld = targetPos.clone().add(new THREE.Vector3(r, 0, 0));
+                // Bottom edge of the container (just above the floor visual)
+                const bottomY = (typeof FLOOR_Y !== 'undefined' ? FLOOR_Y : -3.5) + 0.15;
+                const targetPos = new THREE.Vector3(x, bottomY, 0.2);
+                boardGroup.localToWorld(targetPos);
+                const leftWorld = targetPos.clone().add(new THREE.Vector3(-Math.max(0.35, r), 0, 0));
+                const rightWorld = targetPos.clone().add(new THREE.Vector3(Math.max(0.35, r), 0, 0));
                 leftWorld.project(camera);
                 rightWorld.project(camera);
                 targetPos.project(camera);
@@ -2959,10 +2976,11 @@
                 const xR = (rightWorld.x * 0.5 + 0.5) * window.innerWidth;
                 const px = (targetPos.x * 0.5 + 0.5) * window.innerWidth;
                 const py = (-targetPos.y * 0.5 + 0.5) * window.innerHeight;
-                const pxWidth = Math.max(16, Math.abs(xR - xL));
+                const pxWidth = Math.max(28, Math.abs(xR - xL));
                 elem.style.width = pxWidth + 'px';
                 elem.style.left = (px - pxWidth / 2) + 'px';
-                elem.style.top = (py + 8) + 'px';
+                // Slightly below the projected bottom so it sits under the frame
+                elem.style.top = (py + 4) + 'px';
             }
 
             // ============================================================
@@ -3388,12 +3406,12 @@
                     for (let i = 0; i < balls.length; i++) {
                         const m = balls[i].mesh;
                         m.material.map = numberTexture(balls[i].value);
-                        m.material.color.setHex(valueToColor(balls[i].value));
+                        m.material.color.setHex(0xffffff);
                         m.material.needsUpdate = true;
                     }
                     if (currentCube) { 
                         currentCube.material.map = numberTexture(currentCube.userData.value);
-                        currentCube.material.color.setHex(valueToColor(currentCube.userData.value));
+                        currentCube.material.color.setHex(0xffffff);
                         currentCube.material.needsUpdate = true; 
                     }
                     toast(TT().cube_changed); 
