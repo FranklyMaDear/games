@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Drop 4096 · FranklyGames</title>
+    <title>Ball Drop By Galactic</title>
     
     <!-- Open Graph Meta Tags for Rich Preview -->
-    <meta property="og:title" content="Drop 4096 · FranklyGames">
-    <meta property="og:description" content="I scored high in Drop 4096! Can you beat my score? Play now for free!">
+    <meta property="og:title" content="Ball Drop By Galactic">
+    <meta property="og:description" content="I scored high in Ball Drop By Galactic! Can you beat my score? Play now for free!">
     <meta property="og:image" content="https://franklymadear.github.io/drop4096-reddit/photo.png">
     <meta property="og:video" content="https://franklymadear.github.io/drop4096-reddit/video.mp4">
     <meta property="og:video:type" content="video/mp4">
@@ -62,13 +62,22 @@
         }
         #dropIndicator {
             position: fixed;
-            height: 14px;
+            height: 18px;
             z-index: 15;
-            border-radius: 10px;
+            border-radius: 12px;
             pointer-events: none;
-            transition: left 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.08s cubic-bezier(0.0, 0.0, 0.2, 1), width 0.08s cubic-bezier(0.0, 0.0, 0.2, 1);
+            transition: left 0.06s cubic-bezier(0.0, 0.0, 0.2, 1), top 0.06s cubic-bezier(0.0, 0.0, 0.2, 1), width 0.06s cubic-bezier(0.0, 0.0, 0.2, 1);
             animation: rainbowIndicator 1.2s infinite linear;
-            box-shadow: 0 0 14px rgba(255, 140, 60, 0.75);
+            box-shadow: 0 0 16px rgba(255, 140, 60, 0.85), 0 4px 0 rgba(0,0,0,0.35);
+            border: 2px solid rgba(255,255,255,0.55);
+        }
+        #aimZone {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            height: 22%;
+            z-index: 12;
+            pointer-events: none; /* visual only; input goes to canvas */
+            background: linear-gradient(to top, rgba(0,0,0,0.28), transparent);
         }
 
         @keyframes rainbowGlow {
@@ -1054,6 +1063,7 @@
     <canvas id="game"></canvas>
     
     <div id="dropIndicator"></div>
+    <div id="aimZone"></div>
 
     <div id="shopRollup">
         <div class="sr-row sr-btns">
@@ -1172,15 +1182,17 @@
         </div>
     </div>
 
-    <div class="overlay" id="mainMenu">
-        <div class="card" style="max-width:420px;">
-            <div style="font-size:60px; margin-bottom:8px;">🎲</div>
-            <h2 id="tutorialTitle" style="font-size:32px; margin:0 0 10px;">DROP 4096</h2>
-            <div id="tutorialText" style="font-size:16px; line-height:1.5;">
-                <p style="margin-bottom:15px; color:#4A3423;">
-                    <b>🎯 Goal:</b> Merge cubes with the same number to reach the target!<br><br>
-                    <b>🕹️ Controls:</b> Drag your finger left/right to move the falling cube. Release to drop it!<br><br>
-                    <b>💡 Tip:</b> Keep the big cubes at the edges to avoid filling the board!
+    <div class="overlay" id="mainMenu" style="background:rgba(5,5,16,0.55);">
+        <div class="card" style="max-width:420px; background:linear-gradient(165deg,#1a1040,#0a0a2e); border-color:#7B68EE; color:#fff;">
+            <div style="font-size:52px; margin-bottom:6px;">🪐</div>
+            <h2 id="tutorialTitle" style="font-size:28px; margin:0 0 4px; color:#E8E0FF; letter-spacing:1px;">Ball Drop</h2>
+            <div style="font-size:14px; color:#A78BFA; font-weight:800; margin-bottom:12px; letter-spacing:2px;">BY GALACTIC</div>
+            <div id="tutorialText" style="font-size:15px; line-height:1.45; color:#D4C8F0;">
+                <p style="margin-bottom:12px;">
+                    <b>🎯 Goal:</b> Merge same-number balls to reach the mission target!<br><br>
+                    <b>🕹️ Controls:</b> Drag left/right to aim, release to drop.<br>
+                    <span style="opacity:0.85;">Desktop: move mouse to aim, click to drop.</span><br><br>
+                    <b>💡 Tip:</b> Keep big balls at the sides so the board does not fill up!
                 </p>
             </div>
             <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; justify-content:center;">
@@ -1288,7 +1300,6 @@
             }
 
             function valueToColor(v) {
-                // Soft pastel colors per power of 2
                 const colors = {
                     2: 0xA8E6CF, 4: 0xDCEDC1, 8: 0xFFD3B6, 16: 0xFFAAA5,
                     32: 0xFF8B94, 64: 0xF9C5D1, 128: 0xC5B4E3, 256: 0x9BB7D4,
@@ -1296,6 +1307,50 @@
                     8192: 0xE36387
                 };
                 return colors[v] || 0xDDDDDD;
+            }
+
+            // Shop skins applied as solid / emissive colors (no stretchy maps on spheres)
+            function skinBallStyle(value) {
+                const skin = (save && save.equippedCube) ? save.equippedCube : 'wood';
+                const base = valueToColor(value);
+                const style = { color: base, emissive: 0x000000, emissiveIntensity: 0, metalness: 0, roughness: 1 };
+                if (skin === 'wood') {
+                    style.color = value >= 128 ? 0x8B5A2B : 0xDEB887;
+                } else if (skin === 'whitered') {
+                    style.color = 0xFFF5F5;
+                    style.emissive = 0xD32F2F;
+                    style.emissiveIntensity = 0.25;
+                } else if (skin === 'whitegreen') {
+                    style.color = 0xF5FFF5;
+                    style.emissive = 0x388E3C;
+                    style.emissiveIntensity = 0.22;
+                } else if (skin === 'zebra') {
+                    style.color = (Math.log2(value) % 2 === 0) ? 0xF5F5F5 : 0x222222;
+                } else if (skin === 'neon') {
+                    style.color = 0x111122;
+                    style.emissive = base;
+                    style.emissiveIntensity = 0.65;
+                } else if (skin === 'rainbow') {
+                    const hue = (Math.log2(Math.max(2, value)) * 40) % 360;
+                    style.color = new THREE.Color().setHSL(hue / 360, 0.75, 0.55).getHex();
+                } else if (skin === 'gold') {
+                    style.color = 0xF5C542;
+                    style.emissive = 0xB8860B;
+                    style.emissiveIntensity = 0.3;
+                } else if (skin === 'galaxy') {
+                    style.color = 0x2B1B4E;
+                    style.emissive = 0x7B68EE;
+                    style.emissiveIntensity = 0.45;
+                } else if (skin === 'ice') {
+                    style.color = 0xE0F7FA;
+                    style.emissive = 0x4FC3F7;
+                    style.emissiveIntensity = 0.2;
+                } else if (skin === 'lava') {
+                    style.color = 0x3E1410;
+                    style.emissive = 0xFF5722;
+                    style.emissiveIntensity = 0.55;
+                }
+                return style;
             }
 
             const I18N = {
@@ -2499,6 +2554,8 @@
             let physicsReady = false;
             let mergeCooldown = new Set(); // prevent double-merge same pair
             let lastMergeTime = 0;
+            let menuBalls = []; // decorative bouncing balls on title screen
+            let menuBallsActive = false;
 
             function initPhysics() {
                 if (typeof CANNON === 'undefined') {
@@ -2768,55 +2825,75 @@
 
             function makeBallMesh(value) {
                 const radius = valueToRadius(value);
-                const tex = numberTexture(value);
-                // Higher segment count for smoother spheres
+                const style = skinBallStyle(value);
                 const geo = new THREE.SphereGeometry(radius, 32, 24);
-                const mat = new THREE.MeshLambertMaterial({
-                    map: tex,
-                    color: 0xffffff, // texture carries color; avoid double-tinting
-                    transparent: false
+                const mat = new THREE.MeshPhongMaterial({
+                    color: style.color,
+                    emissive: style.emissive,
+                    emissiveIntensity: style.emissiveIntensity || 0,
+                    shininess: 55,
+                    specular: 0x333333
                 });
                 const m = new THREE.Mesh(geo, mat);
                 m.userData.value = value;
                 m.userData.radius = radius;
 
-                // Billboard number label for perfect readability (always faces camera)
+                // Clean circular badge with number – always faces camera (Sprite)
                 const label = makeNumberSprite(value, radius);
-                if (label) {
-                    m.add(label);
-                    m.userData.label = label;
-                }
+                m.add(label);
+                m.userData.label = label;
                 return m;
             }
 
             function makeNumberSprite(value, radius) {
                 const cv = document.createElement('canvas');
-                cv.width = 128; cv.height = 128;
+                cv.width = 256; cv.height = 256;
                 const g = cv.getContext('2d');
-                g.clearRect(0, 0, 128, 128);
+                g.clearRect(0, 0, 256, 256);
+
+                // Soft circular badge
+                const rg = g.createRadialGradient(128, 120, 20, 128, 128, 110);
+                rg.addColorStop(0, 'rgba(20,12,30,0.92)');
+                rg.addColorStop(0.75, 'rgba(20,12,30,0.82)');
+                rg.addColorStop(1, 'rgba(20,12,30,0)');
+                g.fillStyle = rg;
+                g.beginPath();
+                g.arc(128, 128, 110, 0, Math.PI * 2);
+                g.fill();
+
+                // Ring
+                g.strokeStyle = 'rgba(255,255,255,0.35)';
+                g.lineWidth = 6;
+                g.beginPath();
+                g.arc(128, 128, 88, 0, Math.PI * 2);
+                g.stroke();
+
                 const str = String(value);
-                let fs = str.length >= 4 ? 36 : str.length === 3 ? 46 : 56;
+                let fs = str.length >= 4 ? 72 : str.length === 3 ? 92 : 112;
                 g.font = '800 ' + fs + "px 'Baloo 2', system-ui, sans-serif";
                 g.textAlign = 'center';
                 g.textBaseline = 'middle';
-                g.lineWidth = 6;
-                g.strokeStyle = 'rgba(0,0,0,0.55)';
-                g.strokeText(str, 64, 66);
+                g.lineWidth = 10;
+                g.strokeStyle = 'rgba(0,0,0,0.65)';
+                g.strokeText(str, 128, 134);
                 g.fillStyle = '#FFFFFF';
-                g.fillText(str, 64, 66);
+                g.fillText(str, 128, 130);
+
                 const tex = new THREE.CanvasTexture(cv);
                 tex.needsUpdate = true;
                 const mat = new THREE.SpriteMaterial({
                     map: tex,
                     transparent: true,
                     depthTest: true,
-                    depthWrite: false
+                    depthWrite: false,
+                    sizeAttenuation: true
                 });
                 const spr = new THREE.Sprite(mat);
-                // Slightly in front of sphere surface
-                const s = radius * 1.55;
+                const s = radius * 1.7;
                 spr.scale.set(s, s, 1);
-                spr.position.set(0, 0, radius * 0.15);
+                // Slightly in front so it stays readable
+                spr.position.set(0, 0, 0.01);
+                spr.renderOrder = 10;
                 return spr;
             }
 
@@ -2930,6 +3007,11 @@
                 currentCube = makeBallMesh(val);
                 currentCube.position.set(aimX, launchY, 0);
                 currentCube.scale.set(0.01, 0.01, 0.01);
+                // Ghost-style preview while aiming
+                if (currentCube.material) {
+                    currentCube.material.transparent = true;
+                    currentCube.material.opacity = 0.92;
+                }
                 boardGroup.add(currentCube);
                 currentBall = { mesh: currentCube, value: val, radius: valueToRadius(val) };
                 tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.18, null, function() {
@@ -2959,16 +3041,15 @@
             }
 
             function updateDropIndicatorFromX(x) {
-                // Place the control indicator at the BOTTOM of the board (not under the falling ball)
+                // Bottom-of-board aim marker – wide enough for easy reading on mobile & desktop
                 const elem = document.getElementById('dropIndicator');
                 if (!elem || !camera || !boardGroup) return;
-                const r = currentBall ? currentBall.radius : 0.4;
-                // Bottom edge of the container (just above the floor visual)
-                const bottomY = (typeof FLOOR_Y !== 'undefined' ? FLOOR_Y : -3.5) + 0.15;
-                const targetPos = new THREE.Vector3(x, bottomY, 0.2);
+                const r = currentBall ? Math.max(0.45, currentBall.radius) : 0.5;
+                const bottomY = (typeof FLOOR_Y !== 'undefined' ? FLOOR_Y : -3.5) + 0.12;
+                const targetPos = new THREE.Vector3(x, bottomY, 0.25);
                 boardGroup.localToWorld(targetPos);
-                const leftWorld = targetPos.clone().add(new THREE.Vector3(-Math.max(0.35, r), 0, 0));
-                const rightWorld = targetPos.clone().add(new THREE.Vector3(Math.max(0.35, r), 0, 0));
+                const leftWorld = targetPos.clone().add(new THREE.Vector3(-r * 1.15, 0, 0));
+                const rightWorld = targetPos.clone().add(new THREE.Vector3(r * 1.15, 0, 0));
                 leftWorld.project(camera);
                 rightWorld.project(camera);
                 targetPos.project(camera);
@@ -2976,11 +3057,11 @@
                 const xR = (rightWorld.x * 0.5 + 0.5) * window.innerWidth;
                 const px = (targetPos.x * 0.5 + 0.5) * window.innerWidth;
                 const py = (-targetPos.y * 0.5 + 0.5) * window.innerHeight;
-                const pxWidth = Math.max(28, Math.abs(xR - xL));
+                const pxWidth = Math.max(40, Math.abs(xR - xL));
                 elem.style.width = pxWidth + 'px';
                 elem.style.left = (px - pxWidth / 2) + 'px';
-                // Slightly below the projected bottom so it sits under the frame
-                elem.style.top = (py + 4) + 'px';
+                elem.style.top = Math.min(window.innerHeight - 28, py + 6) + 'px';
+                elem.style.display = (currentCube && !gameOver) ? 'block' : 'none';
             }
 
             // ============================================================
@@ -3169,36 +3250,49 @@
                 document.getElementById("loseModal").classList.remove("hidden"); 
             }
 
-            function onTap(e) { 
+            let isAiming = false;
+            let pointerDownX = 0;
+            let pointerMoved = false;
+
+            function clientToBoardX(clientX) {
+                if (!camera || !boardGroup) return 0;
+                const nx = (clientX / window.innerWidth) * 2 - 1;
+                const far = new THREE.Vector3(nx, 0.55, 0.5).unproject(camera);
+                const dir = far.sub(camera.position).normalize();
+                const dist = (boardGroup.position.z - camera.position.z) / (dir.z || 0.001);
+                const hit = camera.position.clone().add(dir.multiplyScalar(dist));
+                boardGroup.worldToLocal(hit);
+                return hit.x;
+            }
+
+            function onPointerDown(e) {
                 if (document.querySelector(".overlay:not(.hidden):not(#pauseOverlay)")) return;
                 if (gameOver || isSdkPaused || paused) return;
-                lastActionTime = performance.now(); 
                 const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-                const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY; 
-                const x = cx / innerWidth * 2 - 1;
-                const y = -(cy / innerHeight * 2 - 1);
-                
-                pointer.set(x, y);
-                raycaster.setFromCamera(pointer, camera); 
+                const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
 
-                if (girl) { 
-                    const hits = raycaster.intersectObject(girl, true); 
-                    if (hits.length > 0 && winTime <= 0) { 
+                // Girl interaction
+                if (girl && pointer && raycaster && camera) {
+                    const x = cx / innerWidth * 2 - 1;
+                    const y = -(cy / innerHeight * 2 - 1);
+                    pointer.set(x, y);
+                    raycaster.setFromCamera(pointer, camera);
+                    const hits = raycaster.intersectObject(girl, true);
+                    if (hits.length > 0 && winTime <= 0) {
                         giggleSFX();
-                        reactionTime = 1.0; 
-                        const greetings = TT().greetings; 
+                        reactionTime = 1.0;
+                        const greetings = TT().greetings;
                         const pick = greetings[Math.floor(Math.random() * greetings.length)];
                         showSpeech(pick, 1800);
-                        speak(pick.replace(/[^Ͱ-Ͽἀ-῿a-zA-Z' ;!?]/g, '').trim()); 
-                        return; 
-                    } 
+                        speak(pick.replace(/[^Ͱ-Ͽἀ-῿a-zA-Z' ;!?]/g, '').trim());
+                        return;
+                    }
                 }
 
-                // Hammer: destroy nearest ball
                 if (hammerMode) {
                     hammerMode = false;
                     updateHUD();
-                    let nearest = null, bestD = 1.2;
+                    let nearest = null, bestD = 1.5;
                     for (let i = 0; i < balls.length; i++) {
                         const b = balls[i];
                         const d = Math.hypot(b.body.position.x - aimX, b.body.position.y - (TOP_Y - 1));
@@ -3213,12 +3307,37 @@
                     }
                     return;
                 }
-                
-                // Drop the current ball
+
+                isAiming = true;
+                pointerMoved = false;
+                pointerDownX = cx;
+                lastActionTime = performance.now();
+                setAimX(clientToBoardX(cx));
+            }
+
+            function onPointerMove(e) {
+                if (gameOver || isSdkPaused || paused) return;
+                const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+                // Always allow aiming while holding a ball (desktop hover or drag)
                 if (!busy && currentCube) {
-                    launch(); 
+                    if (Math.abs(cx - pointerDownX) > 6) pointerMoved = true;
+                    setAimX(clientToBoardX(cx));
                 }
             }
+
+            function onPointerUp(e) {
+                if (!isAiming) return;
+                isAiming = false;
+                if (document.querySelector(".overlay:not(.hidden):not(#pauseOverlay)")) return;
+                if (gameOver || isSdkPaused || paused || busy) return;
+                // Drop on release (Suika-style). Also allow quick tap without much move.
+                if (currentCube) {
+                    launch();
+                }
+            }
+
+            // legacy alias
+            function onTap(e) { onPointerDown(e); }
 
             async function doShareAction(onSuccess) {
                 const tileVal = biggestTile || 2;
@@ -3403,16 +3522,19 @@
             function applyShopChanges(tabChanged) { 
                 if (tabChanged === 'boards') updateBoardColorsLive(); 
                 if (tabChanged === 'cubes') { 
-                    for (let i = 0; i < balls.length; i++) {
-                        const m = balls[i].mesh;
-                        m.material.map = numberTexture(balls[i].value);
-                        m.material.color.setHex(0xffffff);
+                    function restyleMesh(m, val) {
+                        if (!m || !m.material) return;
+                        const st = skinBallStyle(val);
+                        m.material.color.setHex(st.color);
+                        m.material.emissive.setHex(st.emissive || 0);
+                        m.material.emissiveIntensity = st.emissiveIntensity || 0;
                         m.material.needsUpdate = true;
                     }
-                    if (currentCube) { 
-                        currentCube.material.map = numberTexture(currentCube.userData.value);
-                        currentCube.material.color.setHex(0xffffff);
-                        currentCube.material.needsUpdate = true; 
+                    for (let i = 0; i < balls.length; i++) {
+                        restyleMesh(balls[i].mesh, balls[i].value);
+                    }
+                    if (currentCube) {
+                        restyleMesh(currentCube, currentCube.userData.value);
                     }
                     toast(TT().cube_changed); 
                 } 
@@ -3515,6 +3637,7 @@
                 lastT = t; 
                 if (!lastActionTime) lastActionTime = performance.now();
                 stepAnims(dt);
+                updateMenuBalls(t, dt);
 
                 // === Physics step & mesh sync ===
                 if (world && physicsReady && !gameOver) {
@@ -3754,6 +3877,53 @@
                 requestAnimationFrame(loop); 
             }
 
+
+            function spawnMenuBalls() {
+                if (!scene || menuBallsActive) return;
+                menuBallsActive = true;
+                const vals = [2, 4, 8, 16, 32, 64, 128, 256];
+                for (let i = 0; i < 10; i++) {
+                    const v = vals[i % vals.length];
+                    const mesh = makeBallMesh(v);
+                    const r = valueToRadius(v);
+                    mesh.position.set(
+                        (Math.random() - 0.5) * 8,
+                        (Math.random() - 0.2) * 5,
+                        -4 - Math.random() * 3
+                    );
+                    mesh.userData.vx = (Math.random() - 0.5) * 1.2;
+                    mesh.userData.vy = 0.8 + Math.random() * 1.5;
+                    mesh.userData.baseY = mesh.position.y;
+                    mesh.userData.phase = Math.random() * Math.PI * 2;
+                    mesh.userData.spin = (Math.random() - 0.5) * 0.04;
+                    scene.add(mesh);
+                    menuBalls.push(mesh);
+                }
+            }
+
+            function clearMenuBalls() {
+                menuBalls.forEach(function(m) {
+                    if (m.parent) m.parent.remove(m);
+                });
+                menuBalls = [];
+                menuBallsActive = false;
+            }
+
+            function updateMenuBalls(t, dt) {
+                if (!menuBallsActive) return;
+                menuBalls.forEach(function(m, i) {
+                    const u = m.userData;
+                    // Bounce hop
+                    const hop = Math.abs(Math.sin(t * 0.0025 + u.phase)) * 1.4;
+                    m.position.y = u.baseY + hop;
+                    m.position.x += u.vx * dt;
+                    if (m.position.x > 5) { m.position.x = 5; u.vx *= -1; }
+                    if (m.position.x < -5) { m.position.x = -5; u.vx *= -1; }
+                    m.rotation.y += u.spin;
+                    m.rotation.x = Math.sin(t * 0.001 + u.phase) * 0.15;
+                });
+            }
+
             let isGameReady = false;
             let bootAttempted = false;
             let bootInProgress = false;
@@ -3835,21 +4005,26 @@
                     equipShoes(save.equippedShoes || 'shoe_wood');
                     equipProp(save.equippedProps || 'prop_none');
 
+                    // Title screen: bouncing balls behind the menu
+                    spawnMenuBalls();
+
                     const cvs = document.getElementById("game");
-                    cvs.addEventListener("pointermove", function(e) { 
-                        if (busy || !currentCube || gameOver || isSdkPaused || paused) return; 
-                        const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-                        // Continuous X aim using unproject
-                        const nx = (cx / window.innerWidth) * 2 - 1;
-                        const far = new THREE.Vector3(nx, 0.55, 0.5).unproject(camera);
-                        const dir = far.sub(camera.position).normalize();
-                        const dist = (boardGroup.position.z - camera.position.z) / (dir.z || 0.001);
-                        const hit = camera.position.clone().add(dir.multiplyScalar(dist));
-                        boardGroup.worldToLocal(hit);
-                        setAimX(hit.x);
+                    // Unified controls: drag to aim, release/click to drop (mobile + desktop)
+                    cvs.addEventListener("pointerdown", onPointerDown);
+                    cvs.addEventListener("pointermove", onPointerMove);
+                    cvs.addEventListener("pointerup", onPointerUp);
+                    cvs.addEventListener("pointercancel", onPointerUp);
+                    // Desktop: hover aims without needing hold
+                    cvs.addEventListener("mousemove", function(e) {
+                        if (e.buttons === 0 && !busy && currentCube && !gameOver && !paused && !isSdkPaused) {
+                            setAimX(clientToBoardX(e.clientX));
+                        }
                     });
-                    cvs.addEventListener("pointerdown", onTap); 
-                    if (!window.PointerEvent) { cvs.addEventListener("touchstart", onTap, { passive: true }); }
+                    if (!window.PointerEvent) {
+                        cvs.addEventListener("touchstart", onPointerDown, { passive: true });
+                        cvs.addEventListener("touchmove", onPointerMove, { passive: true });
+                        cvs.addEventListener("touchend", onPointerUp, { passive: true });
+                    }
 
                     mainMenu.classList.remove('hidden');
                 } catch(e) {
@@ -3881,6 +4056,7 @@
                 }
 
                 document.getElementById('mainMenu').classList.add('hidden');
+                clearMenuBalls();
                 gameMode = mode;
                 gameOver = false;
                 busy = false;
