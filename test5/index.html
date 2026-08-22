@@ -1294,9 +1294,9 @@
             function levelPreset(l) { return l === 0 ? 0 : Math.min(14, 2 + l * 2); }
 
             function valueToRadius(v) {
-                // Suika-like size progression
+                // Suika-like size progression (capped so big values stay playable)
                 const log = Math.log2(Math.max(2, v));
-                return 0.28 + log * 0.09;
+                return Math.min(1.35, 0.26 + log * 0.08);
             }
 
             function valueToColor(v) {
@@ -2569,16 +2569,16 @@
                 world.defaultContactMaterial.friction = 0.35;
                 world.defaultContactMaterial.restitution = 0.15;
 
-                // Floor
-                const floorShape = new CANNON.Box(new CANNON.Vec3(BOARD_W / 2 + WALL_THICK, WALL_THICK / 2, 1.2));
+                // Floor – deep enough on Z for large balls
+                const floorShape = new CANNON.Box(new CANNON.Vec3(BOARD_W / 2 + WALL_THICK, WALL_THICK / 2, 2.4));
                 floorBody = new CANNON.Body({ mass: 0 });
                 floorBody.addShape(floorShape);
                 floorBody.position.set(0, FLOOR_Y - WALL_THICK / 2, 0);
                 world.addBody(floorBody);
 
-                // Left / Right walls
+                // Left / Right walls – deep Z so balls never wedge
                 const wallH = BOARD_H + 1.5;
-                const wallShape = new CANNON.Box(new CANNON.Vec3(WALL_THICK / 2, wallH / 2, 1.2));
+                const wallShape = new CANNON.Box(new CANNON.Vec3(WALL_THICK / 2, wallH / 2, 2.4));
                 const leftWall = new CANNON.Body({ mass: 0 });
                 leftWall.addShape(wallShape);
                 leftWall.position.set(-BOARD_W / 2 - WALL_THICK / 2, 0, 0);
@@ -2591,17 +2591,17 @@
                 world.addBody(rightWall);
                 walls.push(rightWall);
 
-                // Back wall (keep balls in Z)
+                // Front / back walls far apart so even 4096/8192 balls (diameter ~2.9) never jam
+                // Inner faces roughly at z = ±2.0 → free depth ~4.0
                 const backShape = new CANNON.Box(new CANNON.Vec3(BOARD_W / 2 + 1, wallH / 2, WALL_THICK / 2));
                 const backWall = new CANNON.Body({ mass: 0 });
                 backWall.addShape(backShape);
-                backWall.position.set(0, 0, -0.9);
+                backWall.position.set(0, 0, -2.0);
                 world.addBody(backWall);
 
-                // Front invisible
                 const frontWall = new CANNON.Body({ mass: 0 });
                 frontWall.addShape(backShape);
-                frontWall.position.set(0, 0, 0.9);
+                frontWall.position.set(0, 0, 2.0);
                 world.addBody(frontWall);
 
                 physicsReady = true;
@@ -2843,50 +2843,52 @@
             }
 
             function makeNumberSprite(value, radius) {
+                // Billiard-ball style: solid white circle + bold black number
                 const cv = document.createElement('canvas');
                 cv.width = 256; cv.height = 256;
                 const g = cv.getContext('2d');
                 g.clearRect(0, 0, 256, 256);
 
-                // Soft circular badge
-                const rg = g.createRadialGradient(128, 120, 20, 128, 128, 110);
-                rg.addColorStop(0, 'rgba(20,12,30,0.92)');
-                rg.addColorStop(0.75, 'rgba(20,12,30,0.82)');
-                rg.addColorStop(1, 'rgba(20,12,30,0)');
-                g.fillStyle = rg;
+                // Soft drop shadow under the white disc
+                g.fillStyle = 'rgba(0,0,0,0.22)';
                 g.beginPath();
-                g.arc(128, 128, 110, 0, Math.PI * 2);
+                g.arc(132, 136, 100, 0, Math.PI * 2);
                 g.fill();
 
-                // Ring
-                g.strokeStyle = 'rgba(255,255,255,0.45)';
-                g.lineWidth = 6;
+                // Solid white circle (billiard number plate)
+                g.fillStyle = '#FFFFFF';
                 g.beginPath();
-                g.arc(128, 128, 88, 0, Math.PI * 2);
+                g.arc(128, 128, 100, 0, Math.PI * 2);
+                g.fill();
+
+                // Subtle edge ring
+                g.strokeStyle = 'rgba(0,0,0,0.18)';
+                g.lineWidth = 5;
+                g.beginPath();
+                g.arc(128, 128, 97, 0, Math.PI * 2);
                 g.stroke();
 
                 const str = String(value);
-                let fs = str.length >= 4 ? 72 : str.length === 3 ? 92 : 112;
+                let fs = str.length >= 4 ? 70 : str.length === 3 ? 88 : 108;
                 g.font = '800 ' + fs + "px 'Baloo 2', system-ui, sans-serif";
                 g.textAlign = 'center';
                 g.textBaseline = 'middle';
-                g.lineWidth = 10;
-                g.strokeStyle = 'rgba(0,0,0,0.65)';
-                g.strokeText(str, 128, 134);
-                g.fillStyle = '#FFFFFF';
-                g.fillText(str, 128, 130);
+                // Pure black number, no outline
+                g.fillStyle = '#000000';
+                g.fillText(str, 128, 132);
 
                 const tex = new THREE.CanvasTexture(cv);
                 tex.needsUpdate = true;
                 const mat = new THREE.SpriteMaterial({
                     map: tex,
                     transparent: true,
-                    depthTest: false,   // always visible in front of the sphere
+                    depthTest: false,
                     depthWrite: false,
                     sizeAttenuation: true
                 });
                 const spr = new THREE.Sprite(mat);
-                const s = radius * 1.85;
+                // Disc sits on the visible face of the ball
+                const s = radius * 1.55;
                 spr.scale.set(s, s, 1);
                 spr.renderOrder = 20;
                 spr.userData.value = value;
@@ -3918,21 +3920,23 @@
             function spawnMenuBalls() {
                 if (!scene || menuBallsActive) return;
                 menuBallsActive = true;
-                const vals = [2, 4, 8, 16, 32, 64, 128, 256];
-                for (let i = 0; i < 10; i++) {
+                // Billiard-style balls bouncing in front of the camera on the title screen
+                const vals = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+                for (let i = 0; i < 12; i++) {
                     const v = vals[i % vals.length];
                     const mesh = makeBallMesh(v);
                     const r = valueToRadius(v);
+                    // Closer to camera (higher Z toward viewer) so they are clearly visible
                     mesh.position.set(
-                        (Math.random() - 0.5) * 8,
-                        (Math.random() - 0.2) * 5,
-                        -4 - Math.random() * 3
+                        (Math.random() - 0.5) * 6.5,
+                        -1.2 + Math.random() * 3.8,
+                        1.5 + Math.random() * 2.5
                     );
-                    mesh.userData.vx = (Math.random() - 0.5) * 1.2;
-                    mesh.userData.vy = 0.8 + Math.random() * 1.5;
+                    mesh.userData.vx = (Math.random() - 0.5) * 1.6;
                     mesh.userData.baseY = mesh.position.y;
                     mesh.userData.phase = Math.random() * Math.PI * 2;
-                    mesh.userData.spin = (Math.random() - 0.5) * 0.04;
+                    mesh.userData.spin = (Math.random() - 0.5) * 0.05;
+                    mesh.userData.hopAmp = 0.9 + Math.random() * 0.9;
                     const label = makeNumberSprite(v, r);
                     label.position.copy(mesh.position);
                     mesh.userData.label = label;
@@ -3955,15 +3959,14 @@
 
             function updateMenuBalls(t, dt) {
                 if (!menuBallsActive) return;
-                menuBalls.forEach(function(m, i) {
+                menuBalls.forEach(function(m) {
                     const u = m.userData;
-                    const hop = Math.abs(Math.sin(t * 0.0025 + u.phase)) * 1.4;
+                    const hop = Math.abs(Math.sin(t * 0.003 + u.phase)) * (u.hopAmp || 1.2);
                     m.position.y = u.baseY + hop;
                     m.position.x += u.vx * dt;
-                    if (m.position.x > 5) { m.position.x = 5; u.vx *= -1; }
-                    if (m.position.x < -5) { m.position.x = -5; u.vx *= -1; }
+                    if (m.position.x > 3.6) { m.position.x = 3.6; u.vx *= -1; }
+                    if (m.position.x < -3.6) { m.position.x = -3.6; u.vx *= -1; }
                     m.rotation.y += u.spin;
-                    m.rotation.x = Math.sin(t * 0.001 + u.phase) * 0.15;
                     if (u.label) {
                         u.label.position.set(m.position.x, m.position.y, m.position.z);
                     }
