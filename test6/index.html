@@ -2748,9 +2748,47 @@
                     grad.addColorStop(1, "#FFC107");
                     g.fillStyle = grad;
                     roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } else { g.fillStyle = "#111";
+                    g.fill(); } else {
+                    const palette = {
+                        2: "#E89B8C", 4: "#F28C3A", 8: "#5B7FD6", 16: "#F2C14E",
+                        32: "#6BBF5A", 64: "#C45AD6", 128: "#D94A4A", 256: "#4DB8D9",
+                        512: "#9B5AD6", 1024: "#3A8C5A", 2048: "#2E6B9E", 4096: "#C9A227"
+                    };
+                    let base = palette[value] || ("hsl(" + ((Math.log2(value) * 28) % 360) + ", 70%, 55%)");
+                    g.fillStyle = base;
+                    roundRect(g, 6, 6, 116, 116, 20);
+                    g.fill();
+                    g.fillStyle = "rgba(255,255,255,0.22)";
+                    roundRect(g, 10, 10, 108, 40, 12);
+                    g.fill();
+                    g.fillStyle = "rgba(0,0,0,0.12)";
+                    roundRect(g, 10, 86, 108, 30, 10);
+                    g.fill();
+                    g.lineWidth = 5;
+                    g.strokeStyle = "rgba(0,0,0,0.18)";
                     roundRect(g, 4, 4, 120, 120, 22);
-                    g.fill(); } const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold']; const hasBadge = badgeSkins.indexOf(skin) !== -1; if (hasBadge) { g.save();
+                    g.stroke();
+                    if (value >= 1024) {
+                        g.lineWidth = 8;
+                        g.strokeStyle = "#FFD54F";
+                        roundRect(g, 3, 3, 122, 122, 24);
+                        g.stroke();
+                        g.lineWidth = 3;
+                        g.strokeStyle = "#FFF8E1";
+                        roundRect(g, 7, 7, 114, 114, 18);
+                        g.stroke();
+                        g.fillStyle = "#FFD54F";
+                        g.beginPath();
+                        g.moveTo(44, 28); g.lineTo(50, 14); g.lineTo(56, 26);
+                        g.lineTo(64, 12); g.lineTo(72, 26); g.lineTo(78, 14);
+                        g.lineTo(84, 28); g.lineTo(44, 28);
+                        g.fill();
+                    }
+                }
+                const badgeSkins = ['whitered', 'whitegreen', 'zebra', 'rainbow', 'galaxy', 'neon', 'ice', 'lava', 'gold'];
+                const hasBadge = badgeSkins.indexOf(skin) !== -1;
+                if (hasBadge) {
+                    g.save();
                     g.shadowColor = "rgba(0,0,0,0.35)";
                     g.shadowBlur = 7;
                     g.shadowOffsetY = 2;
@@ -2763,12 +2801,18 @@
                     g.strokeStyle = "rgba(0,0,0,0.12)";
                     g.beginPath();
                     g.arc(64, 66, 37, 0, Math.PI * 2);
-                    g.stroke(); }
-                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 42 : value >= 128 ? 50 : 60) + "px 'Baloo 2', sans-serif");
+                    g.stroke();
+                }
+                g.font = hasBadge ? ("800 " + (value >= 1024 ? 30 : value >= 128 ? 36 : 44) + "px 'Baloo 2', sans-serif") : ("800 " + (value >= 1024 ? 36 : value >= 128 ? 46 : 56) + "px 'Baloo 2', sans-serif");
                 g.textAlign = "center";
                 g.textBaseline = "middle";
-                g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFF");
-                g.fillText(value, 64, hasBadge ? 66 : 68); const t = new THREE.CanvasTexture(cv);
+                g.fillStyle = hasBadge ? "#2F1B0D" : (skin === 'wood' ? (value >= 128 ? "#FFF" : "#000") : "#FFFFFF");
+                g.shadowColor = "rgba(0,0,0,0.35)";
+                g.shadowBlur = 4;
+                g.shadowOffsetY = 2;
+                g.fillText(value, 64, hasBadge ? 66 : (value >= 1024 ? 72 : 68));
+                g.shadowBlur = 0;
+                const t = new THREE.CanvasTexture(cv);
                 t.anisotropy = 4; return t; }
 
             function roundRect(g, x, y, w, h, r) { g.beginPath();
@@ -2841,19 +2885,26 @@
                     for (let c = 0; c < COLS; c++)
                         for (let r = 0; r < ROWS; r++) { if (grid[c] && grid[c][r]) boardGroup.remove(grid[c][r].mesh); }
                 }
+                if (currentCube) { boardGroup.remove(currentCube); currentCube = null; }
                 grid = []; 
                 for (let c = 0; c < COLS; c++) { grid.push(new Array(ROWS).fill(null)); }
                 score = 0; 
                 save.score = 0;
                 biggestTile = 0;
                 winShown = false;
+                isSelecting = false;
+                selectedCells = [];
+                selectValue = null;
                 updateHUD(); 
-                for (let i = 0; i < levelPreset(level); i++) { 
-                    const c = Math.floor(Math.random() * COLS); 
-                    const r = colHeight(c); 
-                    if (r < 3) placeCube(c, r, [2, 4, 8, 16][Math.floor(Math.random() * 4)], true); 
+                // Fill entire board with random values starting from 2
+                const possible = [2, 2, 2, 4, 4, 8, 8, 16, 32];
+                for (let c = 0; c < COLS; c++) {
+                    for (let r = 0; r < ROWS; r++) {
+                        const val = possible[Math.floor(Math.random() * possible.length)];
+                        placeCube(c, r, val, true);
+                        if (val > biggestTile) biggestTile = val;
+                    }
                 }
-                spawnCurrent();
                 updateMissionProgress();
                 lastActionTime = performance.now(); 
             }
@@ -2869,6 +2920,116 @@
                 if (!instant) { cube.scale.set(.4, .4, .4);
                     tween(cube.scale, { x: 1, y: 1, z: 1 }, 0.22); } 
                 return grid[c][r]; 
+            }
+
+            function getCellFromScreen(cx, cy) {
+                const x = cx / innerWidth * 2 - 1;
+                const y = -(cy / innerHeight * 2 - 1);
+                pointer.set(x, y);
+                raycaster.setFromCamera(pointer, camera);
+                const boardNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(boardGroup.quaternion);
+                const plane = new THREE.Plane();
+                plane.setFromNormalAndCoplanarPoint(boardNormal, boardGroup.position);
+                const hit = new THREE.Vector3();
+                if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+                boardGroup.worldToLocal(hit);
+                const c = Math.max(0, Math.min(COLS - 1, Math.round((hit.x + BOARD_W / 2) / (CELL + GAP) - 0.5)));
+                const r = Math.max(0, Math.min(ROWS - 1, Math.round((BOARD_H / 2 - hit.y) / (CELL + GAP) - 0.5)));
+                return { c: c, r: r };
+            }
+
+            function isAdjacent(c1, r1, c2, r2) {
+                return (Math.abs(c1 - c2) + Math.abs(r1 - r2)) === 1;
+            }
+
+            function clearSelectionHighlight() {
+                selectedCells.forEach(function(cell) {
+                    if (grid[cell.c] && grid[cell.c][cell.r] && grid[cell.c][cell.r].mesh) {
+                        grid[cell.c][cell.r].mesh.scale.set(1, 1, 1);
+                    }
+                });
+            }
+
+            function highlightSelected() {
+                selectedCells.forEach(function(cell) {
+                    if (grid[cell.c] && grid[cell.c][cell.r] && grid[cell.c][cell.r].mesh) {
+                        grid[cell.c][cell.r].mesh.scale.set(1.12, 1.12, 1.12);
+                    }
+                });
+            }
+
+            function doSelectMerge() {
+                if (selectedCells.length < 2 || selectValue == null) {
+                    clearSelectionHighlight();
+                    isSelecting = false;
+                    selectedCells = [];
+                    selectValue = null;
+                    return;
+                }
+                busy = true;
+                const newVal = selectValue * 2;
+                const first = selectedCells[0];
+                // Remove all selected
+                selectedCells.forEach(function(cell) {
+                    if (grid[cell.c] && grid[cell.c][cell.r]) {
+                        const m = grid[cell.c][cell.r].mesh;
+                        grid[cell.c][cell.r] = null;
+                        boardGroup.remove(m);
+                    }
+                });
+                // Place new doubled tile at first position
+                placeCube(first.c, first.r, newVal, false);
+                score += newVal;
+                save.score = score;
+                if (newVal > biggestTile) biggestTile = newVal;
+                playSound('merge');
+                isSelecting = false;
+                selectedCells = [];
+                selectValue = null;
+                // Gravity: let tiles fall down
+                setTimeout(function() {
+                    applyGravity().then(function() {
+                        refillEmpty();
+                        busy = false;
+                        updateHUD();
+                        persist();
+                        if (checkWin && typeof checkWin === 'function') checkWin();
+                    });
+                }, 280);
+            }
+
+            function applyGravity() {
+                return new Promise(function(resolve) {
+                    let moved = false;
+                    for (let c = 0; c < COLS; c++) {
+                        let write = ROWS - 1;
+                        for (let r = ROWS - 1; r >= 0; r--) {
+                            if (grid[c][r]) {
+                                if (r !== write) {
+                                    grid[c][write] = grid[c][r];
+                                    grid[c][r] = null;
+                                    const p = cellPos(c, write);
+                                    tween(grid[c][write].mesh.position, { x: p.x, y: p.y, z: 0.1 }, 0.2);
+                                    moved = true;
+                                }
+                                write--;
+                            }
+                        }
+                    }
+                    setTimeout(resolve, moved ? 220 : 50);
+                });
+            }
+
+            function refillEmpty() {
+                const possible = [2, 2, 2, 4, 4, 8, 16];
+                for (let c = 0; c < COLS; c++) {
+                    for (let r = 0; r < ROWS; r++) {
+                        if (!grid[c][r]) {
+                            const val = possible[Math.floor(Math.random() * possible.length)];
+                            placeCube(c, r, val, false);
+                        }
+                    }
+                }
             }
 
             function spawnCurrent() { 
@@ -2911,6 +3072,7 @@
             // ============================================================
             function updateDropIndicator(col) {
                 const elem = document.getElementById('dropIndicator');
+                if (elem) { elem.style.display = 'none'; return; }
                 if(!elem || !camera || !boardGroup) return;
                 const targetPos = new THREE.Vector3();
                 let scaleY = 1;
@@ -3792,24 +3954,58 @@
                     equipProp(save.equippedProps || 'prop_none');
 
                     const cvs = document.getElementById("game");
-                    cvs.addEventListener("pointermove", function(e) { 
-                        if (busy || !currentCube || gameOver || isSdkPaused || paused) return; 
-                        const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX; 
-                        // Map screen X to board columns using actual projected cell centers
-                        let bestCol = 0, bestDist = Infinity;
-                        for (let c = 0; c < COLS; c++) {
-                            const p = cellPos(c, 0);
-                            const world = new THREE.Vector3(p.x, launchY, 0.1);
-                            boardGroup.localToWorld(world);
-                            world.project(camera);
-                            const screenX = (world.x * 0.5 + 0.5) * window.innerWidth;
-                            const d = Math.abs(cx - screenX);
-                            if (d < bestDist) { bestDist = d; bestCol = c; }
-                        }
-                        setAim(bestCol); 
+                    // New drag-select system
+                    cvs.addEventListener("pointerdown", function(e) {
+                        if (document.querySelector(".overlay:not(.hidden):not(#pauseOverlay)")) return;
+                        if (busy || gameOver || isSdkPaused || paused) return;
+                        const cx = e.clientX, cy = e.clientY;
+                        const cell = getCellFromScreen(cx, cy);
+                        if (!cell || !grid[cell.c] || !grid[cell.c][cell.r]) return;
+                        isSelecting = true;
+                        selectedCells = [{ c: cell.c, r: cell.r }];
+                        selectValue = grid[cell.c][cell.r].value;
+                        highlightSelected();
+                        try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
                     });
-                    cvs.addEventListener("pointerdown", onTap); 
-                    if (!window.PointerEvent) { cvs.addEventListener("touchstart", onTap, { passive: true }); }
+                    cvs.addEventListener("pointermove", function(e) {
+                        if (!isSelecting || busy || gameOver) return;
+                        const cx = e.clientX, cy = e.clientY;
+                        const cell = getCellFromScreen(cx, cy);
+                        if (!cell || !grid[cell.c] || !grid[cell.c][cell.r]) return;
+                        if (grid[cell.c][cell.r].value !== selectValue) return;
+                        // already selected?
+                        for (let i = 0; i < selectedCells.length; i++) {
+                            if (selectedCells[i].c === cell.c && selectedCells[i].r === cell.r) return;
+                        }
+                        // must be adjacent to at least one already selected
+                        let adj = false;
+                        for (let i = 0; i < selectedCells.length; i++) {
+                            if (isAdjacent(selectedCells[i].c, selectedCells[i].r, cell.c, cell.r)) {
+                                adj = true; break;
+                            }
+                        }
+                        if (!adj) return;
+                        selectedCells.push({ c: cell.c, r: cell.r });
+                        highlightSelected();
+                    });
+                    cvs.addEventListener("pointerup", function(e) {
+                        if (!isSelecting) return;
+                        doSelectMerge();
+                    });
+                    cvs.addEventListener("pointercancel", function() {
+                        clearSelectionHighlight();
+                        isSelecting = false;
+                        selectedCells = [];
+                        selectValue = null;
+                    });
+                    if (!window.PointerEvent) {
+                        cvs.addEventListener("touchstart", function(e) {
+                            if (e.touches[0]) {
+                                const fake = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, pointerId: 1 };
+                                cvs.dispatchEvent(new PointerEvent("pointerdown", fake));
+                            }
+                        }, { passive: true });
+                    }
 
                     mainMenu.classList.remove('hidden');
                 } catch(e) {
