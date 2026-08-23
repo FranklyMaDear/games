@@ -1419,7 +1419,7 @@
 
     <div class="overlay" id="mainMenu" style="background:#0b1020; backdrop-filter:none; -webkit-backdrop-filter:none; align-items:stretch; justify-content:stretch; padding:0;">
         <div class="card" id="mainMenuCard" style="width:100vw; height:100vh; max-width:100vw; max-height:100vh; border:none; border-radius:0; box-shadow:none; background:radial-gradient(ellipse at 50% 20%, #2a1a4a 0%, #0b1020 55%, #05060c 100%); color:#fff; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; overflow-y:auto;">
-            <canvas id="menuCubeCanvas" width="220" height="220" style="width:160px;height:160px;margin-bottom:4px;"></canvas>
+            <canvas id="menuCubeCanvas" width="280" height="280" style="width:200px;height:200px;margin-bottom:6px;"></canvas>
             <h2 id="tutorialTitle" style="font-size:clamp(28px,7vw,42px); margin:0; letter-spacing:2px; color:#FFD54F; text-shadow:0 4px 18px rgba(242,160,61,0.45);">CUBE LINK 4096</h2>
             <p style="opacity:0.85; font-size:14px; margin:0;">Connect · Merge · Climb</p>
             <div id="tutorialText" style="font-size:14px; line-height:1.55; max-width:420px; text-align:left; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:14px 16px; color:#e8e8f0;">
@@ -1624,7 +1624,13 @@
                     { id: 'eff_sparkle', en: 'Stardust', el: 'Αστερόσκονη', price: 100, icon: '✨' },
                     { id: 'eff_smoke', en: 'Smoke', el: 'Καπνός', price: 100, icon: '💨' },
                     { id: 'eff_explode', en: 'Explosion', el: 'Έκρηξη', price: 100, icon: '💥' },
-                    { id: 'eff_confetti', en: 'Confetti', el: 'Κομφετί', price: 100, icon: '🎊' }
+                    { id: 'eff_confetti', en: 'Confetti', el: 'Κομφετί', price: 100, icon: '🎊' },
+                    { id: 'eff_hearts', en: 'Hearts', el: 'Καρδιές', price: 100, icon: '💖' },
+                    { id: 'eff_stars', en: 'Stars', el: 'Αστέρια', price: 100, icon: '⭐' },
+                    { id: 'eff_bubbles', en: 'Bubbles', el: 'Φουσκάλες', price: 100, icon: '🫧' },
+                    { id: 'eff_lightning', en: 'Lightning', el: 'Αστραπή', price: 100, icon: '⚡' },
+                    { id: 'eff_snow', en: 'Snow', el: 'Χιόνι', price: 100, icon: '❄️' },
+                    { id: 'eff_ring', en: 'Shockwave', el: 'Κύμα', price: 100, icon: '⭕' }
                 ],
                 sounds: [
                     { id: 'snd_default', en: 'Default', el: 'Προεπιλογή', price: 0, icon: '🔊' },
@@ -2139,33 +2145,67 @@
                 'sparkle': new THREE.MeshBasicMaterial({ color: 0xffffff }),
                 'smoke': new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.7 }),
                 'explode': new THREE.MeshBasicMaterial({ color: 0xffa500 }),
-                'confetti': [0xff0000, 0x00ff00, 0x0000ff, 0xffff00].map(function(c) { return new THREE.MeshBasicMaterial({ color: c }); })
+                'confetti': [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff].map(function(c) { return new THREE.MeshBasicMaterial({ color: c }); }),
+                'hearts': new THREE.MeshBasicMaterial({ color: 0xff4d6d }),
+                'stars': new THREE.MeshBasicMaterial({ color: 0xffe066 }),
+                'bubbles': new THREE.MeshBasicMaterial({ color: 0x7fdbff, transparent: true, opacity: 0.65 }),
+                'lightning': new THREE.MeshBasicMaterial({ color: 0xe0f7ff }),
+                'snow': new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }),
+                'ring': new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.7 })
             };
 
             function spawnParticle(x, y, z, type) {
-                let mat = pMats[type];
+                let mat = pMats[type] || pMats.sparkle;
                 if (Array.isArray(mat)) mat = mat[Math.floor(Math.random() * mat.length)];
+                // clone material so opacity/color can animate independently
+                if (mat && mat.clone) mat = mat.clone();
                 const p = new THREE.Mesh(pGeo, mat);
                 p.position.set(x, y, z);
                 let vx = (Math.random() - 0.5) * 6, vy = (Math.random() - 0.5) * 6, vz = (Math.random() - 0.5) * 6;
-                if (type === 'flame' || type === 'smoke') { vx *= 0.2; vy = -Math.random() * 2 - 0.5; vz = 0; }
+                if (type === 'flame' || type === 'smoke') { vx *= 0.2; vy = Math.random() * 2 + 0.5; vz *= 0.2; }
                 if (type === 'confetti') { p.scale.set(0.15, 0.15, 0.15); vy = Math.random() * 5; }
+                if (type === 'hearts') { p.scale.set(0.2, 0.18, 0.12); vy = Math.random() * 3 + 1; vx *= 0.5; }
+                if (type === 'stars') { p.scale.set(0.18, 0.18, 0.05); vy = Math.random() * 2.5 + 0.5; }
+                if (type === 'bubbles') { p.scale.set(0.22, 0.22, 0.22); vy = Math.random() * 2 + 0.8; vx *= 0.3; }
+                if (type === 'lightning') { p.scale.set(0.08, 0.35, 0.08); vy = Math.random() * 4; }
+                if (type === 'snow') { p.scale.set(0.12, 0.12, 0.12); vy = -Math.random() * 1.5 - 0.3; vx *= 0.4; }
+                if (type === 'ring') { p.scale.set(0.4, 0.05, 0.4); vx = 0; vy = 0; vz = 0; }
                 scene.add(p);
-                particles.push({ mesh: p, life: 1.0, vx: vx, vy: vy, vz: vz, type: type });
+                particles.push({ mesh: p, life: type === 'ring' ? 0.7 : 1.0, vx: vx, vy: vy, vz: vz, type: type });
             }
 
             function spawnBurst(x, y, z, type, count) { for (let i = 0; i < count; i++) spawnParticle(x, y, z, type); }
 
+            function playEquippedEffect(worldX, worldY, worldZ) {
+                const eff = (save && save.equippedEffect) || 'eff_none';
+                if (!eff || eff === 'eff_none') return;
+                const etype = eff.replace('eff_', '');
+                if (etype === 'explode') spawnBurst(worldX, worldY, worldZ, 'explode', 18);
+                else if (etype === 'confetti') spawnBurst(worldX, worldY, worldZ, 'confetti', 22);
+                else if (etype === 'ring') {
+                    spawnBurst(worldX, worldY, worldZ, 'ring', 1);
+                    spawnBurst(worldX, worldY, worldZ, 'sparkle', 8);
+                } else if (etype === 'lightning') spawnBurst(worldX, worldY, worldZ, 'lightning', 14);
+                else spawnBurst(worldX, worldY, worldZ, etype, 14);
+            }
+
             function updateParticles(dt) {
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
-                    p.life -= dt * (p.type === 'smoke' ? 1.5 : 2.5);
+                    p.life -= dt * (p.type === 'smoke' || p.type === 'snow' ? 1.2 : (p.type === 'ring' ? 2.0 : 2.5));
                     if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); } else {
                         p.mesh.position.x += p.vx * dt;
                         p.mesh.position.y += p.vy * dt;
                         p.mesh.position.z += p.vz * dt;
-                        if (p.type === 'confetti') p.vy -= dt * 10;
-                        p.mesh.scale.setScalar(p.life);
+                        if (p.type === 'confetti' || p.type === 'hearts') p.vy -= dt * 8;
+                        if (p.type === 'bubbles') p.vy += dt * 0.5;
+                        if (p.type === 'ring') {
+                            const s = 0.4 + (1 - p.life) * 2.5;
+                            p.mesh.scale.set(s, 0.05, s);
+                            if (p.mesh.material) p.mesh.material.opacity = Math.max(0, p.life);
+                        } else {
+                            p.mesh.scale.setScalar(Math.max(0.05, p.life));
+                        }
                         if (p.type === 'flame' || p.type === 'explode') p.mesh.material.color.setHSL(0.1 * p.life, 1, 0.5);
                     }
                 }
@@ -3009,7 +3049,7 @@
                 g.arcTo(x, y, x + w, y, r);
                 g.closePath(); }
 
-            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92, CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xdddddd }));
+            function makeCube(value) { const tex = numberTexture(value); const m = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.92, CELL * 0.92, CELL * 0.92), new THREE.MeshLambertMaterial({ map: tex, color: 0xffffff }));
                 m.userData.value = value; return m; }
 
             function tween(obj, to, dur, ease, done) { const from = {}; for (const k in to) from[k] = obj[k];
@@ -3298,8 +3338,8 @@
                     const lp = cellPos(first.c, first.r);
                     const wp = new THREE.Vector3(lp.x, lp.y, 0.4);
                     if (boardGroup) boardGroup.localToWorld(wp);
-                    spawnBurst(wp.x, wp.y, wp.z, 'explode', 14);
-                    spawnBurst(wp.x, wp.y, wp.z, 'sparkle', 10);
+                    playEquippedEffect(wp.x, wp.y, wp.z);
+                    spawnBurst(wp.x, wp.y, wp.z, 'sparkle', 6);
                     if (merged && merged.mesh) {
                         merged.mesh.scale.set(1.45, 1.45, 1.45);
                         tween(merged.mesh.scale, { x: 1, y: 1, z: 1 }, 0.28);
@@ -3442,16 +3482,12 @@
                 busy = true;
                 lastActionTime = performance.now();
                 playSound('drop');
-                try { tone(140, 70, 0.07, 'square', 0.14); } catch(e) {} 
-                const eff = save.equippedEffect; 
-                if (eff !== 'eff_none') { 
+                try { tone(140, 70, 0.07, 'square', 0.14); } catch(e) {}
+                try {
                     const wp = new THREE.Vector3();
-                    currentCube.getWorldPosition(wp); 
-                    const etype = eff.replace('eff_', ''); 
-                    if (etype === 'explode') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'explode', 18); 
-                    else if (etype === 'confetti') spawnBurst(wp.x, wp.y - 0.3, wp.z, 'confetti', 20); 
-                    else spawnBurst(wp.x, wp.y - 0.3, wp.z, etype, 10); 
-                } 
+                    if (currentCube) currentCube.getWorldPosition(wp);
+                    playEquippedEffect(wp.x, wp.y - 0.3, wp.z);
+                } catch (e) {} 
                 const targetR = h;
                 const p = cellPos(c, targetR); 
                 const cube = currentCube;
@@ -3527,15 +3563,11 @@
 
                         function afterCollapse() { 
                             playSound('merge'); 
-                            const eff = save.equippedEffect; 
-                            if (eff !== 'eff_none') { 
+                            try {
                                 const wp = new THREE.Vector3();
-                                cell.mesh.getWorldPosition(wp); 
-                                const etype = eff.replace('eff_', ''); 
-                                if (etype === 'explode') spawnBurst(wp.x, wp.y, wp.z, 'explode', 20); 
-                                else if (etype === 'confetti') spawnBurst(wp.x, wp.y, wp.z, 'confetti', 25); 
-                                else spawnBurst(wp.x, wp.y, wp.z, etype, 12); 
-                            } 
+                                if (cell.mesh) cell.mesh.getWorldPosition(wp);
+                                playEquippedEffect(wp.x, wp.y, wp.z);
+                            } catch (e) {} 
                             if (newVal >= 64 && winTime <= 0) { 
                                 reactionTime = 1.2;
                                 showSpeech(TT().wow(newVal), 1800); 
@@ -3735,7 +3767,7 @@
 
             function startTimer() {
                 if (timerInterval) clearInterval(timerInterval);
-                timeRemaining = 300; 
+                if (typeof timeRemaining !== 'number' || timeRemaining <= 0) timeRemaining = 300;
                 updateTimerDisplay();
                 document.getElementById('timer').classList.remove('hidden');
                 timerInterval = setInterval(function() {
@@ -3795,7 +3827,16 @@
                     const el = document.createElement('div');
                     el.className = 'shop-item ' + (isOwned ? 'owned' : '') + ' ' + (isEquipped ? 'equipped' : '');
                     
-                    let html = '<div style="font-size:32px; margin-bottom:3px;">' + item.icon + '</div><h3>' + nm + '</h3>';
+                    let html = '<div style="font-size:32px; margin-bottom:3px;">' + item.icon + '</div>';
+                    if (activeTab === 'boards' && item.back) {
+                        html += '<div style="height:18px;border-radius:8px;margin:4px 0;background:linear-gradient(90deg,' + item.back + ',' + (item.cell||item.back) + ');border:1px solid rgba(255,255,255,0.2);"></div>';
+                    }
+                    if (activeTab === 'cubes') {
+                        const cubeColors = { wood:'#DEB887', whitered:'#D32F2F', whitegreen:'#388E3C', zebra:'#333', neon:'#FF00FF', rainbow:'linear-gradient(90deg,red,orange,yellow,green,blue)', gold:'#FBC02D', galaxy:'#6B3FA0', ice:'#00BCD4', lava:'#FF4500' };
+                        const c = cubeColors[item.id] || '#888';
+                        html += '<div style="height:18px;border-radius:8px;margin:4px 0;background:' + c + ';border:1px solid rgba(255,255,255,0.2);"></div>';
+                    }
+                    html += '<h3>' + nm + '</h3>';
                     
                     if (isEquipped) {
                         html += '<div class="price">' + TT().selected + '</div>';
@@ -3859,7 +3900,25 @@
                                 persist();
                                 renderShop();
                                 applyShopChanges(activeTab);
-                                toast(TT().picked(nm)); 
+                                toast(TT().picked(nm));
+                                if (activeTab === 'sounds') {
+                                    try { playSound('merge'); } catch(e) {}
+                                }
+                                if (activeTab === 'dragSounds') {
+                                    try {
+                                        // temporary set for chain preview
+                                        var n = 3;
+                                        for (var k = 0; k < 4; k++) {
+                                            (function(step){
+                                                setTimeout(function(){
+                                                    selectedCells = new Array(step + 1).fill(0);
+                                                    playSound('chain');
+                                                    selectedCells = [];
+                                                }, step * 90);
+                                            })(k);
+                                        }
+                                    } catch(e) {}
+                                }
                             }
                         };
                     }
@@ -3868,30 +3927,32 @@
             }
 
             function applyShopChanges(tabChanged) { 
-                if (tabChanged === 'boards') updateBoardColorsLive(); 
+                if (tabChanged === 'boards') {
+                    updateBoardColorsLive();
+                    toast('Board skin applied!');
+                }
                 if (tabChanged === 'cubes') { 
                     for (let c = 0; c < COLS; c++)
                         for (let r = 0; r < ROWS; r++) 
-                            if (grid[c][r]) { 
+                            if (grid[c] && grid[c][r] && grid[c][r].mesh) { 
                                 const m = grid[c][r].mesh;
+                                if (m.material.map) { try { m.material.map.dispose(); } catch(e){} }
                                 m.material.map = numberTexture(grid[c][r].value);
+                                m.material.color.setHex(0xffffff);
                                 m.material.needsUpdate = true; 
                             } 
-                    if (currentCube) { 
+                    if (currentCube && currentCube.material) { 
+                        if (currentCube.material.map) { try { currentCube.material.map.dispose(); } catch(e){} }
                         currentCube.material.map = numberTexture(currentCube.userData.value);
+                        currentCube.material.color.setHex(0xffffff);
                         currentCube.material.needsUpdate = true; 
                     }
                     toast(TT().cube_changed); 
-                } 
-                if (tabChanged === 'pet_hair') buildHair(save.equippedHair); 
-                if (tabChanged === 'pet_clothes') equipClothes(save.equippedClothes); 
-                if (tabChanged === 'pet_shoes') { equipShoes(save.equippedShoes);
-                    toast(TT().shoes_changed); } 
-                if (tabChanged === 'pet_props') equipProp(save.equippedProps); 
-                if (tabChanged === 'effects') toast(TT().effect_changed); 
-                if (tabChanged === 'sounds') toast(TT().sound_changed); 
-                /* music removed */ 
+                }
+                if (tabChanged === 'effects') toast(TT().effect_changed);
+                if (tabChanged === 'sounds' || tabChanged === 'dragSounds') toast(TT().sound_changed);
             }
+
 
             document.querySelectorAll('.shop-tab').forEach(function(btn) { 
                 btn.onclick = function(e) { 
@@ -4406,57 +4467,113 @@
             var btnTA = document.getElementById('btnTimeAttack');
             if (btnTA) btnTA.onclick = function() { startTimed(5); };
 
-            // Menu hero cube animation
+            // Menu hero cube — solid isometric cube with rotating faces + number cycle
             (function initMenuCube() {
                 var cv = document.getElementById('menuCubeCanvas');
                 if (!cv) return;
                 var ctx = cv.getContext('2d');
-                var vals = [2, 4, 8, 16, 32, 64, 128, 256];
-                var vi = 0, angle = 0, lastSwitch = 0;
+                var vals = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+                var vi = 0, angle = 0.4, lastSwitch = 0;
+                var colors = {
+                    2: '#EEE4DA', 4: '#EDE0C8', 8: '#F2B179', 16: '#F59563',
+                    32: '#F67C5F', 64: '#F65E3B', 128: '#EDCF72', 256: '#EDCC61',
+                    512: '#EDC850', 1024: '#EDC53F', 2048: '#EDC22E'
+                };
+                function project(x, y, z, a) {
+                    var ca = Math.cos(a), sa = Math.sin(a);
+                    var xr = x * ca - z * sa;
+                    var zr = x * sa + z * ca;
+                    var yr = y;
+                    // isometric-ish
+                    var sx = xr * 0.9 - zr * 0.35;
+                    var sy = yr * 0.95 + zr * 0.25;
+                    return [sx, sy];
+                }
+                function drawFace(pts, fill, stroke) {
+                    ctx.beginPath();
+                    ctx.moveTo(pts[0][0], pts[0][1]);
+                    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+                    ctx.closePath();
+                    ctx.fillStyle = fill;
+                    ctx.fill();
+                    ctx.strokeStyle = stroke || 'rgba(0,0,0,0.2)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
                 function draw(t) {
-                    if (!document.getElementById('mainMenu') || document.getElementById('mainMenu').classList.contains('hidden')) {
+                    var menu = document.getElementById('mainMenu');
+                    if (!menu || menu.classList.contains('hidden')) {
                         requestAnimationFrame(draw);
                         return;
                     }
                     var w = cv.width, h = cv.height;
                     ctx.clearRect(0, 0, w, h);
-                    angle += 0.018;
-                    if (t - lastSwitch > 1200) { lastSwitch = t; vi = (vi + 1) % vals.length; }
-                    var s = 70;
+                    angle += 0.012;
+                    if (t - lastSwitch > 1400) { lastSwitch = t; vi = (vi + 1) % vals.length; }
+                    var val = vals[vi];
+                    var col = colors[val] || '#F2A03D';
+                    var s = 58;
                     ctx.save();
-                    ctx.translate(w/2, h/2);
-                    // simple 3D-ish cube faces
+                    ctx.translate(w / 2, h / 2 + 8);
+                    // slight bob
+                    ctx.translate(0, Math.sin(t * 0.002) * 4);
+                    // vertices of cube
+                    var verts = [];
+                    var corners = [
+                        [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+                        [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
+                    ];
+                    for (var i = 0; i < 8; i++) {
+                        verts.push(project(corners[i][0]*s, corners[i][1]*s, corners[i][2]*s, angle));
+                    }
+                    // faces: [indices], avg z for sort approx using angle
                     var faces = [
-                        { pts: [[-s,-s], [s,-s], [s,s], [-s,s]], col: '#F2A03D', z: Math.cos(angle) },
-                        { pts: [[-s,-s], [-s,s], [-s*0.6,s*0.7], [-s*0.6,-s*0.7]], col: '#C47A20', z: Math.sin(angle) },
-                        { pts: [[s,-s], [s,s], [s*0.6,s*0.7], [s*0.6,-s*0.7]], col: '#E8B85A', z: -Math.sin(angle) }
+                        { idx: [0,1,2,3], z: -Math.cos(angle), shade: 0.75 }, // back-ish
+                        { idx: [4,5,6,7], z: Math.cos(angle), shade: 1.0 },   // front
+                        { idx: [0,4,7,3], z: -Math.sin(angle), shade: 0.65 }, // left
+                        { idx: [1,5,6,2], z: Math.sin(angle), shade: 0.85 },  // right
+                        { idx: [3,2,6,7], z: 0.2, shade: 1.08 },              // top
+                        { idx: [0,1,5,4], z: -0.2, shade: 0.55 }              // bottom
                     ];
                     faces.sort(function(a,b){ return a.z - b.z; });
+                    function shadeColor(hex, f) {
+                        var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+                        r = Math.min(255, Math.max(0, Math.round(r * f)));
+                        g = Math.min(255, Math.max(0, Math.round(g * f)));
+                        b = Math.min(255, Math.max(0, Math.round(b * f)));
+                        return 'rgb('+r+','+g+','+b+')';
+                    }
                     faces.forEach(function(f) {
-                        ctx.beginPath();
-                        var rx = Math.cos(angle) * 0.35;
-                        f.pts.forEach(function(p, i) {
-                            var x = p[0] * Math.cos(angle) - p[1] * Math.sin(angle) * 0.2;
-                            var y = p[1] * Math.cos(angle * 0.6) * 0.9;
-                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                        });
-                        ctx.closePath();
-                        ctx.fillStyle = f.col;
-                        ctx.fill();
-                        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-                        ctx.stroke();
+                        if (f.z < -0.15 && f.idx[0] < 4 && f.idx !== faces[faces.length-1].idx) {
+                            // skip mostly hidden back when deep
+                        }
+                        var pts = f.idx.map(function(i){ return verts[i]; });
+                        drawFace(pts, shadeColor(col, f.shade), 'rgba(0,0,0,0.18)');
                     });
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 48px Baloo 2, system-ui, sans-serif';
+                    // number on the most front-facing side
+                    var front = faces[faces.length - 1];
+                    var fp = front.idx.map(function(i){ return verts[i]; });
+                    var cx = (fp[0][0]+fp[1][0]+fp[2][0]+fp[3][0])/4;
+                    var cy = (fp[0][1]+fp[1][1]+fp[2][1]+fp[3][1])/4;
+                    ctx.fillStyle = (val >= 8) ? '#fff' : '#3c3a32';
+                    ctx.font = 'bold ' + (val >= 1000 ? 28 : val >= 100 ? 34 : 42) + 'px "Baloo 2", system-ui, sans-serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-                    ctx.shadowBlur = 8;
-                    ctx.fillText(String(vals[vi]), 0, 4);
+                    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                    ctx.shadowBlur = 6;
+                    ctx.fillText(String(val), cx, cy + 2);
+                    ctx.shadowBlur = 0;
+                    // soft ground shadow
+                    ctx.beginPath();
+                    ctx.ellipse(0, s + 28, 50, 10, 0, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                    ctx.fill();
                     ctx.restore();
                     requestAnimationFrame(draw);
                 }
                 requestAnimationFrame(draw);
+            })();
+
             })();
             
             document.getElementById('btnPlayAgainLose').onclick = function() {
