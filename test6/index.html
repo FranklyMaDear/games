@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Draw & Drop - 3D Avatar Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 10px; left: 10px; font-family: sans-serif; font-weight: bold; color: #333; z-index: 10; }
+        button { padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; border: 2px solid #333; background: #F2A03D; color: white; }
+    </style>
+    <!-- Φορτώνουμε το Three.js και το Matter.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+    <div id="ui">
+        <button onclick="nextLevel()">Επόμενη Πίστα ➔</button>
+        <p>Ζωγράφισε μια γραμμή για να τσουλήσει το κοριτσάκι στη σημαία!</p>
+    </div>
+
+    <script>
+        // 1. ΡΥΘΜΙΣΕΙΣ MATTER.JS (2D Φυσική)
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Composite = Matter.Composite,
+              Body = Matter.Body;
+
+        const engine = Engine.create();
+        let currentLines = []; // Εδώ αποθηκεύουμε τις γραμμές (φυσικά αντικείμενα)
+
+        // Δημιουργούμε το "σώμα" για το κοριτσάκι (ένας κύκλος που κυλάει)
+        let girlBody = Bodies.circle(0, 0, 0.6, { 
+            restitution: 0.1, 
+            friction: 0.05,
+            density: 0.001
+        });
+        Composite.add(engine.world, girlBody);
+
+        // 2. ΡΥΘΜΙΣΕΙΣ THREE.JS (3D Γραφικά)
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Γαλάζιος ουρανός
+        
+        // Χρησιμοποιούμε Ορθογραφική κάμερα για να ταιριάζει απόλυτα με το 2D Matter.js
+        const aspect = window.innerWidth / window.innerHeight;
+        const viewSize = 20; 
+        const camera = new THREE.OrthographicCamera(-viewSize*aspect/2, viewSize*aspect/2, viewSize/2, -viewSize/2, 0.1, 100);
+        camera.position.set(0, 0, 10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        // 3. ΔΗΜΙΟΥΡΓΙΑ 3D AVATAR (Από τον κώδικά σου)
+        function createGirl() {
+            const petGroup = new THREE.Group();
+            // Κλίμακα για να ταιριάζει με το μέγεθος του Matter.js
+            petGroup.scale.set(0.6, 0.6, 0.6); 
+
+            const SKIN = 0xffd9bd;
+            const headMat = new THREE.MeshPhongMaterial({ color: SKIN, shininess: 18 });
+            
+            // Κεφάλι
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.46, 32, 32), headMat);
+            head.position.y = 0.95;
+            petGroup.add(head);
+
+            // Φόρεμα
+            const dressMesh = new THREE.Mesh(new THREE.ConeGeometry(0.52, 0.95, 24), new THREE.MeshPhongMaterial({ color: 0xe8639c, shininess: 30 }));
+            dressMesh.position.y = 0.08;
+            petGroup.add(dressMesh);
+
+            // Μαλλιά (Απλοποιημένα για το παράδειγμα)
+            const blonde = new THREE.MeshPhongMaterial({ color: 0xf6cf5e, shininess: 55 });
+            const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.49, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2.2), blonde);
+            hairCap.position.set(0, 1.05, -0.06);
+            petGroup.add(hairCap);
+
+            return petGroup;
+        }
+
+        const girlMesh = createGirl();
+        scene.add(girlMesh);
+
+        // Σημαία Τερματισμού (Απλό 3D αντικείμενο)
+        const flagGeo = new THREE.BoxGeometry(1, 1, 1);
+        const flagMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const flagMesh = new THREE.Mesh(flagGeo, flagMat);
+        scene.add(flagMesh);
+
+        // Το container για τις γραμμές που ζωγραφίζουμε
+        const linesGroup = new THREE.Group();
+        scene.add(linesGroup);
+
+        // 4. ΣΥΣΤΗΜΑ ΖΩΓΡΑΦΙΚΗΣ ΚΑΙ ΠΙΣΤΩΝ
+        let isDrawing = false;
+        let points = [];
+        let currentLineMesh = null;
+        let currentLevel = 1;
+
+        // Συνάρτηση για φόρτωση πίστας
+        function loadLevel(levelNum) {
+            // Καθαρίζουμε παλιές γραμμές
+            currentLines.forEach(body => Composite.remove(engine.world, body));
+            currentLines = [];
+            while(linesGroup.children.length > 0){ 
+                linesGroup.remove(linesGroup.children[0]); 
+            }
+
+            // Μηδενισμός ταχύτητας του κοριτσιού
+            Body.setVelocity(girlBody, { x: 0, y: 0 });
+            Body.setAngularVelocity(girlBody, 0);
+
+            if(levelNum === 1) {
+                Body.setPosition(girlBody, { x: -8, y: 5 }); // Ξεκινάει ψηλά αριστερά
+                flagMesh.position.set(8, -5, 0);             // Τερματισμός κάτω δεξιά
+            } else if (levelNum === 2) {
+                Body.setPosition(girlBody, { x: 0, y: 8 });  // Ξεκινάει ψηλά στο κέντρο
+                flagMesh.position.set(-8, -5, 0);            // Τερματισμός κάτω αριστερά
+            }
+        }
+
+        // Mouse Events
+        const mouse = new THREE.Vector2();
+        
+        function getWorldPosition(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            const vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+            vector.unproject(camera);
+            return vector;
+        }
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            isDrawing = true;
+            points = [];
+            const pos = getWorldPosition(e);
+            points.push(new THREE.Vector3(pos.x, pos.y, 0));
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isDrawing) return;
+            const pos = getWorldPosition(e);
+            points.push(new THREE.Vector3(pos.x, pos.y, 0));
+
+            // Ζωγραφίζουμε τη γραμμή στο Three.js
+            if(currentLineMesh) linesGroup.remove(currentLineMesh);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 5 });
+            currentLineMesh = new THREE.Line(geometry, material);
+            linesGroup.add(currentLineMesh);
+        });
+
+        window.addEventListener('pointerup', () => {
+            isDrawing = false;
+            currentLineMesh = null;
+            if(points.length < 2) return;
+
+            // Μετατροπή των σημείων σε μικρά ορθογώνια για το Matter.js
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i+1];
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx);
+                
+                const midX = p1.x + dx/2;
+                const midY = -(p1.y + dy/2); // Το Matter.js έχει ανάποδο άξονα Y
+                
+                const rect = Bodies.rectangle(midX, midY, dist, 0.2, { 
+                    isStatic: true, 
+                    angle: -angle 
+                });
+                
+                currentLines.push(rect);
+                Composite.add(engine.world, rect);
+            }
+        });
+
+        window.nextLevel = function() {
+            currentLevel = currentLevel === 1 ? 2 : 1;
+            loadLevel(currentLevel);
+        }
+
+        // 5. GAME LOOP
+        loadLevel(1);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Ενημέρωση Φυσικής
+            Engine.update(engine, 1000 / 60);
+
+            // Συγχρονισμός 3D Avatar (Three.js) με τη 2D Φυσική (Matter.js)
+            girlMesh.position.x = girlBody.position.x;
+            girlMesh.position.y = -girlBody.position.y; // Ανάποδος Y άξονας
+            
+            // Κάνουμε το κοριτσάκι να γέρνει ελαφρώς καθώς κυλάει
+            girlMesh.rotation.z = -girlBody.angle;
+
+            // Έλεγχος Νίκης (Αν ακουμπήσει τη σημαία)
+            const distToFlag = Math.hypot(girlMesh.position.x - flagMesh.position.x, girlMesh.position.y - flagMesh.position.y);
+            if(distToFlag < 1.5) {
+                alert("Συγχαρητήρια! Πέρασες την πίστα!");
+                nextLevel();
+            }
+
+            // Έλεγχος Ήττας (Αν πέσει στο κενό)
+            if(girlMesh.position.y < -15) {
+                loadLevel(currentLevel); // Επανεκκίνηση πίστας
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -viewSize * aspect / 2;
+            camera.right = viewSize * aspect / 2;
+            camera.top = viewSize / 2;
+            camera.bottom = -viewSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
