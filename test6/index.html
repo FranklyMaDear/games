@@ -1193,7 +1193,7 @@
         <div class="help-item">
             <button class="pbtn" id="btnShuffle">🔄<span class="cost">25 💎</span></button>
         </div>
-        <button class="pbtn" id="btnMic">🎤<span class="cost" id="micCost">Talk</span></button>
+        <!-- mic removed with girl -->
         <button class="pbtn" id="btnShareHelp" style="background:var(--blue); box-shadow:0 6px 0 #2d5a7a;">📤<span class="cost">Share</span></button>
     </div>
 
@@ -1224,14 +1224,6 @@
                 <button class="shop-tab" data-maintab="boards">Boards</button>
                 <button class="shop-tab" data-maintab="effects">Effects</button>
                 <button class="shop-tab" data-maintab="sounds">Sounds</button>
-                <button class="shop-tab" data-maintab="music">Music</button>
-                <button class="shop-tab" data-maintab="pets">Aziram</button>
-            </div>
-            <div class="pet-subtabs" id="petSubTabs">
-                <button class="pet-subtab active" data-subtab="pet_hair">💇 Hair</button>
-                <button class="pet-subtab" data-subtab="pet_clothes">👗 Clothes</button>
-                <button class="pet-subtab" data-subtab="pet_shoes">👟 Shoes</button>
-                <button class="pet-subtab" data-subtab="pet_props">🎈 Item</button>
             </div>
             <div class="shop-items" id="shopContainer"></div>
             <button class="btn" id="btnCloseShop">Close</button>
@@ -1359,10 +1351,10 @@
                 });
             }
 
-            const COLS = 5,
-                ROWS = 8,
-                CELL = 1.05,
-                GAP = 0.10;
+            const COLS = 6,
+                ROWS = 7,
+                CELL = 1.12,
+                GAP = 0.08;
             const BOARD_W = COLS * (CELL + GAP) - GAP;
             const BOARD_H = ROWS * (CELL + GAP) - GAP;
             const launchY = -BOARD_H / 2 - 0.4;
@@ -1754,7 +1746,8 @@
             };
             let musicStarted = false, musicTimer = null, musicStep = 0;
 
-            function scheduleMusicLoop() {
+            function scheduleMusicLoop() { return; // music removed
+                
                 if (musicTimer) clearInterval(musicTimer);
                 const song = SONGS[save.equippedMusic] || SONGS.music_1;
                 musicStep = 0;
@@ -1773,6 +1766,7 @@
             }
 
             function startMusic() {
+                return; // music removed
                 if (musicStarted) return;
                 musicStarted = true;
                 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -2162,24 +2156,9 @@
                 skyPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: makeSkyTexture(), depthWrite: false }));
                 skyPlane.renderOrder = -10;
                 scene.add(skyPlane);
-
-                sunGroup = new THREE.Group();
-                sunGroup.add(create3DSun());
-                sunGroup.renderOrder = -8;
-                scene.add(sunGroup);
-
-                for (let i = 0; i < 5; i++) {
-                    const c = create3DCloud();
-                    c.renderOrder = -7;
-                    c.userData.speed = 0.15 + Math.random() * 0.3;
-                    c.userData.ny = 0.65 + Math.random() * 0.30;
-                    scene.add(c);
-                    clouds.push(c);
-                }
-
-                // Grass and flowers removed per request
+                sunGroup = null;
                 grassPlane = null;
-
+                // sun, clouds, grass, flowers removed
                 layoutScenery();
             }
 
@@ -2191,25 +2170,9 @@
                 const sSky = viewSizeAt(dSky);
                 skyPlane.position.copy(unprojectToDist(0, 0, dSky));
                 skyPlane.scale.set(sSky.w * 1.4, sSky.h * 1.4, 1);
-
-                const dSun = 40;
-                sunGroup.position.copy(unprojectToDist(-0.6, 0.85, dSun));
-                sunGroup.scale.setScalar(1.8);
-
-                const dCloud = 36;
-                const sCloud = viewSizeAt(dCloud);
-                cloudHalfW = sCloud.w * 0.75;
-                clouds.forEach(function(c, i) {
-                    const p = unprojectToDist(0, c.userData.ny, dCloud);
-                    c.position.set(p.x - sCloud.w * 0.6 + i * sCloud.w * 0.35, p.y, p.z);
-                    const cw = 1.0 + (i % 3) * 0.5;
-                    c.scale.setScalar(cw);
-                });
-
-                // Grass / flowers disabled
             }
 
-            function updateClouds(dt) { clouds.forEach(function(c) { c.position.x += c.userData.speed * dt; if (c.position.x > cloudHalfW) c.position.x = -cloudHalfW; }); }
+            function updateClouds(dt) { /* clouds removed */ }
 
             let girl, girlCore, sockets = {}, mouthMesh, eyeL, eyeR, browL, browR, dressMesh, hairGroup, accessoryGroup;
             let shoeMaterial;
@@ -2591,13 +2554,11 @@
                         m.position.set(p.x, p.y, -0.42);
                         boardGroup.add(m); }
                 updateBoardColorsLive();
-                girl = createGirl();
-                scene.add(girl);
+                girl = null;
                 raycaster = new THREE.Raycaster();
                 pointer = new THREE.Vector2();
                 onResize();
                 initScenery();
-                updateGirlScreenPosition();
                 addEventListener("resize", onResize);
                 addEventListener("orientationchange", function() { setTimeout(onResize, 250); });
                 return renderer;
@@ -2617,32 +2578,32 @@
                 // Desktop only (matches CSS media query). Mobile keeps original centered layout.
                 const isWide = width >= 768 && (width / height) >= 1.15;
                 
+                // Fit board as large as possible in the available view
+                const fovRad = THREE.MathUtils.degToRad(camera.fov / 2);
+                const distBase = 11.5;
+                const visH = 2 * distBase * Math.tan(fovRad);
+                const visW = visH * (width / height);
                 if (isWide) {
-                    // Maximum size board, pushed far RIGHT – fills center-to-right of screen
-                    boardGroup.scale.set(1.55, 1.55, 1.55);
-                    boardGroup.position.x = 3.6;
-                    boardGroup.position.y = -0.05;
-                    boardGroup.position.z = -0.3;
-                    
-                    // Camera tight on the right so board is as large as possible
-                    const dist = (BOARD_H * 1.55 / 2 + 2.2) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-                    camera.position.set(3.0, -1.2, dist - 0.4);
-                    camera.lookAt(3.0, -0.7, 0);
-                    girlNdcX = -0.68; // firmly on the left
+                    // Leave room for left UI panel (~22% width)
+                    const usableW = visW * 0.72;
+                    const usableH = visH * 0.90;
+                    const s = Math.min(usableW / (BOARD_W + 0.9), usableH / (BOARD_H + 0.9));
+                    boardGroup.scale.set(s, s, s);
+                    const cx = visW * 0.18; // shift board toward right
+                    boardGroup.position.set(cx, -0.05, -0.2);
+                    camera.position.set(cx, -0.9, distBase);
+                    camera.lookAt(cx, -0.35, 0);
                 } else {
-                    // Original mobile layout – do not change
-                    boardGroup.scale.set(1.22, 1.22, 1.22);
-                    boardGroup.position.x = 0;
-                    boardGroup.position.y = -0.15;
-                    boardGroup.position.z = -0.6;
-                    const dist = (BOARD_H * 1.22 / 2 + 2.8) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-                    camera.position.set(0, -1.5, dist - 1.2);
-                    camera.lookAt(0, -0.9, 0);
-                    girlNdcX = 0.28;
+                    const usableW = visW * 0.94;
+                    const usableH = visH * 0.86; // top/bottom UI
+                    const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
+                    boardGroup.scale.set(s, s, s);
+                    boardGroup.position.set(0, -0.2, -0.4);
+                    camera.position.set(0, -1.1, distBase);
+                    camera.lookAt(0, -0.55, 0);
                 }
                 camera.updateProjectionMatrix();
                 layoutScenery();
-                updateGirlScreenPosition();
                 // Desktop: left panel is always visible (no rollup)
                 const roll = document.getElementById('shopRollup');
                 if (roll) {
@@ -2979,8 +2940,36 @@
                 busy = true;
                 const newVal = selectValue * 2;
                 const first = selectedCells[0];
+                const pathCells = selectedCells.slice();
+
+                // Collision + merge sounds
+                try {
+                    tone(160, 80, 0.09, 'square', 0.18);
+                    tone(90, 40, 0.12, 'sawtooth', 0.12, 0.05);
+                } catch (e) {}
+                playSound('merge');
+
+                // Keep / flash merge path line along selected cubes during integration
+                try {
+                    ensureSelectionLine();
+                    if (selectionLine) {
+                        selectionLine.material.opacity = 0.9;
+                        selectionLine.material.color.setHex(0xfff59d);
+                        updateSelectionLine();
+                        selectionLine.visible = true;
+                        setTimeout(function() {
+                            if (selectionLine) {
+                                selectionLine.material.opacity = 0.55;
+                                selectionLine.material.color.setHex(0xffffff);
+                                selectionLine.geometry.setDrawRange(0, 0);
+                                selectionLine.visible = false;
+                            }
+                        }, 320);
+                    }
+                } catch (e) {}
+
                 // Remove all selected
-                selectedCells.forEach(function(cell) {
+                pathCells.forEach(function(cell) {
                     if (grid[cell.c] && grid[cell.c][cell.r]) {
                         const m = grid[cell.c][cell.r].mesh;
                         grid[cell.c][cell.r] = null;
@@ -2992,7 +2981,6 @@
                 score += newVal;
                 save.score = score;
                 if (newVal > biggestTile) biggestTile = newVal;
-                playSound('merge');
                 // Visual merge effect
                 try {
                     const lp = cellPos(first.c, first.r);
@@ -3008,7 +2996,6 @@
                 isSelecting = false;
                 selectedCells = [];
                 selectValue = null;
-                clearSelectionHighlight();
                 // Gravity: let tiles fall down
                 setTimeout(function() {
                     applyGravity().then(function() {
@@ -3142,7 +3129,8 @@
 
                 busy = true;
                 lastActionTime = performance.now();
-                playSound('drop'); 
+                playSound('drop');
+                try { tone(140, 70, 0.07, 'square', 0.14); } catch(e) {} 
                 const eff = save.equippedEffect; 
                 if (eff !== 'eff_none') { 
                     const wp = new THREE.Vector3();
@@ -3482,8 +3470,10 @@
 
             function renderShop() { 
                 const petSubTabs = document.getElementById('petSubTabs'); 
-                if (currentMainTab === 'pets') petSubTabs.classList.add('active'); 
-                else petSubTabs.classList.remove('active'); 
+                if (petSubTabs) {
+                    if (currentMainTab === 'pets') petSubTabs.classList.add('active'); 
+                    else petSubTabs.classList.remove('active');
+                }
                 const activeTab = currentMainTab === 'pets' ? currentPetSubTab : currentMainTab; 
                 const container = document.getElementById('shopContainer');
                 container.innerHTML = ''; 
@@ -3592,7 +3582,7 @@
                 if (tabChanged === 'pet_props') equipProp(save.equippedProps); 
                 if (tabChanged === 'effects') toast(TT().effect_changed); 
                 if (tabChanged === 'sounds') toast(TT().sound_changed); 
-                if (tabChanged === 'music') { toast(TT().music_changed); if (musicStarted) scheduleMusicLoop(); } 
+                /* music removed */ 
             }
 
             document.querySelectorAll('.shop-tab').forEach(function(btn) { 
@@ -3636,7 +3626,8 @@
                 document.getElementById('lblLevel').textContent = t.level;
                 document.getElementById('lblScore').textContent = t.score;
                 document.getElementById('btnLang').textContent = lang === 'en' ? 'EN' : 'ΕΛ';
-                document.getElementById('micCost').textContent = t.talk;
+                const micCostEl = document.getElementById('micCost');
+                if (micCostEl) micCostEl.textContent = t.talk;
                 document.getElementById('shopTitle').textContent = t.customize;
                 document.getElementById('btnCloseShop').textContent = t.close;
                 document.getElementById('loseTitle').textContent = t.lose_title;
@@ -3968,11 +3959,6 @@
                     updateHUD();
                     applyLang();
                     updateSoundBtn();
-                    initMic();
-                    buildHair(save.equippedHair || 'hair_pigtails');
-                    equipClothes(save.equippedClothes || 'cl_none');
-                    equipShoes(save.equippedShoes || 'shoe_wood');
-                    equipProp(save.equippedProps || 'prop_none');
 
                     const cvs = document.getElementById("game");
                     // New drag-select system
@@ -4471,7 +4457,6 @@
                         stopMusic();
                         toast(TT().muted);
                     } else {
-                        startMusic();
                         toast(TT().unmuted);
                     }
                 };
