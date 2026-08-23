@@ -46,9 +46,15 @@
         }
         #game {
             position: fixed;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 78px;
+            height: auto;
+            width: 100%;
             display: block;
-            z-index: 0;
+            z-index: 1;
+            touch-action: none;
         }
 
         @keyframes rainbowIndicator {
@@ -1243,7 +1249,7 @@
         #bottomHud {
             position: fixed;
             left: 0; right: 0; bottom: 0;
-            z-index: 100;
+            z-index: 500;
             display: flex;
             align-items: center;
             justify-content: space-around;
@@ -1294,7 +1300,7 @@
 
         #selectLineCanvas {
             position: fixed;
-            inset: 0;
+            top: 0; left: 0; right: 0; bottom: 78px;
             z-index: 5;
             pointer-events: none !important;
         }
@@ -1338,11 +1344,11 @@
 
     <!-- Bottom HUD: shop, score/lb, sound, share, lang -->
     <div id="bottomHud">
-        <button class="bh-btn" id="btnShop" type="button"><span class="ico">🛒</span><span class="lbl">Shop</span></button>
-        <button class="bh-btn secondary" id="btnLeaderboardTop" type="button"><span class="ico">🏆</span><span class="lbl" id="lblScoreBtn">Score</span></button>
-        <button class="bh-btn secondary" id="btnSound" type="button"><span class="ico" id="soundIcon">🔇</span><span class="lbl">Sound</span></button>
-        <button class="bh-btn secondary" id="btnShareHelp" type="button"><span class="ico">📤</span><span class="lbl">Share</span></button>
-        <button class="bh-btn secondary" id="btnLang" type="button"><span class="ico">🌐</span><span class="lbl" id="langLbl">EN</span></button>
+        <button class="bh-btn" id="btnShop" type="button" onclick="window.__uiShop&&window.__uiShop(event)"><span class="ico">🛒</span><span class="lbl">Shop</span></button>
+        <button class="bh-btn secondary" id="btnLeaderboardTop" type="button" onclick="window.__uiScore&&window.__uiScore(event)"><span class="ico">🏆</span><span class="lbl" id="lblScoreBtn">Score</span></button>
+        <button class="bh-btn secondary" id="btnSound" type="button" onclick="window.__uiSound&&window.__uiSound(event)"><span class="ico" id="soundIcon">🔇</span><span class="lbl">Sound</span></button>
+        <button class="bh-btn secondary" id="btnShareHelp" type="button" onclick="window.__uiShare&&window.__uiShare(event)"><span class="ico">📤</span><span class="lbl">Share</span></button>
+        <button class="bh-btn secondary" id="btnLang" type="button" onclick="window.__uiLang&&window.__uiLang(event)"><span class="ico">🌐</span><span class="lbl" id="langLbl">EN</span></button>
     </div>
 <canvas id="selectLineCanvas"></canvas>
 
@@ -5025,6 +5031,80 @@
                     setTimeout(function() { try { persist(); } catch (e) {} }, 100);
                     setTimeout(bootGame, 200);
                 });
+
+            // ===== Global UI actions for bottom bar (always available) =====
+            window.__uiShop = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    if (typeof renderShop === 'function') renderShop();
+                    if (typeof updateHUD === 'function') updateHUD();
+                    var m = document.getElementById('shopModal');
+                    if (m) m.classList.remove('hidden');
+                } catch (err) { console.error('shop', err); try { toast('Shop'); } catch(_){} }
+            };
+            window.__uiScore = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    if (typeof renderLeaderboard === 'function') renderLeaderboard();
+                    var lb = document.getElementById('leaderboardModal');
+                    if (lb) lb.classList.remove('hidden');
+                    else toast('Score: ' + (typeof score !== 'undefined' ? score : 0));
+                } catch (err) { console.error('score', err); try { toast('Score: ' + score); } catch(_){} }
+            };
+            window.__uiSound = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    muted = !muted;
+                    if (save) save.muted = muted;
+                    try { persist(); } catch(_){}
+                    try { updateSoundBtn(); } catch(_){}
+                    if (muted) {
+                        try { speechSynthesis.cancel(); } catch(_){}
+                        try { stopMusic(); } catch(_){}
+                        try { toast(TT().muted); } catch(_){ toast('Sound off'); }
+                    } else {
+                        try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch(_){}
+                        try { toast(TT().unmuted); } catch(_){ toast('Sound on'); }
+                    }
+                } catch (err) { console.error('sound', err); }
+            };
+            window.__uiShare = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    if (typeof doShareAction === 'function') doShareAction();
+                    else if (navigator.share) {
+                        navigator.share({ title: 'Cube Link 4096', text: 'My score: ' + score, url: location.href });
+                    } else {
+                        try { navigator.clipboard.writeText(location.href); toast('Link copied!'); } catch(_){ toast('Share: ' + location.href); }
+                    }
+                } catch (err) { console.error('share', err); }
+            };
+            window.__uiLang = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    lang = (lang === 'en') ? 'el' : 'en';
+                    if (save) save.lang = lang;
+                    try { persist(); } catch(_){}
+                    try { applyLang(); } catch(_){}
+                    var lbl = document.getElementById('langLbl');
+                    if (lbl) lbl.textContent = lang === 'en' ? 'EN' : 'ΕΛ';
+                } catch (err) { console.error('lang', err); }
+            };
+            // Also re-bind programmatically
+            (function rebindBottom() {
+                function wire(id, fn) {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    el.onclick = function(ev) { fn(ev); };
+                    el.ontouchend = function(ev) { fn(ev); };
+                }
+                wire('btnShop', window.__uiShop);
+                wire('btnLeaderboardTop', window.__uiScore);
+                wire('btnSound', window.__uiSound);
+                wire('btnShareHelp', window.__uiShare);
+                wire('btnLang', window.__uiLang);
+            })();
+
                 // Absolute fallback if something blocked loadSave callback
                 setTimeout(function() {
                     if (!isGameReady && !bootInProgress) {
