@@ -669,7 +669,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 200;
+            z-index: 600;
             -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
         }
@@ -719,15 +719,40 @@
         #shopModal .shop-item .price { color: #F5C542; }
         #shopModal #btnCloseShop {
             position: fixed;
-            left: 12px;
-            right: 12px;
-            bottom: calc(12px + env(safe-area-inset-bottom));
+            left: 16px;
+            right: 16px;
+            bottom: calc(16px + env(safe-area-inset-bottom));
             width: auto;
             margin: 0;
-            z-index: 40;
-            background: #222;
-            box-shadow: 0 4px 0 #000;
-            border: 2px solid #F2A03D;
+            z-index: 620;
+            background: linear-gradient(135deg, #F2A03D, #f7c06d) !important;
+            color: #1a1008 !important;
+            font-weight: 800;
+            font-size: 18px;
+            padding: 14px 20px;
+            box-shadow: 0 4px 0 #b8742a;
+            border: none;
+            border-radius: 14px;
+            pointer-events: auto !important;
+            cursor: pointer;
+        }
+        #langList .lang-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            background: rgba(0,0,0,0.08);
+            color: var(--ink);
+            text-align: left;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+        }
+        #langList .lang-btn.active {
+            background: linear-gradient(135deg, #F2A03D, #f7c06d);
+            color: #1a1008;
+            box-shadow: 0 3px 0 #b8742a;
         }
         #bottomHud #btnShop {
             background: linear-gradient(135deg, #1a1a1a, #333);
@@ -1393,6 +1418,15 @@
         </div>
     </div>
 
+    <div class="overlay hidden" id="langModal">
+        <div class="card" style="max-width:340px;">
+            <h2 id="langModalTitle">🌐 Language</h2>
+            <p style="opacity:0.8;margin:0 0 12px;font-size:14px;" id="langModalHint">Choose your language</p>
+            <div id="langList" style="display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto;"></div>
+            <button class="btn cancel-btn" id="btnCloseLang" type="button" style="margin-top:14px;">Close</button>
+        </div>
+    </div>
+
     <div class="overlay hidden" id="shopModal">
         <div class="card">
             <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; position:relative;">
@@ -1407,7 +1441,7 @@
                 <button class="shop-tab" data-maintab="dragSounds">Drag SFX</button>
             </div>
             <div class="shop-items" id="shopContainer"></div>
-            <button class="btn" id="btnCloseShop">Close</button>
+            <button class="btn" id="btnCloseShop" type="button" onclick="window.__uiCloseShop&&window.__uiCloseShop(event)">✕ Close</button>
         </div>
     </div>
 
@@ -1734,6 +1768,10 @@
 
             const LANG_ORDER = ['en', 'el', 'de', 'fr', 'it', 'es', 'zh', 'ru'];
             const LANG_LABEL = { en: 'EN', el: 'ΕΛ', de: 'DE', fr: 'FR', it: 'IT', es: 'ES', zh: '中文', ru: 'RU' };
+            const LANG_NAME = {
+                en: 'English', el: 'Ελληνικά', de: 'Deutsch', fr: 'Français',
+                it: 'Italiano', es: 'Español', zh: '中文 (Chinese)', ru: 'Русский'
+            };
 
             function setHudVisible(playing) {
                 try {
@@ -4167,7 +4205,11 @@
                 var ico = document.getElementById('soundIcon');
                 if (ico) ico.textContent = muted ? '🔇' : '🔊';
                 var b = document.getElementById('btnSound');
-                if (b && !ico) b.textContent = muted ? '🔇' : '🔊';
+                if (b) {
+                    var lbl = b.querySelector('.lbl');
+                    if (lbl) lbl.textContent = muted ? 'Muted' : 'Sound';
+                    if (!ico) b.textContent = muted ? '🔇' : '🔊';
+                }
             }
 
             function stopMusic() {
@@ -5159,7 +5201,7 @@
                     }
                 });
 
-                document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal').classList.add('hidden'); };
+                document.getElementById('btnCloseShop').onclick = function(e) { window.__uiCloseShop(e); };
                 /* bottom HUD buttons bound via bindTap above */
 
                 // Do NOT auto-start music – only when player presses the speaker button
@@ -5179,6 +5221,14 @@
                 });
 
             // ===== Global UI actions for bottom bar (always available) =====
+            window.__uiCloseShop = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    var m = document.getElementById('shopModal');
+                    if (m) m.classList.add('hidden');
+                    if (document.body.classList.contains('playing')) setHudVisible(true);
+                } catch (err) {}
+            };
             window.__uiShop = function(e) {
                 try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
                 try {
@@ -5186,7 +5236,13 @@
                     if (typeof updateHUD === 'function') updateHUD();
                     var m = document.getElementById('shopModal');
                     if (m) m.classList.remove('hidden');
-                } catch (err) { console.error('shop', err); try { toast('Shop'); } catch(_){} }
+                    var bot = document.getElementById('bottomHud');
+                    if (bot) bot.style.display = 'none';
+                    var closeBtn = document.getElementById('btnCloseShop');
+                    if (closeBtn) {
+                        closeBtn.onclick = function(ev) { window.__uiCloseShop(ev); };
+                    }
+                } catch (err) { console.error('shop', err); }
             };
             window.__uiScore = function(e) {
                 try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
@@ -5195,7 +5251,7 @@
                     var lb = document.getElementById('leaderboardModal');
                     if (lb) lb.classList.remove('hidden');
                     else toast('Score: ' + (typeof score !== 'undefined' ? score : 0));
-                } catch (err) { console.error('score', err); try { toast('Score: ' + score); } catch(_){} }
+                } catch (err) { console.error('score', err); }
             };
             window.__uiSound = function(e) {
                 try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
@@ -5207,10 +5263,18 @@
                     if (muted) {
                         try { speechSynthesis.cancel(); } catch(_){}
                         try { stopMusic(); } catch(_){}
-                        try { toast(TT().muted); } catch(_){ toast('Sound off'); }
+                        try { toast(TT().muted || '🔇 Sound off'); } catch(_){ toast('🔇 Sound off'); }
                     } else {
-                        try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch(_){}
-                        try { toast(TT().unmuted); } catch(_){ toast('Sound on'); }
+                        try {
+                            if (typeof audioCtx !== 'undefined' && audioCtx) {
+                                if (audioCtx.state === 'suspended') audioCtx.resume();
+                            }
+                        } catch(_){}
+                        // short confirmation beep
+                        try {
+                            if (typeof tone === 'function') tone(660, 880, 0.12, 'sine', 0.18);
+                        } catch(_){}
+                        try { toast(TT().unmuted || '🔊 Sound on'); } catch(_){ toast('🔊 Sound on'); }
                     }
                 } catch (err) { console.error('sound', err); }
             };
@@ -5219,8 +5283,8 @@
                 try {
                     var shareData = {
                         title: 'Cube Link 4096',
-                        text: 'Cube Link 4096 — my score: ' + (typeof score !== 'undefined' ? score : 0) + ' 💎' + (typeof coins !== 'undefined' ? coins : ''),
-                        url: (typeof location !== 'undefined' ? location.href : 'https://games.franklymadear.com')
+                        text: 'Cube Link 4096 — score: ' + (typeof score !== 'undefined' ? score : 0),
+                        url: (typeof location !== 'undefined' ? location.href : '')
                     };
                     if (navigator.share) {
                         navigator.share(shareData).catch(function() {
@@ -5237,18 +5301,42 @@
             window.__uiLang = function(e) {
                 try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
                 try {
-                    var idx = LANG_ORDER.indexOf(lang);
-                    if (idx < 0) idx = 0;
-                    lang = LANG_ORDER[(idx + 1) % LANG_ORDER.length];
-                    if (save) save.lang = lang;
-                    try { persist(); } catch(_){}
-                    try { applyLang(); } catch(_){}
-                    var lbl = document.getElementById('langLbl');
-                    if (lbl) lbl.textContent = LANG_LABEL[lang] || lang.toUpperCase();
-                    try { toast(LANG_LABEL[lang] || lang); } catch(_){}
+                    var list = document.getElementById('langList');
+                    var modal = document.getElementById('langModal');
+                    if (!list || !modal) return;
+                    list.innerHTML = '';
+                    LANG_ORDER.forEach(function(code) {
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'lang-btn' + (code === lang ? ' active' : '');
+                        btn.textContent = (LANG_LABEL[code] || code) + '  —  ' + (LANG_NAME[code] || code);
+                        btn.onclick = function(ev) {
+                            try { if (ev) { ev.preventDefault(); ev.stopPropagation(); } } catch(_){}
+                            lang = code;
+                            if (save) save.lang = lang;
+                            try { persist(); } catch(_){}
+                            try { applyLang(); } catch(_){}
+                            var lbl = document.getElementById('langLbl');
+                            if (lbl) lbl.textContent = LANG_LABEL[lang] || lang.toUpperCase();
+                            modal.classList.add('hidden');
+                            try { toast(LANG_NAME[lang] || lang); } catch(_){}
+                        };
+                        list.appendChild(btn);
+                    });
+                    modal.classList.remove('hidden');
+                    var bot = document.getElementById('bottomHud');
+                    if (bot) bot.style.display = 'none';
                 } catch (err) { console.error('lang', err); }
             };
-            // Also re-bind programmatically
+            window.__uiCloseLang = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (err) {}
+                try {
+                    var modal = document.getElementById('langModal');
+                    if (modal) modal.classList.add('hidden');
+                    if (document.body.classList.contains('playing')) setHudVisible(true);
+                } catch (err) {}
+            };
+
             (function rebindBottom() {
                 function wire(id, fn) {
                     var el = document.getElementById(id);
@@ -5261,6 +5349,8 @@
                 wire('btnSound', window.__uiSound);
                 wire('btnShareHelp', window.__uiShare);
                 wire('btnLang', window.__uiLang);
+                wire('btnCloseShop', window.__uiCloseShop);
+                wire('btnCloseLang', window.__uiCloseLang);
                 setHudVisible(false);
             })();
 
