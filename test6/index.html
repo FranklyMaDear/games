@@ -1443,11 +1443,6 @@
     <script src="https://www.youtube.com/game_api/v1"></script>
     <script src="three.min.js"></script>
     <script>
-      if (typeof THREE === 'undefined') {
-        document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
-      }
-    </script>
-    <script>
         (function() {
             'use strict';
 
@@ -3816,7 +3811,12 @@
                 const container = document.getElementById('shopContainer');
                 container.innerHTML = ''; 
                 const arr = SHOP[activeTab] || []; 
-                const props = getShopProperties(activeTab);
+                const props = getShopProperties(activeTab) || { owned: null, equip: null };
+                if (!props.owned || !props.equip) {
+                    container.innerHTML = '<p style="opacity:0.7;padding:12px;text-align:center;">Coming soon</p>';
+                    return;
+                }
+                if (!save[props.owned]) save[props.owned] = [];
 
                 arr.forEach(function(item) { 
                     const isOwned = save[props.owned] && save[props.owned].indexOf(item.id) !== -1;
@@ -4049,10 +4049,9 @@
             let lastT = 0, stepAccum = 0;
 
             function loop(t) { 
-                if (paused || isSdkPaused) {
-                    requestAnimationFrame(loop);
-                    return;
-                }
+                requestAnimationFrame(loop);
+                if (paused || isSdkPaused) return;
+                try {
                 const dt = Math.min(0.05, (t - lastT) / 1000);
                 lastT = t; 
                 if (!lastActionTime) lastActionTime = performance.now();
@@ -4251,8 +4250,9 @@
                     ytgame.game.firstFrameReady();
                     firstFrameSent = true;
                 }
-
-                requestAnimationFrame(loop); 
+                } catch (loopErr) {
+                    console.error('loop', loopErr);
+                }
             }
 
             let isGameReady = false;
@@ -4378,16 +4378,21 @@
                         selectedCells = [];
                         selectValue = null;
                     });
-                    if (!window.PointerEvent) {
-                        cvs.addEventListener("touchstart", function(e) {
-                            if (e.touches[0]) {
-                                const fake = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, pointerId: 1 };
-                                cvs.dispatchEvent(new PointerEvent("pointerdown", fake));
-                            }
-                        }, { passive: true });
+                    if (!window._dropPointerBound) {
+                        window._dropPointerBound = true;
+                        if (!window.PointerEvent) {
+                            cvs.addEventListener("touchstart", function(e) {
+                                if (e.touches[0]) {
+                                    const fake = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, pointerId: 1 };
+                                    cvs.dispatchEvent(new PointerEvent("pointerdown", fake));
+                                }
+                            }, { passive: true });
+                        }
                     }
-
-                    mainMenu.classList.remove('hidden');
+                    // Keep menu visible only if player has not already pressed Play
+                    if (!window._dropPlayRequested) {
+                        mainMenu.classList.remove('hidden');
+                    }
                 } catch(e) {
                     console.error("Boot Error:", e);
                     try { toast("Boot error: " + (e && e.message ? e.message : e)); } catch (_) {}
@@ -4397,16 +4402,35 @@
             }
 
             function startGame(mode) {
+                window._dropPlayRequested = true;
+                // Hide menu right away so Play always feels responsive
+                try { document.getElementById('mainMenu').classList.add('hidden'); } catch (e) {}
+                // Unlock audio on user gesture
+                try {
+                    muted = false;
+                    save.muted = false;
+                    if (typeof audioCtx !== 'undefined' && audioCtx && audioCtx.state === 'suspended') {
+                        audioCtx.resume();
+                    }
+                    updateSoundBtn();
+                } catch (e) {}
+
                 if (!isGameReady) {
-                    toast("Loading game, please wait...");
+                    toast("Loading…");
                     bootInProgress = false;
+                    try { bootGame(); } catch (e) { console.error(e); }
                     setTimeout(function() {
-                        bootGame();
-                        setTimeout(function() {
-                            if (isGameReady) startGame(mode);
-                            else toast("Still loading… try again in a moment.");
-                        }, 400);
-                    }, 50);
+                        if (isGameReady) startGame(mode);
+                        else {
+                            // Last resort: try boot once more then enter
+                            bootInProgress = false;
+                            try { bootGame(); } catch (e2) {}
+                            setTimeout(function() {
+                                if (isGameReady) startGame(mode);
+                                else toast("Could not start. Please refresh.");
+                            }, 500);
+                        }
+                    }, 350);
                     return;
                 }
                 
@@ -4415,7 +4439,9 @@
                     window.hasShownFirstAd = true;
                 }
 
-                document.getElementById('mainMenu').classList.add('hidden');
+                try {
+                    document.getElementById('mainMenu').classList.add('hidden');
+                } catch (e) {}
                 gameMode = mode;
                 gameOver = false;
                 busy = false;
@@ -4428,9 +4454,9 @@
                 score = 0;
                 save.score = 0;
                 coins = save.coins || 100;
-                persist();
-                newBoard();
-                updateHUD();
+                try { persist(); } catch (e) {}
+                try { newBoard(); } catch (e) { console.error('newBoard', e); }
+                try { updateHUD(); } catch (e) {}
                 if (mode === 'timeattack') {
                     if (typeof timeRemaining !== 'number' || timeRemaining <= 0) timeRemaining = 300;
                     startTimer();
@@ -4469,86 +4495,82 @@
             var btnTA = document.getElementById('btnTimeAttack');
             if (btnTA) btnTA.onclick = function() { startTimed(5); };
 
-                        // Menu hero cube (simple reliable 2D isometric)
+                                    // Menu wood cube — same style as in-game wooden cubes
             (function initMenuCube() {
                 var cv = document.getElementById('menuCubeCanvas');
                 if (!cv) return;
                 var ctx = cv.getContext('2d');
-                var vals = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
-                var vi = 0, t0 = performance.now();
-                var colors = {
-                    2:'#EEE4DA',4:'#EDE0C8',8:'#F2B179',16:'#F59563',
-                    32:'#F67C5F',64:'#F65E3B',128:'#EDCF72',256:'#EDCC61',
-                    512:'#EDC850',1024:'#EDC53F'
-                };
-                function shade(hex, f) {
-                    var r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-                    r=Math.min(255,Math.max(0,Math.round(r*f)));
-                    g=Math.min(255,Math.max(0,Math.round(g*f)));
-                    b=Math.min(255,Math.max(0,Math.round(b*f)));
-                    return 'rgb('+r+','+g+','+b+')';
+                var vals = [2, 4, 8, 16, 32, 64, 128, 256];
+                var vi = 0, last = 0;
+                function grain(pathFn, col) {
+                    ctx.save();
+                    pathFn();
+                    ctx.fillStyle = col;
+                    ctx.fill();
+                    ctx.clip();
+                    ctx.strokeStyle = 'rgba(90,50,20,0.22)';
+                    ctx.lineWidth = 1.4;
+                    for (var i = -40; i < 200; i += 10) {
+                        ctx.beginPath();
+                        ctx.moveTo(i, 0);
+                        ctx.bezierCurveTo(i+30, 40, i-20, 80, i+25, 200);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                    pathFn();
+                    ctx.strokeStyle = 'rgba(60,30,10,0.35)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
                 }
                 function draw(now) {
                     try {
                         var menu = document.getElementById('mainMenu');
                         if (menu && !menu.classList.contains('hidden')) {
-                            var elapsed = now - t0;
-                            if (elapsed > 1200) { t0 = now; vi = (vi + 1) % vals.length; }
+                            if (now - last > 1300) { last = now; vi = (vi + 1) % vals.length; }
                             var val = vals[vi];
-                            var col = colors[val] || '#F2A03D';
-                            var w = cv.width, h = cv.height;
-                            ctx.clearRect(0,0,w,h);
-                            var cx = w/2, cy = h/2 + 6;
-                            var size = 70;
-                            var bob = Math.sin(now * 0.003) * 5;
-                            cy += bob;
-                            // Isometric cube faces (fixed orientation, slight sway)
-                            var sway = Math.sin(now * 0.0015) * 0.08;
-                            var dx = size * (0.55 + sway * 0.1);
-                            var dy = size * 0.32;
+                            var W = cv.width, H = cv.height;
+                            ctx.clearRect(0, 0, W, H);
+                            var cx = W / 2, cy = H / 2 + 6 + Math.sin(now * 0.0025) * 4;
+                            var dx = 52, dy = 30, h = 70;
                             // top
-                            ctx.beginPath();
-                            ctx.moveTo(cx, cy - size);
-                            ctx.lineTo(cx + dx, cy - size + dy);
-                            ctx.lineTo(cx, cy - size + dy * 2);
-                            ctx.lineTo(cx - dx, cy - size + dy);
-                            ctx.closePath();
-                            ctx.fillStyle = shade(col, 1.15);
-                            ctx.fill();
-                            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-                            ctx.stroke();
+                            grain(function() {
+                                ctx.beginPath();
+                                ctx.moveTo(cx, cy - h);
+                                ctx.lineTo(cx + dx, cy - h + dy);
+                                ctx.lineTo(cx, cy - h + dy * 2);
+                                ctx.lineTo(cx - dx, cy - h + dy);
+                                ctx.closePath();
+                            }, '#E8C9A0');
                             // left
-                            ctx.beginPath();
-                            ctx.moveTo(cx - dx, cy - size + dy);
-                            ctx.lineTo(cx, cy - size + dy * 2);
-                            ctx.lineTo(cx, cy + size * 0.55);
-                            ctx.lineTo(cx - dx, cy + size * 0.25);
-                            ctx.closePath();
-                            ctx.fillStyle = shade(col, 0.72);
-                            ctx.fill();
-                            ctx.stroke();
-                            // right (front-ish with number)
-                            ctx.beginPath();
-                            ctx.moveTo(cx + dx, cy - size + dy);
-                            ctx.lineTo(cx, cy - size + dy * 2);
-                            ctx.lineTo(cx, cy + size * 0.55);
-                            ctx.lineTo(cx + dx, cy + size * 0.25);
-                            ctx.closePath();
-                            ctx.fillStyle = shade(col, 0.95);
-                            ctx.fill();
-                            ctx.stroke();
-                            // number centered on right face
-                            ctx.fillStyle = (val >= 8) ? '#fff' : '#3c3a32';
-                            ctx.font = 'bold ' + (val >= 1000 ? 26 : val >= 100 ? 32 : 40) + 'px "Baloo 2", system-ui, sans-serif';
+                            grain(function() {
+                                ctx.beginPath();
+                                ctx.moveTo(cx - dx, cy - h + dy);
+                                ctx.lineTo(cx, cy - h + dy * 2);
+                                ctx.lineTo(cx, cy + 36);
+                                ctx.lineTo(cx - dx, cy + 16);
+                                ctx.closePath();
+                            }, '#8B5A2B');
+                            // right (front with number) — light wood like in-game
+                            grain(function() {
+                                ctx.beginPath();
+                                ctx.moveTo(cx + dx, cy - h + dy);
+                                ctx.lineTo(cx, cy - h + dy * 2);
+                                ctx.lineTo(cx, cy + 36);
+                                ctx.lineTo(cx + dx, cy + 16);
+                                ctx.closePath();
+                            }, val >= 128 ? '#8B5A2B' : '#DEB887');
+                            // number
+                            ctx.fillStyle = val >= 128 ? '#FFFFFF' : '#2F1B0D';
+                            ctx.font = 'bold ' + (val >= 100 ? 34 : 44) + 'px "Baloo 2", system-ui, sans-serif';
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
                             ctx.shadowColor = 'rgba(0,0,0,0.3)';
                             ctx.shadowBlur = 4;
-                            ctx.fillText(String(val), cx + dx * 0.35, cy + 4);
+                            ctx.fillText(String(val), cx + dx * 0.32, cy + 2);
                             ctx.shadowBlur = 0;
-                            // ground shadow
+                            // shadow
                             ctx.beginPath();
-                            ctx.ellipse(cx, cy + size * 0.7, size * 0.7, 12, 0, 0, Math.PI * 2);
+                            ctx.ellipse(cx, cy + 58, 58, 12, 0, 0, Math.PI * 2);
                             ctx.fillStyle = 'rgba(0,0,0,0.22)';
                             ctx.fill();
                         }
@@ -4557,6 +4579,8 @@
                 }
                 requestAnimationFrame(draw);
             })();
+
+
 
 
 
@@ -4656,9 +4680,11 @@
                 
                 if (topBannerOpen) {
                     topBannerOpen = false;
-                    document.getElementById('shopRollup').classList.remove('open');
+                    const _sr = document.getElementById('shopRollup');
+                    if (_sr) _sr.classList.remove('open');
                     const isWideL = window.innerWidth >= 768 && (window.innerWidth / window.innerHeight) >= 1.15;
-                    document.getElementById('topToggleArrow').textContent = isWideL ? '▶' : '▼';
+                    const _ta = document.getElementById('topToggleArrow');
+                    if (_ta) _ta.textContent = isWideL ? '▶' : '▼';
                 }
             };
 
@@ -4950,8 +4976,8 @@
                     level = save.level || 0;
                     score = save.score || 0;
                     lang = 'en';
-                    muted = true;
-                    save.muted = true;
+                    muted = false;
+                    save.muted = false;
                     bestClassic = save.bestClassic || 0;
                     bestTimeAttack = save.bestTimeAttack || 0;
                     try { updateSoundBtn(); } catch (e) {}
