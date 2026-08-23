@@ -663,7 +663,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 30;
+            z-index: 200;
             -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
         }
@@ -1177,7 +1177,7 @@
         #topHud {
             position: fixed;
             top: 0; left: 0; right: 0;
-            z-index: 25;
+            z-index: 100;
             display: flex;
             flex-direction: column;
             gap: 6px;
@@ -1243,7 +1243,7 @@
         #bottomHud {
             position: fixed;
             left: 0; right: 0; bottom: 0;
-            z-index: 25;
+            z-index: 100;
             display: flex;
             align-items: center;
             justify-content: space-around;
@@ -1252,7 +1252,8 @@
             background: linear-gradient(0deg, rgba(40,22,12,0.95), rgba(40,22,12,0.8));
             border-top: 3px solid rgba(255,180,60,0.75);
             box-shadow: 0 -6px 18px rgba(0,0,0,0.35);
-            pointer-events: auto;
+            pointer-events: auto !important;
+            touch-action: manipulation;
         }
         #bottomHud .bh-btn {
             flex: 1 1 0;
@@ -1273,6 +1274,11 @@
             justify-content: center;
             gap: 2px;
             line-height: 1.15;
+            pointer-events: auto !important;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(255,200,80,0.35);
+            position: relative;
+            z-index: 101;
         }
         #bottomHud .bh-btn:active {
             transform: translateY(2px);
@@ -1289,8 +1295,8 @@
         #selectLineCanvas {
             position: fixed;
             inset: 0;
-            z-index: 12;
-            pointer-events: none;
+            z-index: 5;
+            pointer-events: none !important;
         }
 
         /* Hide legacy top/side chrome */
@@ -4495,90 +4501,108 @@
             var btnTA = document.getElementById('btnTimeAttack');
             if (btnTA) btnTA.onclick = function() { startTimed(5); };
 
-                                    // Menu wood cube — same style as in-game wooden cubes
+                                                // Menu cube — same wood face style as in-game numberTexture('wood')
             (function initMenuCube() {
                 var cv = document.getElementById('menuCubeCanvas');
                 if (!cv) return;
                 var ctx = cv.getContext('2d');
                 var vals = [2, 4, 8, 16, 32, 64, 128, 256];
                 var vi = 0, last = 0;
-                function grain(pathFn, col) {
-                    ctx.save();
-                    pathFn();
-                    ctx.fillStyle = col;
-                    ctx.fill();
-                    ctx.clip();
-                    ctx.strokeStyle = 'rgba(90,50,20,0.22)';
-                    ctx.lineWidth = 1.4;
-                    for (var i = -40; i < 200; i += 10) {
-                        ctx.beginPath();
-                        ctx.moveTo(i, 0);
-                        ctx.bezierCurveTo(i+30, 40, i-20, 80, i+25, 200);
-                        ctx.stroke();
+                function roundRectPath(g, x, y, w, h, r) {
+                    g.beginPath();
+                    g.moveTo(x + r, y);
+                    g.arcTo(x + w, y, x + w, y + h, r);
+                    g.arcTo(x + w, y + h, x, y + h, r);
+                    g.arcTo(x, y + h, x, y, r);
+                    g.arcTo(x, y, x + w, y, r);
+                    g.closePath();
+                }
+                function drawWoodTile(g, x, y, size, value) {
+                    var dark = value >= 128;
+                    var fill = dark ? '#8B5A2B' : '#DEB887';
+                    // soft shadow under cube
+                    g.save();
+                    g.fillStyle = 'rgba(0,0,0,0.28)';
+                    g.beginPath();
+                    g.ellipse(x + size/2, y + size + 8, size * 0.42, 10, 0, 0, Math.PI * 2);
+                    g.fill();
+                    g.restore();
+                    // right edge (depth)
+                    g.fillStyle = dark ? '#5D3A1A' : '#A67B3A';
+                    g.beginPath();
+                    g.moveTo(x + size - 4, y + 10);
+                    g.lineTo(x + size + 14, y + 22);
+                    g.lineTo(x + size + 14, y + size + 8);
+                    g.lineTo(x + size - 4, y + size - 4);
+                    g.closePath();
+                    g.fill();
+                    // top edge (depth)
+                    g.fillStyle = dark ? '#A67B3A' : '#E8C9A0';
+                    g.beginPath();
+                    g.moveTo(x + 10, y + 4);
+                    g.lineTo(x + size - 4, y + 4);
+                    g.lineTo(x + size + 14, y + 22);
+                    g.lineTo(x + size - 4, y + 10);
+                    g.lineTo(x + 10, y + 10);
+                    g.closePath();
+                    g.fill();
+                    // front face — matches in-game wood skin
+                    roundRectPath(g, x, y + 8, size, size, 18);
+                    g.fillStyle = fill;
+                    g.fill();
+                    // wood grain
+                    g.save();
+                    roundRectPath(g, x, y + 8, size, size, 18);
+                    g.clip();
+                    g.strokeStyle = dark ? 'rgba(40,20,8,0.28)' : 'rgba(100,55,20,0.28)';
+                    g.lineWidth = 2;
+                    for (var i = 0; i < 7; i++) {
+                        var yy = y + 24 + i * (size / 7);
+                        g.beginPath();
+                        g.moveTo(x + 12, yy);
+                        g.bezierCurveTo(x + size * 0.35, yy + 5, x + size * 0.65, yy - 5, x + size - 12, yy + 2);
+                        g.stroke();
                     }
-                    ctx.restore();
-                    pathFn();
-                    ctx.strokeStyle = 'rgba(60,30,10,0.35)';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
+                    g.restore();
+                    // bevel highlight
+                    roundRectPath(g, x + 3, y + 11, size - 6, size - 6, 14);
+                    g.strokeStyle = 'rgba(255,255,255,0.28)';
+                    g.lineWidth = 2;
+                    g.stroke();
+                    roundRectPath(g, x, y + 8, size, size, 18);
+                    g.strokeStyle = 'rgba(60,30,10,0.45)';
+                    g.lineWidth = 2;
+                    g.stroke();
+                    // number
+                    g.fillStyle = dark ? '#FFFFFF' : '#000000';
+                    g.font = '800 ' + (value >= 1000 ? 36 : value >= 100 ? 44 : 54) + 'px "Baloo 2", system-ui, sans-serif';
+                    g.textAlign = 'center';
+                    g.textBaseline = 'middle';
+                    g.shadowColor = 'rgba(0,0,0,0.35)';
+                    g.shadowBlur = 4;
+                    g.shadowOffsetY = 2;
+                    g.fillText(String(value), x + size / 2, y + 8 + size / 2 + 2);
+                    g.shadowBlur = 0;
                 }
                 function draw(now) {
                     try {
                         var menu = document.getElementById('mainMenu');
                         if (menu && !menu.classList.contains('hidden')) {
-                            if (now - last > 1300) { last = now; vi = (vi + 1) % vals.length; }
-                            var val = vals[vi];
+                            if (now - last > 1200) { last = now; vi = (vi + 1) % vals.length; }
                             var W = cv.width, H = cv.height;
                             ctx.clearRect(0, 0, W, H);
-                            var cx = W / 2, cy = H / 2 + 6 + Math.sin(now * 0.0025) * 4;
-                            var dx = 52, dy = 30, h = 70;
-                            // top
-                            grain(function() {
-                                ctx.beginPath();
-                                ctx.moveTo(cx, cy - h);
-                                ctx.lineTo(cx + dx, cy - h + dy);
-                                ctx.lineTo(cx, cy - h + dy * 2);
-                                ctx.lineTo(cx - dx, cy - h + dy);
-                                ctx.closePath();
-                            }, '#E8C9A0');
-                            // left
-                            grain(function() {
-                                ctx.beginPath();
-                                ctx.moveTo(cx - dx, cy - h + dy);
-                                ctx.lineTo(cx, cy - h + dy * 2);
-                                ctx.lineTo(cx, cy + 36);
-                                ctx.lineTo(cx - dx, cy + 16);
-                                ctx.closePath();
-                            }, '#8B5A2B');
-                            // right (front with number) — light wood like in-game
-                            grain(function() {
-                                ctx.beginPath();
-                                ctx.moveTo(cx + dx, cy - h + dy);
-                                ctx.lineTo(cx, cy - h + dy * 2);
-                                ctx.lineTo(cx, cy + 36);
-                                ctx.lineTo(cx + dx, cy + 16);
-                                ctx.closePath();
-                            }, val >= 128 ? '#8B5A2B' : '#DEB887');
-                            // number
-                            ctx.fillStyle = val >= 128 ? '#FFFFFF' : '#2F1B0D';
-                            ctx.font = 'bold ' + (val >= 100 ? 34 : 44) + 'px "Baloo 2", system-ui, sans-serif';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.shadowColor = 'rgba(0,0,0,0.3)';
-                            ctx.shadowBlur = 4;
-                            ctx.fillText(String(val), cx + dx * 0.32, cy + 2);
-                            ctx.shadowBlur = 0;
-                            // shadow
-                            ctx.beginPath();
-                            ctx.ellipse(cx, cy + 58, 58, 12, 0, 0, Math.PI * 2);
-                            ctx.fillStyle = 'rgba(0,0,0,0.22)';
-                            ctx.fill();
+                            var size = 140;
+                            var x = (W - size) / 2 - 6;
+                            var y = (H - size) / 2 - 12 + Math.sin(now * 0.0025) * 5;
+                            drawWoodTile(ctx, x, y, size, vals[vi]);
                         }
                     } catch (e) {}
                     requestAnimationFrame(draw);
                 }
                 requestAnimationFrame(draw);
             })();
+
+
 
 
 
@@ -4674,7 +4698,7 @@
                 });
             }
 
-            document.getElementById('btnLeaderboardTop').onclick = function() {
+            if (false) document.getElementById('btnLeaderboardTop').onclick = function() {
                 renderLeaderboard();
                 document.getElementById('leaderboardModal').classList.remove('hidden');
                 
@@ -4904,14 +4928,55 @@
                 }
 
                 function openShopModal() {
-                    if (isSdkPaused || paused) return;
-                    renderShop();
-                    updateHUD();
-                    document.getElementById('shopModal').classList.remove('hidden');
+                    try {
+                        renderShop();
+                        updateHUD();
+                        document.getElementById('shopModal').classList.remove('hidden');
+                    } catch (err) { console.error('openShop', err); toast('Shop error'); }
                 }
                 if (topShopBtn) topShopBtn.onclick = function(e) { e.stopPropagation(); openShopModal(); };
-                const btnShop = document.getElementById('btnShop');
-                if (btnShop) btnShop.onclick = function(e) { e.stopPropagation(); openShopModal(); };
+                function bindTap(el, fn) {
+                    if (!el) return;
+                    var locked = false;
+                    function run(ev) {
+                        if (locked) return;
+                        locked = true;
+                        try { if (ev) { ev.preventDefault(); ev.stopPropagation(); } } catch (e) {}
+                        try { fn(ev); } catch (e) { console.error(e); }
+                        setTimeout(function(){ locked = false; }, 300);
+                    }
+                    el.onclick = run;
+                    el.addEventListener('touchend', run, { passive: false });
+                }
+                bindTap(document.getElementById('btnShop'), function() { openShopModal(); });
+                bindTap(document.getElementById('btnLeaderboardTop'), function() {
+                    try {
+                        if (typeof renderLeaderboard === 'function') renderLeaderboard();
+                        var lb = document.getElementById('leaderboardModal');
+                        if (lb) lb.classList.remove('hidden');
+                    } catch (e) { console.error(e); }
+                });
+                bindTap(document.getElementById('btnSound'), function() {
+                    muted = !muted;
+                    save.muted = muted;
+                    try { persist(); } catch (e) {}
+                    try { updateSoundBtn(); } catch (e) {}
+                    if (muted) {
+                        try { speechSynthesis.cancel(); } catch (e) {}
+                        try { stopMusic(); } catch (e) {}
+                        toast(TT().muted);
+                    } else {
+                        try { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
+                        toast(TT().unmuted);
+                    }
+                });
+                bindTap(document.getElementById('btnShareHelp'), function() { doShareAction(); });
+                bindTap(document.getElementById('btnLang'), function() {
+                    lang = lang === 'en' ? 'el' : 'en';
+                    save.lang = lang;
+                    try { persist(); } catch (e) {}
+                    try { applyLang(); } catch (e) {}
+                });
 
                 if(shopRollup) {
                     shopRollup.onclick = function(e) {
@@ -4943,31 +5008,7 @@
                 });
 
                 document.getElementById('btnCloseShop').onclick = function() { document.getElementById('shopModal').classList.add('hidden'); };
-                document.getElementById('btnShareHelp').onclick = function() { if (isSdkPaused || paused) return; doShareAction(); };
-                
-                document.getElementById('btnSound').onclick = function() { 
-                    if (isSdkPaused || paused) return;
-                    muted = !muted;
-                    save.muted = muted;
-                    persist();
-                    updateSoundBtn(); 
-                    if (muted) {
-                        try { speechSynthesis.cancel(); } catch (e) {}
-                        isTalking = false;
-                        stopMusic();
-                        toast(TT().muted);
-                    } else {
-                        toast(TT().unmuted);
-                    }
-                };
-                
-                document.getElementById('btnLang').onclick = function() { 
-                    if (isSdkPaused || paused) return;
-                    lang = lang === 'en' ? 'el' : 'en';
-                    save.lang = lang;
-                    persist();
-                    applyLang(); 
-                };
+                /* bottom HUD buttons bound via bindTap above */
 
                 // Do NOT auto-start music – only when player presses the speaker button
 
