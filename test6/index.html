@@ -1944,6 +1944,19 @@
             let save = Object.assign({}, DEFAULT_SAVE);
             let cloudDataLoaded = false; // MUST await loadData before any saveData (YT Playables requirement)
 
+            function sanitizeBoardState() {
+                try {
+                    if (!save.boardState || !save.boardState.length) { save.boardState = []; return; }
+                    var n = 0;
+                    for (var c = 0; c < save.boardState.length; c++) {
+                        var col = save.boardState[c] || [];
+                        for (var r = 0; r < col.length; r++) {
+                            if (col[r] !== null && col[r] !== undefined) n++;
+                        }
+                    }
+                    if (n < 4) save.boardState = [];
+                } catch (e) { save.boardState = []; }
+            }
             function loadSave(callback) {
                 const finish = function() {
                     if (finish._done) return;
@@ -1956,6 +1969,7 @@
                 try {
                     const r = localStorage.getItem("drop4096-frankly-v1");
                     if (r) save = Object.assign({}, DEFAULT_SAVE, JSON.parse(r));
+                    sanitizeBoardState();
                 } catch (e) {}
                 if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.loadData === 'function') {
                     try {
@@ -3268,42 +3282,52 @@
                     }
                 }
 
-                if (save.boardState && save.boardState.length === COLS) {
-                    for (let c = 0; c < COLS; c++) {
-                        for (let r = 0; r < ROWS; r++) {
-                            if (grid[c] && grid[c][r]) {
-                                boardGroup.remove(grid[c][r].mesh);
-                                grid[c][r] = null;
-                            }
-                        }
-                    }
+                if (!save.boardState || save.boardState.length !== COLS) return false;
 
-                    for (let c = 0; c < COLS; c++) {
-                        const col = save.boardState[c] || [];
-                        for (let r = 0; r < ROWS; r++) {
-                            const val = (r < col.length) ? col[r] : null;
-                            if (val !== null && val !== undefined) {
-                                placeCube(c, r, val, true);
-                            }
-                        }
+                // Count cubes — never restore an empty board
+                var cubeCount = 0;
+                for (let c = 0; c < COLS; c++) {
+                    const col = save.boardState[c] || [];
+                    for (let r = 0; r < Math.min(ROWS, col.length); r++) {
+                        if (col[r] !== null && col[r] !== undefined) cubeCount++;
                     }
-
-                    if (save.currentCubeValue > 0) {
-                        if (currentCube) boardGroup.remove(currentCube);
-                        currentCube = makeCube(save.currentCubeValue);
-                        const p = cellPos(save.currentCubeCol, 0);
-                        currentCube.position.set(p.x, launchY, 0.1);
-                        boardGroup.add(currentCube);
-                        aimCol = save.currentCubeCol;
-                    } else {
-                        spawnCurrent();
-                    }
-                    updateDropIndicator(aimCol);
-                    updateHUD();
-                    updateMissionProgress();
-                    return true;
                 }
-                return false;
+                if (cubeCount < 4) return false;
+
+                for (let c = 0; c < COLS; c++) {
+                    for (let r = 0; r < ROWS; r++) {
+                        if (grid[c] && grid[c][r]) {
+                            boardGroup.remove(grid[c][r].mesh);
+                            grid[c][r] = null;
+                        }
+                    }
+                }
+
+                for (let c = 0; c < COLS; c++) {
+                    const col = save.boardState[c] || [];
+                    for (let r = 0; r < ROWS; r++) {
+                        const val = (r < col.length) ? col[r] : null;
+                        if (val !== null && val !== undefined) {
+                            placeCube(c, r, val, true);
+                            if (val > biggestTile) biggestTile = val;
+                        }
+                    }
+                }
+
+                if (save.currentCubeValue > 0) {
+                    if (currentCube) boardGroup.remove(currentCube);
+                    currentCube = makeCube(save.currentCubeValue);
+                    const p = cellPos(save.currentCubeCol || 0, 0);
+                    currentCube.position.set(p.x, launchY, 0.1);
+                    boardGroup.add(currentCube);
+                    aimCol = save.currentCubeCol || 0;
+                } else {
+                    spawnCurrent();
+                }
+                updateDropIndicator(aimCol);
+                updateHUD();
+                updateMissionProgress();
+                return true;
             }
 
             function newBoard() { 
@@ -4673,13 +4697,10 @@
                 score = (save && typeof save.score === 'number') ? save.score : 0;
                 if (save && typeof save.muted === 'boolean') muted = save.muted;
                 try { updateSoundBtn(); } catch (e) {}
-                // Restore board if we have one for this grid size, else fresh board
+                // Restore board only if it has cubes; otherwise fill a fresh board
                 var restored = false;
                 try {
-                    if (save && save.boardState && save.boardState.length === COLS &&
-                        save.boardState[0] && save.boardState[0].length === ROWS) {
-                        restored = restoreGameFromSave();
-                    }
+                    restored = restoreGameFromSave();
                 } catch (e) { console.error(e); restored = false; }
                 if (!restored) {
                     try { newBoard(); } catch (e) { console.error('newBoard', e); }
