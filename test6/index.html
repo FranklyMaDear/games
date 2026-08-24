@@ -1489,7 +1489,7 @@
     </div>
 
     <div class="overlay" id="mainMenu" style="background:#0b1020; backdrop-filter:none; -webkit-backdrop-filter:none; align-items:stretch; justify-content:stretch; padding:0;">
-        <div class="card" id="mainMenuCard" style="width:100vw; height:100vh; max-width:100vw; max-height:100vh; border:none; border-radius:0; box-shadow:none; background:radial-gradient(ellipse at 50% 20%, #2a1a4a 0%, #0b1020 55%, #05060c 100%); color:#fff; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; overflow-y:auto;">
+        <div class="card" id="mainMenuCard" style="width:100vw; height:100vh; max-width:100vw; max-height:100vh; border:none; border-radius:0; box-shadow:none; background:radial-gradient(ellipse at 50% 20%, #2a1a4a 0%, #0b1020 55%, #05060c 100%); color:#fff; padding: calc(32px + env(safe-area-inset-top)) 20px calc(80px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; overflow-y:auto; padding-top: calc(48px + env(safe-area-inset-top));">
             <canvas id="menuCubeCanvas" width="280" height="280" style="width:200px;height:200px;margin:0 auto 10px;display:block;background:transparent;"></canvas>
             <h2 id="tutorialTitle" style="font-size:clamp(28px,7vw,42px); margin:0; letter-spacing:2px; color:#FFD54F; text-shadow:0 4px 18px rgba(242,160,61,0.45);">CUBE LINK 4096</h2>
             <p style="opacity:0.9; font-size:13px; margin:2px 0 0; letter-spacing:1px; color:#c9b8ff;">by FranklyGames</p>
@@ -1501,11 +1501,14 @@
                 3. Reach the mission target (starts at <b>32</b>, then 64, 128…).<br>
                 4. Points equal the merged value. Diamonds are earned from your score.
             </div>
-            <button class="btn" id="btnClassic" onclick="window.__startClassic&&window.__startClassic()" style="max-width:360px; font-size:20px; padding:14px 28px; background:linear-gradient(135deg,#F2A03D,#f7c06d);">▶ PLAY</button>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:400px; width:100%;">
-                <button class="btn" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="flex:1; min-width:90px; font-size:13px; padding:10px 8px; background:#3d5a80; box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
-                <button class="btn" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="flex:1; min-width:90px; font-size:13px; padding:10px 8px; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
-                <button class="btn" id="btnTime10" onclick="window.__startTimed&&window.__startTimed(10)" style="flex:1; min-width:90px; font-size:13px; padding:10px 8px; background:#6b3a7a; box-shadow:0 4px 0 #3d2148;">⏱ 10 min</button>
+            <div id="menuActions" style="width:100%; max-width:360px; display:flex; flex-direction:column; align-items:stretch; gap:12px; margin-top:8px; margin-bottom:40px;">
+                <button class="btn" id="btnClassic" onclick="window.__startClassic&&window.__startClassic()" style="width:100%; font-size:20px; padding:14px 28px; background:linear-gradient(135deg,#F2A03D,#f7c06d);">▶ PLAY</button>
+                <button class="btn" id="btnTimeToggle" type="button" style="width:100%; font-size:16px; padding:12px 20px; background:linear-gradient(135deg,#3d5a80,#5a7aaa); box-shadow:0 4px 0 #243b55;">⏱ TIME ▾</button>
+                <div id="timeOptions" style="display:none; flex-direction:column; gap:8px; width:100%;">
+                    <button class="btn" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="width:100%; font-size:14px; padding:12px 10px; background:#3d5a80; box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
+                    <button class="btn" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="width:100%; font-size:14px; padding:12px 10px; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
+                    <button class="btn" id="btnTime10" onclick="window.__startTimed&&window.__startTimed(10)" style="width:100%; font-size:14px; padding:12px 10px; background:#6b3a7a; box-shadow:0 4px 0 #3d2148;">⏱ 10 min</button>
+                </div>
             </div>
             <!-- legacy id kept for any old refs -->
             <button class="btn hidden" id="btnTimeAttack" style="display:none!important;"></button>
@@ -3045,10 +3048,17 @@
                     }
                 }
                 const target = levelTarget(level);
+                const next = levelTarget(level + 1);
                 const label = document.getElementById('missionLabel');
-                if (label) label.textContent = TT().mission_label + ': ' + target;
+                if (label) {
+                    // e.g. MISSION: 32  (next 64)
+                    label.textContent = (TT().mission_label || 'MISSION') + ': ' + target;
+                }
 
-                let pct = (Math.log2(maxVal) / Math.log2(target)) * 100;
+                let pct = 0;
+                if (target > 1) {
+                    pct = (Math.log2(Math.max(2, maxVal)) / Math.log2(target)) * 100;
+                }
                 if (pct > 100) pct = 100;
                 if (pct < 0) pct = 0;
 
@@ -5499,6 +5509,19 @@
                 setHudVisible(false);
             })();
 
+            (function wireTimeToggle() {
+                var btn = document.getElementById('btnTimeToggle');
+                var panel = document.getElementById('timeOptions');
+                if (!btn || !panel) return;
+                btn.onclick = function(e) {
+                    try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch(_){}
+                    var open = panel.style.display === 'flex';
+                    panel.style.display = open ? 'none' : 'flex';
+                    btn.textContent = open ? '⏱ TIME ▾' : '⏱ TIME ▴';
+                };
+            })();
+
+
                 // Absolute fallback if something blocked loadSave callback
                 setTimeout(function() {
                     if (!isGameReady && !bootInProgress) {
@@ -5510,4 +5533,3 @@
     </script>
 </body>
 </html>
- 
