@@ -1418,6 +1418,19 @@
         </div>
     </div>
 
+    <div class="overlay hidden" id="timeModal">
+        <div class="card" style="max-width:320px;">
+            <h2 id="timeModalTitle">⏱ Time Attack</h2>
+            <p style="opacity:0.8;margin:0 0 12px;font-size:14px;" id="timeModalHint">Choose duration</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn" type="button" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="background:#3d5a80;box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
+                <button class="btn" type="button" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="background:#5c7a3a;box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
+                <button class="btn" type="button" id="btnTime10" onclick="window.__startTimed&&window.__startTimed(10)" style="background:#6b3a7a;box-shadow:0 4px 0 #3d2148;">⏱ 10 min</button>
+            </div>
+            <button class="btn cancel-btn" type="button" id="btnCloseTime" style="margin-top:12px;">Close</button>
+        </div>
+    </div>
+
     <div class="overlay hidden" id="soundModal">
         <div class="card" style="max-width:320px;">
             <h2>🔊 Sound</h2>
@@ -1503,12 +1516,7 @@
             </div>
             <div id="menuActions" style="width:100%; max-width:360px; display:flex; flex-direction:column; align-items:stretch; gap:12px; margin-top:8px; margin-bottom:40px;">
                 <button class="btn" id="btnClassic" onclick="window.__startClassic&&window.__startClassic()" style="width:100%; font-size:20px; padding:14px 28px; background:linear-gradient(135deg,#F2A03D,#f7c06d);">▶ PLAY</button>
-                <button class="btn" id="btnTimeToggle" type="button" style="width:100%; font-size:16px; padding:12px 20px; background:linear-gradient(135deg,#3d5a80,#5a7aaa); box-shadow:0 4px 0 #243b55;">⏱ TIME ▾</button>
-                <div id="timeOptions" style="display:none; flex-direction:column; gap:8px; width:100%;">
-                    <button class="btn" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="width:100%; font-size:14px; padding:12px 10px; background:#3d5a80; box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
-                    <button class="btn" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="width:100%; font-size:14px; padding:12px 10px; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
-                    <button class="btn" id="btnTime10" onclick="window.__startTimed&&window.__startTimed(10)" style="width:100%; font-size:14px; padding:12px 10px; background:#6b3a7a; box-shadow:0 4px 0 #3d2148;">⏱ 10 min</button>
-                </div>
+                <button class="btn" id="btnTimeToggle" type="button" onclick="window.__openTimeModal&&window.__openTimeModal()" style="width:100%; font-size:16px; padding:12px 20px; background:linear-gradient(135deg,#3d5a80,#5a7aaa); box-shadow:0 4px 0 #243b55;">⏱ TIME</button>
             </div>
             <!-- legacy id kept for any old refs -->
             <button class="btn hidden" id="btnTimeAttack" style="display:none!important;"></button>
@@ -1597,10 +1605,27 @@
             const launchY = -BOARD_H / 2 - 0.4;
 
             function levelTarget(l) {
+                l = Math.max(0, l | 0);
                 return 32 * Math.pow(2, l);
             }
 
             function levelPreset(l) { return l === 0 ? 0 : Math.min(14, 2 + l * 2); }
+
+            /** Random cube value scaled to current mission (higher missions => higher tiles) */
+            function randomSpawnValue() {
+                var t = levelTarget(level || 0);
+                // min ~ target/64, max ~ target/8, snapped to powers of 2
+                var minV = Math.max(2, Math.pow(2, Math.floor(Math.log2(Math.max(2, t / 64)))));
+                var maxV = Math.max(minV * 2, Math.pow(2, Math.floor(Math.log2(Math.max(4, t / 8)))));
+                if (maxV > t / 2) maxV = Math.max(minV, t / 4);
+                var options = [];
+                for (var v = minV; v <= maxV; v *= 2) {
+                    options.push(v);
+                    if (v === minV) options.push(v); // weight lower a bit
+                }
+                if (!options.length) options = [2, 2, 4, 8];
+                return options[Math.floor(Math.random() * options.length)];
+            }
 
             const I18N = {
                 en: {
@@ -3040,28 +3065,34 @@
 
             function updateMissionProgress() {
                 let maxVal = 2;
-                for(let c=0; c<COLS; c++) {
-                    for(let r=0; r<ROWS; r++) {
-                        if(grid[c] && grid[c][r]) {
+                for (let c = 0; c < COLS; c++) {
+                    for (let r = 0; r < ROWS; r++) {
+                        if (grid[c] && grid[c][r]) {
                             maxVal = Math.max(maxVal, grid[c][r].value);
                         }
                     }
                 }
+                if (typeof biggestTile === 'number' && biggestTile > maxVal) maxVal = biggestTile;
                 const target = levelTarget(level);
-                const next = levelTarget(level + 1);
+                const prev = level <= 0 ? 2 : levelTarget(level - 1);
                 const label = document.getElementById('missionLabel');
                 if (label) {
-                    // e.g. MISSION: 32  (next 64)
                     label.textContent = (TT().mission_label || 'MISSION') + ': ' + target;
                 }
-
+                // Progress within current mission band (prev -> target), log scale from 2 when level 0
                 let pct = 0;
-                if (target > 1) {
-                    pct = (Math.log2(Math.max(2, maxVal)) / Math.log2(target)) * 100;
+                if (maxVal >= target) {
+                    pct = 100;
+                } else if (target > prev) {
+                    const lo = Math.log2(Math.max(2, prev));
+                    const hi = Math.log2(target);
+                    const cur = Math.log2(Math.max(2, maxVal));
+                    pct = ((cur - lo) / (hi - lo)) * 100;
+                } else {
+                    pct = (Math.log2(Math.max(2, maxVal)) / Math.log2(Math.max(2, target))) * 100;
                 }
                 if (pct > 100) pct = 100;
                 if (pct < 0) pct = 0;
-
                 const fill = document.getElementById('missionBarFill');
                 if (fill) fill.style.width = pct + '%';
             }
@@ -3397,11 +3428,10 @@
                 selectedCells = [];
                 selectValue = null;
                 updateHUD(); 
-                // Fill entire board with random values starting from 2
-                const possible = [2, 2, 2, 2, 4, 4, 4, 8, 8];
+                // Fill board with values scaled to current mission level
                 for (let c = 0; c < COLS; c++) {
                     for (let r = 0; r < ROWS; r++) {
-                        const val = possible[Math.floor(Math.random() * possible.length)];
+                        const val = randomSpawnValue();
                         placeCube(c, r, val, true);
                         if (val > biggestTile) biggestTile = val;
                     }
@@ -3660,7 +3690,7 @@
             }
 
             function refillEmpty() {
-                const possible = [2, 2, 2, 4, 4, 8];
+                const possible = [randomSpawnValue(), randomSpawnValue(), randomSpawnValue()];
                 for (let c = 0; c < COLS; c++) {
                     for (let r = 0; r < ROWS; r++) {
                         if (!grid[c][r]) {
@@ -3895,8 +3925,8 @@
                     save.coins = coins;
                     if (gameMode === 'classic') save.bestClassic = Math.max(save.bestClassic || 0, score);
                     else save.bestTimeAttack = Math.max(save.bestTimeAttack || 0, score);
-                    // Next mission target (32, 64, 128, 256, 512, 1024, 2048, 4096...)
-                    save.level = level + 1;
+                    // Mission complete — level advances when player presses Continue
+                    // (cubes stay; next target = 32,64,128,256,512,1024,2048,4096...)
                     persist();
                     updateHUD();
                     playWinSound();
@@ -3920,17 +3950,25 @@
             }
             function continueAfterWin() {
                 try { document.getElementById('winModal').classList.add('hidden'); } catch (e) {}
-                level = (save && typeof save.level === 'number') ? save.level : (level + 1);
+                // Advance mission — KEEP all cubes on the board
+                level = level + 1;
+                if (save) save.level = level;
                 winShown = false;
                 busy = false;
-                var keptScore = score;
-                try { newBoard(); } catch (e) {}
-                score = keptScore;
-                save.score = score;
-                updateHUD();
-                announceMission(300);
-                toast((TT().mission && TT().mission(levelTarget(level))) || ('🎯 ' + levelTarget(level)));
-                persist();
+                try { updateMissionProgress(); } catch (e) {}
+                try { updateHUD(); } catch (e) {}
+                try { announceMission(300); } catch (e) {}
+                try {
+                    var t = levelTarget(level);
+                    toast((TT().mission && TT().mission(t)) || ('🎯 ' + t));
+                } catch (e) {}
+                try { persist(); } catch (e) {}
+                // If board already has a cube >= new target, complete next mission too
+                setTimeout(function() {
+                    try {
+                        if (!winShown && checkWin()) { /* modal opens again */ }
+                    } catch (e) {}
+                }, 400);
             }
             window.__continueWin = continueAfterWin;
 
@@ -4799,6 +4837,7 @@
 
             window.__startClassic = function() { startGame('classic'); };
             window.__startTimed = function(mins) {
+                try { window.__closeTimeModal && window.__closeTimeModal(); } catch (e) {}
                 timeRemaining = mins * 60;
                 startGame('timeattack');
             };
@@ -5509,16 +5548,21 @@
                 setHudVisible(false);
             })();
 
+            window.__openTimeModal = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch(_){}
+                var m = document.getElementById('timeModal');
+                if (m) m.classList.remove('hidden');
+            };
+            window.__closeTimeModal = function(e) {
+                try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch(_){}
+                var m = document.getElementById('timeModal');
+                if (m) m.classList.add('hidden');
+            };
             (function wireTimeToggle() {
                 var btn = document.getElementById('btnTimeToggle');
-                var panel = document.getElementById('timeOptions');
-                if (!btn || !panel) return;
-                btn.onclick = function(e) {
-                    try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch(_){}
-                    var open = panel.style.display === 'flex';
-                    panel.style.display = open ? 'none' : 'flex';
-                    btn.textContent = open ? '⏱ TIME ▾' : '⏱ TIME ▴';
-                };
+                if (btn) btn.onclick = function(e) { window.__openTimeModal(e); };
+                var closeBtn = document.getElementById('btnCloseTime');
+                if (closeBtn) closeBtn.onclick = function(e) { window.__closeTimeModal(e); };
             })();
 
 
