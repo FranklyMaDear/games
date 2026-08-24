@@ -3529,45 +3529,33 @@
                 cellMat.color.set(bData.cell); }
 
             function onResize() {
-                // Use the actual game canvas size (CSS already leaves side margins on desktop)
-                const canvas = document.getElementById('game');
-                let width = (canvas && canvas.clientWidth) || window.innerWidth || 360;
-                let height = (canvas && canvas.clientHeight) || window.innerHeight || 640;
-                if (width < 2 || height < 2) {
-                    width = window.innerWidth || 360;
-                    height = window.innerHeight || 640;
-                }
-                if (!renderer || !camera || !boardGroup) return;
-                renderer.setSize(width, height, false);
+                if (!renderer || !camera) return;
+                const width = window.innerWidth || document.documentElement.clientWidth || 360;
+                const height = window.innerHeight || document.documentElement.clientHeight || 640;
+                if (width < 2 || height < 2) return;
+
+                renderer.setSize(width, height);
                 camera.aspect = width / height;
 
-                // Same framing on mobile and desktop — board perfectly centered in the canvas
+                // Centered board — same on phone and desktop
                 const fovRad = THREE.MathUtils.degToRad(camera.fov / 2);
                 const distBase = 11.5;
                 const visH = 2 * distBase * Math.tan(fovRad);
-                const visW = visH * camera.aspect;
-                const usableW = visW * 0.92;
-                const usableH = visH * 0.90;
+                const visW = visH * (width / height);
+                // Leave a little margin for HUD chrome
+                const isDesktop = width >= 768;
+                const usableW = visW * (isDesktop ? 0.78 : 0.94);
+                const usableH = visH * (isDesktop ? 0.88 : 0.84);
                 const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
-                boardGroup.scale.set(s, s, s);
-                boardGroup.position.set(0, -0.15, -0.35);
-                camera.position.set(0, -1.05, distBase);
-                camera.lookAt(0, -0.5, 0);
+                if (boardGroup) {
+                    boardGroup.scale.set(s, s, s);
+                    boardGroup.position.set(0, -0.2, -0.4);
+                }
+                camera.position.set(0, -1.1, distBase);
+                camera.lookAt(0, -0.55, 0);
                 camera.updateProjectionMatrix();
                 try { layoutScenery(); } catch (e) {}
                 try { updateSelectionLine(); } catch (e) {}
-                // Desktop: left panel is always visible (no rollup)
-                const roll = document.getElementById('shopRollup');
-                if (roll) {
-                    if (isWide) {
-                        roll.classList.add('open');
-                        topBannerOpen = true;
-                    }
-                }
-                const arr = document.getElementById('topToggleArrow');
-                if (arr && !isWide) {
-                    if (!roll.classList.contains('open')) arr.textContent = '▼';
-                }
             }
 
             function cellPos(c, r) { return { x: -BOARD_W / 2 + CELL / 2 + c * (CELL + GAP), y: BOARD_H / 2 - CELL / 2 - r * (CELL + GAP) }; }
@@ -5250,6 +5238,7 @@
                 if (!restored) {
                     try { newBoard(); } catch (e) { console.error('newBoard', e); }
                 }
+                try { onResize(); } catch (e) {}
                 try { persist(); } catch (e) {}
                 try { updateHUD(); } catch (e) {}
                 if (mode === 'timeattack') {
