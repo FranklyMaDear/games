@@ -3528,42 +3528,33 @@
                 backMesh.material.color.set(bData.back);
                 cellMat.color.set(bData.cell); }
 
-            function onResize() { 
-                const width = window.innerWidth || document.documentElement.clientWidth || 360;
-                const height = window.innerHeight || document.documentElement.clientHeight || 640;
-                if (width === 0 || height === 0) return;
-                renderer.setSize(width, height);
-                camera.aspect = width / height; 
-                
-                // Desktop only (matches CSS media query). Mobile keeps original centered layout.
-                const isWide = width >= 768 && (width / height) >= 1.15;
-                
-                // Fit board as large as possible in the available view
+            function onResize() {
+                // Use the actual game canvas size (CSS already leaves side margins on desktop)
+                const canvas = document.getElementById('game');
+                let width = (canvas && canvas.clientWidth) || window.innerWidth || 360;
+                let height = (canvas && canvas.clientHeight) || window.innerHeight || 640;
+                if (width < 2 || height < 2) {
+                    width = window.innerWidth || 360;
+                    height = window.innerHeight || 640;
+                }
+                if (!renderer || !camera || !boardGroup) return;
+                renderer.setSize(width, height, false);
+                camera.aspect = width / height;
+
+                // Same framing on mobile and desktop — board perfectly centered in the canvas
                 const fovRad = THREE.MathUtils.degToRad(camera.fov / 2);
                 const distBase = 11.5;
                 const visH = 2 * distBase * Math.tan(fovRad);
-                const visW = visH * (width / height);
-                if (isWide) {
-                    // Leave room for left UI panel (~22% width)
-                    const usableW = visW * 0.72;
-                    const usableH = visH * 0.90;
-                    const s = Math.min(usableW / (BOARD_W + 0.9), usableH / (BOARD_H + 0.9));
-                    boardGroup.scale.set(s, s, s);
-                    const cx = visW * 0.18; // shift board toward right
-                    boardGroup.position.set(cx, -0.05, -0.2);
-                    camera.position.set(cx, -0.9, distBase);
-                    camera.lookAt(cx, -0.35, 0);
-                } else {
-                    const usableW = visW * 0.94;
-                    const usableH = visH * 0.86; // top/bottom UI
-                    const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
-                    boardGroup.scale.set(s, s, s);
-                    boardGroup.position.set(0, -0.2, -0.4);
-                    camera.position.set(0, -1.1, distBase);
-                    camera.lookAt(0, -0.55, 0);
-                }
+                const visW = visH * camera.aspect;
+                const usableW = visW * 0.92;
+                const usableH = visH * 0.90;
+                const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
+                boardGroup.scale.set(s, s, s);
+                boardGroup.position.set(0, -0.15, -0.35);
+                camera.position.set(0, -1.05, distBase);
+                camera.lookAt(0, -0.5, 0);
                 camera.updateProjectionMatrix();
-                layoutScenery();
+                try { layoutScenery(); } catch (e) {}
                 try { updateSelectionLine(); } catch (e) {}
                 // Desktop: left panel is always visible (no rollup)
                 const roll = document.getElementById('shopRollup');
