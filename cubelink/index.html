@@ -1588,17 +1588,15 @@
 
         /* Phones: bottom bar + top HUD */
         @media screen and (max-width: 767px) {
-            #game {
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 78px;
-            }
-            #selectLineCanvas {
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 78px;
+            /* Game area between top HUD and bottom toolbar — board can fill this safely */
+            #game, #selectLineCanvas {
+                top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+                left: 8px !important;
+                right: 8px !important;
+                bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+                width: auto !important;
+                -webkit-transform: none !important;
+                transform: none !important;
             }
             #topHud {
                 top: 0 !important;
@@ -3536,20 +3534,22 @@
                 renderer.setSize(w, h, false);
                 camera.aspect = w / h;
 
-                // Same board framing as mobile — centered, playable
+                // Fit board inside the canvas (canvas already excludes HUD on mobile via CSS)
                 const fovRad = THREE.MathUtils.degToRad(camera.fov / 2);
                 const distBase = 11.5;
                 const visH = 2 * distBase * Math.tan(fovRad);
                 const visW = visH * camera.aspect;
-                const usableW = visW * 0.92;
-                const usableH = visH * 0.88;
+                const isMobile = (window.innerWidth || 0) < 768;
+                // Mobile: maximize board in the free area; Desktop: keep previous comfortable margins
+                const usableW = visW * (isMobile ? 0.96 : 0.92);
+                const usableH = visH * (isMobile ? 0.94 : 0.88);
                 const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
                 if (boardGroup && isFinite(s) && s > 0) {
                     boardGroup.scale.set(s, s, s);
-                    boardGroup.position.set(0, -0.2, -0.4);
+                    boardGroup.position.set(0, isMobile ? 0 : -0.2, -0.4);
                 }
-                camera.position.set(0, -1.1, distBase);
-                camera.lookAt(0, -0.55, 0);
+                camera.position.set(0, isMobile ? -0.85 : -1.1, distBase);
+                camera.lookAt(0, isMobile ? -0.35 : -0.55, 0);
                 camera.updateProjectionMatrix();
                 try { layoutScenery(); } catch (e) {}
                 try { updateSelectionLine(); } catch (e) {}
