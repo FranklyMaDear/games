@@ -1429,17 +1429,14 @@
 
         /* Desktop: board centered, stats vertical left, tools vertical right */
         @media screen and (min-width: 768px) {
-            #game {
+            #game, #selectLineCanvas {
                 top: 20px !important;
-                left: 120px !important;
-                right: 120px !important;
                 bottom: 20px !important;
-            }
-            #selectLineCanvas {
-                top: 20px !important;
-                left: 120px !important;
-                right: 120px !important;
-                bottom: 20px !important;
+                left: 50% !important;
+                right: auto !important;
+                -webkit-transform: translateX(-50%) !important;
+                transform: translateX(-50%) !important;
+                width: min(900px, calc(100vw - 280px)) !important;
             }
 
             /* Score / mission / diamonds — vertical 3D panel on the LEFT */
@@ -3529,25 +3526,25 @@
                 cellMat.color.set(bData.cell); }
 
             function onResize() {
-                if (!renderer || !camera) return;
-                const width = window.innerWidth || document.documentElement.clientWidth || 360;
-                const height = window.innerHeight || document.documentElement.clientHeight || 640;
-                if (width < 2 || height < 2) return;
+                const cvs = document.getElementById('game');
+                if (!cvs || !renderer || !camera) return;
+                const rect = cvs.getBoundingClientRect();
+                const w = Math.max(32, Math.floor(rect.width));
+                const h = Math.max(32, Math.floor(rect.height));
+                const pr = Math.min(window.devicePixelRatio || 1, 1.75);
+                renderer.setPixelRatio(pr);
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h;
 
-                renderer.setSize(width, height);
-                camera.aspect = width / height;
-
-                // Centered board — same on phone and desktop
+                // Same board framing as mobile — centered, playable
                 const fovRad = THREE.MathUtils.degToRad(camera.fov / 2);
                 const distBase = 11.5;
                 const visH = 2 * distBase * Math.tan(fovRad);
-                const visW = visH * (width / height);
-                // Leave a little margin for HUD chrome
-                const isDesktop = width >= 768;
-                const usableW = visW * (isDesktop ? 0.78 : 0.94);
-                const usableH = visH * (isDesktop ? 0.88 : 0.84);
+                const visW = visH * camera.aspect;
+                const usableW = visW * 0.92;
+                const usableH = visH * 0.88;
                 const s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
-                if (boardGroup) {
+                if (boardGroup && isFinite(s) && s > 0) {
                     boardGroup.scale.set(s, s, s);
                     boardGroup.position.set(0, -0.2, -0.4);
                 }
@@ -3799,8 +3796,12 @@
             }
 
             function getCellFromScreen(cx, cy) {
-                const x = cx / innerWidth * 2 - 1;
-                const y = -(cy / innerHeight * 2 - 1);
+                const cvs = document.getElementById('game');
+                const rect = cvs ? cvs.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight };
+                const rw = Math.max(1, rect.width);
+                const rh = Math.max(1, rect.height);
+                const x = ((cx - rect.left) / rw) * 2 - 1;
+                const y = -(((cy - rect.top) / rh) * 2 - 1);
                 pointer.set(x, y);
                 raycaster.setFromCamera(pointer, camera);
                 const boardNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(boardGroup.quaternion);
@@ -3844,8 +3845,11 @@
                 const v = new THREE.Vector3(p.x, p.y, 0.35);
                 boardGroup.localToWorld(v);
                 v.project(camera);
-                const x = (v.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+                const cvs = document.getElementById('game');
+                const rect = cvs ? cvs.getBoundingClientRect() : { width: innerWidth, height: innerHeight, left: 0, top: 0 };
+                // Coordinates relative to the overlay canvas (same box as #game)
+                const x = (v.x * 0.5 + 0.5) * rect.width;
+                const y = (-v.y * 0.5 + 0.5) * rect.height;
                 return { x: x, y: y };
             }
 
@@ -3856,16 +3860,17 @@
             function updateSelectionLine() {
                 const cv = document.getElementById('selectLineCanvas');
                 if (!cv || !camera || !boardGroup) return;
+                const rect = cv.getBoundingClientRect();
+                const cssW = Math.max(32, Math.floor(rect.width));
+                const cssH = Math.max(32, Math.floor(rect.height));
                 const dpr = Math.min(2, window.devicePixelRatio || 1);
-                if (cv.width !== Math.floor(window.innerWidth * dpr) || cv.height !== Math.floor(window.innerHeight * dpr)) {
-                    cv.width = Math.floor(window.innerWidth * dpr);
-                    cv.height = Math.floor(window.innerHeight * dpr);
-                    cv.style.width = window.innerWidth + 'px';
-                    cv.style.height = window.innerHeight + 'px';
+                if (cv.width !== Math.floor(cssW * dpr) || cv.height !== Math.floor(cssH * dpr)) {
+                    cv.width = Math.floor(cssW * dpr);
+                    cv.height = Math.floor(cssH * dpr);
                 }
                 const g = cv.getContext('2d');
                 g.setTransform(dpr, 0, 0, dpr, 0, 0);
-                g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+                g.clearRect(0, 0, cssW, cssH);
                 if (!selectedCells || selectedCells.length < 1) return;
                 const col = colorForValue(selectValue || 2);
                 const pts = selectedCells.map(function(cell) { return projectCellToScreen(cell.c, cell.r); });
