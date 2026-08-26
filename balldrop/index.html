@@ -1797,7 +1797,9 @@
 
             let gameMode = 'classic';
             let timeRemaining = 300;
-            let timeAttackSeconds = 300; // chosen duration (3/5/10 min) 
+            let timeAttackSeconds = 300; // chosen duration (3/5/10 min)
+            let timeTarget = 0;          // timed mode goal ball (2048/4096/8192), 0 = unlimited
+            let timedGoalReached = false;
             let timerInterval = null;
             let gameOver = false;
             let bestClassic = 0;
@@ -3451,32 +3453,43 @@
                 updateSpeechPosition();
             }
 
-            function announceMission(delay) { setTimeout(function() { reactionTime = 1.4;
-                    showSpeech(TT().mission(levelTarget(level)), 4000); }, delay || 0); }
+            function announceMission(delay) {
+                setTimeout(function() {
+                    reactionTime = 1.4;
+                    const t = (gameMode === 'timeattack' && timeTarget > 0) ? timeTarget : levelTarget(level);
+                    showSpeech(TT().mission(t), 4000);
+                }, delay || 0);
+            }
 
             function updateMissionProgress() {
-                // Track highest ball ever reached this run (merges raise the bar)
                 let maxVal = Math.max(2, biggestTile || 2);
                 if (typeof balls !== 'undefined' && balls.length) {
                     for (let i = 0; i < balls.length; i++) maxVal = Math.max(maxVal, balls[i].value);
                 }
-                const target = levelTarget(level); // 32, 64, 128, 256, ...
+
+                // Timed modes: single fixed target (2048 / 4096 / 8192)
+                // Unlimited: progressive missions 32 → 64 → 128 …
+                let target, prevTarget;
+                if (gameMode === 'timeattack' && timeTarget > 0) {
+                    target = timeTarget;
+                    prevTarget = 2;
+                } else {
+                    target = levelTarget(level);
+                    prevTarget = level > 0 ? levelTarget(level - 1) : 1;
+                }
+
                 const labelText = TT().mission_label + ': ' + target;
                 const label = document.getElementById('missionLabel');
                 if (label) label.textContent = labelText;
                 const dpLabel = document.getElementById('dpMissionLabel');
                 if (dpLabel) dpLabel.textContent = labelText;
 
-                // Progress: starts near 0, fills as merges approach the mission target
-                // For mission 32: base is 1. For later missions: previous target.
-                const prevTarget = level > 0 ? levelTarget(level - 1) : 1;
                 let pct;
                 if (maxVal <= prevTarget) {
                     pct = 0;
                 } else if (maxVal >= target) {
                     pct = 100;
                 } else {
-                    // Log scale so each merge (2→4→8→…) feels meaningful
                     const logPrev = Math.log2(Math.max(1, prevTarget));
                     const logCur = Math.log2(target);
                     const logVal = Math.log2(Math.max(2, maxVal));
@@ -4217,7 +4230,41 @@
                     for (let i = 0; i < balls.length; i++) maxVal = Math.max(maxVal, balls[i].value);
                 }
 
-                // Claim every completed milestone up to maxVal, advance level immediately
+                // Timed modes: fixed goal — celebrate once, then keep playing until time ends
+                if (gameMode === 'timeattack' && timeTarget > 0) {
+                    if (maxVal < timeTarget || timedGoalReached) return false;
+                    timedGoalReached = true;
+                    winShown = true;
+                    const winBonus = Math.max(40, Math.floor(score * 0.08));
+                    coins += winBonus;
+                    save.coins = coins;
+                    save.bestTimeAttack = Math.max(save.bestTimeAttack || 0, score);
+                    persist();
+                    updateHUD();
+                    playWinSound();
+                    winTime = 6.0;
+                    showSpeech(TT().win_speech, 3800);
+                    petState = 'hop';
+                    petStateTimer = 3.5;
+                    const winTitle = document.getElementById('winTitle');
+                    const winText = document.getElementById('winText');
+                    if (winTitle) winTitle.textContent = TT().win_title;
+                    if (winText) {
+                        const keepGoing = (lang === 'el')
+                            ? ('Στόχος <b>' + timeTarget + '</b>!<br>🎉 +' + winBonus + ' 💎<br>Συνέχισε μέχρι να τελειώσει ο χρόνος!')
+                            : ('Target <b>' + timeTarget + '</b> reached!<br>🎉 +' + winBonus + ' 💎<br>Keep going until time runs out!');
+                        winText.innerHTML = keepGoing;
+                    }
+                    document.getElementById('winModal').classList.remove('hidden');
+                    if (winTimer) clearTimeout(winTimer);
+                    winTimer = setTimeout(function() {
+                        if (!winShown) return;
+                        dismissWinModal();
+                    }, 2800);
+                    return false;
+                }
+
+                // Unlimited / classic: progressive missions
                 let completedTarget = null;
                 let safety = 0;
                 while (maxVal >= levelTarget(level) && safety < 20) {
@@ -4472,7 +4519,20 @@
                 document.getElementById('timer').classList.add('hidden');
                 if (score > save.bestTimeAttack) save.bestTimeAttack = score;
                 persist();
-                document.getElementById("timeUpText").innerHTML = TT().lose_text(score) + '<br>Best: ' + save.bestTimeAttack;
+                const titleEl = document.getElementById('timeUpTitle');
+                const textEl = document.getElementById('timeUpText');
+                if (timedGoalReached) {
+                    if (titleEl) titleEl.textContent = (lang === 'el') ? 'Χρόνος τέλος — Νίκη!' : "Time's Up — You made it!";
+                    if (textEl) textEl.innerHTML = (lang === 'el'
+                        ? ('Έφτασες τον στόχο <b>' + timeTarget + '</b>!<br>Σκορ: <b>' + score + '</b><br>Best: ' + save.bestTimeAttack)
+                        : ('You reached target <b>' + timeTarget + '</b>!<br>Score: <b>' + score + '</b><br>Best: ' + save.bestTimeAttack));
+                    try { playWinSound(); } catch (e) {}
+                } else {
+                    if (titleEl) titleEl.textContent = TT().time_up || "Time's Up!";
+                    if (textEl) textEl.innerHTML = (lang === 'el'
+                        ? ('Ο χρόνος τελείωσε.<br>Στόχος ήταν <b>' + timeTarget + '</b>.<br>Σκορ: <b>' + score + '</b><br>Best: ' + save.bestTimeAttack)
+                        : ("Time's up.<br>Target was <b>" + timeTarget + '</b>.<br>Score: <b>' + score + '</b><br>Best: ' + save.bestTimeAttack));
+                }
                 document.getElementById("timeUpModal").classList.remove("hidden");
             }
 
@@ -5184,7 +5244,8 @@
                 reactionTime = 0;
                 shownAchievements = {};
                 winShown = false;
-                level = save.level || 0;
+                if (mode !== 'timeattack') { timeTarget = 0; timedGoalReached = false; }
+                level = (mode === 'timeattack') ? 0 : (save.level || 0);
                 score = 0;
                 save.score = 0;
                 coins = save.coins || 100;
@@ -5212,6 +5273,11 @@
             function beginTimeAttack(seconds) {
                 try {
                     timeAttackSeconds = seconds;
+                    // Fixed targets per timed mode
+                    if (seconds <= 180) timeTarget = 2048;
+                    else if (seconds <= 300) timeTarget = 4096;
+                    else timeTarget = 8192;
+                    timedGoalReached = false;
                     var picker = document.getElementById('timeAttackPicker');
                     if (picker) picker.classList.add('hidden');
                     var menu = document.getElementById('mainMenu');
@@ -5222,6 +5288,8 @@
 
             function beginClassicGame() {
                 try {
+                    timeTarget = 0;
+                    timedGoalReached = false;
                     var picker = document.getElementById('timeAttackPicker');
                     if (picker) picker.classList.add('hidden');
                     var menu = document.getElementById('mainMenu');
