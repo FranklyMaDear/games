@@ -1735,18 +1735,7 @@
         </div>
     </div>
 
-    
-    <div class="overlay hidden" id="timeAttackPicker">
-        <div class="card" style="max-width:360px;">
-            <h2 id="taPickerTitle">Play</h2>
-            <p id="taPickerText" style="margin-bottom:12px; font-weight:700; color:#5a4030;">Choose mode</p>
-            <button class="btn" id="btnTAClassic" style="background:#7B68EE; box-shadow:0 4px 0 #5B4ACF;">Normal Game</button>
-            <button class="btn" id="btnTA3" style="background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">3 Minutes</button>
-            <button class="btn" id="btnTA5" style="background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a;">5 Minutes</button>
-            <button class="btn" id="btnTA10" style="background:#F2A03D; box-shadow:0 4px 0 #b8742a;">10 Minutes</button>
-            <button class="btn cancel-btn" id="btnTACancel">Cancel</button>
-        </div>
-    </div>
+
 
     <div class="overlay" id="mainMenu" style="background:rgba(5,5,16,0.55);">
         <div class="card" style="max-width:420px; background:linear-gradient(165deg,#1a1040,#0a0a2e); border-color:#7B68EE; color:#fff;">
@@ -1764,10 +1753,10 @@
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px; width:100%;">
                 <div id="playLabel" style="font-size:13px; font-weight:800; color:#A78BFA; letter-spacing:1px; text-align:center;">▶ PLAY</div>
-                <button class="btn" id="btnClassic" style="width:100%; background:linear-gradient(135deg,#7B68EE,#9B8AFF); box-shadow:0 4px 0 #5B4ACF;">Unlimited</button>
-                <button class="btn" id="btnTA3" style="width:100%; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">3 Minutes</button>
-                <button class="btn" id="btnTA5" style="width:100%; background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a;">5 Minutes</button>
-                <button class="btn" id="btnTA10" style="width:100%; background:#F2A03D; box-shadow:0 4px 0 #b8742a;">10 Minutes</button>
+                <button type="button" class="btn" id="btnClassic" style="width:100%; background:linear-gradient(135deg,#7B68EE,#9B8AFF); box-shadow:0 4px 0 #5B4ACF;">Unlimited</button>
+                <button type="button" class="btn" id="btnTA3" style="width:100%; background:#5c7a3a; box-shadow:0 4px 0 #3a4d25;">3 Minutes</button>
+                <button type="button" class="btn" id="btnTA5" style="width:100%; background:#4A7DBF; box-shadow:0 4px 0 #2d5a7a;">5 Minutes</button>
+                <button type="button" class="btn" id="btnTA10" style="width:100%; background:#F2A03D; box-shadow:0 4px 0 #b8742a;">10 Minutes</button>
                 <div id="menuLangWrap" style="width:100%; margin-top:8px;">
                     <label id="menuLangLabel" style="display:block; font-size:12px; font-weight:800; color:#A78BFA; letter-spacing:1px; margin-bottom:6px;">🌐 LANGUAGE</label>
                     <select id="menuLangSelect" style="width:100%; padding:10px 12px; border-radius:12px; border:2px solid rgba(167,139,250,0.55); background:#1a1040; color:#E8E0FF; font-family:inherit; font-weight:800; font-size:14px; cursor:pointer;">
@@ -5210,23 +5199,24 @@
             }
 
             function startGame(mode) {
-                // If boot not done yet, wait briefly then start
+                // If boot not ready, wait a bit then force-start if canvas exists
                 if (!isGameReady) {
-                    if (bootAttempted && !document.getElementById('game')) {
-                        toast("Loading failed. Please refresh.");
+                    var canvas = document.getElementById('game');
+                    if (canvas && typeof THREE !== 'undefined') {
+                        isGameReady = true;
+                    } else {
+                        toast("Loading...");
+                        var tries = 0;
+                        var waitReady = setInterval(function() {
+                            tries++;
+                            if (isGameReady || (document.getElementById('game') && typeof THREE !== 'undefined') || tries > 50) {
+                                clearInterval(waitReady);
+                                isGameReady = true;
+                                startGame(mode);
+                            }
+                        }, 150);
                         return;
                     }
-                    toast("Loading...");
-                    var tries = 0;
-                    var waitReady = setInterval(function() {
-                        tries++;
-                        if (isGameReady || tries > 40) {
-                            clearInterval(waitReady);
-                            if (isGameReady) startGame(mode);
-                            else toast("Still loading – try again in a moment");
-                        }
-                    }, 200);
-                    return;
                 }
                 
                 if (!window.hasShownFirstAd && typeof ytgame !== 'undefined') {
@@ -5299,23 +5289,28 @@
             }
 
             // Direct mode buttons on main menu (Unlimited / 3 / 5 / 10)
-            (function wirePlayButtons() {
-                var bClassic = document.getElementById('btnClassic');
-                if (bClassic) bClassic.onclick = function() { beginClassicGame(); };
-                var b3 = document.getElementById('btnTA3');
-                if (b3) b3.onclick = function() { beginTimeAttack(180); };
-                var b5 = document.getElementById('btnTA5');
-                if (b5) b5.onclick = function() { beginTimeAttack(300); };
-                var b10 = document.getElementById('btnTA10');
-                if (b10) b10.onclick = function() { beginTimeAttack(600); };
-                var bCan = document.getElementById('btnTACancel');
-                if (bCan) bCan.onclick = function() {
-                    var p = document.getElementById('timeAttackPicker');
-                    if (p) p.classList.add('hidden');
-                };
-                var bTac = document.getElementById('btnTAClassic');
-                if (bTac) bTac.onclick = function() { beginClassicGame(); };
-            })();
+            function wirePlayButtons() {
+                function bind(id, fn) {
+                    var el = document.getElementById(id);
+                    if (!el) { console.warn('missing button', id); return; }
+                    el.onclick = function(e) {
+                        if (e) { e.preventDefault(); e.stopPropagation(); }
+                        try { fn(); } catch (err) { console.error(err); alert(err.message); }
+                    };
+                }
+                bind('btnClassic', function() { beginClassicGame(); });
+                bind('btnTA3', function() { beginTimeAttack(180); });
+                bind('btnTA5', function() { beginTimeAttack(300); });
+                bind('btnTA10', function() { beginTimeAttack(600); });
+            }
+            // Bind now and again after short delay (boot may rebuild DOM)
+            wirePlayButtons();
+            setTimeout(wirePlayButtons, 500);
+            setTimeout(wirePlayButtons, 1500);
+            // Expose for debugging / inline use
+            window.beginTimeAttack = beginTimeAttack;
+            window.beginClassicGame = beginClassicGame;
+            window.startGame = startGame;
             
             document.getElementById('btnPlayAgainLose').onclick = function() {
                 document.getElementById('loseModal').classList.add('hidden');
