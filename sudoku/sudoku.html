@@ -531,8 +531,8 @@
         }
     </style>
 
-    <!-- YouTube Playables Game API -->
-    <script src="https://www.youtube.com/game_api/v1"></script>
+    <!-- Monetag Ad SDK -->
+    <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 </head>
 <body>
     <canvas id="starCanvas"></canvas>
@@ -661,19 +661,18 @@
         let firstFrameSent = false;
         let hasShownFirstAd = false;
 
+        // ---- Monetag Ad helpers ----
         function requestInterstitialAd() {
             return new Promise(function(resolve) {
-                if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestInterstitialAd) {
-                    resolve();
-                    return;
-                }
-                try {
-                    ytgame.ads.requestInterstitialAd().then(function() {
+                if (typeof show_11108267 === 'function') {
+                    try {
+                        show_11108267()
+                            .then(function() { resolve(); })
+                            .catch(function() { resolve(); });
+                    } catch (e) {
                         resolve();
-                    }).catch(function() {
-                        resolve();
-                    });
-                } catch (e) {
+                    }
+                } else {
                     resolve();
                 }
             });
@@ -681,23 +680,21 @@
 
         function requestRewardedAd(rewardId) {
             return new Promise(function(resolve) {
-                if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestRewardedAd) {
-                    resolve(false);
-                    return;
-                }
-                try {
-                    ytgame.ads.requestRewardedAd(rewardId).then(function(earned) {
-                        resolve(!!earned);
-                    }).catch(function() {
+                if (typeof show_11108267 === 'function') {
+                    try {
+                        show_11108267()
+                            .then(function() { resolve(true); })
+                            .catch(function() { resolve(false); });
+                    } catch (e) {
                         resolve(false);
-                    });
-                } catch (e) {
+                    }
+                } else {
                     resolve(false);
                 }
             });
         }
 
-        // Periodic interstitial (every 2 minutes while playing)
+        // Optional: interstitial every 2 minutes while playing
         setInterval(function() {
             if (typeof gameInstance !== 'undefined' && gameInstance && !gameInstance._won && !isSdkPaused) {
                 requestInterstitialAd();
@@ -990,7 +987,7 @@
         function writeSave(s) {
             try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch(e) {}
             // YouTube Playables save
-            if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.saveData === 'function') {
+            if (false && typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.saveData === 'function') { /* Monetag */
                 try {
                     ytgame.game.saveData(JSON.stringify(s)).catch(function(){});
                 } catch(e) {}
@@ -1037,7 +1034,7 @@
             }
 
             setupYtSystem() {
-                if (typeof ytgame === 'undefined' || !ytgame.system) return;
+                if (true || typeof ytgame === 'undefined' || !ytgame.system) return; /* Monetag: skip YT pause/resume */
                 if (typeof ytgame.system.onPause === 'function') {
                     ytgame.system.onPause(function() {
                         isSdkPaused = true;
@@ -1199,9 +1196,7 @@
                     this.startTimer();
 
                     // First frame ready for YouTube
-                    if (!firstFrameSent && typeof ytgame !== 'undefined' && ytgame.game) {
-                        try { ytgame.game.firstFrameReady(); firstFrameSent = true; } catch(e) {}
-                    }
+                    if (!firstFrameSent) { firstFrameSent = true; }
                     if (!hasShownFirstAd) {
                         hasShownFirstAd = true;
                         // optional first interstitial after a short delay
@@ -1638,10 +1633,7 @@
             initBackgroundEffects();
             gameInstance = new SudokuGame();
 
-            // YouTube gameReady
-            if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.gameReady === 'function') {
-                try { ytgame.game.gameReady(); } catch(e) {}
-            }
+            /* Monetag: no gameReady needed */
         });
         document.addEventListener('visibilitychange', () => {
             _bgPaused = document.hidden;
