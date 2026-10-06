@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
 <title>Snake Drop Games by Aziram</title>
-<script src="https://www.youtube.com/game_api/v1"></script>
+<!-- Monetag Ad SDK -->
+<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -304,12 +305,12 @@
     </div>
 
     <div class="powerbar">
-      <div class="pw" id="pwBoost" title="Hold for Speed Boost (25 coins)">
+      <div class="pw" id="pwBoost" title="Speed Boost — 25 coins or FREE ad">
         <div class="boost-ring" id="boostRing"></div>
         ⚡<span class="pw-ad">25</span><span class="cd" id="cdBoost"></span>
       </div>
-      <div class="pw" id="pwMagnet" title="Magnet (25 coins)">🧲<span class="pw-ad">25</span><span class="cd" id="cdMagnet"></span></div>
-      <div class="pw" id="pwShield" title="Shield (25 coins)">🛡️<span class="pw-ad">25</span><span class="cd" id="cdShield"></span></div>
+      <div class="pw" id="pwMagnet" title="Magnet — 25 coins or FREE ad">🧲<span class="pw-ad">25</span><span class="cd" id="cdMagnet"></span></div>
+      <div class="pw" id="pwShield" title="Shield — 25 coins or FREE ad">🛡️<span class="pw-ad">25</span><span class="cd" id="cdShield"></span></div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -393,7 +394,7 @@
         <h1 style="font-size:22px; margin-bottom:8px;" id="buyTitle">Buy item?</h1>
         <p style="color:#ffd23f; font-size:15px; margin-bottom:18px;" id="buyDesc">Choose how to pay</p>
         <button class="btn" id="buyPay50" style="margin-bottom:10px;">💰 Pay 50 coins</button>
-        <button class="btn btn-alt" id="buyPayAd" style="margin-bottom:10px;">🎬 Watch Ad (25 coins)</button>
+        <button class="btn btn-alt" id="buyPayAd" style="margin-bottom:10px;">🎬 Watch Ad — FREE</button>
         <button class="btn btn-danger" id="buyCancel" style="margin-bottom:0;">Cancel</button>
       </div>
     </div>
@@ -706,7 +707,7 @@ function saveGame() {
     try {
       const dataStr = JSON.stringify(save);
       localStorage.setItem("snakedrop-save-v1", dataStr);
-      if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
+      if (false && typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.saveData) {
         ytgame.game.saveData(dataStr);
       }
     } catch(e){}
@@ -780,7 +781,7 @@ function renderShop() {
             <div style="font-size:28px;">${item.icon}</div>
             <h3>${item.name}</h3>
             <div class="price">${status}</div>
-            ${!isOwned && !isFree ? '<div style="font-size:10px;color:#0d9488;margin-top:2px;">🎬 Ad = 25🪙</div>' : ''}
+            ${!isOwned && !isFree ? '<div style="font-size:10px;color:#0d9488;margin-top:2px;">🎬 Ad = FREE</div>' : ''}
         `;
         
         div.onclick = () => {
@@ -833,11 +834,12 @@ function showBuyModal(item, props) {
 
 function completePurchase(cost) {
     if (!pendingBuyItem || !pendingBuyProps) return;
-    if (save.coins < cost) {
+    cost = cost | 0;
+    if (cost > 0 && save.coins < cost) {
         toast('Need ' + cost + ' coins!', '#ff4d6d');
         return;
     }
-    save.coins -= cost;
+    if (cost > 0) save.coins -= cost;
     save[pendingBuyProps.owned].push(pendingBuyItem.id);
     save[pendingBuyProps.equip] = pendingBuyItem.id;
     if (activeShopTab === 'cubes') {
@@ -847,7 +849,7 @@ function completePurchase(cost) {
     updatePointsUI();
     renderShop();
     document.getElementById('buyModal').classList.add('hidden');
-    toast('Bought & equipped ' + pendingBuyItem.name + (cost === 25 ? ' (Ad)' : ''));
+    toast('Bought & equipped ' + pendingBuyItem.name + (cost === 0 ? ' (Free Ad)' : ''));
     pendingBuyItem = null;
     pendingBuyProps = null;
 }
@@ -855,7 +857,8 @@ function completePurchase(cost) {
 document.getElementById('buyPay50').onclick = () => completePurchase(50);
 document.getElementById('buyPayAd').onclick = () => {
     document.getElementById('buyModal').classList.add('hidden');
-    watchAd(() => completePurchase(25), 'reward-shop-item');
+    // Watch Monetag ad → get item FREE (no coin cost)
+    watchAd(() => completePurchase(0), 'reward-shop-item');
 };
 document.getElementById('buyCancel').onclick = () => {
     document.getElementById('buyModal').classList.add('hidden');
@@ -1461,9 +1464,8 @@ function joyRelease(e) {
 wrap.addEventListener('pointerup', joyRelease);
 wrap.addEventListener('pointercancel', joyRelease);
 
-// Watch Ad Flow
 // ==========================================
-// YouTube Playables SDK (ads + lifecycle)
+// Monetag Ad SDK (ads)
 // ==========================================
 let isSdkPaused = false;
 let firstFrameSent = false;
@@ -1471,28 +1473,29 @@ let hasShownFirstAd = false;
 
 function requestInterstitialAd() {
   return new Promise(function(resolve) {
-    if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestInterstitialAd) {
+    if (typeof show_11108267 === 'function') {
+      try {
+        show_11108267()
+          .then(function() { resolve(); })
+          .catch(function() { resolve(); });
+      } catch (e) { resolve(); }
+    } else {
       resolve();
-      return;
     }
-    try {
-      ytgame.ads.requestInterstitialAd().then(function() { resolve(); }).catch(function() { resolve(); });
-    } catch (e) { resolve(); }
   });
 }
 
 function requestRewardedAd(rewardId) {
   return new Promise(function(resolve) {
-    if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestRewardedAd) {
-      // Offline / non-YouTube fallback: grant reward after short delay
-      setTimeout(function() { resolve(true); }, 600);
-      return;
+    if (typeof show_11108267 === 'function') {
+      try {
+        show_11108267()
+          .then(function() { resolve(true); })
+          .catch(function() { resolve(false); });
+      } catch (e) { resolve(false); }
+    } else {
+      resolve(false);
     }
-    try {
-      ytgame.ads.requestRewardedAd(rewardId).then(function(earned) {
-        resolve(!!earned);
-      }).catch(function() { resolve(false); });
-    } catch (e) { resolve(false); }
   });
 }
 
@@ -1503,7 +1506,7 @@ function watchAd(callback, rewardId) {
     wrap.style.pointerEvents = 'auto';
     if (earned) {
       toast('Reward granted!', '#4ade80');
-      callback();
+      try { callback(); } catch (e) { console.error(e); }
     } else {
       toast('Ad not available', '#ff4d6d');
     }
@@ -1512,32 +1515,10 @@ function watchAd(callback, rewardId) {
 
 // Periodic interstitial while playing (every 2 minutes)
 setInterval(function() {
-  if (running && !isSdkPaused && typeof ytgame !== 'undefined') {
+  if (running && !isSdkPaused) {
     requestInterstitialAd();
   }
 }, 120000);
-
-// YouTube system pause / resume / audio
-if (typeof ytgame !== 'undefined' && ytgame.system) {
-  try {
-    if (typeof ytgame.system.onPause === 'function') {
-      ytgame.system.onPause(function() {
-        isSdkPaused = true;
-        saveGame();
-      });
-    }
-    if (typeof ytgame.system.onResume === 'function') {
-      ytgame.system.onResume(function() {
-        isSdkPaused = false;
-      });
-    }
-    if (typeof ytgame.system.onAudioEnabledChange === 'function') {
-      ytgame.system.onAudioEnabledChange(function(enabled) {
-        muted = !enabled;
-      });
-    }
-  } catch (e) {}
-}
 
 // Start Screen "x16" — rewarded ad
 document.getElementById('adBubble').addEventListener('click', () => {
@@ -1551,25 +1532,33 @@ document.getElementById('adBubble').addEventListener('click', () => {
     }, 'reward-start-x16');
 });
 
-// Powerup Buttons (Magnet & Shield) – cost 25 coins
+// Powerup Buttons (Magnet & Shield) – 25 coins OR free via Monetag ad
+function activatePowerup(btnId, type, msg, color, viaAd) {
+    if (!player || !player.alive) return;
+    if (player[type + 'Cd'] > 0) return;
+    player[type + 'T'] = 5.0;
+    player[type + 'Cd'] = 20.0;
+    toast(viaAd ? (msg + ' (Free Ad)') : (msg + ' (−25 coins)'), color);
+    screenShake = 0.15;
+    updateCooldownVisual(document.getElementById(btnId), player, type);
+}
 function setupPowerupBtn(btnId, type, msg, color) {
     document.getElementById(btnId).addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if(!player || !player.alive) return;
         if(player[type + 'Cd'] > 0) return;
         
-        if (save.coins < 25) {
-            toast('Need 25 coins!', '#ff4d6d');
-            return;
+        if (save.coins >= 25) {
+            save.coins -= 25;
+            saveGame();
+            updatePointsUI();
+            activatePowerup(btnId, type, msg, color, false);
+        } else {
+            // Not enough coins → watch Monetag ad for free power-up
+            watchAd(function() {
+                activatePowerup(btnId, type, msg, color, true);
+            }, 'reward-powerup-' + type);
         }
-        save.coins -= 25;
-        saveGame();
-        updatePointsUI();
-        player[type + 'T'] = 5.0;
-        player[type + 'Cd'] = 20.0;
-        toast(msg + ' (−25 coins)', color);
-        screenShake = 0.15;
-        updateCooldownVisual(document.getElementById(btnId), player, type);
     });
 }
 
@@ -1585,6 +1574,17 @@ setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
     if (ring) ring.style.setProperty('--boost-pct', (pct * 100) + '%');
   }
 
+  function doBoost(viaAd) {
+    if (!player || !player.alive) return;
+    if (player.boostCd > 0) return;
+    if (player.boostT > 0) return;
+    player.boostT = 4.0;
+    player.boostCd = 10.0;
+    player.baseSpeed = 1.8;
+    player.boostSpeed = 4.2;
+    toast(viaAd ? 'Speed Boost! (Free Ad)' : 'Speed Boost! (−25 coins)', '#ffd23f');
+    updateCooldownVisual(btn, player, 'boost');
+  }
   btn.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -1592,21 +1592,15 @@ setupPowerupBtn('pwShield', 'shield', 'Shield Active!', '#7b61ff');
     if (player.boostCd > 0) return;
     if (player.boostT > 0) return;
 
-    if (save.coins < 25) {
-      toast('Need 25 coins!', '#ff4d6d');
-      return;
+    if (save.coins >= 25) {
+      save.coins -= 25;
+      saveGame();
+      updatePointsUI();
+      doBoost(false);
+    } else {
+      // Not enough coins → Monetag ad for free boost
+      watchAd(function() { doBoost(true); }, 'reward-powerup-boost');
     }
-    save.coins -= 25;
-    saveGame();
-    updatePointsUI();
-
-    // Activate boost for 4 seconds – clearly faster
-    player.boostT = 4.0;
-    player.boostCd = 10.0;
-    player.baseSpeed = 1.8;   // keep base stable
-    player.boostSpeed = 4.2;  // clear acceleration
-    toast('Speed Boost! (−25 coins)', '#ffd23f');
-    updateCooldownVisual(btn, player, 'boost');
   });
 
   // Keep ring visual in sync
@@ -2242,8 +2236,7 @@ function frame(ts){
   lastT = ts;
 
   // first frame ready for YouTube Playables
-  if (!firstFrameSent && typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.firstFrameReady) {
-    try { ytgame.game.firstFrameReady(); } catch(e){}
+  if (!firstFrameSent) {
     firstFrameSent = true;
   }
 
@@ -2317,9 +2310,7 @@ function startGame(mode){
   document.getElementById('joyCenter').style.display = 'block';
   running = true;
 
-  if (typeof ytgame !== 'undefined' && ytgame.game && ytgame.game.gameReady) {
-    try { ytgame.game.gameReady(); } catch(e){}
-  }
+  /* Monetag: no ytgame.gameReady */
   if (!hasShownFirstAd) {
     hasShownFirstAd = true;
     requestInterstitialAd();
