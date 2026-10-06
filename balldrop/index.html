@@ -1779,7 +1779,8 @@
         </div>
     </div>
 
-    <script src="https://www.youtube.com/game_api/v1"></script>
+    <!-- Monetag Ad SDK -->
+    <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
     <script src="three.min.js"></script>
     <script src="cannon.min.js"></script>
     <script>
@@ -1800,43 +1801,40 @@
             let isSdkPaused = false; 
             let topBannerOpen = false; 
 
+            // ---- Monetag Ad helpers ----
             function requestInterstitialAd() {
                 return new Promise(function(resolve) {
-                    if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestInterstitialAd) {
-                        resolve();
-                        return;
-                    }
-                    try {
-                        ytgame.ads.requestInterstitialAd().then(function() {
+                    if (typeof show_11108267 === 'function') {
+                        try {
+                            show_11108267()
+                                .then(function() { resolve(); })
+                                .catch(function() { resolve(); });
+                        } catch (e) {
                             resolve();
-                        }).catch(function() {
-                            resolve();
-                        });
-                    } catch (e) {
+                        }
+                    } else {
                         resolve();
                     }
                 });
             }
 
             setInterval(function() {
-                if (!gameOver && !paused && !isSdkPaused && typeof ytgame !== 'undefined') {
+                if (!gameOver && !paused && !isSdkPaused) {
                     requestInterstitialAd();
                 }
-            }, 120000); 
+            }, 120000);
 
             function requestRewardedAd(rewardId) {
                 return new Promise(function(resolve) {
-                    if (typeof ytgame === 'undefined' || !ytgame.ads || !ytgame.ads.requestRewardedAd) {
-                        resolve(false);
-                        return;
-                    }
-                    try {
-                        ytgame.ads.requestRewardedAd(rewardId).then(function(earned) {
-                            resolve(!!earned);
-                        }).catch(function() {
+                    if (typeof show_11108267 === 'function') {
+                        try {
+                            show_11108267()
+                                .then(function() { resolve(true); })
+                                .catch(function() { resolve(false); });
+                        } catch (e) {
                             resolve(false);
-                        });
-                    } catch (e) {
+                        }
+                    } else {
                         resolve(false);
                     }
                 });
@@ -2491,7 +2489,7 @@
                     if (callback) callback();
                 };
 
-                if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.loadData === 'function') {
+                if (false && typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.loadData === 'function') { /* Monetag */
                     try {
                         ytgame.game.loadData().then(function(dataStr) {
                             if (dataStr && typeof dataStr === 'string' && dataStr.length > 0) {
@@ -2562,7 +2560,7 @@
                     const dataStr = JSON.stringify(save);
                     try { localStorage.setItem("drop4096-frankly-v1", dataStr); } catch (e) {}
 
-                    if (typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.saveData === 'function') {
+                    if (false && typeof ytgame !== 'undefined' && ytgame.game && typeof ytgame.game.saveData === 'function') { /* Monetag */
                         ytgame.game.saveData(dataStr).then(function() {
                             // saved OK
                         }).catch(function(err) {
@@ -5110,8 +5108,7 @@
                 if (currentCube && !busy) currentCube.rotation.y = Math.sin(t * 0.002) * 0.12; 
                 if (renderer) renderer.render(scene, camera);
 
-                if (!firstFrameSent && typeof ytgame !== 'undefined' && ytgame.game) {
-                    ytgame.game.firstFrameReady();
+                if (!firstFrameSent) {
                     firstFrameSent = true;
                 }
 
@@ -5186,7 +5183,7 @@
                     const mainMenu = document.getElementById('mainMenu');
                     if (!mainMenu) return;
 
-                    if (typeof ytgame !== 'undefined' && ytgame.system) {
+                    if (false && typeof ytgame !== 'undefined' && ytgame.system) { /* Monetag */
                         if (typeof ytgame.system.onPause === 'function') {
                             ytgame.system.onPause(function() {
                                 persist(); // Αποθήκευση προόδου πριν την παύση
@@ -5582,20 +5579,23 @@
                 if (el) el.classList.add('hidden');
                 if (winTimer) { clearTimeout(winTimer); winTimer = null; }
                 if (!winShown) return;
-                // level already advanced in checkWin – just unlock UI
-                winShown = false;
-                busy = false;
-                save.level = level;
-                persist();
-                updateHUD();
-                announceMission(200);
-                const tmsg = TT().new_mission_toast ? TT().new_mission_toast(levelTarget(level)) : ('🎉 New mission: ' + levelTarget(level));
-                toast(tmsg);
-                // Only re-check if player already has a ball ABOVE the new target (e.g. jumped ahead)
-                setTimeout(function() {
-                    if (winShown || gameOver) return;
-                    try { checkWin(); } catch (e) {}
-                }, 600);
+                // Monetag ad every time a mission is completed
+                requestInterstitialAd().then(function() {
+                    // level already advanced in checkWin – just unlock UI
+                    winShown = false;
+                    busy = false;
+                    save.level = level;
+                    persist();
+                    updateHUD();
+                    announceMission(200);
+                    const tmsg = TT().new_mission_toast ? TT().new_mission_toast(levelTarget(level)) : ('🎉 New mission: ' + levelTarget(level));
+                    toast(tmsg);
+                    // Only re-check if player already has a ball ABOVE the new target (e.g. jumped ahead)
+                    setTimeout(function() {
+                        if (winShown || gameOver) return;
+                        try { checkWin(); } catch (e) {}
+                    }, 600);
+                });
             }
 
             function openShopModal() {
