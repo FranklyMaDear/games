@@ -1008,20 +1008,38 @@
 
         #timer {
             position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 20;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
+            top: max(72px, env(safe-area-inset-top, 0px) + 64px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            background: linear-gradient(135deg, rgba(30,20,10,0.92), rgba(60,35,15,0.92));
+            color: #fff;
+            padding: 8px 22px;
+            border-radius: 24px;
+            border: 2px solid rgba(255, 180, 60, 0.7);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
             font-weight: 800;
             font-size: 22px;
-            font-family: monospace;
+            letter-spacing: 2px;
+            font-variant-numeric: tabular-nums;
             pointer-events: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: none;
         }
-
+        #timer.visible {
+            display: block;
+        }
+        #timer.urgent {
+            color: #ff6b6b;
+            border-color: rgba(255,80,80,0.85);
+            animation: timerPulse 0.8s ease-in-out infinite;
+        }
+        @keyframes timerPulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.06); }
+        }
+        #timer.hidden {
+            display: none !important;
+        }
         .lb-list {
             max-height: 50vh;
             overflow-y: auto;
@@ -1076,7 +1094,7 @@
             #toast { font-size: 13px; padding: 8px 14px; bottom: 20px; right: 12px; left: auto; }
             .shop-items { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 5px; }
             .shop-item h3 { font-size: 11px; }
-            #timer { top: 70px; right: 10px; font-size: 18px; padding: 5px 12px; }
+            #timer { top: max(68px, env(safe-area-inset-top, 0px) + 60px); font-size: 18px; padding: 6px 16px; }
         }
         @media (max-width: 380px) {
             .shop-panel .chip { font-size: 11px; padding: 4px 6px; }
@@ -1813,8 +1831,10 @@
             'use strict';
 
             let gameMode = 'classic';
-            let timeRemaining = 300; 
+            let timeRemaining = 0;
+            let selectedDuration = 300; // seconds: 180 / 300 / 600
             let timerInterval = null;
+            let timerRunning = false;
             let gameOver = false;
             let bestClassic = 0;
             let bestTimeAttack = 0;
@@ -3553,17 +3573,19 @@
                 // Mobile: fill the play area and center board. Desktop: unchanged margins.
                 const usableW = visW * (isMobile ? 0.98 : 0.92);
                 const usableH = visH * (isMobile ? 0.96 : 0.88);
-                let s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
+                // Extra margin so cubes never clip outside the play area
+                let s = Math.min(usableW / (BOARD_W + 1.15), usableH / (BOARD_H + 1.25));
                 if (!isFinite(s) || s <= 0) s = 1;
+                s = s * (isMobile ? 0.92 : 0.95);
 
                 if (boardGroup) {
                     boardGroup.scale.set(s, s, s);
                     boardGroup.visible = true;
                     if (isMobile) {
-                        // Center board in the canvas (was sitting too high)
-                        boardGroup.position.set(0, 0, -0.35);
+                        // Slightly lower so top row never clips under HUD/timer
+                        boardGroup.position.set(0, -0.12, -0.35);
                     } else {
-                        boardGroup.position.set(0, -0.15, -0.4);
+                        boardGroup.position.set(0, -0.2, -0.4);
                     }
                 }
                 if (isMobile) {
@@ -4470,38 +4492,85 @@
                 }
             }
 
-            function updateTimerDisplay() {
-                const mins = Math.floor(timeRemaining / 60);
-                const secs = Math.floor(timeRemaining % 60);
+            function stopTimer() {
+                timerRunning = false;
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+
+            function hideTimerUI() {
                 const timerEl = document.getElementById('timer');
-                if (timerEl) timerEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+                if (!timerEl) return;
+                timerEl.classList.add('hidden');
+                timerEl.classList.remove('visible', 'urgent');
+            }
+
+            function showTimerUI() {
+                const timerEl = document.getElementById('timer');
+                if (!timerEl) return;
+                timerEl.classList.remove('hidden');
+                timerEl.classList.add('visible');
+            }
+
+            function updateTimerDisplay() {
+                const secsLeft = Math.max(0, Math.floor(timeRemaining));
+                const mins = Math.floor(secsLeft / 60);
+                const secs = secsLeft % 60;
+                const timerEl = document.getElementById('timer');
+                if (!timerEl) return;
+                timerEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+                if (secsLeft <= 30 && secsLeft > 0) timerEl.classList.add('urgent');
+                else timerEl.classList.remove('urgent');
             }
 
             function startTimer() {
-                if (timerInterval) clearInterval(timerInterval);
-                if (typeof timeRemaining !== 'number' || timeRemaining <= 0) timeRemaining = 300;
+                stopTimer();
+                if (typeof timeRemaining !== 'number' || timeRemaining <= 0) {
+                    timeRemaining = selectedDuration > 0 ? selectedDuration : 300;
+                }
                 updateTimerDisplay();
-                document.getElementById('timer').classList.remove('hidden');
+                showTimerUI();
+                timerRunning = true;
                 timerInterval = setInterval(function() {
+                    if (!timerRunning) return;
+                    if (gameOver || paused || isSdkPaused) return;
+                    // Don't tick during win modal
+                    try {
+                        var wm = document.getElementById('winModal');
+                        if (wm && !wm.classList.contains('hidden')) return;
+                    } catch (e) {}
                     timeRemaining -= 1;
                     updateTimerDisplay();
                     if (timeRemaining <= 0) {
-                        clearInterval(timerInterval);
-                        timerInterval = null;
+                        timeRemaining = 0;
+                        updateTimerDisplay();
+                        stopTimer();
                         timeUp();
                     }
                 }, 1000);
             }
 
             function timeUp() {
+                if (gameOver) return;
                 gameOver = true;
                 busy = true;
-                if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-                document.getElementById('timer').classList.add('hidden');
-                if (score > save.bestTimeAttack) save.bestTimeAttack = score;
-                persist();
-                document.getElementById("timeUpText").innerHTML = TT().lose_text(score) + '<br>Best: ' + save.bestTimeAttack;
-                document.getElementById("timeUpModal").classList.remove("hidden");
+                stopTimer();
+                hideTimerUI();
+                try {
+                    if (score > (save.bestTimeAttack || 0)) save.bestTimeAttack = score;
+                    persist();
+                } catch (e) {}
+                try {
+                    var txt = document.getElementById('timeUpText');
+                    if (txt) {
+                        var loseFn = TT().lose_text;
+                        var body = (typeof loseFn === 'function') ? loseFn(score) : ('Score: ' + score);
+                        txt.innerHTML = body + '<br>Best: ' + (save.bestTimeAttack || 0);
+                    }
+                    document.getElementById('timeUpModal').classList.remove('hidden');
+                } catch (e) { console.error('timeUp', e); }
             }
 
             function getShopProperties(tab) {
@@ -5237,10 +5306,7 @@
                     return;
                 }
                 
-                if (!window.hasShownFirstAd && typeof ytgame !== 'undefined') {
-                    requestInterstitialAd();
-                    window.hasShownFirstAd = true;
-                }
+                /* first-ad on start disabled – ads run on mission complete */
 
                 try {
                     document.getElementById('mainMenu').classList.add('hidden');
@@ -5274,11 +5340,13 @@
                 try { persist(); } catch (e) {}
                 try { updateHUD(); } catch (e) {}
                 if (mode === 'timeattack') {
-                    if (typeof timeRemaining !== 'number' || timeRemaining <= 0) timeRemaining = 300;
+                    // Always start from the chosen duration (3 / 5 / 10 min)
+                    if (typeof selectedDuration !== 'number' || selectedDuration <= 0) selectedDuration = 300;
+                    timeRemaining = selectedDuration;
                     startTimer();
                 } else {
-                    document.getElementById('timer').classList.add('hidden');
-                    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+                    stopTimer();
+                    hideTimerUI();
                 }
 
                 // Music starts only when the player presses the speaker button
@@ -5295,13 +5363,13 @@
             window.__startClassic = function() { startGame('classic'); };
             window.__startTimed = function(mins) {
                 try { window.__closeTimeModal && window.__closeTimeModal(); } catch (e) {}
-                timeRemaining = mins * 60;
+                selectedDuration = Math.max(60, (mins | 0) * 60);
+                timeRemaining = selectedDuration;
                 startGame('timeattack');
             };
             document.getElementById('btnClassic').onclick = function() { startGame('classic'); };
             function startTimed(mins) {
-                timeRemaining = mins * 60;
-                startGame('timeattack');
+                selectedDuration = Math.max(60, (mins | 0) * 60); timeRemaining = selectedDuration; startGame('timeattack');
             }
             var btnT3 = document.getElementById('btnTime3');
             var btnT5 = document.getElementById('btnTime5');
@@ -5450,6 +5518,7 @@
             document.getElementById('btnPlayAgainTimeUp').onclick = function() {
                 document.getElementById('timeUpModal').classList.add('hidden');
                 requestInterstitialAd().then(function() {
+                    timeRemaining = selectedDuration > 0 ? selectedDuration : 300;
                     startGame('timeattack');
                 });
             };
@@ -5459,10 +5528,11 @@
                     document.getElementById('timeUpModal').classList.add('hidden');
                     gameOver = false;
                     busy = false;
-                    timeRemaining += 60;
+                    timeRemaining = Math.max(60, timeRemaining + 60);
+                    gameMode = 'timeattack';
                     startTimer();
-                    spawnCurrent();
-                    setAim(aimCol);
+                    try { spawnCurrent(); } catch (e) {}
+                    try { setAim(aimCol); } catch (e) {}
                 });
             };
 
