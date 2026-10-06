@@ -1718,7 +1718,7 @@
     <div class="overlay hidden" id="timeModal">
         <div class="card" style="max-width:320px;">
             <h2 id="timeModalTitle">⏱ Time Attack</h2>
-            <p style="opacity:0.8;margin:0 0 12px;font-size:14px;" id="timeModalHint">Choose duration</p>
+            <p style="opacity:0.8;margin:0 0 12px;font-size:14px;" id="timeModalHint">Same game as normal — pick how long you play</p>
             <div style="display:flex;flex-direction:column;gap:10px;">
                 <button class="btn" type="button" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="background:#3d5a80;box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
                 <button class="btn" type="button" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="background:#5c7a3a;box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
@@ -3573,19 +3573,17 @@
                 // Mobile: fill the play area and center board. Desktop: unchanged margins.
                 const usableW = visW * (isMobile ? 0.98 : 0.92);
                 const usableH = visH * (isMobile ? 0.96 : 0.88);
-                // Extra margin so cubes never clip outside the play area
-                let s = Math.min(usableW / (BOARD_W + 1.15), usableH / (BOARD_H + 1.25));
+                let s = Math.min(usableW / (BOARD_W + 0.85), usableH / (BOARD_H + 0.85));
                 if (!isFinite(s) || s <= 0) s = 1;
-                s = s * (isMobile ? 0.92 : 0.95);
 
                 if (boardGroup) {
                     boardGroup.scale.set(s, s, s);
                     boardGroup.visible = true;
                     if (isMobile) {
-                        // Slightly lower so top row never clips under HUD/timer
-                        boardGroup.position.set(0, -0.12, -0.35);
+                        // Center board in the canvas (same as classic)
+                        boardGroup.position.set(0, 0, -0.35);
                     } else {
-                        boardGroup.position.set(0, -0.2, -0.4);
+                        boardGroup.position.set(0, -0.15, -0.4);
                     }
                 }
                 if (isMobile) {
@@ -5340,13 +5338,15 @@
                 try { persist(); } catch (e) {}
                 try { updateHUD(); } catch (e) {}
                 if (mode === 'timeattack') {
-                    // Always start from the chosen duration (3 / 5 / 10 min)
+                    // Countdown only — gameplay identical to classic
                     if (typeof selectedDuration !== 'number' || selectedDuration <= 0) selectedDuration = 300;
                     timeRemaining = selectedDuration;
                     startTimer();
                 } else {
+                    // Classic: no timer at all
                     stopTimer();
                     hideTimerUI();
+                    timeRemaining = 0;
                 }
 
                 // Music starts only when the player presses the speaker button
@@ -5363,8 +5363,11 @@
             window.__startClassic = function() { startGame('classic'); };
             window.__startTimed = function(mins) {
                 try { window.__closeTimeModal && window.__closeTimeModal(); } catch (e) {}
-                selectedDuration = Math.max(60, (mins | 0) * 60);
+                var m = parseInt(mins, 10);
+                if (m !== 3 && m !== 5 && m !== 10) m = 5;
+                selectedDuration = m * 60;
                 timeRemaining = selectedDuration;
+                // Same game as classic — only difference is the countdown timer
                 startGame('timeattack');
             };
             document.getElementById('btnClassic').onclick = function() { startGame('classic'); };
