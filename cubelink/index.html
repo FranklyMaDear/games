@@ -66,6 +66,7 @@
             100% { background: #ff0000; box-shadow: 0 0 10px #ff0000, 0 0 20px rgba(255,0,0,0.5); }
         }
         #dropIndicator {
+            display: none !important;
             position: fixed;
             height: 12px;
             z-index: 15;
@@ -1718,11 +1719,10 @@
     <div class="overlay hidden" id="timeModal">
         <div class="card" style="max-width:320px;">
             <h2 id="timeModalTitle">⏱ Time Attack</h2>
-            <p style="opacity:0.8;margin:0 0 12px;font-size:14px;" id="timeModalHint">Same game as normal — pick how long you play</p>
+            <p style="opacity:0.8;margin:0 0 14px;font-size:14px;" id="timeModalHint">Choose countdown duration</p>
             <div style="display:flex;flex-direction:column;gap:10px;">
-                <button class="btn" type="button" id="btnTime3" onclick="window.__startTimed&&window.__startTimed(3)" style="background:#3d5a80;box-shadow:0 4px 0 #243b55;">⏱ 3 min</button>
-                <button class="btn" type="button" id="btnTime5" onclick="window.__startTimed&&window.__startTimed(5)" style="background:#5c7a3a;box-shadow:0 4px 0 #3a4d25;">⏱ 5 min</button>
-                <button class="btn" type="button" id="btnTime10" onclick="window.__startTimed&&window.__startTimed(10)" style="background:#6b3a7a;box-shadow:0 4px 0 #3d2148;">⏱ 10 min</button>
+                <button class="btn" type="button" id="btnTime5" style="background:linear-gradient(135deg,#5c7a3a,#7cb342);box-shadow:0 4px 0 #3a4d25;">⏱ 5 minutes</button>
+                <button class="btn" type="button" id="btnTime10" style="background:linear-gradient(135deg,#6b3a7a,#9b59b6);box-shadow:0 4px 0 #3d2148;">⏱ 10 minutes</button>
             </div>
             <button class="btn cancel-btn" type="button" id="btnCloseTime" style="margin-top:12px;">Close</button>
         </div>
@@ -3781,17 +3781,10 @@
                     }
                 }
 
-                if (save.currentCubeValue > 0) {
-                    if (currentCube) boardGroup.remove(currentCube);
-                    currentCube = makeCube(save.currentCubeValue);
-                    const p = cellPos(save.currentCubeCol || 0, 0);
-                    currentCube.position.set(p.x, launchY, 0.1);
-                    boardGroup.add(currentCube);
-                    aimCol = save.currentCubeCol || 0;
-                } else {
-                    spawnCurrent();
-                }
-                updateDropIndicator(aimCol);
+                // No floating cube under the board
+                if (currentCube) { try { boardGroup.remove(currentCube); } catch (e) {} currentCube = null; }
+                try { var di = document.getElementById('dropIndicator'); if (di) di.style.display = 'none'; } catch (e) {}
+
                 updateHUD();
                 updateMissionProgress();
                 return true;
@@ -4094,29 +4087,17 @@
                 }
             }
 
-            function spawnCurrent() { 
+            function spawnCurrent() {
+                // Link-style game: board is always filled via refillEmpty.
+                // Never show a floating "next" cube under the board.
                 if (currentCube) {
-                    boardGroup.remove(currentCube);
+                    try { boardGroup.remove(currentCube); } catch (e) {}
                     currentCube = null;
                 }
-                let maxOnBoard = 4; 
-                for (let c = 0; c < COLS; c++)
-                    for (let r = 0; r < ROWS; r++) if (grid[c][r]) maxOnBoard = Math.max(maxOnBoard, grid[c][r].value); 
-                const pool = []; 
-                for (let v = 2; v <= Math.min(32, Math.max(4, maxOnBoard / 2)); v *= 2) pool.push(v, v, v === 2 ? v : 0); 
-                const vals = pool.filter(Boolean);
-                currentCube = makeCube(vals[Math.floor(Math.random() * vals.length)]);
-                currentCube.position.set(cellPos(aimCol, 0).x, launchY, 0.1);
-                currentCube.scale.set(.3, .3, .3);
-                boardGroup.add(currentCube);
-                
-                // ΔΙΟΡΘΩΣΗ: Προστέθηκε το callback στο tween για να ξαναϋπολογιστεί το μέγεθος μετά το animation
-                tween(currentCube.scale, { x: 1, y: 1, z: 1 }, 0.2, null, function() {
-                    updateDropIndicator(aimCol);
-                });
-                
-                // Αρχική κλήση για να εμφανιστεί σωστά η γραμμή όσο ο κύβος έχει scale 0.3
-                updateDropIndicator(aimCol);
+                try {
+                    var elem = document.getElementById('dropIndicator');
+                    if (elem) elem.style.display = 'none';
+                } catch (e) {}
             }
 
             function setAim(c, instant) { 
@@ -4133,83 +4114,14 @@
             //   ΔΙΟΡΘΩΣΗ: Η ΓΡΑΜΜΟΥΛΑ ΥΠΟΛΟΓΙΖΕΙ ΤΟ ΠΡΑΓΜΑΤΙΚΟ ΥΨΟΣ ΤΟΥ ΚΥΒΟΥ
             // ============================================================
             function updateDropIndicator(col) {
-                const elem = document.getElementById('dropIndicator');
-                if (elem) { elem.style.display = 'none'; return; }
-                if(!elem || !camera || !boardGroup) return;
-                const targetPos = new THREE.Vector3();
-                let scaleY = 1;
-                
-                if (currentCube && !busy) {
-                    currentCube.getWorldPosition(targetPos);
-                    scaleY = currentCube.scale.y;
-                } else {
-                    const p = cellPos(col, 0);
-                    targetPos.set(p.x, launchY, 0.1);
-                    boardGroup.localToWorld(targetPos);
-                }
-                
-                const cubeHalfHeight = (CELL * 0.92 / 2) * scaleY;
-                const bottomPos = targetPos.clone().add(new THREE.Vector3(0, -cubeHalfHeight, 0));
-                
-                // Project left and right edges of the cube so the indicator width matches the real on-screen cube
-                const halfCell = (CELL * 0.92 / 2) * (currentCube ? currentCube.scale.x : 1);
-                const leftWorld = bottomPos.clone().add(new THREE.Vector3(-halfCell, 0, 0));
-                const rightWorld = bottomPos.clone().add(new THREE.Vector3(halfCell, 0, 0));
-                leftWorld.project(camera);
-                rightWorld.project(camera);
-                bottomPos.project(camera);
-                
-                const xL = (leftWorld.x * .5 + .5) * window.innerWidth;
-                const xR = (rightWorld.x * .5 + .5) * window.innerWidth;
-                const x = (bottomPos.x * .5 + .5) * window.innerWidth;
-                const y = (-bottomPos.y * .5 + .5) * window.innerHeight;
-                const pxWidth = Math.max(20, Math.abs(xR - xL) - 4);
-                
-                elem.style.width = pxWidth + 'px';
-                elem.style.left = (x - pxWidth / 2) + 'px';
-                elem.style.top = (y + 6) + 'px';
+                // Hidden — no drop piece in Cube Link
+                var elem = document.getElementById('dropIndicator');
+                if (elem) elem.style.display = 'none';
             }
 
-            function launch() { 
-                if (busy || !currentCube || gameOver) return; 
-                const c = aimCol; 
-                const h = colHeight(c); 
-
-                if (h >= ROWS) { 
-                    return; 
-                }
-
-                busy = true;
-                lastActionTime = performance.now();
-                playSound('drop');
-                try { tone(140, 70, 0.07, 'square', 0.14); } catch(e) {}
-                try {
-                    const wp = new THREE.Vector3();
-                    if (currentCube) currentCube.getWorldPosition(wp);
-                    playEquippedEffect(wp.x, wp.y - 0.3, wp.z);
-                } catch (e) {} 
-                const targetR = h;
-                const p = cellPos(c, targetR); 
-                const cube = currentCube;
-                currentCube = null; 
-                
-                tween(cube.position, { y: p.y }, Math.max(0.13, Math.abs(cube.position.y - p.y) * 0.045), null,
-                function() { 
-                    boardGroup.remove(cube); 
-                    const cell = placeCube(c, targetR, cube.userData.value, true);
-                    cell.mesh.scale.set(1.15, 0.85, 1.15);
-                    tween(cell.mesh.scale, { x: 1, y: 1, z: 1 }, 0.18);
-                    resolveMerges([{ c: c, r: targetR }]).then(function() { 
-                        if (isBoardFull()) { 
-                            triggerGameOver(); 
-                            return; 
-                        } 
-                        if (checkWin()) { busy = false; spawnCurrent(); setAim(aimCol); return; } 
-                        busy = false;
-                        spawnCurrent();
-                        setAim(aimCol); 
-                    }); 
-                }); 
+            function launch() {
+                // Drop-from-bottom disabled — Cube Link uses drag-to-merge on the board.
+                return;
             }
 
             function isBoardFull() { 
@@ -4782,7 +4694,6 @@
                 el = document.getElementById('btnTimeToggle'); if (el && t.menu_time) el.textContent = t.menu_time;
                 el = document.getElementById('timeModalTitle'); if (el && t.time_title) el.textContent = t.time_title;
                 el = document.getElementById('timeModalHint'); if (el && t.time_hint) el.textContent = t.time_hint;
-                el = document.getElementById('btnTime3'); if (el && t.time_3) el.textContent = t.time_3;
                 el = document.getElementById('btnTime5'); if (el && t.time_5) el.textContent = t.time_5;
                 el = document.getElementById('btnTime10'); if (el && t.time_10) el.textContent = t.time_10;
                 el = document.getElementById('btnCloseTime'); if (el && t.close) el.textContent = t.close;
@@ -5314,6 +5225,15 @@
                 gameOver = false;
                 busy = false;
                 hammerMode = false;
+                // Never show floating next-cube under the board
+                try {
+                    if (typeof currentCube !== 'undefined' && currentCube) {
+                        if (boardGroup) boardGroup.remove(currentCube);
+                        currentCube = null;
+                    }
+                    var di = document.getElementById('dropIndicator');
+                    if (di) di.style.display = 'none';
+                } catch (e) {}
                 winTime = 0;
                 reactionTime = 0;
                 shownAchievements = {};
@@ -5364,25 +5284,22 @@
             window.__startTimed = function(mins) {
                 try { window.__closeTimeModal && window.__closeTimeModal(); } catch (e) {}
                 var m = parseInt(mins, 10);
-                if (m !== 3 && m !== 5 && m !== 10) m = 5;
+                if (m !== 5 && m !== 10) m = 5;
                 selectedDuration = m * 60;
                 timeRemaining = selectedDuration;
-                // Same game as classic — only difference is the countdown timer
                 startGame('timeattack');
             };
             document.getElementById('btnClassic').onclick = function() { startGame('classic'); };
             function startTimed(mins) {
                 try { window.__closeTimeModal && window.__closeTimeModal(); } catch (e) {}
                 var m = parseInt(mins, 10);
-                if (m !== 3 && m !== 5 && m !== 10) m = 5;
+                if (m !== 5 && m !== 10) m = 5;
                 selectedDuration = m * 60;
                 timeRemaining = selectedDuration;
                 startGame('timeattack');
             }
-            var btnT3 = document.getElementById('btnTime3');
             var btnT5 = document.getElementById('btnTime5');
             var btnT10 = document.getElementById('btnTime10');
-            if (btnT3) btnT3.onclick = function(e) { try { e.preventDefault(); e.stopPropagation(); } catch(_){} startTimed(3); };
             if (btnT5) btnT5.onclick = function(e) { try { e.preventDefault(); e.stopPropagation(); } catch(_){} startTimed(5); };
             if (btnT10) btnT10.onclick = function(e) { try { e.preventDefault(); e.stopPropagation(); } catch(_){} startTimed(10); };
             var btnTA = document.getElementById('btnTimeAttack');
