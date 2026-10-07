@@ -855,6 +855,11 @@
             color: #fff;
             box-shadow: 0 2px 0 #2e7d32;
         }
+        .shop-item-btn.free-ad {
+            background: linear-gradient(135deg, #2196F3, #0b4f79);
+            color: #fff;
+            box-shadow: 0 2px 0 #0b4f79;
+        }
         .shop-item-btn.equip {
             background: #ffcb2e;
             color: #000;
@@ -1737,9 +1742,17 @@
                 const equipped = (currentShopTab==='themes' && equippedTheme===item.id) || (currentShopTab==='sounds' && equippedSound===item.id) || (currentShopTab==='effects' && equippedEffect===item.id);
                 let btnHtml = '';
                 if(currentShopTab==='powerups'){
+                    // Powerups: always allow buy with points OR free with ad
                     btnHtml = `<button class="shop-item-btn buy" onclick="buyShopItem('${item.id}','${currentShopTab}')">Buy (${item.price}⭐)</button>`;
+                    if (item.price > 0) {
+                        btnHtml += `<button class="shop-item-btn free-ad" onclick="buyShopItemWithAd('${item.id}','${currentShopTab}')">📺 Free with Ad</button>`;
+                    }
                 } else if(!owned){
+                    // Not owned: buy with points OR free with ad (if priced)
                     btnHtml = `<button class="shop-item-btn buy" onclick="buyShopItem('${item.id}','${currentShopTab}')">${item.price}⭐ Buy</button>`;
+                    if (item.price > 0) {
+                        btnHtml += `<button class="shop-item-btn free-ad" onclick="buyShopItemWithAd('${item.id}','${currentShopTab}')">📺 Free with Ad</button>`;
+                    }
                 } else if(equipped){
                     btnHtml = `<button class="shop-item-btn unequip" onclick="unequipItem('${item.category}');renderShop();">Unequip</button>`;
                 } else {
@@ -1776,6 +1789,46 @@
                     updateHUD();
                     playTone(1000, 0.15, 'sine', 0.2); } else if (ownsItem(id)) { equipItem(item.category, id);
                     renderShop(); } else { alert('Not enough points!'); } }
+        }
+
+        // ===================== BUY ITEM WITH MONETAG AD (FREE) =====================
+        function buyShopItemWithAd(id, tab) {
+            const items = SHOP_ITEMS[tab] || [];
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            // For non-powerups, skip if already owned
+            if (tab !== 'powerups' && ownsItem(id)) {
+                equipItem(item.category, id);
+                renderShop();
+                return;
+            }
+            const grantItem = () => {
+                if (tab === 'powerups') {
+                    addPowerup(id);
+                } else {
+                    ownedItems[id] = true;
+                    saveOwnedItems();
+                    equipItem(item.category, id);
+                }
+                saveGalacticPoints();
+                renderShop();
+                updateHUD();
+                playTone(1000, 0.15, 'sine', 0.2);
+                alert('🎉 Item unlocked for free!');
+            };
+            if (typeof show_11108267 === 'function') {
+                show_11108267()
+                    .then(() => {
+                        grantItem();
+                    })
+                    .catch((err) => {
+                        console.warn('Ad failed or blocked:', err);
+                        alert('Ad could not be shown. Please try again or disable ad-blocker.');
+                    });
+            } else {
+                // Fallback if SDK not loaded
+                grantItem();
+            }
         }
 
         // ===================== AUDIO =====================
