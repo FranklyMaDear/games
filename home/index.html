@@ -1382,18 +1382,35 @@
 
     renderCategories('all');
 
-    // Show first frame of the video as thumbnail
+    // Show LAST frame (logo) as video thumbnail before play
     const heroVideo = document.getElementById('heroVideo');
     if (heroVideo) {
-      const showFirstFrame = () => {
+      let posterReady = false;
+      const showLastFrame = () => {
+        if (posterReady || !heroVideo.duration || !isFinite(heroVideo.duration)) return;
         try {
-          heroVideo.currentTime = 0.05;
+          // Seek slightly before the end so the logo frame is visible
+          heroVideo.currentTime = Math.max(0, heroVideo.duration - 0.12);
+          posterReady = true;
         } catch (e) {}
       };
-      heroVideo.addEventListener('loadeddata', showFirstFrame);
-      heroVideo.addEventListener('loadedmetadata', showFirstFrame);
-      // If already loaded
-      if (heroVideo.readyState >= 2) showFirstFrame();
+      heroVideo.addEventListener('loadedmetadata', showLastFrame);
+      heroVideo.addEventListener('durationchange', showLastFrame);
+      if (heroVideo.readyState >= 1) showLastFrame();
+
+      // When user presses play, start from the beginning
+      heroVideo.addEventListener('play', () => {
+        if (heroVideo.currentTime > 1) {
+          heroVideo.currentTime = 0;
+        }
+      });
+
+      // After video ends, stay on last frame (logo)
+      heroVideo.addEventListener('ended', () => {
+        try {
+          heroVideo.currentTime = Math.max(0, heroVideo.duration - 0.05);
+        } catch (e) {}
+      });
     }
 
     // Also force top after a short delay (handles late layout / PWA)
