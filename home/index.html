@@ -1043,7 +1043,7 @@
 
     // ========== FAKE STATS ==========
     // Likes: fixed base per game, max ±1% deviation
-    // Online: changes every 10 minutes, small deviation
+    // Online total: Europe time-of-day plan, changes every 10 minutes
     function hashStr(s) {
       let h = 0;
       for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
@@ -1057,27 +1057,75 @@
       }
       return BASE_LIKES[name];
     }
+
+    // Current hour in Europe (Athens)
+    function getEuropeHour() {
+      try {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Athens',
+          hour: 'numeric',
+          hour12: false
+        }).formatToParts(new Date());
+        const hourPart = parts.find(p => p.type === 'hour');
+        return hourPart ? parseInt(hourPart.value, 10) : new Date().getHours();
+      } catch (e) {
+        return new Date().getHours();
+      }
+    }
+
+    // Europe time ranges for TOTAL online:
+    // 06–11 πρωί:        500 – 1500
+    // 12–15 μεσημέρι:   1500 – 3000
+    // 16–19 απόγευμα:   3500 – 6000
+    // 20–23 βράδυ:      6000 – 9000
+    // 00–05 ξημερώματα:  500 – 1200
+    function getOnlineRangeForHour(hour) {
+      if (hour >= 6 && hour <= 11) return { min: 500, max: 1500 };
+      if (hour >= 12 && hour <= 15) return { min: 1500, max: 3000 };
+      if (hour >= 16 && hour <= 19) return { min: 3500, max: 6000 };
+      if (hour >= 20 && hour <= 23) return { min: 6000, max: 9000 };
+      return { min: 500, max: 1200 }; // 00–05
+    }
+
+    function getTotalOnline() {
+      const hour = getEuropeHour();
+      const { min, max } = getOnlineRangeForHour(hour);
+      // Stable within each 10-minute bucket
+      const tenMinKey = Math.floor(Date.now() / 600000);
+      const h = hashStr('total-online:' + hour + ':' + tenMinKey);
+      const span = max - min;
+      // Smooth value inside range (no huge jumps)
+      const value = min + (h % (span + 1));
+      return value;
+    }
+
+    function getAllGameNames() {
+      const names = [];
+      CATEGORIES.forEach(cat => cat.items.forEach(g => names.push(g.name)));
+      return names;
+    }
+
     function getGameStats(name) {
       const baseLikes = getBaseLikes(name);
-      // likes: fixed base, tiny ±1 max jitter from name only (never changes over time)
       const likesJitter = (hashStr(name) % 3) - 1; // -1, 0, +1
       const likes = Math.min(99, Math.max(91, baseLikes + likesJitter));
 
-      // online: changes every 10 minutes
+      // Per-game online: share of total, weighted by game hash (stable proportions)
+      const total = getTotalOnline();
+      const names = getAllGameNames();
+      let weightSum = 0;
+      const weights = names.map(n => {
+        const w = 10 + (hashStr(n) % 40); // 10–49
+        weightSum += w;
+        return { n, w };
+      });
+      const mine = weights.find(x => x.n === name);
+      const share = mine ? mine.w / weightSum : 1 / Math.max(1, names.length);
       const tenMinKey = Math.floor(Date.now() / 600000);
-      const h = hashStr(name + ':' + tenMinKey);
-      const baseOnline = 55 + (hashStr(name) % 120); // stable base 55–174
-      const onlineJitter = (h % 11) - 5;              // -5 … +5
-      const online = Math.max(25, baseOnline + onlineJitter);
+      const jitter = (hashStr(name + ':' + tenMinKey) % 7) - 3; // -3 … +3
+      const online = Math.max(8, Math.round(total * share) + jitter);
 
       return { likes, online };
-    }
-    function getTotalOnline() {
-      let total = 0;
-      CATEGORIES.forEach(cat => {
-        cat.items.forEach(g => { total += getGameStats(g.name).online; });
-      });
-      return total;
     }
 
     // ========== RENDER ==========
