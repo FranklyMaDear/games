@@ -1382,17 +1382,66 @@
 
     renderCategories('all');
 
-    // Show FIRST frame of the video when the page loads
+    // Force FIRST frame as visible thumbnail (fixes black screen on mobile)
     const heroVideo = document.getElementById('heroVideo');
     if (heroVideo) {
-      const showFirstFrame = () => {
+      let posterDone = false;
+
+      const captureFirstFrameAsPoster = () => {
+        if (posterDone) return;
+        if (!heroVideo.videoWidth || !heroVideo.videoHeight) return;
         try {
-          heroVideo.currentTime = 0.05;
+          const canvas = document.createElement('canvas');
+          canvas.width = heroVideo.videoWidth;
+          canvas.height = heroVideo.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(heroVideo, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          if (dataUrl && dataUrl.length > 100) {
+            heroVideo.setAttribute('poster', dataUrl);
+            posterDone = true;
+            // Stay at start so play begins from frame 0
+            heroVideo.currentTime = 0;
+          }
+        } catch (e) {
+          // canvas may fail on some browsers; keep currentTime seek as fallback
+        }
+      };
+
+      const seekToFirstFrame = () => {
+        try {
+          // Slightly after 0 so the decoder paints a real frame
+          if (heroVideo.currentTime < 0.01 || heroVideo.currentTime > 0.5) {
+            heroVideo.currentTime = 0.1;
+          }
         } catch (e) {}
       };
-      heroVideo.addEventListener('loadeddata', showFirstFrame);
-      heroVideo.addEventListener('loadedmetadata', showFirstFrame);
-      if (heroVideo.readyState >= 2) showFirstFrame();
+
+      heroVideo.addEventListener('seeked', () => {
+        if (!posterDone && heroVideo.currentTime > 0 && heroVideo.currentTime < 1) {
+          captureFirstFrameAsPoster();
+        }
+      });
+
+      heroVideo.addEventListener('loadeddata', () => {
+        seekToFirstFrame();
+      });
+
+      heroVideo.addEventListener('loadedmetadata', () => {
+        seekToFirstFrame();
+        // iOS sometimes needs a muted play/pause to decode the first frame
+        const tryPlayPause = heroVideo.play();
+        if (tryPlayPause && typeof tryPlayPause.then === 'function') {
+          tryPlayPause.then(() => {
+            heroVideo.pause();
+            seekToFirstFrame();
+          }).catch(() => {
+            seekToFirstFrame();
+          });
+        }
+      });
+
+      if (heroVideo.readyState >= 2) seekToFirstFrame();
 
       // After video ends, show last frame (logo)
       heroVideo.addEventListener('ended', () => {
