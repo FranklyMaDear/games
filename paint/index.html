@@ -370,19 +370,19 @@ NUMF(0,[{pts:ARCP(150,150,85,110,0,360,48),w:44,closed:true}],
 
 /* Πράξεις: οι ίδιοι αριθμοί σμικρυσμένοι ώστε να χωρούν στην οθόνη */
 var SUMF=[[1,1,2,"+"],[1,2,3,"+"],[2,1,3,"+"],[2,2,4,"+"],[1,3,4,"+"],[3,1,4,"+"],[1,4,5,"+"],[2,3,5,"+"],[3,2,5,"+"],[4,1,5,"+"],[1,5,6,"+"],[2,4,6,"+"],[3,3,6,"+"],[4,2,6,"+"],[5,1,6,"+"],[1,6,7,"+"],[2,5,7,"+"],[3,4,7,"+"],[4,3,7,"+"],[5,2,7,"+"],[6,1,7,"+"],[2,6,8,"+"],[3,5,8,"+"],[4,4,8,"+"],[5,3,8,"+"],[6,2,8,"+"],[7,1,8,"+"],[3,6,9,"+"],[4,5,9,"+"],[5,4,9,"+"],[3,2,1,"-"],[4,2,2,"-"],[4,3,1,"-"],[5,2,3,"-"],[5,3,2,"-"],[5,4,1,"-"],[6,2,4,"-"],[6,3,3,"-"],[6,4,2,"-"],[6,5,1,"-"],[7,2,5,"-"],[7,3,4,"-"],[7,4,3,"-"],[7,5,2,"-"],[7,6,1,"-"],[8,1,7,"-"],[8,2,6,"-"],[8,3,5,"-"],[8,4,4,"-"],[8,5,3,"-"],[8,6,2,"-"],[8,7,1,"-"],[9,1,8,"-"],[9,2,7,"-"],[9,3,6,"-"],[9,4,5,"-"],[9,5,4,"-"],[9,6,3,"-"],[9,7,2,"-"],[9,8,1,"-"]];
-var SUM_SC=0.4, SUM_DX=33, SUM_DY=16;
+var SUM_SC=0.43, SUM_DX=33, SUM_DY=16;
 /* Κάθε πράξη σε δύο γραμμές: πάνω "α + β", κάτω "= γ", ώστε τα ψηφία να είναι μεγάλα */
 function sumTf(X,TOP){return function(x,y){return [X+(x-SUM_DX)*SUM_SC,TOP+(y-SUM_DY)*SUM_SC]}}
 SUMF.forEach(function(q){
  var a=q[0],b=q[1],c=q[2],op=q[3];
  var regs=[];
- // πρώτη γραμμή
- regs=regs.concat(MAPREGS(NUMDEF[a].strokes,[],sumTf(20,22),SUM_SC));
- regs=regs.concat(MAPREGS(q[3]==="-"?[{pts:[[124,75.5],[164,75.5]],w:10}]:[{pts:[[124,75.5],[164,75.5]],w:10},{pts:[[144,55.5],[144,95.5]],w:10}],[],IDT,1));
- regs=regs.concat(MAPREGS(NUMDEF[b].strokes,[],sumTf(170,22),SUM_SC));
- // δεύτερη γραμμή
- regs=regs.concat(MAPREGS([{pts:[[80,205.5],[120,205.5]],w:10},{pts:[[80,221.5],[120,221.5]],w:10}],[],IDT,1));
- regs=regs.concat(MAPREGS(NUMDEF[c].strokes,[],sumTf(130,160),SUM_SC));
+ // πρώτη γραμμή: α (σύμβολο) β
+ regs=regs.concat(MAPREGS(NUMDEF[a].strokes,[],sumTf(10,22),SUM_SC));
+ regs=regs.concat(MAPREGS(op==="-"?[{pts:[[129.2,79.6],[169.2,79.6]],w:11}]:[{pts:[[129.2,79.6],[169.2,79.6]],w:11},{pts:[[149.2,59.6],[149.2,99.6]],w:11}],[],IDT,1));
+ regs=regs.concat(MAPREGS(NUMDEF[b].strokes,[],sumTf(185.2,22),SUM_SC));
+ // δεύτερη γραμμή: = γ
+ regs=regs.concat(MAPREGS([{pts:[[73.4,202.8],[113.4,202.8]],w:11},{pts:[[73.4,218.8],[113.4,218.8]],w:11}],[],IDT,1));
+ regs=regs.concat(MAPREGS(NUMDEF[c].strokes,[],sumTf(129.4,153.2),SUM_SC));
  DR.push({name:"Πράξη "+a+" "+op+" "+b+" = "+c,lvl:1,free:true,regs:regs,sum:{a:a,b:b,c:c,op:op}});
 });
 
@@ -727,6 +727,24 @@ document.getElementById("mPaint").onclick=function(){setMode("paint")};
 document.getElementById("mMath").onclick=function(){setMode("math")};
 
 /* ---------- Φωνή: το παιδί λέει την απάντηση και γράφεται μόνο του ---------- */
+/* Η φωνή διαβάζει την πράξη με λέξεις: "Πόσο κάνει δύο συν ένα;" */
+function speakText(t,done){
+ var called=false;function fin(){if(!called){called=true;if(done)done()}}
+ try{
+  if(!("speechSynthesis" in window)){fin();return}
+  speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(t);u.lang="el-GR";u.rate=0.9;
+  u.onend=fin;u.onerror=fin;
+  speechSynthesis.speak(u);
+  setTimeout(fin,4000);
+ }catch(e){fin()}
+}
+var NUMWORD=["μηδέν","ένα","δύο","τρία","τέσσερα","πέντε","έξι","επτά","οκτώ","εννέα","δέκα"];
+function speakQuestion(done){
+ var q=cur&&cur.sum;
+ if(!q){if(done)done();return}
+ speakText("Πόσο κάνει "+NUMWORD[q.a]+" "+(q.op==="-"?"πλην":"συν")+" "+NUMWORD[q.b]+";",done);
+}
 var GRNUM={"μηδεν":0,"ενα":1,"ενας":1,"μια":1,"δυο":2,"τρια":3,"τρεις":3,"τεσσερα":4,"τεσσερις":4,"πεντε":5,"εξι":6,"επτα":7,"εφτα":7,"οκτω":8,"οχτω":8,"εννεα":9,"εννια":9,"δεκα":10};
 function heardNumber(txt){
  var words=String(txt).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?]/g," ").split(/\s+/);
