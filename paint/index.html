@@ -1267,15 +1267,39 @@ function speakQuestion(done){
   :(t("howMuch")+" "+numSay(q.a)+" "+opsay(q.op)+" "+numSay(q.b)+"?");
  speakText(phrase,done);
 }
-var GRNUM={"μηδεν":0,"ενα":1,"ενας":1,"μια":1,"δυο":2,"τρια":3,"τρεις":3,"τεσσερα":4,"τεσσερις":4,"πεντε":5,"εξι":6,"επτα":7,"εφτα":7,"οκτω":8,"οχτω":8,"εννεα":9,"εννια":9,"δεκα":10};
-var ENNUM={"zero":0,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10};
+var GRNUM={"μηδεν":0,"ενα":1,"ενας":1,"μια":1,"δυο":2,"τρια":3,"τρεις":3,"τεσσερα":4,"τεσσερις":4,"πεντε":5,"εξι":6,"επτα":7,"εφτα":7,"οκτω":8,"οχτω":8,"εννεα":9,"εννια":9,"δεκα":10,"εντεκα":11,"δωδεκα":12,"δεκατρια":13,"δεκατεσσερα":14,"δεκαπεντε":15,"δεκαεξι":16,"δεκαεπτα":17,"δεκαοκτω":18,"δεκαεννεα":19,"εικοσι":20,"τριαντα":30,"σαραντα":40,"πενηντα":50,"εξηντα":60,"εβδομηντα":70,"ογδοντα":80,"ενενηντα":90,"εκατο":100};
+var ENNUM={"zero":0,"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,"fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,"twenty":20,"thirty":30,"forty":40,"fifty":50,"sixty":60,"seventy":70,"eighty":80,"ninety":90,"hundred":100};
+var DENUM={"null":0,"eins":1,"ein":1,"zwei":2,"drei":3,"vier":4,"funf":5,"fünf":5,"sechs":6,"sieben":7,"acht":8,"neun":9,"zehn":10,"elf":11,"zwolf":12,"zwölf":12,"dreizehn":13,"vierzehn":14,"funfzehn":15,"fünfzehn":15,"sechzehn":16,"siebzehn":17,"achtzehn":18,"neunzehn":19,"zwanzig":20,"dreissig":30,"dreißig":30,"vierzig":40,"funfzig":50,"fünfzig":50,"sechzig":60,"siebzig":70,"achtzig":80,"neunzig":90,"hundert":100,"einundzwanzig":21,"zweiundzwanzig":22,"dreiundzwanzig":23,"vierundzwanzig":24,"funfundzwanzig":25,"fünfundzwanzig":25,"sechsundzwanzig":26,"siebenundzwanzig":27,"achtundzwanzig":28,"neunundzwanzig":29,"einunddreissig":31,"einunddreißig":31,"zweiunddreissig":32,"dreiunddreissig":33,"vierunddreissig":34,"funfunddreissig":35,"sechsunddreissig":36,"siebenunddreissig":37,"achtunddreissig":38,"neununddreissig":39};
 function heardNumber(txt){
- var words=String(txt).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?]/g," ").split(/\s+/);
+ var words=String(txt).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?]/g," ").split(/\s+/).filter(Boolean);
+ // Direct digit
  for(var i=0;i<words.length;i++){
   var w=words[i];
   if(/^\d+$/.test(w))return parseInt(w,10);
   if(GRNUM.hasOwnProperty(w))return GRNUM[w];
   if(ENNUM.hasOwnProperty(w))return ENNUM[w];
+  if(DENUM.hasOwnProperty(w))return DENUM[w];
+ }
+ // Try to parse compound German numbers (e.g. "drei und zwanzig" or "ein und zwanzig")
+ if(lang==="de"){
+  var joined=words.join("");
+  if(DENUM.hasOwnProperty(joined))return DENUM[joined];
+  // Handle "X und Y" style
+  for(var k=0;k<words.length-2;k++){
+   if(words[k+1]==="und"){
+    var unit=DENUM[words[k]]||null;
+    var tens=DENUM[words[k+2]]||null;
+    if(unit!==null&&tens!==null&&tens%10===0&&unit<10)return tens+unit;
+   }
+  }
+ }
+ // English "twenty one" style
+ if(lang==="en"){
+  for(var m=0;m<words.length-1;m++){
+   var tens2=ENNUM[words[m]];
+   var unit2=ENNUM[words[m+1]];
+   if(tens2&&tens2%10===0&&tens2>=20&&unit2&&unit2<10)return tens2+unit2;
+  }
  }
  return null;
 }
