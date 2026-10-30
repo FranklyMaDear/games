@@ -279,18 +279,20 @@
     <h2 style="text-align:center; margin-top:0; color:#fbbf24;">Οδηγίες</h2>
     <div style="line-height:1.5; font-size:0.95rem;">
       <p><strong>Πώς παίζεται το FranklyLingo:</strong></p>
-      <p>Έχεις 5 προσπάθειες για να βρεις την κρυμμένη λέξη. Σε κάθε προσπάθεια έχεις αυστηρά 20 δευτερόλεπτα!</p>
+      <p>Κάθε match έχει 5 λέξεις (5→5→6→6→7 γράμματα). Σε κάθε προσπάθεια έχεις αυστηρά 5 δευτερόλεπτα!</p>
       <ul style="padding-left:20px;">
         <li>Το Πράσινο χρώμα σημαίνει ότι βρήκες το σωστό γράμμα στη σωστή θέση.</li>
         <li>Το Κίτρινο χρώμα σημαίνει ότι το γράμμα υπάρχει στη λέξη, αλλά σε άλλη θέση.</li>
       </ul>
       <p><strong>Σύστημα Πόντων:</strong></p>
       <ul style="padding-left:20px;">
-        <li>1η προσπάθεια: 500 πόντοι</li>
-        <li>2η προσπάθεια: 400 πόντοι</li>
-        <li>3η προσπάθεια: 300 πόντοι</li>
-        <li>4η προσπάθεια: 200 πόντοι</li>
-        <li>5η προσπάθεια: 100 πόντοι</li>
+        <li>1η προσπάθεια: +50 πόντοι</li>
+        <li>2η προσπάθεια: +40 πόντοι</li>
+        <li>3η προσπάθεια: +30 πόντοι</li>
+        <li>4η προσπάθεια: +20 πόντοι</li>
+        <li>5η/6η προσπάθεια: +10 πόντοι</li>
+        <li>Λάθος ή Timeout: −5 πόντοι</li>
+        <li>Αποτυχία λέξης: −25 πόντοι</li>
       </ul>
     </div>
     <button class="play-btn" style="position:static; display:block; margin:20px auto 0; min-width:160px;" onclick="hideInstructions()">Κλείσιμο</button>
@@ -311,7 +313,7 @@
   </div>
   <div class="game-area">
     <div id="grid-container"><div id="grid"></div></div>
-    <div class="boosters">
+    <div class="boosters" style="display:none;">
       <div class="booster green-b" onclick="useBooster('green')">?<div class="count" id="b1">x3</div></div>
       <div class="booster orange-b" onclick="useBooster('orange')">?<div class="count" id="b2">x3</div></div>
       <div class="booster pink-b" onclick="useBooster('pink')">⚡<div class="count" id="b3">x3</div></div>
@@ -2182,9 +2184,10 @@ function norm(w){ return w.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpp
 const LISTS = {5: WORDS5.map(norm), 6: WORDS6.map(norm), 7: WORDS7.map(norm)};
 const GREEK = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".split("");
 
+// ============ STATE ============
 let mode = 1; // 1 or 2
 let wordLen = 5;
-let round = 1;
+let maxAttempts = 5;
 let secret = "";
 let currentRow = 0;
 let currentGuess = "";
@@ -2192,14 +2195,14 @@ let gameOver = false;
 let score = 0;
 let scoreP1 = 0, scoreP2 = 0;
 let currentPlayer = 1;
-let isSteal = false;
-let boosters = {green:3, orange:3, pink:3, blue:3};
-let timeLeft = 15;
+let timeLeft = 5;
 let timerInterval = null;
-let frozen = false;
+let tickInterval = null;
 let recognition = null, isListening = false;
-let wordsSolved = 0;
+let wordsSolved = 0; // 0..5
+let frozen = false;
 
+// DOM
 const home = document.getElementById("home");
 const modeScreen = document.getElementById("mode");
 const gameScreen = document.getElementById("game");
@@ -2214,41 +2217,50 @@ const scoresBox = document.getElementById("scoresBox");
 const levelInfo = document.getElementById("levelInfo");
 const micBtn = document.getElementById("micBtn");
 
-// Ήχοι με Web Audio API
+// ============ AUDIO ============
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playTone(freq, duration, type="sine", gain=0.1) {
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  g.gain.value = gain;
-  osc.connect(g); g.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration);
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.value = gain;
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e){}
 }
-function sfxClick() { 
-  playTone(880, 0.06, "sine", 0.07); 
-  setTimeout(() => playTone(1175, 0.08, "sine", 0.05), 40); 
-}
-function sfxSuccess() { 
-  playTone(523, 0.12); 
-  setTimeout(()=>playTone(659, 0.12), 80); 
-  setTimeout(()=>playTone(784, 0.12), 160); 
-  setTimeout(()=>playTone(1046, 0.25), 240); 
-}
-function sfxZonk() { 
-  playTone(180, 0.15, "sawtooth", 0.08); 
-  setTimeout(()=>playTone(120, 0.25, "sawtooth", 0.1), 100); 
-}
+function sfxClick() { playTone(880, 0.06, "sine", 0.07); setTimeout(() => playTone(1175, 0.08, "sine", 0.05), 40); }
+function sfxSuccess() { playTone(523, 0.12); setTimeout(()=>playTone(659, 0.12), 80); setTimeout(()=>playTone(784, 0.12), 160); setTimeout(()=>playTone(1046, 0.25), 240); }
+function sfxZonk() { playTone(180, 0.15, "sawtooth", 0.08); setTimeout(()=>playTone(120, 0.25, "sawtooth", 0.1), 100); }
 function sfxLoss() { sfxZonk(); }
 function sfxCorrect() { playTone(660, 0.08, "sine", 0.08); }
 function sfxWrong() { playTone(220, 0.12, "sawtooth", 0.06); }
 
+// Continuous tick-tock
+let tickOsc = null, tickGain = null, isTicking = false;
+function startTickTock() {
+  stopTickTock();
+  isTicking = true;
+  let high = true;
+  tickInterval = setInterval(() => {
+    if (!isTicking) return;
+    playTone(high ? 900 : 600, 0.04, "square", 0.04);
+    high = !high;
+  }, 500);
+}
+function stopTickTock() {
+  isTicking = false;
+  if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
+}
+
+// ============ SCREENS ============
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
-function showHome() { showScreen("home"); clearInterval(timerInterval); }
+function showHome() { showScreen("home"); clearInterval(timerInterval); stopTickTock(); }
 function showMode() { showScreen("mode"); }
 function showInstructions() {
   document.getElementById("instructionsModal").style.display = "flex";
@@ -2257,51 +2269,62 @@ function hideInstructions() {
   document.getElementById("instructionsModal").style.display = "none";
 }
 
+// ============ GAME FLOW ============
 function startGame(m) {
   mode = m;
-  wordLen = 5;
-  round = 1;
+  wordsSolved = 0;
   score = 0; scoreP1 = 0; scoreP2 = 0;
   currentPlayer = 1;
-  wordsSolved = 0;
-  isSteal = false;
   if (mode === 2) {
     scoresBox.style.display = "flex";
   } else {
     scoresBox.style.display = "none";
   }
+  // Hide boosters completely
+  const boostersEl = document.querySelector(".boosters");
+  if (boostersEl) boostersEl.style.display = "none";
   showScreen("game");
   nextWord();
 }
 
+function getWordConfig(idx) {
+  // idx 0..4
+  if (idx < 2) return { len: 5, attempts: 5 };
+  if (idx < 4) return { len: 6, attempts: 5 };
+  return { len: 7, attempts: 6 };
+}
+
 function nextWord() {
-  if (wordsSolved >= 15) { endMatch(); return; }
-  if (wordsSolved === 5) { wordLen = 6; round = 2; }
-  if (wordsSolved === 10) { wordLen = 7; round = 3; }
-  levelInfo.textContent = `Γύρος ${round} • ${wordLen} γράμματα`;
+  if (wordsSolved >= 5) { endMatch(); return; }
+  const cfg = getWordConfig(wordsSolved);
+  wordLen = cfg.len;
+  maxAttempts = cfg.attempts;
+  levelInfo.textContent = `Λέξη ${wordsSolved + 1}/5 • ${wordLen} γράμματα • ${maxAttempts} προσπάθειες`;
   const list = LISTS[wordLen];
   secret = list[Math.floor(Math.random() * list.length)];
   currentRow = 0;
   currentGuess = "";
   gameOver = false;
-  isSteal = false;
-  boosters = {green:3, orange:3, pink:3, blue:3};
-  updateBoosters();
   initGrid();
   buildKeyboard();
   inputDisplay.textContent = "";
   messageEl.textContent = `Πρώτο γράμμα: ${secret[0]}`;
-  document.getElementById("t00").textContent = secret[0];
-  document.getElementById("t00").classList.add("green");
+  // Reveal first letter on row 0
+  const t00 = document.getElementById("t00");
+  if (t00) {
+    t00.textContent = secret[0];
+    t00.classList.add("green");
+  }
   updateUI();
   startTimer();
 }
 
 function updateUI() {
   if (mode === 2) {
-    turnInfo.textContent = isSteal ? `Κλοπή - Παίκτης ${currentPlayer}` : `Παίκτης ${currentPlayer}`;
+    turnInfo.textContent = `Παίκτης ${currentPlayer}`;
     document.getElementById("score1").textContent = scoreP1;
     document.getElementById("score2").textContent = scoreP2;
+    scoreInfo.textContent = "";
   } else {
     turnInfo.textContent = "1 Παίκτης";
     scoreInfo.textContent = "Σκορ: " + score;
@@ -2310,7 +2333,7 @@ function updateUI() {
 
 function initGrid() {
   grid.innerHTML = "";
-  for (let r = 0; r < 5; r++) {
+  for (let r = 0; r < maxAttempts; r++) {
     const row = document.createElement("div");
     row.className = "row";
     for (let c = 0; c < wordLen; c++) {
@@ -2325,7 +2348,11 @@ function initGrid() {
 
 function buildKeyboard() {
   document.getElementById("keyboard").innerHTML = "";
-  const rows = [["Α","Β","Γ","Δ","Ε","Ζ","Η","Θ","Ι"],["Κ","Λ","Μ","Ν","Ξ","Ο","Π","Ρ","Σ"],["Τ","Υ","Φ","Χ","Ψ","Ω","⌫","OK"]];
+  const rows = [
+    ["Α","Β","Γ","Δ","Ε","Ζ","Η","Θ","Ι"],
+    ["Κ","Λ","Μ","Ν","Ξ","Ο","Π","Ρ","Σ"],
+    ["Τ","Υ","Φ","Χ","Ψ","Ω","⌫","OK"]
+  ];
   rows.forEach(letters => {
     const row = document.createElement("div");
     row.className = "kb-row";
@@ -2340,63 +2367,100 @@ function buildKeyboard() {
   });
 }
 
+// ============ TIMER ============
 function startTimer() {
   clearInterval(timerInterval);
-  timeLeft = 20;
+  stopTickTock();
+  timeLeft = 5;
   frozen = false;
   timerEl.textContent = timeLeft;
   timerEl.classList.remove("warning");
+  startTickTock();
   timerInterval = setInterval(() => {
     if (frozen || gameOver) return;
     timeLeft--;
     timerEl.textContent = timeLeft;
-    if (timeLeft <= 5) timerEl.classList.add("warning");
+    if (timeLeft <= 2) timerEl.classList.add("warning");
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
+      stopTickTock();
       sfxZonk();
       handleTimeout();
     }
   }, 1000);
 }
 
+function applyPenalty(pts) {
+  if (mode === 1) {
+    score = Math.max(0, score - pts);
+  } else {
+    if (currentPlayer === 1) scoreP1 = Math.max(0, scoreP1 - pts);
+    else scoreP2 = Math.max(0, scoreP2 - pts);
+  }
+  updateUI();
+}
+
 function handleTimeout() {
-  messageEl.textContent = "Τέλος χρόνου!";
-  // Mark current attempt as failed and advance
+  messageEl.textContent = "Τέλος χρόνου! (−5)";
+  applyPenalty(5);
+  // Mark current row as failed (if any letters typed, show them as absent)
+  for (let i = 0; i < wordLen; i++) {
+    const tile = document.getElementById(`t${currentRow}${i}`);
+    if (tile && !tile.classList.contains("green")) {
+      if (currentGuess[i]) {
+        tile.textContent = currentGuess[i];
+        tile.classList.add("absent");
+      }
+    }
+  }
+  advanceAfterFail();
+}
+
+function advanceAfterFail() {
   currentRow++;
   currentGuess = "";
   inputDisplay.textContent = "";
-  if (currentRow >= 5) {
-    sfxZonk();
+  if (currentRow >= maxAttempts) {
+    // Full failure of word
+    applyPenalty(25);
+    messageEl.textContent = `Η λέξη ήταν: ${secret} (−25)`;
+    sfxLoss();
     endWord(false);
   } else {
     // Carry green letters
-    for (let i = 0; i < wordLen; i++) {
-      const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
-      if (prevTile && prevTile.classList.contains("green")) {
-        const nextTile = document.getElementById(`t${currentRow}${i}`);
-        if (nextTile) {
-          nextTile.textContent = prevTile.textContent;
-          nextTile.classList.add("green");
-          if (i > 0) currentGuess += prevTile.textContent;
-        }
-      }
+    carryGreens();
+    if (mode === 2) {
+      // Switch player
+      currentPlayer = currentPlayer === 1 ? 2 : 1;
+      messageEl.textContent = `Προσπάθεια ${currentRow + 1}/${maxAttempts} • Παίκτης ${currentPlayer}`;
+      updateUI();
+    } else {
+      messageEl.textContent = `Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
     }
-    messageEl.textContent = `Προσπάθεια ${currentRow + 1}/5`;
     startTimer();
   }
 }
 
-function applyPenalty(type) {
-  if (mode !== 2) return;
-  let pen = 0;
-  if (type === "timeout") pen = wordLen === 5 ? 10 : wordLen === 6 ? 15 : 20;
-  if (type === "invalid") pen = wordLen === 5 ? 5 : wordLen === 6 ? 10 : 15;
-  if (currentPlayer === 1) scoreP1 = Math.max(0, scoreP1 - pen);
-  else scoreP2 = Math.max(0, scoreP2 - pen);
-  updateUI();
-  messageEl.textContent += ` (-${pen} πόντοι)`;
+function carryGreens() {
+  for (let i = 0; i < wordLen; i++) {
+    const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
+    if (prevTile && prevTile.classList.contains("green")) {
+      const nextTile = document.getElementById(`t${currentRow}${i}`);
+      if (nextTile) {
+        nextTile.textContent = prevTile.textContent;
+        nextTile.classList.add("green");
+      }
+    }
+  }
+  // Also lock first letter always on every row
+  const first = document.getElementById(`t${currentRow}0`);
+  if (first) {
+    first.textContent = secret[0];
+    first.classList.add("green");
+  }
 }
 
+// ============ INPUT ============
 function handleKey(key) {
   if (gameOver) return;
   sfxClick();
@@ -2406,6 +2470,7 @@ function handleKey(key) {
     submitGuess();
     return;
   } else if (currentGuess.length < wordLen && GREEK.includes(key)) {
+    // First letter must match secret[0] if typing position 0
     if (currentGuess.length === 0 && key !== secret[0]) {
       messageEl.textContent = `Ξεκινάει από ${secret[0]}!`;
       return;
@@ -2419,8 +2484,13 @@ function handleKey(key) {
 function updatePreview() {
   for (let i = 0; i < wordLen; i++) {
     const tile = document.getElementById(`t${currentRow}${i}`);
-    if (i === 0 && currentRow === 0) continue;
-    tile.textContent = currentGuess[i] || "";
+    if (!tile) continue;
+    if (tile.classList.contains("green") && i === 0) continue; // keep locked first
+    if (i < currentGuess.length) {
+      tile.textContent = currentGuess[i];
+    } else if (!tile.classList.contains("green")) {
+      tile.textContent = "";
+    }
   }
 }
 
@@ -2429,148 +2499,96 @@ function isValidWord(w) {
 }
 
 function submitGuess() {
+  if (gameOver) return;
   if (currentGuess.length !== wordLen) {
     messageEl.textContent = `Χρειάζονται ${wordLen} γράμματα!`;
-    if (mode === 2) { applyPenalty("invalid"); switchTurn(); }
     return;
   }
   if (!currentGuess.startsWith(secret[0])) {
     messageEl.textContent = `Πρέπει να ξεκινάει από ${secret[0]}!`;
-    if (mode === 2) { applyPenalty("invalid"); switchTurn(); }
     return;
   }
+
+  // Invalid word → counts as attempt, -5, advance
   if (!isValidWord(currentGuess)) {
-    messageEl.textContent = "Η λέξη δεν υπάρχει στο σύστημα!";
-    // Μετράει ως προσπάθεια – όλα absent και πάμε στην επόμενη
+    messageEl.textContent = "Η λέξη δεν υπάρχει! (−5)";
+    applyPenalty(5);
     for (let i = 0; i < wordLen; i++) {
       const tile = document.getElementById(`t${currentRow}${i}`);
       tile.textContent = currentGuess[i];
       tile.classList.add("absent");
     }
     sfxZonk();
-    currentRow++;
-    currentGuess = "";
-    inputDisplay.textContent = "";
-    if (currentRow >= 5) {
-      endWord(false);
-    } else {
-      // Μεταφορά πράσινων από προηγούμενη
-      for (let i = 0; i < wordLen; i++) {
-        const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
-        if (prevTile && prevTile.classList.contains("green")) {
-          const nextTile = document.getElementById(`t${currentRow}${i}`);
-          if (nextTile) {
-            nextTile.textContent = prevTile.textContent;
-            nextTile.classList.add("green");
-            if (i > 0) currentGuess += prevTile.textContent;
-          }
-        }
-      }
-      messageEl.textContent = `Η λέξη δεν υπάρχει • Προσπάθεια ${currentRow + 1}/5`;
-      startTimer();
-    }
-    if (mode === 2) applyPenalty("invalid");
+    stopTickTock();
+    clearInterval(timerInterval);
+    advanceAfterFail();
     return;
   }
 
+  // Valid guess
+  stopTickTock();
+  clearInterval(timerInterval);
   const result = evaluateGuess(currentGuess);
-  let hasGreen = false, hasWrong = false;
+  let allGreen = true;
   for (let i = 0; i < wordLen; i++) {
     const tile = document.getElementById(`t${currentRow}${i}`);
     tile.textContent = currentGuess[i];
+    tile.classList.remove("green", "orange", "absent");
     tile.classList.add(result[i]);
-    if (result[i] === "green") { sfxCorrect(); hasGreen = true; }
-    if (result[i] === "absent") hasWrong = true;
+    if (result[i] === "green") sfxCorrect();
+    else allGreen = false;
   }
-  if (hasWrong && !hasGreen) sfxWrong();
+  if (!allGreen) sfxWrong();
 
   if (currentGuess === secret) {
     sfxSuccess();
+    const pointsTable = [50, 40, 30, 20, 10, 10]; // index = attempt (0-based)
+    const pts = pointsTable[Math.min(currentRow, 5)] || 10;
+    if (mode === 1) score += pts;
+    else {
+      if (currentPlayer === 1) scoreP1 += pts;
+      else scoreP2 += pts;
+    }
+    messageEl.textContent = `🎉 Lingo! +${pts}`;
+    updateUI();
     endWord(true);
     return;
   }
 
-  currentRow++;
-  currentGuess = "";
-  inputDisplay.textContent = "";
-  if (currentRow >= 5) {
-    sfxLoss();
-    endWord(false);
-  } else {
-    // Μεταφορά πράσινων γραμμάτων στην επόμενη γραμμή
-    for (let i = 0; i < wordLen; i++) {
-      const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
-      if (prevTile && prevTile.classList.contains("green")) {
-        const nextTile = document.getElementById(`t${currentRow}${i}`);
-        if (nextTile) {
-          nextTile.textContent = prevTile.textContent;
-          nextTile.classList.add("green");
-          if (i > 0) currentGuess += prevTile.textContent;
-        }
-      }
-    }
-    messageEl.textContent = `Προσπάθεια ${currentRow + 1}/5`;
-    startTimer();
-  }
+  // Wrong valid word → -5 and advance
+  applyPenalty(5);
+  messageEl.textContent = `Λάθος (−5) • Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
+  advanceAfterFail();
 }
 
 function endWord(won) {
   gameOver = true;
   clearInterval(timerInterval);
+  stopTickTock();
+  wordsSolved++;
   if (won) {
-    const pointsTable = [500, 400, 300, 200, 100];
-    const points = pointsTable[Math.min(currentRow, 4)] || 0;
-    if (mode === 1) score += points;
-    else {
-      if (currentPlayer === 1) scoreP1 += points;
-      else scoreP2 += points;
-    }
-    wordsSolved++;
-    messageEl.textContent = `🎉 Lingo! +${points}`;
-    setTimeout(nextWord, 1500);
+    setTimeout(nextWord, 1400);
   } else {
-    messageEl.textContent = `Η λέξη ήταν: ${secret} (0 πόντοι)`;
-    if (mode === 1) {
-      // Continue to next word in 1-player
-      wordsSolved++;
-      setTimeout(nextWord, 1800);
-    } else {
-      // 2-player: full round done, switch player
+    if (mode === 2) {
+      // After full failure, next word starts with the other player? or same?
+      // Specs: switch happens on each fail. After word ends, start next with current (or alternate)
       currentPlayer = currentPlayer === 1 ? 2 : 1;
-      wordsSolved++;
-      messageEl.textContent += ` - Σειρά Παίκτη ${currentPlayer}`;
-      setTimeout(nextWord, 1800);
     }
+    setTimeout(nextWord, 1800);
   }
   updateUI();
 }
 
-function switchTurn() {
-  if (isSteal) {
-    // Αποτυχία κλοπής: μηδενικό πέναλτι, επιστροφή
-    isSteal = false;
-    currentPlayer = currentPlayer === 1 ? 2 : 1;
-    messageEl.textContent = "Αποτυχία κλοπής. Επιστροφή.";
-    wordsSolved++;
-    setTimeout(nextWord, 1500);
-  } else {
-    currentPlayer = currentPlayer === 1 ? 2 : 1;
-    currentRow = 0;
-    currentGuess = "";
-    inputDisplay.textContent = "";
-    startTimer();
-    updateUI();
-  }
-}
-
 function endMatch() {
   clearInterval(timerInterval);
+  stopTickTock();
   showScreen("result");
   if (mode === 1) {
     document.getElementById("resultTitle").textContent = "Τέλος!";
     document.getElementById("resultScores").innerHTML = `Σκορ: ${score}`;
   } else {
-    document.getElementById("resultTitle").textContent = scoreP1 > scoreP2 ? "Νικητής: Παίκτης 1!" : scoreP2 > scoreP1 ? "Νικητής: Παίκτης 2!" : "Ισοπαλία!";
+    const title = scoreP1 > scoreP2 ? "Νικητής: Παίκτης 1!" : scoreP2 > scoreP1 ? "Νικητής: Παίκτης 2!" : "Ισοπαλία!";
+    document.getElementById("resultTitle").textContent = title;
     document.getElementById("resultScores").innerHTML = `Π1: ${scoreP1} &nbsp; Π2: ${scoreP2}`;
   }
 }
@@ -2579,9 +2597,11 @@ function evaluateGuess(guess) {
   const result = Array(wordLen).fill("absent");
   const s = secret.split("");
   const g = guess.split("");
+  // Greens first
   for (let i = 0; i < wordLen; i++) {
     if (g[i] === s[i]) { result[i] = "green"; s[i] = null; g[i] = null; }
   }
+  // Oranges
   for (let i = 0; i < wordLen; i++) {
     if (g[i] && s.includes(g[i])) {
       result[i] = "orange";
@@ -2591,62 +2611,10 @@ function evaluateGuess(guess) {
   return result;
 }
 
-function updateBoosters() {
-  document.getElementById("b1").textContent = "x" + boosters.green;
-  document.getElementById("b2").textContent = "x" + boosters.orange;
-  document.getElementById("b3").textContent = "x" + boosters.pink;
-  document.getElementById("b4").textContent = "x" + boosters.blue;
-}
-
-function useBooster(type) {
-  if (gameOver || boosters[type] <= 0) return;
-  boosters[type]--;
-  updateBoosters();
-  if (type === "green") {
-    for (let i = 1; i < wordLen; i++) {
-      const tile = document.getElementById(`t${currentRow}${i}`);
-      if (!tile.textContent) {
-        tile.textContent = secret[i];
-        tile.classList.add("green");
-        sfxCorrect();
-        messageEl.textContent = "Σωστό γράμμα σε σωστή θέση!";
-        return;
-      }
-    }
-  } else if (type === "orange") {
-    for (let i = 1; i < wordLen; i++) {
-      if (secret[i] !== secret[0]) {
-        const wp = (i + 1) % wordLen || 1;
-        const tile = document.getElementById(`t${currentRow}${wp}`);
-        if (tile && !tile.classList.contains("green")) {
-          tile.textContent = secret[i];
-          tile.classList.add("orange");
-          messageEl.textContent = "Σωστό γράμμα σε λάθος θέση!";
-          return;
-        }
-      }
-    }
-  } else if (type === "pink") {
-    const inWord = new Set(secret.split(""));
-    let removed = 0;
-    document.querySelectorAll(".key").forEach(k => {
-      if (k.textContent.length === 1 && !inWord.has(k.textContent) && !k.classList.contains("absent") && removed < 6) {
-        k.classList.add("absent");
-        removed++;
-      }
-    });
-    messageEl.textContent = "Αφαιρέθηκαν λάθος γράμματα!";
-  } else if (type === "blue") {
-    frozen = true;
-    messageEl.textContent = "Ο χρόνος πάγωσε για 20 δευτερόλεπτα!";
-    setTimeout(() => { frozen = false; messageEl.textContent = "Ο χρόνος συνεχίζει!"; }, 20000);
-  }
-}
-
-// Μικρόφωνο
+// ============ SPEECH ============
 function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { micBtn.disabled = true; return; }
+  if (!SR) { if (micBtn) micBtn.disabled = true; return; }
   recognition = new SR();
   recognition.lang = "el-GR";
   recognition.continuous = false;
@@ -2662,7 +2630,7 @@ function initSpeech() {
       setTimeout(submitGuess, 400);
     }
   };
-  recognition.onend = () => { isListening = false; micBtn.classList.remove("listening"); micBtn.textContent = "🎤 Μικρόφωνο"; };
+  recognition.onend = () => { isListening = false; if (micBtn) { micBtn.classList.remove("listening"); micBtn.textContent = "🎤 Μικρόφωνο"; } };
 }
 function toggleMic() {
   if (!recognition) return;
@@ -2675,6 +2643,7 @@ function toggleMic() {
   }
 }
 
+// ============ KEYBOARD EVENTS ============
 document.addEventListener("keydown", (e) => {
   if (!gameScreen.classList.contains("active")) return;
   if (e.key === "Backspace") handleKey("⌫");
@@ -2692,18 +2661,17 @@ document.querySelectorAll("button").forEach(btn => {
 });
 initSpeech();
 
+// ============ HOME ANIMATION ============
 function assembleText(elementId, finalText, delay = 0) {
   const el = document.getElementById(elementId);
   if (!el) return;
   const letters = finalText.split("");
   let displayed = Array(letters.length).fill("");
   const positions = letters.map((_, i) => i);
-
   for (let i = positions.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [positions[i], positions[j]] = [positions[j], positions[i]];
   }
-
   positions.forEach((pos, idx) => {
     setTimeout(() => {
       displayed[pos] = letters[pos];
@@ -2711,18 +2679,15 @@ function assembleText(elementId, finalText, delay = 0) {
     }, delay + idx * 70);
   });
 }
-
 function startAssembly() {
   assembleText("line1", "Το παιχνίδι των λέξεων", 400);
   assembleText("line2", "FranklyLingo", 1100);
   assembleText("line3", "Βρες τη λέξη", 1700);
 }
-
 setTimeout(() => {
   const logo = document.getElementById("logo");
   if (logo) logo.classList.add("stop");
 }, 3500);
-
 startAssembly();
 </script>
 </body>
