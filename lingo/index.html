@@ -269,7 +269,32 @@
 <div id="mode" class="screen" style="background: linear-gradient(160deg, #0a1228 0%, #12204a 50%, #0c1a38 100%); justify-content: center; align-items: center;">
   <button class="play-btn" style="position:static; margin:12px 0; min-width:240px;" onclick="startGame(1)">1 Παίκτης</button>
   <button class="play-btn" style="position:static; margin:12px 0; min-width:240px;" onclick="startGame(2)">2 Παίκτες</button>
+  <button class="play-btn" style="position:static; margin:12px 0; min-width:240px; background:linear-gradient(135deg,#3b82f6,#60a5fa);" onclick="showInstructions()">Οδηγίες</button>
   <button class="play-btn" style="position:static; margin:20px 0 0; background:linear-gradient(135deg,#64748b,#94a3b8); color:#fff;" onclick="showHome()">Πίσω</button>
+</div>
+
+<!-- Instructions Modal -->
+<div id="instructionsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#12204a; color:white; padding:28px; border-radius:16px; max-width:420px; width:90%; text-align:left; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+    <h2 style="text-align:center; margin-top:0; color:#fbbf24;">Οδηγίες</h2>
+    <div style="line-height:1.5; font-size:0.95rem;">
+      <p><strong>Πώς παίζεται το FranklyLingo:</strong></p>
+      <p>Έχεις 5 προσπάθειες για να βρεις την κρυμμένη λέξη. Σε κάθε προσπάθεια έχεις αυστηρά 20 δευτερόλεπτα!</p>
+      <ul style="padding-left:20px;">
+        <li>Το Πράσινο χρώμα σημαίνει ότι βρήκες το σωστό γράμμα στη σωστή θέση.</li>
+        <li>Το Κίτρινο χρώμα σημαίνει ότι το γράμμα υπάρχει στη λέξη, αλλά σε άλλη θέση.</li>
+      </ul>
+      <p><strong>Σύστημα Πόντων:</strong></p>
+      <ul style="padding-left:20px;">
+        <li>1η προσπάθεια: 500 πόντοι</li>
+        <li>2η προσπάθεια: 400 πόντοι</li>
+        <li>3η προσπάθεια: 300 πόντοι</li>
+        <li>4η προσπάθεια: 200 πόντοι</li>
+        <li>5η προσπάθεια: 100 πόντοι</li>
+      </ul>
+    </div>
+    <button class="play-btn" style="position:static; display:block; margin:20px auto 0; min-width:160px;" onclick="hideInstructions()">Κλείσιμο</button>
+  </div>
 </div>
 
 <!-- Παιχνίδι -->
@@ -1872,10 +1897,17 @@ function sfxClick() {
   playTone(880, 0.06, "sine", 0.07); 
   setTimeout(() => playTone(1175, 0.08, "sine", 0.05), 40); 
 }
-function sfxSuccess() { playTone(523, 0.15); setTimeout(()=>playTone(659, 0.15), 100); setTimeout(()=>playTone(784, 0.3), 200); }
-function sfxCorrect() { playTone(660, 0.08, "square", 0.08); }
-function sfxWrong() { playTone(180, 0.2, "sawtooth", 0.06); }
-function sfxLoss() { playTone(150, 0.4, "triangle", 0.1); }
+function sfxSuccess() { 
+  playTone(523, 0.12); 
+  setTimeout(()=>playTone(659, 0.12), 80); 
+  setTimeout(()=>playTone(784, 0.12), 160); 
+  setTimeout(()=>playTone(1046, 0.25), 240); 
+}
+function sfxZonk() { 
+  playTone(180, 0.15, "sawtooth", 0.08); 
+  setTimeout(()=>playTone(120, 0.25, "sawtooth", 0.1), 100); 
+}
+function sfxLoss() { sfxZonk(); }
 
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -1883,6 +1915,12 @@ function showScreen(id) {
 }
 function showHome() { showScreen("home"); clearInterval(timerInterval); }
 function showMode() { showScreen("mode"); }
+function showInstructions() {
+  document.getElementById("instructionsModal").style.display = "flex";
+}
+function hideInstructions() {
+  document.getElementById("instructionsModal").style.display = "none";
+}
 
 function startGame(m) {
   mode = m;
@@ -1969,7 +2007,7 @@ function buildKeyboard() {
 
 function startTimer() {
   clearInterval(timerInterval);
-  timeLeft = 60;
+  timeLeft = 20;
   frozen = false;
   timerEl.textContent = timeLeft;
   timerEl.classList.remove("warning");
@@ -1977,10 +2015,10 @@ function startTimer() {
     if (frozen || gameOver) return;
     timeLeft--;
     timerEl.textContent = timeLeft;
-    if (timeLeft <= 10) timerEl.classList.add("warning");
+    if (timeLeft <= 5) timerEl.classList.add("warning");
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
-      sfxLoss();
+      sfxZonk();
       handleTimeout();
     }
   }, 1000);
@@ -1988,12 +2026,28 @@ function startTimer() {
 
 function handleTimeout() {
   messageEl.textContent = "Τέλος χρόνου!";
-  if (mode === 2) {
-    applyPenalty("timeout");
-    switchTurn();
-  } else {
-    // 1 Παίκτης: λήξη χρόνου = τέλος παιχνιδιού
+  // Mark current attempt as failed and advance
+  currentRow++;
+  currentGuess = "";
+  inputDisplay.textContent = "";
+  if (currentRow >= 5) {
+    sfxZonk();
     endWord(false);
+  } else {
+    // Carry green letters
+    for (let i = 0; i < wordLen; i++) {
+      const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
+      if (prevTile && prevTile.classList.contains("green")) {
+        const nextTile = document.getElementById(`t${currentRow}${i}`);
+        if (nextTile) {
+          nextTile.textContent = prevTile.textContent;
+          nextTile.classList.add("green");
+          if (i > 0) currentGuess += prevTile.textContent;
+        }
+      }
+    }
+    messageEl.textContent = `Προσπάθεια ${currentRow + 1}/5`;
+    startTimer();
   }
 }
 
@@ -2096,7 +2150,8 @@ function endWord(won) {
   gameOver = true;
   clearInterval(timerInterval);
   if (won) {
-    const points = wordLen * 20;
+    const pointsTable = [500, 400, 300, 200, 100];
+    const points = pointsTable[Math.min(currentRow, 4)] || 0;
     if (mode === 1) score += points;
     else {
       if (currentPlayer === 1) scoreP1 += points;
@@ -2106,19 +2161,16 @@ function endWord(won) {
     messageEl.textContent = `🎉 Lingo! +${points}`;
     setTimeout(nextWord, 1500);
   } else {
-    messageEl.textContent = `Η λέξη ήταν: ${secret}`;
+    messageEl.textContent = `Η λέξη ήταν: ${secret} (0 πόντοι)`;
     if (mode === 1) {
-      // 1 Παίκτης: αποτυχία = τέλος παιχνιδιού
-      setTimeout(endMatch, 1800);
-    } else if (mode === 2 && !isSteal) {
-      isSteal = true;
-      currentPlayer = currentPlayer === 1 ? 2 : 1;
-      currentRow = 0;
-      currentGuess = "";
-      messageEl.textContent += " - Ευκαιρία κλοπής!";
-      setTimeout(() => { startTimer(); updateUI(); }, 1000);
-    } else {
+      // Continue to next word in 1-player
       wordsSolved++;
+      setTimeout(nextWord, 1800);
+    } else {
+      // 2-player: full round done, switch player
+      currentPlayer = currentPlayer === 1 ? 2 : 1;
+      wordsSolved++;
+      messageEl.textContent += ` - Σειρά Παίκτη ${currentPlayer}`;
       setTimeout(nextWord, 1800);
     }
   }
