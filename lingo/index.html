@@ -202,10 +202,24 @@
     background: var(--tile); border: 2px solid var(--tile-border);
     border-radius: 8px; display: flex; align-items: center; justify-content: center;
     font-size: 1.4rem; font-weight: 700;
+    transition: transform 0.3s, background 0.15s;
+    transform-style: preserve-3d;
+    perspective: 400px;
+  }
   }
   .tile.green { background: var(--green); border-color: #16a34a; }
   .tile.orange { background: var(--orange); border-color: #d97706; }
   .tile.absent { background: var(--absent); border-color: #1e3a5f; color: #64748b; }
+  .tile.flip {
+    animation: tileFlip 0.45s ease-in forwards;
+  }
+  @keyframes tileFlip {
+    0%   { transform: rotateX(0deg); }
+    50%  { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+  .key.green-key { background: #16a34a !important; color: #fff !important; }
+  .key.orange-key { background: #d97706 !important; color: #fff !important; }
   .boosters { display: flex; justify-content: center; gap: 8px; margin: 6px 0; }
   .booster { width: 54px; height: 54px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1rem; }
   .booster.green-b { background: #22c55e; }
@@ -237,7 +251,7 @@
     min-width: 28px;
   }
   .key.wide { flex: 1.4; max-width: 70px; font-size: 0.8rem; }
-  .key.absent { background: #475569; color: #94a3b8; pointer-events: none; }
+  .key.absent { background: #334155 !important; color: #64748b !important; pointer-events: none; opacity: 0.55; }
   .controls { display: flex; justify-content: center; gap: 8px; margin-top: 6px; }
   button.action { background: #3b82f6; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; }
   button.mic { background: #ec4899; }
@@ -2295,6 +2309,7 @@ function getWordConfig(idx) {
 }
 
 function nextWord() {
+  stopMic();
   if (wordsSolved >= 5) { endMatch(); return; }
   const cfg = getWordConfig(wordsSolved);
   wordLen = cfg.len;
@@ -2512,62 +2527,115 @@ function submitGuess() {
     return;
   }
 
+  // Freeze timer during evaluation
+  clearInterval(timerInterval);
+  stopTickTock();
+
   // Invalid word → counts as attempt, -5, advance
   if (!isValidWord(currentGuess)) {
     messageEl.textContent = "Η λέξη δεν υπάρχει! (−5)";
     applyPenalty(5);
-    for (let i = 0; i < wordLen; i++) {
-      const tile = document.getElementById(`t${currentRow}${i}`);
-      tile.textContent = currentGuess[i];
-      tile.classList.add("absent");
-    }
-    sfxZonk();
-    stopTickTock();
-    clearInterval(timerInterval);
-    advanceAfterFail();
+    revealRowWithFlip(Array(wordLen).fill("absent"), currentGuess, () => {
+      sfxZonk();
+      advanceAfterFail();
+      resumeMicIfNeeded();
+    });
     return;
   }
 
   // Valid guess
-  stopTickTock();
-  clearInterval(timerInterval);
   const result = evaluateGuess(currentGuess);
-  let allGreen = true;
+  const isWin = currentGuess === secret;
+
+  revealRowWithFlip(result, currentGuess, () => {
+    // Update keyboard colors after flip
+    updateKeyboardFromResult(currentGuess, result);
+
+    if (isWin) {
+      sfxSuccess();
+      const pointsTable = [50, 40, 30, 20, 10, 10];
+      const pts = pointsTable[Math.min(currentRow, 5)] || 10;
+      if (mode === 1) score += pts;
+      else {
+        if (currentPlayer === 1) scoreP1 += pts;
+        else scoreP2 += pts;
+      }
+      messageEl.textContent = `🎉 Lingo! +${pts}`;
+      updateUI();
+      stopMic(); // close mic on success
+      endWord(true);
+      return;
+    }
+
+    // Wrong valid word → -5 and advance
+    applyPenalty(5);
+    sfxWrong();
+    messageEl.textContent = `Λάθος (−5) • Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
+    advanceAfterFail();
+    resumeMicIfNeeded();
+  });
+}
+
+function revealRowWithFlip(result, guess, onComplete) {
+  let completed = 0;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (onComplete) onComplete();
+  };
   for (let i = 0; i < wordLen; i++) {
     const tile = document.getElementById(`t${currentRow}${i}`);
-    tile.textContent = currentGuess[i];
-    tile.classList.remove("green", "orange", "absent");
-    tile.classList.add(result[i]);
-    if (result[i] === "green") sfxCorrect();
-    else allGreen = false;
+    if (!tile) { completed++; if (completed >= wordLen) finish(); continue; }
+    setTimeout(() => {
+      tile.classList.add("flip");
+      setTimeout(() => {
+        tile.textContent = guess[i];
+        tile.classList.remove("green", "orange", "absent");
+        tile.classList.add(result[i]);
+        if (result[i] === "green") sfxCorrect();
+      }, 220);
+      setTimeout(() => {
+        tile.classList.remove("flip");
+        completed++;
+        if (completed >= wordLen) finish();
+      }, 450);
+    }, i * 200);
   }
-  if (!allGreen) sfxWrong();
+  // Safety
+  setTimeout(finish, wordLen * 200 + 700);
+}
 
-  if (currentGuess === secret) {
-    sfxSuccess();
-    const pointsTable = [50, 40, 30, 20, 10, 10]; // index = attempt (0-based)
-    const pts = pointsTable[Math.min(currentRow, 5)] || 10;
-    if (mode === 1) score += pts;
-    else {
-      if (currentPlayer === 1) scoreP1 += pts;
-      else scoreP2 += pts;
-    }
-    messageEl.textContent = `🎉 Lingo! +${pts}`;
-    updateUI();
-    endWord(true);
-    return;
+function updateKeyboardFromResult(guess, result) {
+  for (let i = 0; i < guess.length; i++) {
+    const letter = guess[i];
+    const status = result[i];
+    document.querySelectorAll(".key").forEach(k => {
+      if (k.textContent === letter && k.textContent.length === 1) {
+        // Priority: green > orange > absent
+        if (status === "green") {
+          k.classList.remove("absent", "orange-key");
+          k.classList.add("green-key");
+        } else if (status === "orange") {
+          if (!k.classList.contains("green-key")) {
+            k.classList.remove("absent");
+            k.classList.add("orange-key");
+          }
+        } else if (status === "absent") {
+          if (!k.classList.contains("green-key") && !k.classList.contains("orange-key")) {
+            k.classList.add("absent");
+          }
+        }
+      }
+    });
   }
-
-  // Wrong valid word → -5 and advance
-  applyPenalty(5);
-  messageEl.textContent = `Λάθος (−5) • Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
-  advanceAfterFail();
 }
 
 function endWord(won) {
   gameOver = true;
   clearInterval(timerInterval);
   stopTickTock();
+  stopMic();
   wordsSolved++;
   if (won) {
     setTimeout(nextWord, 1400);
@@ -2615,6 +2683,8 @@ function evaluateGuess(guess) {
 }
 
 // ============ SPEECH ============
+let micPersistent = false; // stays on for whole word
+
 function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { if (micBtn) micBtn.disabled = true; return; }
@@ -2624,29 +2694,96 @@ function initSpeech() {
   recognition.interimResults = false;
   recognition.onresult = (e) => {
     let spoken = e.results[0][0].transcript.toUpperCase().replace(/\s/g, "").normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+    // Keep only Greek letters
+    spoken = spoken.replace(/[^ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ]/g, "");
     if (spoken.length >= wordLen) {
       currentGuess = spoken.substring(0, wordLen);
       if (!currentGuess.startsWith(secret[0])) currentGuess = secret[0] + currentGuess.slice(1);
       inputDisplay.textContent = currentGuess;
       updatePreview();
       messageEl.textContent = `Άκουσες: ${currentGuess}`;
-      setTimeout(submitGuess, 400);
+      setTimeout(() => {
+        submitGuess();
+      }, 350);
+    } else if (spoken.length > 0) {
+      currentGuess = spoken;
+      if (currentGuess.length > 0 && !currentGuess.startsWith(secret[0])) {
+        currentGuess = secret[0] + currentGuess.slice(1);
+      }
+      inputDisplay.textContent = currentGuess;
+      updatePreview();
+      messageEl.textContent = `Άκουσες: ${currentGuess} (συνέχισε...)`;
     }
   };
-  recognition.onend = () => { isListening = false; if (micBtn) { micBtn.classList.remove("listening"); micBtn.textContent = "🎤 Μικρόφωνο"; } };
+  recognition.onend = () => {
+    isListening = false;
+    // If persistent mode and still in same word, restart listening
+    if (micPersistent && !gameOver && gameScreen.classList.contains("active")) {
+      setTimeout(() => {
+        if (micPersistent && !gameOver) {
+          try {
+            recognition.start();
+            isListening = true;
+            if (micBtn) {
+              micBtn.classList.add("listening");
+              micBtn.textContent = "● Ακούω...";
+            }
+          } catch(e) {}
+        }
+      }, 400);
+    } else {
+      if (micBtn) {
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "🎤 Μικρόφωνο";
+      }
+    }
+  };
+  recognition.onerror = (e) => {
+    if (e.error !== "aborted" && e.error !== "no-speech") {
+      console.log("Speech error:", e.error);
+    }
+    // Restart if persistent
+    if (micPersistent && !gameOver) {
+      setTimeout(() => {
+        try { recognition.start(); isListening = true; } catch(err) {}
+      }, 500);
+    }
+  };
 }
+
 function toggleMic() {
   if (!recognition) return;
-  if (isListening) recognition.stop();
-  else {
+  if (micPersistent || isListening) {
+    // Manual off
+    stopMic();
+  } else {
+    // Turn on persistent for this word
+    micPersistent = true;
     isListening = true;
     micBtn.classList.add("listening");
     micBtn.textContent = "● Ακούω...";
-    recognition.start();
+    try { recognition.start(); } catch(e) {}
   }
 }
 
-// ============ KEYBOARD EVENTS ============
+function stopMic() {
+  micPersistent = false;
+  isListening = false;
+  try { recognition && recognition.stop(); } catch(e) {}
+  if (micBtn) {
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤 Μικρόφωνο";
+  }
+}
+
+function resumeMicIfNeeded() {
+  // After a failed attempt, if mic was persistent, it will auto-restart via onend
+  // Just ensure flag stays true
+  if (micPersistent && !gameOver) {
+    // onend handler will restart
+  }
+}
+
 document.addEventListener("keydown", (e) => {
   if (!gameScreen.classList.contains("active")) return;
   if (e.key === "Backspace") handleKey("⌫");
