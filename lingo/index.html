@@ -207,15 +207,16 @@
     perspective: 400px;
   }
   }
-  .tile.green { background: var(--green); border-color: #16a34a; }
-  .tile.orange { background: var(--orange); border-color: #d97706; }
-  .tile.absent { background: var(--absent); border-color: #1e3a5f; color: #64748b; }
+  .tile.green { background: #22c55e !important; border-color: #16a34a !important; color: #ffffff !important; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+  .tile.orange { background: #f59e0b !important; border-color: #d97706 !important; color: #111111 !important; box-shadow: 0 0 8px rgba(245,158,11,0.45); }
+  .tile.absent { background: #334155 !important; border-color: #475569 !important; color: #94a3b8 !important; }
   .tile.flip {
-    animation: tileFlip 0.45s ease-in forwards;
+    animation: tileFlip 0.5s ease-in-out forwards;
   }
   @keyframes tileFlip {
     0%   { transform: rotateX(0deg); }
-    50%  { transform: rotateX(90deg); }
+    49%  { transform: rotateX(90deg); }
+    51%  { transform: rotateX(90deg); }
     100% { transform: rotateX(0deg); }
   }
   .key.green-key { background: #16a34a !important; color: #fff !important; }
@@ -281,6 +282,7 @@
 
 <!-- Επιλογή Mode -->
 <div id="mode" class="screen" style="background: linear-gradient(160deg, #0a1228 0%, #12204a 50%, #0c1a38 100%); justify-content: center; align-items: center;">
+    <div id="highScorePreview" style="margin:16px 0 8px; text-align:center; font-size:0.9rem; color:#93c5fd; opacity:0.95;"></div>
   <button class="play-btn" style="position:static; margin:12px 0; min-width:240px;" onclick="startGame(1)">1 Παίκτης</button>
   <button class="play-btn" style="position:static; margin:12px 0; min-width:240px;" onclick="startGame(2)">2 Παίκτες</button>
   <button class="play-btn" style="position:static; margin:12px 0; min-width:240px; background:linear-gradient(135deg,#3b82f6,#60a5fa);" onclick="showInstructions()">Οδηγίες</button>
@@ -313,6 +315,16 @@
   </div>
 </div>
 
+
+<!-- Επιλογή Δυσκολίας -->
+<div id="difficulty" class="screen" style="background: linear-gradient(160deg, #0a1228 0%, #12204a 50%, #0c1a38 100%); justify-content: center; align-items: center;">
+  <h2 style="margin-bottom:16px; color:#fbbf24;">Επίλεξε Δυσκολία</h2>
+  <button class="play-btn" style="position:static; margin:10px 0; min-width:260px; background:linear-gradient(135deg,#22c55e,#16a34a);" onclick="setDifficulty('easy')">Εύκολο (4 γράμματα)</button>
+  <button class="play-btn" style="position:static; margin:10px 0; min-width:260px; background:linear-gradient(135deg,#f59e0b,#d97706);" onclick="setDifficulty('medium')">Μέτριο (5-6 γράμματα)</button>
+  <button class="play-btn" style="position:static; margin:10px 0; min-width:260px; background:linear-gradient(135deg,#ef4444,#dc2626);" onclick="setDifficulty('hard')">Δύσκολο (6-7 γράμματα)</button>
+  <button class="play-btn" style="position:static; margin:20px 0 0; background:linear-gradient(135deg,#64748b,#94a3b8); color:#fff;" onclick="showMode()">Πίσω</button>
+</div>
+
 <!-- Παιχνίδι -->
 <div id="game" class="screen">
   <header class="game-header">
@@ -339,6 +351,7 @@
     </div>
     <div class="message" id="message">Το πρώτο γράμμα είναι ήδη γνωστό</div>
     <div id="keyboard"></div>
+    <button id="nextWordBtn" class="play-btn" style="position:static; display:none; margin:8px auto; min-width:200px; font-size:1.1rem;" onclick="playerNextWord()">Επόμενη Λέξη ▶</button>
     <div class="controls">
       <button class="action mic" id="micBtn" onclick="toggleMic()">🎤 Μικρόφωνο</button>
       <button class="action" onclick="showHome()">Μενού</button>
@@ -354,6 +367,357 @@
 </div>
 
 <script>
+const WORDS4 = [
+  "ΑΙΜΑ",
+  "ΑΚΤΗ",
+  "ΑΛΜΑ",
+  "ΑΡΧΗ",
+  "ΑΥΓΗ",
+  "ΑΥΓΟ",
+  "ΑΥΤΙ",
+  "ΒΙΔΑ",
+  "ΒΟΔΙ",
+  "ΓΑΖΑ",
+  "ΓΑΛΑ",
+  "ΓΑΤΑ",
+  "ΓΕΙΑ",
+  "ΓΙΟΣ",
+  "ΓΚΡΙ",
+  "ΔΕΚΑ",
+  "ΔΙΝΩ",
+  "ΔΙΨΑ",
+  "ΔΩΡΟ",
+  "ΕΛΙΑ",
+  "ΕΠΤΑ",
+  "ΕΡΓΟ",
+  "ΕΤΟΣ",
+  "ΕΥΧΗ",
+  "ΕΦΤΑ",
+  "ΖΩΝΗ",
+  "ΘΕΙΑ",
+  "ΘΕΛΩ",
+  "ΘΕΜΑ",
+  "ΘΕΟΣ",
+  "ΙΔΕΑ",
+  "ΙΣΩΣ",
+  "ΚΑΚΟ",
+  "ΚΑΝΩ",
+  "ΚΑΤΙ",
+  "ΚΑΦΕ",
+  "ΚΟΡΗ",
+  "ΚΟΤΑ",
+  "ΚΡΥΟ",
+  "ΚΥΜΑ",
+  "ΛΑΔΙ",
+  "ΛΙΓΟ",
+  "ΛΥΠΗ",
+  "ΛΥΣΗ",
+  "ΜΑΜΑ",
+  "ΜΑΤΙ",
+  "ΜΕΛΙ",
+  "ΜΕΝΩ",
+  "ΜΕΡΑ",
+  "ΜΕΣΗ",
+  "ΜΕΤΑ",
+  "ΜΗΛΟ",
+  "ΜΙΛΩ",
+  "ΜΙΣΩ",
+  "ΜΟΝΟ",
+  "ΜΠΛΕ",
+  "ΜΥΤΗ",
+  "ΜΩΡΟ",
+  "ΝΑΟΣ",
+  "ΝΕΟΣ",
+  "ΝΕΡΟ",
+  "ΝΗΣΙ",
+  "ΝΥΦΗ",
+  "ΞΕΡΩ",
+  "ΞΥΔΙ",
+  "ΟΑΣΗ",
+  "ΟΔΟΣ",
+  "ΟΚΤΩ",
+  "ΟΠΛΟ",
+  "ΟΡΓΗ",
+  "ΟΡΟΣ",
+  "ΟΣΤΟ",
+  "ΟΤΑΝ",
+  "ΟΥΡΑ",
+  "ΟΧΤΩ",
+  "ΠΙΝΩ",
+  "ΠΙΤΑ",
+  "ΠΟΔΙ",
+  "ΠΟΛΗ",
+  "ΠΟΛΥ",
+  "ΠΟΤΕ",
+  "ΠΟΤΟ",
+  "ΠΡΙΝ",
+  "ΠΡΩΙ",
+  "ΡΑΦΙ",
+  "ΡΙΖΑ",
+  "ΡΥΖΙ",
+  "ΡΩΤΩ",
+  "ΣΚΙΑ",
+  "ΣΟΔΑ",
+  "ΣΩΜΑ",
+  "ΤΑΞΗ",
+  "ΤΑΞΙ",
+  "ΤΟΣΤ",
+  "ΤΟΤΕ",
+  "ΤΡΙΑ",
+  "ΤΡΩΩ",
+  "ΤΣΑΙ",
+  "ΤΥΡΙ",
+  "ΤΥΧΗ",
+  "ΤΩΡΑ",
+  "ΥΓΡΟ",
+  "ΦΑΚΗ",
+  "ΦΗΜΗ",
+  "ΦΙΔΙ",
+  "ΦΙΛΗ",
+  "ΦΙΛΙ",
+  "ΦΥΣΗ",
+  "ΦΥΤΟ",
+  "ΦΩΝΗ",
+  "ΧΑΛΙ",
+  "ΧΑΠΙ",
+  "ΧΑΡΑ",
+  "ΧΕΡΙ",
+  "ΧΗΝΑ",
+  "ΧΘΕΣ",
+  "ΧΤΕΣ",
+  "ΧΩΜΑ",
+  "ΧΩΡΑ",
+  "ΨΑΡΙ",
+  "ΨΕΜΑ",
+  "ΨΗΝΩ",
+  "ΨΥΧΗ",
+  "ΨΩΜΙ",
+  "ΩΜΟΣ",
+  "ΒΗΜΑ",
+  "ΓΕΛΙ",
+  "ΘΕΣΗ",
+  "ΝΟΤΑ",
+  "ΣΑΛΑ",
+  "ΦΟΡΑ",
+  "ΧΑΟΣ",
+  "ΒΑΣΗ",
+  "ΒΙΟΣ",
+  "ΒΟΛΗ",
+  "ΓΑΜΟ",
+  "ΓΕΡΑ",
+  "ΔΙΚΗ",
+  "ΔΟΜΗ",
+  "ΗΘΟΣ",
+  "ΚΑΔΟ",
+  "ΚΑΛΟ",
+  "ΚΗΠΟ",
+  "ΚΟΣΜ",
+  "ΛΙΜΝ",
+  "ΛΥΚΟ",
+  "ΜΗΝΑ",
+  "ΜΥΘΟ",
+  "ΝΟΜΟ",
+  "ΝΥΧΤ",
+  "ΞΕΝΟ",
+  "ΟΙΚΟ",
+  "ΟΝΟΜ",
+  "ΠΑΙΔ",
+  "ΠΑΡΚ",
+  "ΠΕΤΡ",
+  "ΠΙΑΤ",
+  "ΠΟΡΤ",
+  "ΡΕΥΜ",
+  "ΣΠΙΤ",
+  "ΣΤΕΓ",
+  "ΤΟΠΟ",
+  "ΤΡΕΝ",
+  "ΦΙΛΟ",
+  "ΦΟΒΟ",
+  "ΧΑΡΤ",
+  "ΧΙΟΝ",
+  "ΧΟΡΟ",
+  "ΧΡΗΜ",
+  "ΧΡΩΜ",
+  "ΨΗΦΟ",
+  "ΒΑΡΚ",
+  "ΜΑΣΚ",
+  "ΠΑΓΟ",
+  "ΦΩΤΙ",
+  "ΠΙΑΝ",
+  "ΑΡΩΜ",
+  "ΚΑΦΗ",
+  "ΚΟΡΜ",
+  "ΚΟΥΠ",
+  "ΚΡΕΜ",
+  "ΚΕΦΙ",
+  "ΑΚΜΗ",
+  "ΑΞΙΑ",
+  "ΑΥΛΗ",
+  "ΑΦΡΟ",
+  "ΔΑΣΗ",
+  "ΕΞΟΔ",
+  "ΖΕΣΤ",
+  "ΗΛΙΟ",
+  "ΗΜΕΡ",
+  "ΘΥΡΑ",
+  "ΙΣΧΥ",
+  "ΚΑΡΔ",
+  "ΚΑΣΤ",
+  "ΚΕΝΑ",
+  "ΚΛΕΙ",
+  "ΚΟΙΝ",
+  "ΚΡΕΑ",
+  "ΚΡΙΣ",
+  "ΚΥΚΛ",
+  "ΛΑΘΗ",
+  "ΛΑΜΠ",
+  "ΛΕΠΤ",
+  "ΛΕΥΚ",
+  "ΛΟΦΟ",
+  "ΜΑΚΡ",
+  "ΜΑΛΛ",
+  "ΜΕΡΗ",
+  "ΜΗΚΗ",
+  "ΜΙΚΡ",
+  "ΜΝΗΜ",
+  "ΜΟΙΡ",
+  "ΜΟΝΗ",
+  "ΜΟΡΦ",
+  "ΝΕΚΡ",
+  "ΝΟΗΜ",
+  "ΝΟΣΟ",
+  "ΝΟΤΟ",
+  "ΞΙΦΟ",
+  "ΟΙΝΟ",
+  "ΟΡΚΟ",
+  "ΠΑΘΗ",
+  "ΠΑΛΙ",
+  "ΠΑΡΕ",
+  "ΠΑΣΧ",
+  "ΠΑΧΗ",
+  "ΠΕΙΝ",
+  "ΠΕΝΤ",
+  "ΠΙΕΣ",
+  "ΠΛΑΤ",
+  "ΠΛΟΙ",
+  "ΠΟΘΟ",
+  "ΠΟΝΟ",
+  "ΠΟΥΛ",
+  "ΠΤΩΣ",
+  "ΡΑΔΙ",
+  "ΡΟΛΟ",
+  "ΡΟΥΧ",
+  "ΣΑΚΟ",
+  "ΣΑΡΚ",
+  "ΣΕΙΡ",
+  "ΣΚΟΝ",
+  "ΣΟΦΙ",
+  "ΣΤΟΜ",
+  "ΤΕΛΗ",
+  "ΤΕΧΝ",
+  "ΤΡΙΧ",
+  "ΤΡΥΠ",
+  "ΤΥΠΟ",
+  "ΥΓΕΙ",
+  "ΥΛΙΚ",
+  "ΥΜΝΟ",
+  "ΥΠΝΟ",
+  "ΦΟΝΟ",
+  "ΦΟΡΟ",
+  "ΦΡΑΣ",
+  "ΦΡΕΝ",
+  "ΦΥΛΛ",
+  "ΦΩΛΙ",
+  "ΧΟΡΤ",
+  "ΧΡΥΣ",
+  "ΧΥΜΟ",
+  "ΧΩΡΙ",
+  "ΨΗΛΟ",
+  "ΚΑΔΡ",
+  "ΚΑΡΦ",
+  "ΚΡΙΟ",
+  "ΒΡΑΔ",
+  "ΓΥΡΟ",
+  "ΔΗΜΟ",
+  "ΕΙΔΗ",
+  "ΕΡΗΜ",
+  "ΕΣΟΔ",
+  "ΗΡΩΑ",
+  "ΙΕΡΑ",
+  "ΚΟΛΛ",
+  "ΚΟΥΤ",
+  "ΜΙΣΗ",
+  "ΜΟΥΣ",
+  "ΜΠΑΛ",
+  "ΝΙΟΤ",
+  "ΠΕΠΛ",
+  "ΠΙΤΣ",
+  "ΡΑΤΣ",
+  "ΣΤΑΧ",
+  "ΣΤΥΛ",
+  "ΧΤΕΝ",
+  "ΑΓΡΙ",
+  "ΑΝΕΜ",
+  "ΑΝΘΟ",
+  "ΑΣΤΕ",
+  "ΑΤΟΜ",
+  "ΒΑΘΗ",
+  "ΒΑΡΗ",
+  "ΒΕΛΙ",
+  "ΓΑΝΤ",
+  "ΓΕΥΣ",
+  "ΓΙΑΤ",
+  "ΓΛΥΚ",
+  "ΓΝΩΜ",
+  "ΓΥΑΛ",
+  "ΔΑΚΡ",
+  "ΔΕΡΜ",
+  "ΔΙΠΛ",
+  "ΕΘΝΗ",
+  "ΕΛΑΦ",
+  "ΕΛΕΗ",
+  "ΕΝΤΟ",
+  "ΕΥΡΙ",
+  "ΖΗΛΙ",
+  "ΖΗΜΙ",
+  "ΘΑΥΜ",
+  "ΘΥΜΙ",
+  "ΙΣΚΙ",
+  "ΙΧΝΙ",
+  "ΚΑΚΙ",
+  "ΚΑΛΙ",
+  "ΚΗΠΙ",
+  "ΚΛΙΜ",
+  "ΛΟΓΙ",
+  "ΛΥΚΙ",
+  "ΜΕΡΙ",
+  "ΜΗΝΙ",
+  "ΜΙΚΙ",
+  "ΝΟΜΙ",
+  "ΝΟΣΙ",
+  "ΝΟΤΙ",
+  "ΞΕΝΙ",
+  "ΟΙΚΙ",
+  "ΟΙΝΙ",
+  "ΟΡΚΙ",
+  "ΠΑΘΙ",
+  "ΠΟΝΙ",
+  "ΡΟΛΙ",
+  "ΣΑΚΙ",
+  "ΤΕΛΙ",
+  "ΤΟΠΙ",
+  "ΤΥΠΙ",
+  "ΦΟΒΙ",
+  "ΦΟΝΙ",
+  "ΦΟΡΙ",
+  "ΧΟΡΙ",
+  "ΧΥΜΙ",
+  "ΨΗΦΙ",
+  "ΨΗΛΙ",
+  "ΩΡΕΣ",
+  "ΩΔΕΣ"
+];
+
 const WORDS5 = [
   "ΑΓΑΠΗ",
   "ΑΓΟΡΑ",
@@ -2195,11 +2559,12 @@ const WORDS7 = [
 ];
 
 function norm(w){ return w.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(); }
-const LISTS = {5: WORDS5.map(norm), 6: WORDS6.map(norm), 7: WORDS7.map(norm)};
+const LISTS = {4: WORDS4.map(norm), 5: WORDS5.map(norm), 6: WORDS6.map(norm), 7: WORDS7.map(norm)};
 const GREEK = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".split("");
 
 // ============ STATE ============
 let mode = 1; // 1 or 2
+let difficulty = "easy"; // easy | medium | hard
 let wordLen = 5;
 let maxAttempts = 5;
 let secret = "";
@@ -2215,6 +2580,35 @@ let tickInterval = null;
 let recognition = null, isListening = false;
 let wordsSolved = 0; // 0..5
 let frozen = false;
+
+// ===== LOCAL STORAGE HIGH SCORES =====
+const HS_KEY = "frankLingo_highScores";
+function loadHighScores() {
+  try {
+    const raw = localStorage.getItem(HS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { best1: 0, best2: 0, last1: 0, last2: 0, gamesPlayed: 0 };
+}
+function saveHighScores(data) {
+  try { localStorage.setItem(HS_KEY, JSON.stringify(data)); } catch(e) {}
+}
+function updateHighScores(mode, s1, s2) {
+  const hs = loadHighScores();
+  hs.gamesPlayed = (hs.gamesPlayed || 0) + 1;
+  if (mode === 1) {
+    hs.last1 = s1;
+    if (s1 > (hs.best1 || 0)) hs.best1 = s1;
+  } else {
+    hs.last1 = s1;
+    hs.last2 = s2;
+    if (s1 > (hs.best1 || 0)) hs.best1 = s1;
+    if (s2 > (hs.best2 || 0)) hs.best2 = s2;
+  }
+  saveHighScores(hs);
+  return hs;
+}
+
 
 // DOM
 const home = document.getElementById("home");
@@ -2275,7 +2669,16 @@ function showScreen(id) {
   document.getElementById(id).classList.add("active");
 }
 function showHome() { showScreen("home"); clearInterval(timerInterval); stopTickTock(); }
-function showMode() { showScreen("mode"); }
+function showMode() {
+  showScreen("mode");
+  const hs = loadHighScores();
+  const el = document.getElementById("highScorePreview");
+  if (el) {
+    el.innerHTML = `🏆 Καλύτερο: <strong>${hs.best1 || 0}</strong>` +
+      (hs.best2 ? ` &nbsp;|&nbsp; Π2: <strong>${hs.best2}</strong>` : '') +
+      (hs.gamesPlayed ? ` &nbsp;•&nbsp; ${hs.gamesPlayed} παιχνίδια` : '');
+  }
+}
 function showInstructions() {
   document.getElementById("instructionsModal").style.display = "flex";
 }
@@ -2294,27 +2697,46 @@ function startGame(m) {
   } else {
     scoresBox.style.display = "none";
   }
-  // Hide boosters completely
   const boostersEl = document.querySelector(".boosters");
   if (boostersEl) boostersEl.style.display = "none";
+  showScreen("difficulty");
+}
+
+function setDifficulty(d) {
+  difficulty = d;
   showScreen("game");
   nextWord();
 }
 
+function showDifficulty() { showScreen("difficulty"); }
+
+
 function getWordConfig(idx) {
-  // idx 0..4
-  if (idx < 2) return { len: 5, attempts: 5 };
-  if (idx < 4) return { len: 6, attempts: 5 };
-  return { len: 7, attempts: 6 };
+  // 5 words per match, structure depends on selected difficulty
+  if (difficulty === "easy") {
+    // All 4-letter words
+    return { len: 4, attempts: 5, difficulty: "Εύκολο" };
+  }
+  if (difficulty === "hard") {
+    // 6,6,7,7,7
+    if (idx < 2) return { len: 6, attempts: 5, difficulty: "Δύσκολο" };
+    return { len: 7, attempts: 6, difficulty: "Δύσκολο" };
+  }
+  // medium (default): 5,5,6,6,7
+  if (idx < 2) return { len: 5, attempts: 5, difficulty: "Μέτριο" };
+  if (idx < 4) return { len: 6, attempts: 5, difficulty: "Μέτριο" };
+  return { len: 7, attempts: 6, difficulty: "Μέτριο" };
 }
 
 function nextWord() {
   stopMic();
+  const nextBtn = document.getElementById("nextWordBtn");
+  if (nextBtn) nextBtn.style.display = "none";
   if (wordsSolved >= 5) { endMatch(); return; }
   const cfg = getWordConfig(wordsSolved);
   wordLen = cfg.len;
   maxAttempts = cfg.attempts;
-  levelInfo.textContent = `Λέξη ${wordsSolved + 1}/5 • ${wordLen} γράμματα • ${maxAttempts} προσπάθειες`;
+  levelInfo.textContent = `Λέξη ${wordsSolved + 1}/5 • ${cfg.difficulty} • ${wordLen} γράμματα • ${maxAttempts} προσπάθειες`;
   const list = LISTS[wordLen];
   secret = list[Math.floor(Math.random() * list.length)];
   currentRow = 0;
@@ -2324,11 +2746,13 @@ function nextWord() {
   buildKeyboard();
   inputDisplay.textContent = "";
   messageEl.textContent = `Πρώτο γράμμα: ${secret[0]}`;
-  // Reveal first letter on row 0
-  const t00 = document.getElementById("t00");
-  if (t00) {
-    t00.textContent = secret[0];
-    t00.classList.add("green");
+  // Reveal first letter GREEN on every row from the start (locked)
+  for (let r = 0; r < maxAttempts; r++) {
+    const tile = document.getElementById(`t${r}0`);
+    if (tile) {
+      tile.textContent = secret[0];
+      tile.classList.add("green");
+    }
   }
   updateUI();
   startTimer();
@@ -2339,10 +2763,12 @@ function updateUI() {
     turnInfo.textContent = `Παίκτης ${currentPlayer}`;
     document.getElementById("score1").textContent = scoreP1;
     document.getElementById("score2").textContent = scoreP2;
-    scoreInfo.textContent = "";
+    scoreInfo.textContent = `Π1: ${scoreP1} | Π2: ${scoreP2}`;
+    scoresBox.style.display = "flex";
   } else {
     turnInfo.textContent = "1 Παίκτης";
     scoreInfo.textContent = "Σκορ: " + score;
+    scoresBox.style.display = "none";
   }
 }
 
@@ -2460,22 +2886,25 @@ function advanceAfterFail() {
 }
 
 function carryGreens() {
+  currentGuess = "";
   for (let i = 0; i < wordLen; i++) {
     const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
+    const nextTile = document.getElementById(`t${currentRow}${i}`);
+    if (!nextTile) continue;
     if (prevTile && prevTile.classList.contains("green")) {
-      const nextTile = document.getElementById(`t${currentRow}${i}`);
-      if (nextTile) {
-        nextTile.textContent = prevTile.textContent;
-        nextTile.classList.add("green");
-      }
+      nextTile.textContent = prevTile.textContent;
+      nextTile.classList.add("green");
     }
   }
-  // Also lock first letter always on every row
+  // Always lock first letter green
   const first = document.getElementById(`t${currentRow}0`);
   if (first) {
     first.textContent = secret[0];
     first.classList.add("green");
   }
+  // Pre-fill currentGuess display from locked greens (for input bar)
+  // User still types full word, but greens stay visible on board
+  inputDisplay.textContent = "";
 }
 
 // ============ INPUT ============
@@ -2488,12 +2917,17 @@ function handleKey(key) {
     submitGuess();
     return;
   } else if (currentGuess.length < wordLen && GREEK.includes(key)) {
-    // First letter must match secret[0] if typing position 0
-    if (currentGuess.length === 0 && key !== secret[0]) {
-      messageEl.textContent = `Ξεκινάει από ${secret[0]}!`;
-      return;
+    // Auto-prefix first letter if empty (it's always known & green)
+    if (currentGuess.length === 0) {
+      currentGuess = secret[0];
+      if (key === secret[0]) {
+        // user typed the first letter itself - already set
+      } else {
+        currentGuess += key;
+      }
+    } else {
+      currentGuess += key;
     }
-    currentGuess += key;
   }
   inputDisplay.textContent = currentGuess;
   updatePreview();
@@ -2503,10 +2937,11 @@ function updatePreview() {
   for (let i = 0; i < wordLen; i++) {
     const tile = document.getElementById(`t${currentRow}${i}`);
     if (!tile) continue;
-    if (tile.classList.contains("green") && i === 0) continue; // keep locked first
+    // Never overwrite locked green tiles
+    if (tile.classList.contains("green")) continue;
     if (i < currentGuess.length) {
       tile.textContent = currentGuess[i];
-    } else if (!tile.classList.contains("green")) {
+    } else {
       tile.textContent = "";
     }
   }
@@ -2582,6 +3017,15 @@ function revealRowWithFlip(result, guess, onComplete) {
   const finish = () => {
     if (done) return;
     done = true;
+    // Ensure final colors stuck on all tiles
+    for (let i = 0; i < wordLen; i++) {
+      const tile = document.getElementById(`t${currentRow}${i}`);
+      if (tile) {
+        tile.textContent = guess[i];
+        tile.classList.remove("flip", "green", "orange", "absent");
+        tile.classList.add(result[i]);
+      }
+    }
     if (onComplete) onComplete();
   };
   for (let i = 0; i < wordLen; i++) {
@@ -2589,21 +3033,31 @@ function revealRowWithFlip(result, guess, onComplete) {
     if (!tile) { completed++; if (completed >= wordLen) finish(); continue; }
     setTimeout(() => {
       tile.classList.add("flip");
+      // Mid-flip: set letter + color
       setTimeout(() => {
-        tile.textContent = guess[i];
+        tile.textContent = guess[i] || "";
         tile.classList.remove("green", "orange", "absent");
         tile.classList.add(result[i]);
-        if (result[i] === "green") sfxCorrect();
-      }, 220);
+        if (result[i] === "green") {
+          playTone(660 + i * 40, 0.09, "sine", 0.1);
+        } else if (result[i] === "orange") {
+          playTone(440 + i * 30, 0.08, "triangle", 0.08);
+        } else {
+          playTone(200 + i * 15, 0.07, "sawtooth", 0.05);
+        }
+      }, 250);
       setTimeout(() => {
         tile.classList.remove("flip");
+        // Re-apply color after animation ends (critical)
+        tile.classList.remove("green", "orange", "absent");
+        tile.classList.add(result[i]);
+        tile.textContent = guess[i] || "";
         completed++;
         if (completed >= wordLen) finish();
-      }, 450);
+      }, 520);
     }, i * 200);
   }
-  // Safety
-  setTimeout(finish, wordLen * 200 + 700);
+  setTimeout(finish, wordLen * 200 + 900);
 }
 
 function updateKeyboardFromResult(guess, result) {
@@ -2637,30 +3091,70 @@ function endWord(won) {
   stopTickTock();
   stopMic();
   wordsSolved++;
-  if (won) {
-    setTimeout(nextWord, 1400);
-  } else {
+  updateUI();
+
+  // Show the answer if failed
+  if (!won) {
+    messageEl.textContent = `Η λέξη ήταν: ${secret}` + (mode === 1 ? "" : ` • Σειρά για επόμενη: Παίκτης ${currentPlayer === 1 ? 2 : 1}`);
     if (mode === 2) {
-      // After full failure, next word starts with the other player? or same?
-      // Specs: switch happens on each fail. After word ends, start next with current (or alternate)
       currentPlayer = currentPlayer === 1 ? 2 : 1;
     }
-    setTimeout(nextWord, 1800);
   }
-  updateUI();
+
+  // Show Next button instead of auto-advance
+  const nextBtn = document.getElementById("nextWordBtn");
+  if (wordsSolved >= 5) {
+    // Match over - go to results after short pause so player sees last word
+    if (nextBtn) {
+      nextBtn.style.display = "block";
+      nextBtn.textContent = "Τελικό Αποτέλεσμα ▶";
+      nextBtn.onclick = () => { nextBtn.style.display = "none"; endMatch(); };
+    } else {
+      setTimeout(endMatch, 1200);
+    }
+  } else {
+    if (nextBtn) {
+      nextBtn.style.display = "block";
+      nextBtn.textContent = "Επόμενη Λέξη ▶";
+      nextBtn.onclick = () => playerNextWord();
+    }
+  }
 }
+
+function playerNextWord() {
+  const nextBtn = document.getElementById("nextWordBtn");
+  if (nextBtn) nextBtn.style.display = "none";
+  nextWord();
+}
+
 
 function endMatch() {
   clearInterval(timerInterval);
   stopTickTock();
+  stopMic();
   showScreen("result");
+  const hs = updateHighScores(mode, mode === 1 ? score : scoreP1, scoreP2);
   if (mode === 1) {
     document.getElementById("resultTitle").textContent = "Τέλος!";
-    document.getElementById("resultScores").innerHTML = `Σκορ: ${score}`;
+    const isNewBest = score >= hs.best1 && score > 0;
+    document.getElementById("resultScores").innerHTML = `
+      <div style="font-size:1.6rem;margin:12px 0;">Σκορ: <strong>${score}</strong></div>
+      ${isNewBest ? '<div style="color:#22c55e;font-weight:bold;margin:8px 0;">🏆 Νέο προσωπικό ρεκόρ!</div>' : ''}
+      <div style="margin-top:16px;font-size:0.95rem;opacity:0.9;">
+        Καλύτερο σκορ: <strong>${hs.best1}</strong><br>
+        Παιχνίδια: ${hs.gamesPlayed}
+      </div>`;
   } else {
     const title = scoreP1 > scoreP2 ? "Νικητής: Παίκτης 1!" : scoreP2 > scoreP1 ? "Νικητής: Παίκτης 2!" : "Ισοπαλία!";
     document.getElementById("resultTitle").textContent = title;
-    document.getElementById("resultScores").innerHTML = `Π1: ${scoreP1} &nbsp; Π2: ${scoreP2}`;
+    document.getElementById("resultScores").innerHTML = `
+      <div style="font-size:1.4rem;margin:12px 0;">
+        Παίκτης 1: <strong>${scoreP1}</strong> &nbsp;|&nbsp; Παίκτης 2: <strong>${scoreP2}</strong>
+      </div>
+      <div style="margin-top:16px;font-size:0.95rem;opacity:0.9;">
+        Καλύτερο Π1: <strong>${hs.best1}</strong> &nbsp;|&nbsp; Καλύτερο Π2: <strong>${hs.best2}</strong><br>
+        Παιχνίδια: ${hs.gamesPlayed}
+      </div>`;
   }
 }
 
