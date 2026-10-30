@@ -38,9 +38,7 @@
     width: 100%;
     max-width: none;
     height: 100%;
-    background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
-    background-size: 400% 400%;
-    animation: rainbowCycle 10s linear infinite;
+    background: linear-gradient(160deg, #0a1228 0%, #12204a 40%, #0c1a38 100%);
     overflow: hidden;
     justify-content: center;
     align-items: center;
@@ -92,22 +90,29 @@
     text-shadow: 0 2px 12px rgba(0,0,0,0.4);
     letter-spacing: 0.5px;
   }
-  .float-letter {
+  .assemble-container {
     position: absolute;
-    font-size: 1.8rem;
-    font-weight: 800;
-    color: white;
+    top: 28%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 15;
+    width: 90%;
     pointer-events: none;
-    z-index: 5;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    animation: floatMove linear infinite;
-    background: none;
-    border: none;
-    box-shadow: none;
-    width: auto;
-    height: auto;
-    border-radius: 0;
-    backdrop-filter: none;
+  }
+  .assemble-line {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: white;
+    margin: 8px 0;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    min-height: 1.6em;
+  }
+  .assemble-line.main {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: 2px;
   }
   @keyframes logoSpin {
     0% { transform: rotate(0deg); }
@@ -238,6 +243,11 @@
       <img src="photo.png" alt="Frank Lingo Logo" onerror="this.style.display='none'; this.parentElement.innerHTML='<h1 class=\\'main-title\\'>Frank<br>Lingo</h1>';">
     </div>
   </div>
+  <div class="assemble-container">
+    <div class="assemble-line" id="line1"></div>
+    <div class="assemble-line main" id="line2"></div>
+    <div class="assemble-line" id="line3"></div>
+  </div>
   <button class="play-btn" onclick="showMode()">Παίξε Τώρα</button>
 </div>
 
@@ -342,6 +352,7 @@ function playTone(freq, duration, type="sine", gain=0.1) {
   osc.start();
   osc.stop(audioCtx.currentTime + duration);
 }
+function sfxClick() { playTone(800, 0.05, "square", 0.04); }
 function sfxSuccess() { playTone(523, 0.15); setTimeout(()=>playTone(659, 0.15), 100); setTimeout(()=>playTone(784, 0.3), 200); }
 function sfxCorrect() { playTone(660, 0.08, "square", 0.08); }
 function sfxWrong() { playTone(180, 0.2, "sawtooth", 0.06); }
@@ -364,10 +375,8 @@ function startGame(m) {
   isSteal = false;
   if (mode === 2) {
     scoresBox.style.display = "flex";
-    timeLeft = 15;
   } else {
     scoresBox.style.display = "none";
-    timeLeft = 45;
   }
   showScreen("game");
   nextWord();
@@ -441,7 +450,7 @@ function buildKeyboard() {
 
 function startTimer() {
   clearInterval(timerInterval);
-  timeLeft = mode === 2 ? 15 : 45;
+  timeLeft = 60;
   frozen = false;
   timerEl.textContent = timeLeft;
   timerEl.classList.remove("warning");
@@ -449,7 +458,7 @@ function startTimer() {
     if (frozen || gameOver) return;
     timeLeft--;
     timerEl.textContent = timeLeft;
-    if (timeLeft <= 5) timerEl.classList.add("warning");
+    if (timeLeft <= 10) timerEl.classList.add("warning");
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
       sfxLoss();
@@ -464,9 +473,8 @@ function handleTimeout() {
     applyPenalty("timeout");
     switchTurn();
   } else {
-    currentRow++;
-    if (currentRow >= 5) endWord(false);
-    else startTimer();
+    // 1 Παίκτης: λήξη χρόνου = τέλος παιχνιδιού
+    endWord(false);
   }
 }
 
@@ -483,6 +491,7 @@ function applyPenalty(type) {
 
 function handleKey(key) {
   if (gameOver) return;
+  sfxClick();
   if (key === "⌫") {
     if (currentGuess.length > 0) currentGuess = currentGuess.slice(0, -1);
   } else if (key === "OK" || key === "Enter") {
@@ -552,6 +561,18 @@ function submitGuess() {
     sfxLoss();
     endWord(false);
   } else {
+    // Μεταφορά πράσινων γραμμάτων στην επόμενη γραμμή
+    for (let i = 0; i < wordLen; i++) {
+      const prevTile = document.getElementById(`t${currentRow - 1}${i}`);
+      if (prevTile && prevTile.classList.contains("green")) {
+        const nextTile = document.getElementById(`t${currentRow}${i}`);
+        if (nextTile) {
+          nextTile.textContent = prevTile.textContent;
+          nextTile.classList.add("green");
+          if (i > 0) currentGuess += prevTile.textContent;
+        }
+      }
+    }
     messageEl.textContent = `Προσπάθεια ${currentRow + 1}/5`;
     startTimer();
   }
@@ -572,8 +593,10 @@ function endWord(won) {
     setTimeout(nextWord, 1500);
   } else {
     messageEl.textContent = `Η λέξη ήταν: ${secret}`;
-    if (mode === 2 && !isSteal) {
-      // Δώσε ευκαιρία κλοπής
+    if (mode === 1) {
+      // 1 Παίκτης: αποτυχία = τέλος παιχνιδιού
+      setTimeout(endMatch, 1800);
+    } else if (mode === 2 && !isSteal) {
       isSteal = true;
       currentPlayer = currentPlayer === 1 ? 2 : 1;
       currentRow = 0;
@@ -730,43 +753,47 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+document.querySelectorAll("button").forEach(btn => {
+  btn.addEventListener("click", () => sfxClick());
+});
 initSpeech();
 
-function createFloatingLetters() {
-  const home = document.getElementById("home");
-  const letters = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".split("");
-  const rainbowColors = ["#ff1744", "#ff9100", "#ffea00", "#00e676", "#00b0ff", "#651fff", "#d500f9"];
-  for (let i = 0; i < 18; i++) {
-    const el = document.createElement("div");
-    el.className = "float-letter";
-    el.textContent = letters[Math.floor(Math.random() * letters.length)];
-    el.style.left = (5 + Math.random() * 85) + "%";
-    el.style.top = (5 + Math.random() * 75) + "%";
-    el.style.color = rainbowColors[i % rainbowColors.length];
-    el.style.animationDuration = (14 + Math.random() * 12) + "s";
-    el.style.animationDelay = (Math.random() * 6) + "s";
-    el.style.setProperty("--tx1", (Math.random() * 80 - 40) + "px");
-    el.style.setProperty("--ty1", (Math.random() * 80 - 40) + "px");
-    el.style.setProperty("--tx2", (Math.random() * 100 - 50) + "px");
-    el.style.setProperty("--ty2", (Math.random() * 100 - 50) + "px");
-    el.style.setProperty("--tx3", (Math.random() * 80 - 40) + "px");
-    el.style.setProperty("--ty3", (Math.random() * 80 - 40) + "px");
-    home.appendChild(el);
+function assembleText(elementId, finalText, delay = 0) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const letters = finalText.split("");
+  let displayed = Array(letters.length).fill("");
+  const positions = letters.map((_, i) => i);
 
-    // Αλλαγή χρώματος κάθε λίγο
-    setInterval(() => {
-      el.style.color = rainbowColors[Math.floor(Math.random() * rainbowColors.length)];
-    }, 1800 + Math.random() * 1200);
+  // Scramble order
+  for (let i = positions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [positions[i], positions[j]] = [positions[j], positions[i]];
   }
+
+  positions.forEach((pos, idx) => {
+    setTimeout(() => {
+      displayed[pos] = letters[pos];
+      el.textContent = displayed.join("");
+    }, delay + idx * 80);
+  });
 }
 
-// Σταμάτημα περιστροφής λογότυπου μετά από 4 δευτερόλεπτα
+function startAssembly() {
+  assembleText("line1", "Το παιχνίδι των λέξεων", 300);
+  assembleText("line2", "FranklyLingo", 900);
+  assembleText("line3", "Βρες τη λέξη", 1500);
+}
+
+// Remove old floating letters call
+// createFloatingLetters();
+
 setTimeout(() => {
   const logo = document.getElementById("logo");
   if (logo) logo.classList.add("stop");
 }, 4000);
 
-createFloatingLetters();
+startAssembly();
 </script>
 </body>
 </html>
