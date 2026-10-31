@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Word Blitz Ελληνικά</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#0b0614;--card:#1a1229;--tile:#f4f4f8;--tile-text:#1a1a2e;--accent:#c084fc;--pink:#ec4899;--purple:#a855f7;--teal:#2dd4bf;--green:#4ade80;--red:#f87171}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:#f0e6ff;min-height:100vh;overflow-x:hidden}
+.screen{display:none;min-height:100vh;flex-direction:column;align-items:center;padding:16px}
+.screen.active{display:flex}
+#lobby{justify-content:center;gap:20px}
+.logo{font-size:32px;font-weight:800;letter-spacing:1px;text-align:center;margin-bottom:8px}
+.logo span{color:var(--pink)}
+.subtitle{opacity:.6;font-size:14px;margin-bottom:24px}
+.lobby-card{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
+.btn{border:none;border-radius:14px;padding:14px 20px;font-size:16px;font-weight:600;cursor:pointer;transition:transform .12s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff}
+.btn-secondary{background:#2a1f3d;color:#fff}
+.input{background:#2a1f3d;border:1px solid #3b2d5c;border-radius:12px;padding:12px 16px;color:#fff;font-size:16px;width:100%;text-align:center}
+.input:focus{outline:2px solid var(--purple)}
+.room-info{font-size:13px;opacity:.7;text-align:center;margin-top:8px;min-height:18px}
+.highscores-box{background:var(--card);border-radius:16px;padding:16px;width:100%;max-width:360px;max-height:180px;overflow-y:auto}
+.hs-title{font-size:13px;opacity:.6;margin-bottom:8px}
+.hs-row{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+.hs-row .rank{opacity:.5;width:24px}
+header{width:100%;max-width:420px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.back-btn{width:40px;height:40px;border-radius:50%;background:#2a1f3d;border:none;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.players-bar{display:flex;align-items:center;gap:10px;flex:1;justify-content:center;flex-wrap:wrap}
+.p-card{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px}
+.p-name{font-size:11px;opacity:.85;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-score{font-size:18px;font-weight:700}
+.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid #a855f7}
+.timer-box{background:#2a1f3d;padding:6px 12px;border-radius:20px;font-weight:600;font-size:15px;min-width:58px;text-align:center}
+.timer-box.warning{background:#7f1d1d;color:#fecaca;animation:pulse .8s infinite}
+@keyframes pulse{50%{opacity:.7}}
+.current-word-area{width:100%;max-width:420px;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:10px;gap:2px}
+#currentWord{font-size:26px;font-weight:700;letter-spacing:2px;min-height:32px;transition:transform .15s}
+#currentWord.pop{transform:scale(1.08)}
+#wordScore{font-size:14px;color:var(--accent);height:18px}
+.grid-container{width:100%;max-width:360px;aspect-ratio:1;display:grid;grid-template-columns:repeat(4,1fr);gap:9px;padding:4px;touch-action:none}
+.tile{position:relative;background:var(--tile);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:clamp(24px,7.5vw,34px);font-weight:700;color:var(--tile-text);cursor:pointer;border:3px solid transparent;box-shadow:0 4px 0 #c4c4d0;transition:transform .1s,box-shadow .1s,border-color .1s}
+.tile.selected{border-color:var(--pink);transform:scale(1.06);box-shadow:0 0 0 2px var(--pink),0 6px 14px rgba(236,72,153,.4);z-index:2}
+.tile .points{position:absolute;top:4px;right:6px;font-size:10px;font-weight:600;color:#6b7280}
+.tile .bonus{position:absolute;top:-7px;left:-7px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;z-index:3;box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.bonus.word2{background:var(--pink)}.bonus.letter2{background:var(--teal)}.bonus.letter3{background:var(--purple)}
+.controls{width:100%;max-width:420px;display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:0 6px}
+.lang{font-size:13px;opacity:.6}
+.icon-btn{background:#2a1f3d;border:none;color:#fff;width:42px;height:42px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.found-section{width:100%;max-width:420px;margin-top:16px;background:var(--card);border-radius:16px;padding:12px;max-height:150px;overflow-y:auto}
+.found-title{font-size:12px;opacity:.55;margin-bottom:6px;display:flex;justify-content:space-between}
+#foundWords{display:flex;flex-wrap:wrap;gap:5px}
+.found-word{background:#2a1f3d;padding:3px 9px;border-radius:10px;font-size:13px;font-weight:500;animation:fadeIn .3s}
+.found-word .pts{color:var(--accent);margin-left:3px;font-size:11px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}}
+.message{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(26,18,41,.96);padding:14px 26px;border-radius:16px;font-size:17px;font-weight:600;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;z-index:100;text-align:center;border:1px solid #4c1d95;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.message.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.message.good{color:var(--green)}.message.bad{color:var(--red)}
+.particle{position:fixed;pointer-events:none;z-index:200;font-size:14px;font-weight:700;animation:floatUp .9s forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(1.3)}}
+.ai-badge{font-size:9px;background:#4c1d95;padding:1px 4px;border-radius:5px;margin-left:3px}
+.status-bar{font-size:12px;opacity:.65;margin-top:10px;text-align:center;min-height:16px}
+.invite-box{background:#2a1f3d;border-radius:12px;padding:10px;margin-top:10px;display:flex;gap:8px;align-items:center;width:100%;max-width:420px}
+.invite-box input{flex:1;background:transparent;border:none;color:#c4b5fd;font-size:12px}
+.copy-btn{background:var(--purple);color:#fff;border:none;padding:6px 10px;border-radius:8px;font-size:12px;cursor:pointer}
+footer{margin-top:12px;font-size:11px;opacity:.35}
+</style>
+</head>
+<body>
+<div id="lobby" class="screen active">
+<div class="logo">Word <span>Blitz</span></div>
+<div class="subtitle">Ελληνικά · 4×4 · Multiplayer</div>
+<div class="lobby-card">
+<button class="btn btn-primary" id="btnSolo">▶ Solo</button>
+<button class="btn btn-secondary" id="btnCreate">＋ Δημιουργία Δωματίου</button>
+<div style="display:flex;gap:8px">
+<input class="input" id="joinCode" placeholder="Peer ID ή κωδικός" style="flex:1"/>
+<button class="btn btn-secondary" id="btnJoin" style="width:auto;padding:0 16px">Είσοδος</button>
+</div>
+<div class="room-info" id="lobbyStatus"></div>
+</div>
+<div class="highscores-box">
+<div class="hs-title">🏆 High Scores (τοπικά)</div>
+<div id="hsList"></div>
+</div>
+<footer>P2P via PeerJS · Demo</footer>
+</div>
+<div id="game" class="screen">
+<header>
+<button class="back-btn" id="btnBack">←</button>
+<div class="players-bar" id="playersBar"></div>
+<div class="timer-box" id="timer">1:30</div>
+</header>
+<div class="current-word-area"><div id="currentWord"></div><div id="wordScore"></div></div>
+<div class="grid-container" id="grid"></div>
+<div class="controls">
+<span class="lang">Ελληνικά</span>
+<div style="display:flex;gap:8px">
+<button class="icon-btn" id="btnSound" title="Ήχος">🔊</button>
+<button class="icon-btn" id="btnShuffle" title="Νέο ταμπλό">↻</button>
+</div>
+</div>
+<div class="found-section">
+<div class="found-title"><span>Βρεθείσες λέξεις</span><span id="wordCount">0</span></div>
+<div id="foundWords"></div>
+</div>
+<div class="status-bar" id="statusBar"></div>
+<div class="invite-box" id="inviteBox" style="display:none">
+<input id="inviteLink" readonly/>
+<button class="copy-btn" id="btnCopy">Αντιγραφή</button>
+</div>
+</div>
+<div class="message" id="message"></div>
+
+<script>
+const LETTER_POINTS={'Α':1,'Β':8,'Γ':4,'Δ':4,'Ε':1,'Ζ':10,'Η':1,'Θ':10,'Ι':1,'Κ':2,'Λ':3,'Μ':3,'Ν':1,'Ξ':10,'Ο':1,'Π':2,'Ρ':2,'Σ':1,'Τ':1,'Υ':2,'Φ':8,'Χ':8,'Ψ':10,'Ω':3};
+const LETTER_BAG=[...'Α'.repeat(12),...'Ε'.repeat(9),...'Ι'.repeat(9),...'Ο'.repeat(9),...'Τ'.repeat(8),...'Σ'.repeat(7),...'Ν'.repeat(7),...'Η'.repeat(6),...'Ρ'.repeat(5),...'Π'.repeat(4),...'Κ'.repeat(4),...'Υ'.repeat(4),...'Μ'.repeat(3),...'Λ'.repeat(3),...'Ω'.repeat(3),...'Γ'.repeat(2),...'Δ'.repeat(2),'Β','Ζ','Θ','Ξ','Φ','Χ','Ψ'];
+let DICT=new Set(["EMAIL","ΑΓΑΠΑΩ","ΑΓΑΠΗ","ΑΓΓΙΖΩ","ΑΓΓΟΥΡΙ","ΑΓΕΛΑΔΑ","ΑΓΙΟΣ","ΑΓΚΩΝΑΣ","ΑΓΟΡΑ","ΑΓΟΡΑΖΩ","ΑΓΟΡΑΣΕ","ΑΓΟΡΙ","ΑΔΕΙΑΖΩ","ΑΔΕΙΑΣΕ","ΑΔΕΡΦΗ","ΑΔΕΡΦΟΣ","ΑΔΙΚΙΑ","ΑΔΥΝΑΜΙΑ","ΑΔΥΝΑΤΙΖΩ","ΑΔΥΝΑΤΟΣ","ΑΕΡΟΔΡΟΜΙΟ","ΑΕΡΟΠΛΑΝΟ","ΑΘΛΗΤΗΣ","ΑΙΜΑ","ΑΙΤΙΑ","ΑΚΙΝΗΣΙΑ","ΑΚΟΥ","ΑΚΟΥΕΙ","ΑΚΟΥΩ","ΑΚΡΗ","ΑΚΡΟ","ΑΚΤΗ","ΑΛΑΤΙ","ΑΛΕΥΡΙ","ΑΛΗΘΕΙΑ","ΑΛΛΑ","ΑΛΛΑΓΗ","ΑΛΛΑΖΩ","ΑΛΛΑΞΕ","ΑΛΛΟ","ΑΛΟΓΟ","ΑΜΑ","ΑΝ","ΑΝΑΚΑΤΕΥΩ","ΑΝΑΠΤΥΞΗ","ΑΝΔΡΑΣ","ΑΝΕΒΑ","ΑΝΕΒΑΙΝΩ","ΑΝΕΜΟΣ","ΑΝΘΡΩΠΟΣ","ΑΝΙΨΙΑ","ΑΝΙΨΙΟΣ","ΑΝΟΙΓΩ","ΑΝΟΙΞΕ","ΑΝΟΙΞΗ","ΑΝΤΙ","ΑΝΤΙΚΕΙΜΕΝΟ","ΑΠΑΝΤΑΩ","ΑΠΟ","ΑΠΟΓΕΥΜΑ","ΑΠΟΜΑΚΡΥΝΟΜΑΙ","ΑΠΟΤΕΛΕΣΜΑ","ΑΠΟΤΥΓΧΑΝΩ","ΑΠΟΦΑΣΙΖΩ","ΑΠΡΙΛΙΟΣ","ΑΡΑΧΝΗ","ΑΡΓΑ","ΑΡΓΟΣ","ΑΡΙΘΜΟΣ","ΑΡΚΕΤΑ","ΑΡΝΟΥΜΑΙ","ΑΡΡΩΣΤΙΑ","ΑΡΧΗ","ΑΡΧΙΖΩ","ΑΡΧΙΤΕΚΤΟΝΙΚΗ","ΑΣΗΜΙ","ΑΣΠΡΟ","ΑΣΤΕΡΙ","ΑΣΤΥΝΟΜΟΣ","ΑΣΧΗΜΑ","ΑΣΧΗΜΟΣ","ΑΤΑΞΙΑ","ΑΥΓΟ","ΑΥΓΟΥΣΤΟΣ","ΑΥΛΗ","ΑΥΞΑΝΩ","ΑΥΞΗΣΕ","ΑΥΞΗΣΗ","ΑΥΡΙΟ","ΑΥΤΑ","ΑΥΤΕΣ","ΑΥΤΗ","ΑΥΤΙ","ΑΥΤΟ","ΑΥΤΟΙ","ΑΥΤΟΚΙΝΗΤΟ","ΑΥΤΟΣ","ΑΦΕΝΤΙΚΟ","ΑΦΗΝΩ","ΑΦΗΣΕ","ΑΦΟΥ","ΑΧΛΑΔΙ","ΒΑΖΩ","ΒΑΘΟΣ","ΒΑΛΕ","ΒΑΛΙΤΣΑ","ΒΑΡΟΣ","ΒΑΤΡΑΧΟΣ","ΒΓΑΖΩ","ΒΓΑΙΝΩ","ΒΓΑΛΕ","ΒΓΕΣ","ΒΕΒΑΙΑ","ΒΕΡΥΚΟΚΟ","ΒΗΧΑΣ","ΒΙΒΛΙΟ","ΒΙΟΛΟΓΙΑ","ΒΛΕΠΕΙ","ΒΛΕΠΩ","ΒΛΕΦΑΡΟ","ΒΟΗΘΑΩ","ΒΟΗΘΗΣΕ","ΒΟΥΛΕΥΤΗΣ","ΒΟΥΝΟ","ΒΟΥΤΥΡΟ","ΒΡΑΔΙΝΟ","ΒΡΑΔΥ","ΒΡΕΞΕ","ΒΡΕΣ","ΒΡΕΧΩ","ΒΡΙΣΚΩ","ΒΡΟΧΗ","ΓΑΛΑ","ΓΑΜΟΣ","ΓΑΜΠΡΟΣ","ΓΑΝΤΙ","ΓΑΤΑ","ΓΕΓΟΝΟΣ","ΓΕΙΤΟΝΑΣ","ΓΕΙΤΟΝΙΑ","ΓΕΛΑΩ","ΓΕΜΙΖΩ","ΓΕΜΙΣΕ","ΓΕΝΝΑΩ","ΓΕΝΝΗΣΕ","ΓΕΝΝΗΣΗ","ΓΕΝΝΙΕΜΑΙ","ΓΕΡΝΑΩ","ΓΕΥΜΑ","ΓΕΥΟΜΑΙ","ΓΕΩΓΡΑΦΙΑ","ΓΗΠΕΔΟ","ΓΙΑ","ΓΙΑΓΙΑ","ΓΙΑΤΙ","ΓΙΑΤΡΟΣ","ΓΚΟΛ","ΓΚΡΙ","ΓΛΥΚΟ","ΓΛΥΠΤΙΚΗ","ΓΛΩΣΣΑ","ΓΟΝΑΤΟ","ΓΟΥΡΟΥΝΙ","ΓΡΑΒΑΤΑ","ΓΡΑΜΜΑ","ΓΡΑΜΜΗ","ΓΡΑΦΕΙΟ","ΓΡΑΦΩ","ΓΡΑΨΕ","ΓΡΗΓΟΡΑ","ΓΡΗΓΟΡΟΣ","ΓΥΝΑΙΚΑ","ΓΥΡΙΖΩ","ΓΩΝΙΑ","ΔΑΣΚΑΛΟΣ","ΔΑΣΟΣ","ΔΑΧΤΥΛΟ","ΔΕΙΧΝΩ","ΔΕΚΑ","ΔΕΚΕΜΒΡΙΟΣ","ΔΕΝ","ΔΕΝΤΡΟ","ΔΕΡΜΑ","ΔΕΥΤΕΡΑ","ΔΕΥΤΕΡΟΣ","ΔΕΧΟΜΑΙ","ΔΗΜΑΡΧΟΣ","ΔΗΜΟΣΙΟΓΡΑΦΟΣ","ΔΙΑ","ΔΙΑΒΑΖΩ","ΔΙΑΒΑΣΕ","ΔΙΑΔΙΚΤΥΟ","ΔΙΑΙΤΗΤΗΣ","ΔΙΑΚΟΠΕΣ","ΔΙΑΦΩΝΩ","ΔΙΔΑΣΚΩ","ΔΙΚΑΙΟΣΥΝΗ","ΔΙΚΑΙΩΜΑ","ΔΙΚΑΣΤΗΣ","ΔΙΚΗΓΟΡΟΣ","ΔΙΝΩ","ΔΙΟΡΘΩΝΩ","ΔΙΟΡΘΩΣΕ","ΔΙΨΑ","ΔΟΝΤΙ","ΔΟΥΛΕΙΑ","ΔΟΥΛΕΥΩ","ΔΟΥΛΕΨΕ","ΔΡΑΣΗ","ΔΡΟΜΟΣ","ΔΥΝΑΜΗ","ΔΥΝΑΜΩΝΩ","ΔΥΝΑΜΩΣΕ","ΔΥΝΑΤΟΣ","ΔΥΟ","ΔΥΣΤΥΧΩΣ","ΔΩΔΕΚΑ","ΔΩΜΑΤΙΟ","ΔΩΣΕ","ΕΒΔΟΜΑΔΑ","ΕΒΔΟΜΗΝΤΑ","ΕΓΩ","ΕΔΩ","ΕΙΚΟΝΑ","ΕΙΚΟΣΙ","ΕΙΜΑΙ","ΕΙΜΑΣΤΕ","ΕΙΝΑΙ","ΕΙΡΗΝΗ","ΕΙΣΑΙ","ΕΙΣΙΤΗΡΙΟ","ΕΙΣΤΕ","ΕΚΑΤΟ","ΕΚΑΤΟΜΜΥΡΙΟ","ΕΚΕΙ","ΕΚΕΙΝΟ","ΕΚΚΛΗΣΙΑ","ΕΛΑ","ΕΛΑΤΕ","ΕΛΕΥΘΕΡΙΑ","ΕΛΠΙΔΑ","ΕΛΠΙΖΩ","ΕΜΕΙΣ","ΕΝΑ","ΕΝΑΝ","ΕΝΑΝΤΙΟΝ","ΕΝΑΣ","ΕΝΕΝΗΝΤΑ","ΕΝΕΡΓΕΙΑ","ΕΝΝΕΑ","ΕΝΤΕΚΑ","ΕΝΩ","ΕΝΩΝΩ","ΕΝΩΣΕ","ΕΞΑΙΤΙΑΣ","ΕΞΗΓΩ","ΕΞΗΝΤΑ","ΕΞΙ","ΕΞΩ","ΕΠΙΛΕΓΩ","ΕΠΙΣΤΗΜΗ","ΕΠΙΤΥΓΧΑΝΩ","ΕΠΙΦΑΝΕΙΑ","ΕΠΤΑ","ΕΡΓΟ","ΕΡΧΟΜΑΙ","ΕΣΕΙΣ","ΕΣΥ","ΕΥΚΑΙΡΙΑ","ΕΥΤΥΧΩΣ","ΕΧΕΙ","ΕΧΕΙΣ","ΕΧΕΤΕ","ΕΧΟΥΜΕ","ΕΧΟΥΝ","ΕΧΩ","ΖΑΚΕΤΑ","ΖΑΧΑΡΗ","ΖΕΣΤΑΙΝΩ","ΖΕΣΤΑΝΕ","ΖΗΣΕ","ΖΗΤΑΩ","ΖΗΤΗΣΕ","ΖΩ","ΖΩΓΡΑΦΙΚΗ","ΖΩΓΡΑΦΟΣ","ΖΩΗ","ΖΩΝΗ","ΖΩΟ","ΗΘΟΠΟΙΟΣ","ΗΛΕΚΤΡΟΛΟΓΟΣ","ΗΛΙΟΣ","ΗΤΤΑ","ΗΧΟΣ","ΘΑ","ΘΑΛΑΣΣΑ","ΘΑΝΑΤΟΣ","ΘΕΑΤΡΟ","ΘΕΙΑ","ΘΕΙΟΣ","ΘΕΛΕΙ","ΘΕΛΩ","ΘΕΟΣ","ΘΕΡΜΟΚΡΑΣΙΑ","ΘΡΗΣΚΕΙΑ","ΘΥΜΑΜΑΙ","ΘΥΜΟΣ","ΘΥΜΩΝΩ","ΙΑΝΟΥΑΡΙΟΣ","ΙΔΕΑ","ΙΔΙΟ","ΙΟΥΛΙΟΣ","ΙΟΥΝΙΟΣ","ΙΣΟΤΗΤΑ","ΙΣΤΟΡΙΑ","ΙΣΩΣ","ΚΑΘΑΡΙΖΩ","ΚΑΘΑΡΙΣΕ","ΚΑΘΑΡΙΣΤΗΣ","ΚΑΘΕ","ΚΑΘΕΜΙΑ","ΚΑΘΕΝΑ","ΚΑΘΕΝΑΣ","ΚΑΘΙΣΕ","ΚΑΘΟΜΑΙ","ΚΑΙ","ΚΑΙΩ","ΚΑΚΟΣ","ΚΑΛΑ","ΚΑΛΟΚΑΙΡΙ","ΚΑΛΟΣ","ΚΑΛΤΣΑ","ΚΑΜΙΑ","ΚΑΜΠΟΣ","ΚΑΝΕΙ","ΚΑΝΕΙΣ","ΚΑΝΕΝΑ","ΚΑΝΕΝΑΣ","ΚΑΝΕΤΕ","ΚΑΝΟΥΜΕ","ΚΑΝΟΥΝ","ΚΑΝΩ","ΚΑΠΕΛΟ","ΚΑΠΟΙΑ","ΚΑΠΟΙΟ","ΚΑΠΟΙΟΣ","ΚΑΡΔΙΑ","ΚΑΡΕΚΛΑ","ΚΑΡΟΤΟ","ΚΑΡΠΟΣ","ΚΑΡΠΟΥΖΙ","ΚΑΤΑ","ΚΑΤΑΙΓΙΔΑ","ΚΑΤΑΛΑΒΑΙΝΩ","ΚΑΤΑΣΤΑΣΗ","ΚΑΤΑΣΤΗΜΑ","ΚΑΤΕΒΑ","ΚΑΤΕΒΑΖΩ","ΚΑΤΕΒΑΙΝΩ","ΚΑΤΕΒΑΣΕ","ΚΑΤΙ","ΚΑΤΩ","ΚΑΦΕ","ΚΑΦΕΣ","ΚΑΨΕ","ΚΕΝΤΡΟ","ΚΕΡΑΣΙ","ΚΕΡΔΙΖΩ","ΚΕΦΑΛΙ","ΚΗΠΟΣ","ΚΗΠΟΥΡΟΣ","ΚΙΝΔΥΝΟΣ","ΚΙΝΗΣΗ","ΚΙΤΡΙΝΟ","ΚΛΑΔΙ","ΚΛΑΙΩ","ΚΛΕΙΔΑΡΙΑ","ΚΛΕΙΔΙ","ΚΛΕΙΝΩ","ΚΛΕΙΣΕ","ΚΟΒΩ","ΚΟΙΛΙΑ","ΚΟΙΜΑΜΑΙ","ΚΟΙΜΗΣΟΥ","ΚΟΙΤΑ","ΚΟΙΤΑΖΩ","ΚΟΚΚΑΛΟ","ΚΟΚΚΙΝΟ","ΚΟΛΟΚΥΘΙ","ΚΟΛΥΜΠΑΩ","ΚΟΡΙΤΣΙ","ΚΟΣΤΟΥΜΙ","ΚΟΤΑ","ΚΟΥΖΙΝΑ","ΚΟΥΝΟΥΠΙ","ΚΟΨΕ","ΚΡΑΣΙ","ΚΡΑΤΑ","ΚΡΑΤΑΩ","ΚΡΕΑΣ","ΚΡΕΒΑΤΙ","ΚΡΕΜΜΥΔΙ","ΚΡΥΒΩ","ΚΡΥΩΝΩ","ΚΡΥΩΣΕ","ΚΥΒΕΡΝΗΣΗ","ΚΥΚΛΟΣ","ΚΥΡΙΑΚΗ","ΛΑΔΙ","ΛΑΘΟΣ","ΛΑΙΜΟΣ","ΛΑΧΑΝΟ","ΛΕΕΙ","ΛΕΙΠΩ","ΛΕΞΗ","ΛΕΡΩΝΩ","ΛΕΩ","ΛΕΩΦΟΡΕΙΟ","ΛΙΓΑ","ΛΙΓΟ","ΛΙΜΝΗ","ΛΟΥΛΟΥΔΙ","ΛΥΠΑΜΑΙ","ΛΥΠΗ","ΛΥΣΗ","ΜΑ","ΜΑΓΕΙΡΑΣ","ΜΑΖΙ","ΜΑΘΑΙΝΩ","ΜΑΘΕ","ΜΑΘΗΜΑΤΙΚΑ","ΜΑΘΗΤΗΣ","ΜΑΙΟΣ","ΜΑΚΑΡΟΝΙΑ","ΜΑΛΛΙΑ","ΜΑΡΤΙΟΣ","ΜΑΣ","ΜΑΤΙ","ΜΑΥΡΟ","ΜΕ","ΜΕΓΑΛΟΣ","ΜΕΓΑΛΩΝΩ","ΜΕΓΑΛΩΣΕ","ΜΕΘΟΔΟΣ","ΜΕΙΝΕ","ΜΕΙΩΝΩ","ΜΕΙΩΣΕ","ΜΕΙΩΣΗ","ΜΕΛΕΤΑΩ","ΜΕΛΙΣΣΑ","ΜΕΛΙΤΖΑΝΑ","ΜΕΝ","ΜΕΝΩ","ΜΕΡΑ","ΜΕΣΑ","ΜΕΣΗΜΕΡΙ","ΜΕΣΗΜΕΡΙΑΝΟ","ΜΕΣΟ","ΜΕΤΑ","ΜΕΤΑΞΥ","ΜΕΧΡΙ","ΜΗΚΟΣ","ΜΗΛΟ","ΜΗΝ","ΜΗΝΑΣ","ΜΗΝΥΜΑ","ΜΗΤΕΡΑ","ΜΗΧΑΝΗ","ΜΙΑ","ΜΙΚΡΑΙΝΩ","ΜΙΚΡΟΣ","ΜΙΚΡΥΝΕ","ΜΙΛΑ","ΜΙΛΑΩ","ΜΙΣΩ","ΜΝΗΜΗ","ΜΟΝΟΣ","ΜΟΡΦΗ","ΜΟΥ","ΜΟΥΣΙΚΗ","ΜΟΥΣΙΚΟΣ","ΜΠΑΙΝΩ","ΜΠΑΛΑ","ΜΠΑΛΚΟΝΙ","ΜΠΑΝΑΝΑ","ΜΠΑΝΙΟ","ΜΠΕΣ","ΜΠΙΡΑ","ΜΠΛΕ","ΜΠΟΡΕΙ","ΜΠΟΡΩ","ΜΠΡΟΣΤΑ","ΜΥΑΛΟ","ΜΥΓΑ","ΜΥΡΙΖΩ","ΜΥΤΗ","ΜΩΒ","ΜΩΡΟ","ΝΑ","ΝΑΙ","ΝΑΥΤΗΣ","ΝΕΟΣ","ΝΕΡΟ","ΝΕΩΝΩ","ΝΗΣΙ","ΝΙΚΑΩ","ΝΙΚΗ","ΝΙΩΘΩ","ΝΟΕΜΒΡΙΟΣ","ΝΟΜΟΣ","ΝΟΣΟΚΟΜΑ","ΝΟΣΟΚΟΜΕΙΟ","ΝΤΟΜΑΤΑ","ΝΥΦΗ","ΝΥΧΙ","ΝΥΧΤΑ","ΞΑΔΕΡΦΗ","ΞΑΔΕΡΦΟΣ","ΞΕΚΙΝΑΩ","ΞΕΚΟΥΡΑΖΟΜΑΙ","ΞΕΝΟΔΟΧΕΙΟ","ΞΕΡΕΙ","ΞΕΡΩ","ΞΕΧΝΑΩ","ΞΥΠΝΑ","ΞΥΠΝΑΩ","ΟΓΔΟΝΤΑ","ΟΓΚΟΣ","ΟΔΗΓΑΩ","ΟΔΗΓΟΣ","ΟΘΟΝΗ","ΟΙ","ΟΙΚΟΓΕΝΕΙΑ","ΟΚΤΩ","ΟΚΤΩΒΡΙΟΣ","ΟΛΑ","ΟΛΟΣ","ΟΜΑΔΑ","ΟΜΟΡΦΟΣ","ΟΜΩΣ","ΟΝΕΙΡΟ","ΟΠΟΙΑ","ΟΠΟΙΟ","ΟΠΟΙΟΣ","ΟΠΩΣ","ΟΡΓΑΝΩΣΗ","ΟΡΘΟΓΩΝΙΟ","ΟΡΟΦΟΣ","ΟΣΑ","ΟΣΕΣ","ΟΣΗ","ΟΣΟ","ΟΣΟΙ","ΟΣΟΣ","ΟΤΙ","ΟΥΡΑΝΟΣ","ΟΥΣΙΑ","ΟΧΙ","ΠΑΓΩΤΟ","ΠΑΕΙ","ΠΑΙΔΙ","ΠΑΙΖΩ","ΠΑΙΚΤΗΣ","ΠΑΙΞΕ","ΠΑΙΡΝΩ","ΠΑΙΧΝΙΔΙ","ΠΑΛΙΟΣ","ΠΑΛΤΟ","ΠΑΜΕ","ΠΑΝΕ","ΠΑΝΕΠΙΣΤΗΜΙΟ","ΠΑΝΤΑ","ΠΑΝΤΕΛΟΝΙ","ΠΑΝΤΟΥ","ΠΑΝΩ","ΠΑΠΑΔΑΣ","ΠΑΠΙΑ","ΠΑΠΟΥΤΣΙ","ΠΑΠΠΟΥΣ","ΠΑΡΑ","ΠΑΡΑΘΥΡΟ","ΠΑΡΑΛΙΑ","ΠΑΡΑΣΚΕΥΗ","ΠΑΡΑΤΗΡΩ","ΠΑΡΕ","ΠΑΣ","ΠΑΤΑΤΑ","ΠΑΤΕ","ΠΑΤΕΡΑΣ","ΠΑΤΩΜΑ","ΠΑΩ","ΠΕΘΑΙΝΩ","ΠΕΘΑΝΕ","ΠΕΙΝΑ","ΠΕΛΑΤΗΣ","ΠΕΜΠΤΗ","ΠΕΝΗΝΤΑ","ΠΕΝΤΕ","ΠΕΠΟΝΙ","ΠΕΡΙΟΧΗ","ΠΕΡΙΠΤΩΣΗ","ΠΕΡΙΣΤΑΤΙΚΟ","ΠΕΡΝΑΩ","ΠΕΡΠΑΤΑ","ΠΕΡΠΑΤΑΩ","ΠΕΤΑΩ","ΠΕΦΤΩ","ΠΗΓΑΙΝΕ","ΠΗΓΑΙΝΕΤΕ","ΠΗΔΑΩ","ΠΙΕ","ΠΙΕΣΗ","ΠΙΛΟΤΟΣ","ΠΙΝΩ","ΠΙΟ","ΠΙΠΕΡΙ","ΠΙΠΕΡΙΑ","ΠΙΣΤΕΥΩ","ΠΙΣΤΗ","ΠΙΣΩ","ΠΛΑΤΕΙΑ","ΠΛΑΤΗ","ΠΛΑΤΟΣ","ΠΛΕΥΡΑ","ΠΛΗΚΤΡΟΛΟΓΙΟ","ΠΛΗΣΙΑΖΩ","ΠΛΗΣΙΑΣΕ","ΠΛΟΙΟ","ΠΛΟΥΣΙΟΣ","ΠΛΟΥΤΙΖΩ","ΠΟΔΗΛΑΤΟ","ΠΟΔΙ","ΠΟΙΑ","ΠΟΙΗΤΗΣ","ΠΟΙΟ","ΠΟΙΟΣ","ΠΟΛΕΜΟΣ","ΠΟΛΗ","ΠΟΛΙΤΙΚΗ","ΠΟΛΙΤΙΚΟΣ","ΠΟΛΛΑ","ΠΟΛΥ","ΠΟΝΟΣ","ΠΟΡΤΑ","ΠΟΡΤΟΚΑΛΙ","ΠΟΣΑ","ΠΟΣΟ","ΠΟΤΑΜΙ","ΠΟΤΕ","ΠΟΥ","ΠΟΥΘΕΝΑ","ΠΟΥΚΑΜΙΣΟ","ΠΟΥΛΑΩ","ΠΟΥΛΗΣΕ","ΠΟΥΛΙ","ΠΡΑΓΜΑ","ΠΡΑΣΙΝΟ","ΠΡΕΠΕΙ","ΠΡΙΝ","ΠΡΟΒΑΤΟ","ΠΡΟΒΛΗΜΑ","ΠΡΟΓΡΑΜΜΑ","ΠΡΟΕΔΡΟΣ","ΠΡΟΠΟΝΗΤΗΣ","ΠΡΟΣ","ΠΡΟΣΕΥΧΗ","ΠΡΟΣΠΑΘΩ","ΠΡΟΣΦΕΡΩ","ΠΡΟΤΑΣΗ","ΠΡΟΤΙΜΩ","ΠΡΟΧΩΡΑΩ","ΠΡΩΙ","ΠΡΩΙΝΟ","ΠΡΩΤΟΣ","ΠΤΩΣΗ","ΠΥΡΕΤΟΣ","ΠΩΣ","ΡΕΒΙΘΙΑ","ΡΙΖΑ","ΡΟΔΑΚΙΝΟ","ΡΟΔΙ","ΡΟΖ","ΡΟΥΧΟ","ΡΥΖΙ","ΡΩΤΑΩ","ΣΑΒΒΑΤΟ","ΣΑΛΑΤΑ","ΣΑΛΟΝΙ","ΣΑΡΑΝΤΑ","ΣΑΣ","ΣΒΗΝΩ","ΣΒΗΣΕ","ΣΕ","ΣΕΛΙΔΑ","ΣΕΠΤΕΜΒΡΙΟΣ","ΣΕΡΒΙΤΟΡΟΣ","ΣΗΚΩ","ΣΗΚΩΝΟΜΑΙ","ΣΗΚΩΝΩ","ΣΗΚΩΣΕ","ΣΗΜΑ","ΣΗΜΕΙΟ","ΣΗΜΕΡΑ","ΣΙΩΠΑΩ","ΣΙΩΠΗ","ΣΙΩΠΗΣΕ","ΣΚΑΛΑ","ΣΚΕΦΤΟΜΑΙ","ΣΚΕΨΗ","ΣΚΗΝΟΘΕΤΗΣ","ΣΚΛΑΒΙΑ","ΣΚΟΠΟΣ","ΣΚΟΡ","ΣΚΟΡΔΟ","ΣΚΟΤΑΔΙ","ΣΚΟΤΕΙΝΙΑΖΩ","ΣΚΥΛΟΣ","ΣΟΥ","ΣΟΥΠΑ","ΣΠΑΝΙΑ","ΣΠΙΤΙ","ΣΠΟΡΟΣ","ΣΠΡΩΞΕ","ΣΠΡΩΧΝΩ","ΣΤΑ","ΣΤΑΘΕΡΟΤΗΤΑ","ΣΤΑΘΜΟΣ","ΣΤΑΜΑΤΑΩ","ΣΤΑΦΥΛΙ","ΣΤΕΓΗ","ΣΤΕΓΝΩΝΩ","ΣΤΕΓΝΩΣΕ","ΣΤΕΚΟΜΑΙ","ΣΤΗ","ΣΤΗΘΟΣ","ΣΤΗΝ","ΣΤΙΣ","ΣΤΟ","ΣΤΟΜΑ","ΣΤΟΝ","ΣΤΟΧΟΣ","ΣΤΡΑΤΙΩΤΗΣ","ΣΥΓΓΡΑΦΕΑΣ","ΣΥΚΟ","ΣΥΜΒΟΛΟ","ΣΥΜΦΩΝΩ","ΣΥΝΑΔΕΛΦΟΣ","ΣΥΝΑΧΙ","ΣΥΝΕΧΙΖΩ","ΣΥΝΘΗΚΗ","ΣΥΝΝΕΦΟ","ΣΥΝΟΙΚΙΑ","ΣΥΣΤΗΜΑ","ΣΥΧΝΑ","ΣΦΑΙΡΑ","ΣΧΕΔΙΟ","ΣΧΗΜΑ","ΣΧΟΛΕΙΟ","ΣΩΣΤΑ","ΤΑ","ΤΑΒΑΝΙ","ΤΑΙΝΙΑ","ΤΑΞΗ","ΤΑΞΙ","ΤΑΞΙΔΙ","ΤΑΧΥΤΗΤΑ","ΤΕΛΕΙΩΝΩ","ΤΕΛΕΥΤΑΙΟΣ","ΤΕΛΟΣ","ΤΕΣΣΕΡΑ","ΤΕΣΣΕΡΙΣ","ΤΕΤΑΡΤΗ","ΤΕΤΟΙΟ","ΤΕΤΡΑΓΩΝΟ","ΤΕΧΝΗ","ΤΗΛΕΦΩΝΟ","ΤΗΝ","ΤΗΣ","ΤΙ","ΤΙΠΟΤΑ","ΤΟ","ΤΟΙΧΟΣ","ΤΟΝ","ΤΟΥ","ΤΟΥΣ","ΤΟΥΤΟ","ΤΡΑΒΑ","ΤΡΑΒΑΩ","ΤΡΑΓΟΥΔΑΩ","ΤΡΑΓΟΥΔΙ","ΤΡΑΓΟΥΔΙΣΤΗΣ","ΤΡΑΠΕΖΑ","ΤΡΑΠΕΖΙ","ΤΡΕΙΣ","ΤΡΕΝΟ","ΤΡΕΞΕ","ΤΡΕΧΩ","ΤΡΙΑ","ΤΡΙΑΝΤΑ","ΤΡΙΓΩΝΟ","ΤΡΙΤΗ","ΤΡΙΤΟΣ","ΤΡΟΠΟΣ","ΤΡΩΩ","ΤΣΑΙ","ΤΣΑΝΤΑ","ΤΥΡΙ","ΤΩΝ","ΤΩΡΑ","ΥΓΕΙΑ","ΥΔΡΑΥΛΙΚΟΣ","ΥΛΗ","ΥΠΑΛΛΗΛΟΣ","ΥΠΑΡΞΕ","ΥΠΑΡΧΩ","ΥΠΕΡ","ΥΠΟΛΟΓΙΣΤΗΣ","ΥΠΟΥΡΓΟΣ","ΥΨΟΣ","ΦΑΓΗΤΟ","ΦΑΕ","ΦΑΡΜΑΚΟ","ΦΑΣΟΛΙΑ","ΦΕΒΡΟΥΑΡΙΟΣ","ΦΕΓΓΑΡΙ","ΦΕΥΓΩ","ΦΘΙΝΟΠΩΡΟ","ΦΙΔΙ","ΦΙΛΗ","ΦΙΛΙΑ","ΦΙΛΟΣ","ΦΟΒΑΜΑΙ","ΦΟΒΟΣ","ΦΟΙΤΗΤΗΣ","ΦΟΡΕΜΑ","ΦΟΥΣΤΑ","ΦΡΑΟΥΛΑ","ΦΡΟΥΤΟ","ΦΡΥΔΙ","ΦΤΑΝΩ","ΦΤΙΑΧΝΩ","ΦΤΩΧΑΙΝΩ","ΦΤΩΧΟΣ","ΦΥΓΕ","ΦΥΛΛΟ","ΦΥΣΙΚΑ","ΦΥΣΙΚΗ","ΦΩΝΑΖΩ","ΦΩΝΑΞΕ","ΦΩΣ","ΦΩΤΙΖΩ","ΦΩΤΙΣΕ","ΦΩΤΟΓΡΑΦΙΑ","ΦΩΤΟΓΡΑΦΟΣ","ΧΑΙΡΟΜΑΙ","ΧΑΛΑΩ","ΧΑΝΩ","ΧΑΡΑ","ΧΑΡΗ","ΧΕΙΛΟΣ","ΧΕΙΜΩΝΑΣ","ΧΕΡΙ","ΧΗΜΕΙΑ","ΧΗΝΑ","ΧΘΕΣ","ΧΙΛΙΑ","ΧΙΟΝΙ","ΧΟΡΕΥΩ","ΧΟΡΟΣ","ΧΟΡΤΟ","ΧΡΗΜΑ","ΧΡΟΝΟΣ","ΧΡΥΣΟ","ΧΡΩΜΑ","ΧΤΙΣΤΗΣ","ΧΥΜΟΣ","ΧΩΡΙΖΩ","ΧΩΡΙΟ","ΧΩΡΙΣ","ΧΩΡΙΣΕ","ΨΑΞΕ","ΨΑΡΙ","ΨΑΧΝΩ","ΨΕΜΑ","ΨΙΘΥΡΙΖΩ","ΨΥΧΗ","ΨΩΜΙ","ΩΜΟΣ"]);
+let board=[],selected=[],isDragging=false,players={},foundWords=new Map(),timeLeft=90,timerId=null,gameOver=false,soundOn=true,mode='solo',peer=null,conn=null,myId=null,aiInterval=null;
+let myName='Παίκτης'+Math.floor(Math.random()*90+10);
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq,dur,type='sine',vol=.15){if(!soundOn)return;try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur)}catch(e){}}
+function playSelect(){beep(520+selected.length*40,.06,'sine',.08)}
+function playGood(){beep(660,.1);setTimeout(()=>beep(880,.12),80)}
+function playBad(){beep(180,.2,'sawtooth',.1)}
+function playTick(){beep(900,.03,'square',.04)}
+function loadHS(){try{return JSON.parse(localStorage.getItem('wb_hs')||'[]')}catch{return[]}}
+function saveHS(score){const list=loadHS();list.push({score,date:new Date().toLocaleDateString('el'),name:myName});list.sort((a,b)=>b.score-a.score);localStorage.setItem('wb_hs',JSON.stringify(list.slice(0,10)));renderHS()}
+function renderHS(){const list=loadHS(),el=document.getElementById('hsList');if(!list.length){el.innerHTML='<div style="opacity:.4;font-size:13px">Δεν υπάρχουν ακόμα</div>';return}el.innerHTML=list.map((h,i)=>`<div class="hs-row"><span class="rank">${i+1}.</span><span>${h.name}</span><span>${h.score}</span></div>`).join('')}
+function randomLetter(){return LETTER_BAG[Math.floor(Math.random()*LETTER_BAG.length)]}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function generateBoard(){board=[];for(let r=0;r<4;r++){const row=[];for(let c=0;c<4;c++){const L=randomLetter();row.push({letter:L,points:LETTER_POINTS[L]||1,bonus:null})}board.push(row)}const pos=shuffle([...Array(16).keys()]);let i=0;const nw=Math.random()<.55?2:1;for(let k=0;k<nw;k++){const p=pos[i++];board[Math.floor(p/4)][p%4].bonus='2Λ'}board[Math.floor(pos[i]/4)][pos[i++]%4].bonus='3Γ';board[Math.floor(pos[i]/4)][pos[i]%4].bonus='2Γ'}
+function boardToJSON(){return board.map(row=>row.map(c=>({l:c.letter,p:c.points,b:c.bonus})))}
+function boardFromJSON(data){board=data.map(row=>row.map(c=>({letter:c.l,points:c.p,bonus:c.b})))}
+function renderBoard(){const grid=document.getElementById('grid');grid.innerHTML='';for(let r=0;r<4;r++)for(let c=0;c<4;c++){const cell=board[r][c];const t=document.createElement('div');t.className='tile';t.dataset.r=r;t.dataset.c=c;t.innerHTML=`<span class="points">${cell.points}</span>${cell.letter}${cell.bonus?`<span class="bonus ${bonusClass(cell.bonus)}">${cell.bonus}</span>`:''}`;grid.appendChild(t)}updateSelectionUI()}
+function bonusClass(b){return b==='2Λ'?'word2':b==='2Γ'?'letter2':'letter3'}
+function updateSelectionUI(){document.querySelectorAll('.tile').forEach(t=>t.classList.remove('selected'));selected.forEach(({r,c})=>{const t=document.querySelector(`.tile[data-r="${r}"][data-c="${c}"]`);if(t)t.classList.add('selected')});const word=selected.map(({r,c})=>board[r][c].letter).join('');const el=document.getElementById('currentWord');el.textContent=word;el.classList.add('pop');setTimeout(()=>el.classList.remove('pop'),150);document.getElementById('wordScore').textContent=word.length>=2?calcScore(selected)+' πόντοι':''}
+function renderPlayers(){const bar=document.getElementById('playersBar');bar.innerHTML='';Object.values(players).forEach(p=>{const div=document.createElement('div');div.className='p-card';const color=p.isMe?'linear-gradient(135deg,#7c3aed,#ec4899)':p.isAI?'linear-gradient(135deg,#0ea5e9,#6366f1)':'linear-gradient(135deg,#059669,#10b981)';div.innerHTML=`<div class="avatar" style="background:${color}">${(p.name||'?')[0]}</div><div class="p-name">${p.name||'?'}</div><div class="p-score">${p.score||0}</div>`;bar.appendChild(div)})}
+function renderFound(){
+  // Show ONLY my own words during the game
+  const el=document.getElementById('foundWords');
+  el.innerHTML='';
+  const mine=[...foundWords.values()].filter(info=>info.by===myId).sort((a,b)=>b.pts-a.pts);
+  mine.forEach(info=>{
+    const s=document.createElement('span');
+    s.className='found-word';
+    s.innerHTML=`${info.word}<span class="pts">+${info.pts}</span>`;
+    el.appendChild(s);
+  });
+  document.getElementById('wordCount').textContent=mine.length;
+}
+function calcScore(path){let total=0,mult=1;for(const{r,c}of path){const cell=board[r][c];let p=cell.points;if(cell.bonus==='2Γ')p*=2;if(cell.bonus==='3Γ')p*=3;total+=p;if(cell.bonus==='2Λ')mult=2}return total*mult}
+function isAdj(r1,c1,r2,c2){return Math.abs(r1-r2)<=1&&Math.abs(c1-c2)<=1&&!(r1===r2&&c1===c2)}
+function already(r,c){return selected.some(p=>p.r===r&&p.c===c)}
+function startSelect(r,c){if(gameOver)return;selected=[{r,c}];isDragging=true;playSelect();updateSelectionUI()}
+function contSelect(r,c){if(!isDragging||gameOver)return;const last=selected[selected.length-1];if(last.r===r&&last.c===c)return;if(already(r,c)){if(selected.length>=2){const prev=selected[selected.length-2];if(prev.r===r&&prev.c===c){selected.pop();updateSelectionUI()}}return}if(isAdj(last.r,last.c,r,c)){selected.push({r,c});playSelect();updateSelectionUI()}}
+function endSelect(){if(!isDragging)return;isDragging=false;submitWord()}
+function submitWord(byId=myId){if(selected.length<2){selected=[];updateSelectionUI();return}const word=selected.map(({r,c})=>board[r][c].letter).join('');const pts=calcScore(selected);selected=[];updateSelectionUI();
+// Only block if THIS player already found this word
+const alreadyByMe=[...foundWords.values()].some(info=>info.word===word&&info.by===byId);
+if(alreadyByMe){showMsg('Την έχεις ήδη!','bad');playBad();return}
+if(!DICT.has(word)){showMsg('Μη έγκυρη','bad');playBad();return}
+const id=Date.now()+Math.random();
+foundWords.set(id,{word,pts,by:byId});
+if(players[byId]){players[byId].score+=pts;if(!players[byId].words)players[byId].words=0;players[byId].words++}
+renderPlayers();renderFound();
+if(byId===myId){showMsg(`+${pts}  ${word}`,'good');playGood();spawnParticles(pts)}
+broadcast({type:'word',word,pts,by:byId})}
+function showMsg(txt,type){const m=document.getElementById('message');m.textContent=txt;m.className='message show '+type;setTimeout(()=>m.classList.remove('show'),900)}
+function spawnParticles(pts){const colors=['#c084fc','#ec4899','#2dd4bf','#fbbf24'];for(let i=0;i<5;i++){const p=document.createElement('div');p.className='particle';p.textContent='+'+pts;p.style.left=(35+Math.random()*30)+'%';p.style.top='38%';p.style.color=colors[i%colors.length];p.style.animationDelay=(i*.04)+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),950)}}
+function findAIWords(max=4){const results=[],dirs=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];function dfs(r,c,path,used){if(path.length>=2){const w=path.map(([rr,cc])=>board[rr][cc].letter).join('');if(DICT.has(w)&&![...foundWords.values()].some(i=>i.word===w&&i.by===ai?.id))results.push({word:w,path:path.map(([rr,cc])=>({r:rr,c:cc})),pts:calcScore(path.map(([rr,cc])=>({r:rr,c:cc})))})}if(path.length>=6||results.length>35)return;for(const[dr,dc]of dirs){const nr=r+dr,nc=c+dc;if(nr<0||nr>3||nc<0||nc>3)continue;const key=nr*4+nc;if(used.has(key))continue;used.add(key);path.push([nr,nc]);dfs(nr,nc,path,used);path.pop();used.delete(key)}}for(let r=0;r<4;r++)for(let c=0;c<4;c++){const used=new Set([r*4+c]);dfs(r,c,[[r,c]],used)}results.sort((a,b)=>b.pts-a.pts||b.word.length-a.word.length);return results.slice(0,max)}
+function runAI(){if(gameOver)return;const aiPlayers=Object.values(players).filter(p=>p.isAI);if(!aiPlayers.length)return;const ai=aiPlayers[Math.floor(Math.random()*aiPlayers.length)];const candidates=findAIWords(5);if(!candidates.length)return;let choice;if(ai.level==='easy')choice=candidates[Math.floor(Math.random()*Math.min(3,candidates.length))];else if(ai.level==='medium')choice=candidates[Math.floor(Math.random()*Math.min(2,candidates.length))];else choice=candidates[0];if(choice&&![...foundWords.values()].some(i=>i.word===choice.word&&i.by===ai.id)){selected=choice.path;submitWord(ai.id);selected=[]}}
+function startTimer(){clearInterval(timerId);timeLeft=90;updateTimer();timerId=setInterval(()=>{timeLeft--;updateTimer();if(timeLeft<=15&&timeLeft>0)playTick();if(timeLeft<=0)endGame()},1000)}
+function updateTimer(){const m=Math.floor(timeLeft/60),s=timeLeft%60;const el=document.getElementById('timer');el.textContent=`${m}:${s.toString().padStart(2,'0')}`;el.classList.toggle('warning',timeLeft<=15)}
+function endGame(){
+  clearInterval(timerId);clearInterval(aiInterval);gameOver=true;
+  const me=players[myId];
+  if(me)saveHS(me.score);
+  // Build final summary - show everyone's word count + points
+  let summary='Τέλος παιχνιδιού!\n\n';
+  const sorted=Object.values(players).sort((a,b)=>(b.score||0)-(a.score||0));
+  sorted.forEach((p,i)=>{
+    const wc=p.words||0;
+    summary+=`${i+1}. ${p.name}: ${wc} λέξεις · ${p.score||0} πόντοι\n`;
+  });
+  showMsg(`Τέλος! Σκορ: ${me?me.score:0}`,'good');
+  setTimeout(()=>{alert(summary);if(confirm('Πίσω στο lobby;'))goLobby()},800);
+}
+function initPeer(asHost=false){return new Promise((resolve,reject)=>{peer=new Peer({debug:0});peer.on('open',id=>{myId=id;resolve(id)});peer.on('error',err=>{document.getElementById('lobbyStatus').textContent='Σφάλμα: '+(err.type||err);reject(err)});if(asHost)peer.on('connection',c=>{conn=c;setupConn(c)})})}
+function setupConn(c){c.on('open',()=>{document.getElementById('statusBar').textContent='Συνδεδεμένος!';if(mode==='host')c.send({type:'init',board:boardToJSON(),players,found:[...foundWords.entries()],timeLeft,hostName:myName})});c.on('data',data=>handleNet(data));c.on('close',()=>document.getElementById('statusBar').textContent='Αντίπαλος αποσυνδέθηκε')}
+function handleNet(data){if(data.type==='init'&&mode==='guest'){boardFromJSON(data.board);players=data.players||{};players[myId]={id:myId,name:myName,score:0,words:0,isMe:true,isAI:false};foundWords=new Map(data.found||[]);timeLeft=data.timeLeft||90;renderBoard();renderPlayers();renderFound();startTimer();document.getElementById('statusBar').textContent='Συνδεδεμένος με '+(data.hostName||'host')}if(data.type==='word'){
+  // Opponent found a word - add it under their name, do NOT block us from finding the same word
+  const already=[...foundWords.values()].some(i=>i.word===data.word&&i.by===data.by);
+  if(already)return;
+  const id=Date.now()+Math.random();
+  foundWords.set(id,{word:data.word,pts:data.pts,by:data.by});
+  if(players[data.by]){players[data.by].score+=data.pts;if(!players[data.by].words)players[data.by].words=0;players[data.by].words++}
+  renderPlayers();renderFound();
+}if(data.type==='board'&&mode==='guest'){boardFromJSON(data.board);renderBoard()}}
+function broadcast(msg){if(conn&&conn.open)conn.send(msg)}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function goLobby(){clearInterval(timerId);clearInterval(aiInterval);if(peer){try{peer.destroy()}catch(e){}peer=null}conn=null;gameOver=false;showScreen('lobby');renderHS();document.getElementById('lobbyStatus').textContent=''}
+function startSolo(){mode='solo';myId='me';players={me:{id:'me',name:myName,score:0,words:0,isMe:true,isAI:false},ai1:{id:'ai1',name:'Νίκος',score:0,words:0,isMe:false,isAI:true,level:'medium'},ai2:{id:'ai2',name:'Μαρία',score:0,words:0,isMe:false,isAI:true,level:'easy'}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='Solo με εικονικούς αντιπάλους';startTimer();aiInterval=setInterval(runAI,4200+Math.random()*2500)}
+async function createRoom(){document.getElementById('lobbyStatus').textContent='Δημιουργία...';try{await initPeer(true);mode='host';players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='flex';const link=location.href.split('?')[0]+'?room='+myId;document.getElementById('inviteLink').value=link;document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Στείλε το link ή το Peer ID';startTimer()}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία. Δοκίμασε Solo.'}}
+async function joinRoom(code){if(!code||!code.trim())return;document.getElementById('lobbyStatus').textContent='Σύνδεση...';try{await initPeer(false);mode='guest';conn=peer.connect(code.trim());setupConn(conn);players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};showScreen('game');document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='Συνδέομαι με host...'}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία σύνδεσης.'}}
+document.getElementById('btnSolo').onclick=startSolo;
+document.getElementById('btnCreate').onclick=createRoom;
+document.getElementById('btnJoin').onclick=()=>joinRoom(document.getElementById('joinCode').value);
+document.getElementById('btnBack').onclick=goLobby;
+document.getElementById('btnShuffle').onclick=()=>{if(mode==='guest')return showMsg('Μόνο ο host','bad');if(confirm('Νέο ταμπλό;')){generateBoard();foundWords.clear();Object.values(players).forEach(p=>{p.score=0;p.words=0});renderBoard();renderPlayers();renderFound();broadcast({type:'board',board:boardToJSON()})}};
+document.getElementById('btnSound').onclick=()=>{soundOn=!soundOn;document.getElementById('btnSound').textContent=soundOn?'🔊':'🔇'};
+document.getElementById('btnCopy').onclick=()=>{const inp=document.getElementById('inviteLink');navigator.clipboard.writeText(inp.value).then(()=>showMsg('Αντιγράφηκε!','good')).catch(()=>{inp.select();document.execCommand('copy');showMsg('Αντιγράφηκε','good')})};
+const grid=document.getElementById('grid');
+function tileAt(x,y){const el=document.elementFromPoint(x,y);const t=el?.closest('.tile');return t?{r:+t.dataset.r,c:+t.dataset.c}:null}
+grid.addEventListener('mousedown',e=>{e.preventDefault();const t=tileAt(e.clientX,e.clientY);if(t)startSelect(t.r,t.c)});
+window.addEventListener('mousemove',e=>{if(!isDragging)return;const t=tileAt(e.clientX,e.clientY);if(t)contSelect(t.r,t.c)});
+window.addEventListener('mouseup',endSelect);
+grid.addEventListener('touchstart',e=>{e.preventDefault();const tch=e.touches[0];const t=tileAt(tch.clientX,tch.clientY);if(t)startSelect(t.r,t.c)},{passive:false});
+grid.addEventListener('touchmove',e=>{e.preventDefault();if(!isDragging)return;const tch=e.touches[0];const t=tileAt(tch.clientX,tch.clientY);if(t)contSelect(t.r,t.c)},{passive:false});
+grid.addEventListener('touchend',e=>{e.preventDefault();endSelect()});
+const params=new URLSearchParams(location.search);
+if(params.get('room')){document.getElementById('joinCode').value=params.get('room');setTimeout(()=>joinRoom(params.get('room')),700)}
+renderHS();
+</script>
+
+</body>
+</html>
