@@ -189,9 +189,37 @@ function endGame(){
   showMsg(`Τέλος! Σκορ: ${me?me.score:0}`,'good');
   setTimeout(()=>{alert(summary);if(confirm('Πίσω στο lobby;'))goLobby()},800);
 }
-function initPeer(asHost=false){return new Promise((resolve,reject)=>{peer=new Peer({debug:0});peer.on('open',id=>{myId=id;resolve(id)});peer.on('error',err=>{document.getElementById('lobbyStatus').textContent='Σφάλμα: '+(err.type||err);reject(err)});if(asHost)peer.on('connection',c=>{conn=c;setupConn(c)})})}
-function setupConn(c){c.on('open',()=>{document.getElementById('statusBar').textContent='Συνδεδεμένος!';if(mode==='host')c.send({type:'init',board:boardToJSON(),players,found:[...foundWords.entries()],timeLeft,hostName:myName})});c.on('data',data=>handleNet(data));c.on('close',()=>document.getElementById('statusBar').textContent='Αντίπαλος αποσυνδέθηκε')}
-function handleNet(data){if(data.type==='init'&&mode==='guest'){boardFromJSON(data.board);players=data.players||{};players[myId]={id:myId,name:myName,score:0,words:0,isMe:true,isAI:false};foundWords=new Map(data.found||[]);timeLeft=data.timeLeft||90;renderBoard();renderPlayers();renderFound();startTimer();document.getElementById('statusBar').textContent='Συνδεδεμένος με '+(data.hostName||'host')}if(data.type==='word'){
+function initPeer(asHost=false){return new Promise((resolve,reject)=>{peer=new Peer({
+  debug:1,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ]
+  }
+});peer.on('open',id=>{myId=id;resolve(id)});peer.on('error',err=>{document.getElementById('lobbyStatus').textContent='Σφάλμα: '+(err.type||err);reject(err)});if(asHost)peer.on('connection',c=>{conn=c;setupConn(c)})})}
+function setupConn(c){c.on('open',()=>{
+  document.getElementById('statusBar').textContent='Συνδεδεμένος!';
+  if(mode==='host'){
+    const payload={type:'init',board:boardToJSON(),players,found:[...foundWords.entries()],timeLeft,hostName:myName};
+    c.send(payload);
+    // resend once after 1s in case first packet lost
+    setTimeout(()=>{if(c.open)c.send(payload)},1000);
+  }
+});c.on('data',data=>handleNet(data));c.on('close',()=>document.getElementById('statusBar').textContent='Αντίπαλος αποσυνδέθηκε')}
+function handleNet(data){if(data.type==='init'&&mode==='guest'){
+  boardFromJSON(data.board);
+  players=data.players||{};
+  players[myId]={id:myId,name:myName,score:0,words:0,isMe:true,isAI:false};
+  foundWords=new Map(data.found||[]);
+  timeLeft=data.timeLeft||90;
+  renderBoard();
+  renderPlayers();
+  renderFound();
+  startTimer();
+  document.getElementById('statusBar').textContent='Συνδεδεμένος με '+(data.hostName||'host')+' ✓';
+  showMsg('Συνδέθηκες!','good');
+}if(data.type==='word'){
   // Opponent found a word - add it under their name, do NOT block us from finding the same word
   const already=[...foundWords.values()].some(i=>i.word===data.word&&i.by===data.by);
   if(already)return;
@@ -204,8 +232,37 @@ function broadcast(msg){if(conn&&conn.open)conn.send(msg)}
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
 function goLobby(){clearInterval(timerId);clearInterval(aiInterval);if(peer){try{peer.destroy()}catch(e){}peer=null}conn=null;gameOver=false;showScreen('lobby');renderHS();document.getElementById('lobbyStatus').textContent=''}
 function startSolo(){mode='solo';myId='me';players={me:{id:'me',name:myName,score:0,words:0,isMe:true,isAI:false},ai1:{id:'ai1',name:'Νίκος',score:0,words:0,isMe:false,isAI:true,level:'medium'},ai2:{id:'ai2',name:'Μαρία',score:0,words:0,isMe:false,isAI:true,level:'easy'}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='Solo με εικονικούς αντιπάλους';startTimer();aiInterval=setInterval(runAI,4200+Math.random()*2500)}
-async function createRoom(){document.getElementById('lobbyStatus').textContent='Δημιουργία...';try{await initPeer(true);mode='host';players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='flex';const link=location.href.split('?')[0]+'?room='+myId;document.getElementById('inviteLink').value=link;document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Στείλε το link ή το Peer ID';startTimer()}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία. Δοκίμασε Solo.'}}
-async function joinRoom(code){if(!code||!code.trim())return;document.getElementById('lobbyStatus').textContent='Σύνδεση...';try{await initPeer(false);mode='guest';conn=peer.connect(code.trim());setupConn(conn);players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};showScreen('game');document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='Συνδέομαι με host...'}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία σύνδεσης.'}}
+async function createRoom(){document.getElementById('lobbyStatus').textContent='Δημιουργία...';try{await initPeer(true);mode='host';players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='flex';const link=location.href.split('?')[0]+'?room='+myId;document.getElementById('inviteLink').value=link;document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Κράτα ανοιχτή αυτή τη σελίδα και στείλε το link';startTimer()}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία. Δοκίμασε Solo.'}}
+async function joinRoom(code){
+  if(!code||!code.trim())return;
+  const cleanCode=code.trim();
+  document.getElementById('lobbyStatus').textContent='Σύνδεση...';
+  try{
+    await initPeer(false);
+    mode='guest';
+    players={[myId]:{id:myId,name:myName,score:0,words:0,isMe:true,isAI:false}};
+    showScreen('game');
+    document.getElementById('inviteBox').style.display='none';
+    document.getElementById('statusBar').textContent='Συνδέομαι με host... Περίμενε λίγο';
+    // Clear grid and show waiting message in the grid area
+    const grid=document.getElementById('grid');
+    grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;opacity:0.8"><div style="font-size:28px">⏳</div><div style="font-size:15px;line-height:1.5">Συνδέομαι με τον host...<br><span style="font-size:12px;opacity:0.7">Ο host πρέπει να έχει ανοιχτό το παιχνίδι</span></div></div>';
+    
+    conn=peer.connect(cleanCode,{reliable:true});
+    setupConn(conn);
+    
+    // Timeout after 12 seconds
+    setTimeout(()=>{
+      if(mode==='guest' && (!conn || !conn.open) && board.length===0){
+        document.getElementById('statusBar').textContent='Αποτυχία σύνδεσης';
+        grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 16px;text-align:center"><div style="font-size:32px">😕</div><div style="font-size:15px;line-height:1.5">Δεν βρέθηκε ο host.<br>Βεβαιώσου ότι έχει ανοιχτό το παιχνίδι<br>και δοκίμασε ξανά.</div><button class="btn btn-primary" style="margin-top:8px;padding:10px 20px;font-size:14px" onclick="goLobby()">← Πίσω στο Lobby</button></div>';
+      }
+    },12000);
+  }catch(e){
+    document.getElementById('lobbyStatus').textContent='Αποτυχία σύνδεσης.';
+    console.error(e);
+  }
+}
 document.getElementById('btnSolo').onclick=startSolo;
 document.getElementById('btnCreate').onclick=createRoom;
 document.getElementById('btnJoin').onclick=()=>joinRoom(document.getElementById('joinCode').value);
