@@ -11,15 +11,23 @@
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:#f0e6ff;min-height:100vh;overflow-x:hidden}
 .screen{display:none;min-height:100vh;flex-direction:column;align-items:center;padding:16px}
 .screen.active{display:flex}
+
+/* Οθόνη Έναρξης / Splash Screen */
+#splash { position:relative; overflow:hidden; justify-content:center; z-index: 500; }
+#splash .logo { z-index: 10; font-size:48px; text-shadow: 0 0 20px #c084fc; animation: pulseLogo 2s infinite; }
+@keyframes pulseLogo { 50% { transform: scale(1.05); } }
+
 #lobby{justify-content:center;gap:20px}
-.logo{font-size:32px;font-weight:800;letter-spacing:1px;text-align:center;margin-bottom:8px}
+.logo{font-size:32px;font-weight:800;letter-spacing:1px;text-align:center;margin-bottom:4px}
 .logo span{color:var(--pink)}
-.subtitle{opacity:.6;font-size:14px;margin-bottom:24px}
+.subtitle{opacity:.6;font-size:14px;margin-bottom:8px; text-align:center;}
+#lobbyNickDisplay { color:var(--teal); font-size: 16px; font-weight: 600; text-align: center; margin-bottom: 15px; }
+
 .lobby-card{background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
 .btn{border:none;border-radius:14px;padding:14px 20px;font-size:16px;font-weight:600;cursor:pointer;transition:transform .12s;display:flex;align-items:center;justify-content:center;gap:8px}
 .btn:active{transform:scale(.96)}
 .btn-primary{background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff}
-.btn-secondary{background:#2a1f3d;color:#fff}
+.btn-secondary{background:#2a1f3d;color:#fff; border: 1px solid #4c1d95;}
 .input{background:#2a1f3d;border:1px solid #3b2d5c;border-radius:12px;padding:12px 16px;color:#fff;font-size:16px;width:100%;text-align:center}
 .input:focus{outline:2px solid var(--purple)}
 .room-info{font-size:13px;opacity:.7;text-align:center;margin-top:8px;min-height:18px}
@@ -76,12 +84,13 @@ header{width:100%;max-width:420px;display:flex;justify-content:space-between;ali
 footer{margin-top:12px;font-size:11px;opacity:.35}
 
 .nick-modal {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 300;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 300;
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .nick-card {
   background: var(--card); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 320px;
-  display: flex; flex-direction: column; gap: 14px; text-align: center;
+  display: flex; flex-direction: column; gap: 14px; text-align: center; border: 1px solid #4c1d95;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 .nick-card h2 { font-size: 20px; margin-bottom: 4px; }
 .nick-card p { font-size: 13px; opacity: 0.65; }
@@ -95,16 +104,18 @@ footer{margin-top:12px;font-size:11px;opacity:.35}
   letter-spacing: 0.5px;
 }
 .praise.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-.share-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
-.share-btn {
-  width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 22px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
 
 </style>
 </head>
 <body>
 
+<!-- Οθόνη Έναρξης (Splash) -->
+<div id="splash" class="screen active">
+  <div class="logo">Λεξοδρομίες</div>
+  <div id="splashLetters" style="position:absolute; inset:0; pointer-events:none;"></div>
+</div>
+
+<!-- Παράθυρο Ψευδώνυμου -->
 <div id="nickModal" class="nick-modal" style="display:none">
   <div class="nick-card">
     <h2>Καλώς ήρθες!</h2>
@@ -113,66 +124,105 @@ footer{margin-top:12px;font-size:11px;opacity:.35}
     <button class="btn btn-primary" id="btnSaveNick">Πάμε!</button>
   </div>
 </div>
+
+<!-- Παράθυρο Δωματίου (Οδηγίες & Σύνδεση) -->
+<div id="roomModal" class="nick-modal" style="display:none; z-index:400;">
+  <div class="nick-card" style="max-width:350px; text-align:left;">
+    <h3 style="text-align:center; color:var(--accent); margin-bottom: 5px; font-size: 20px;">Δωμάτιο (Multiplayer)</h3>
+    <div style="font-size:13px; opacity:0.9; line-height:1.45; background:#2a1f3d; padding:14px; border-radius:12px; margin-bottom:12px; border-left: 3px solid var(--purple);">
+      <strong>Τι είναι το δωμάτιο;</strong><br>
+      Είναι ένας ιδιωτικός χώρος για να παίξεις ζωντανά 1vs1 απέναντι σε κάποιον φίλο σου.<br><br>
+      <strong>Πώς γίνεται η σύνδεση;</strong><br>
+      <span style="color:var(--teal)">1.</span> Ο πρώτος παίκτης πατάει <em>"Δημιουργία Δωματίου"</em> και στέλνει το link (μέσω του κουμπιού Αντιγραφή/Share) στον φίλο του.<br>
+      <span style="color:var(--teal)">2.</span> Ο δεύτερος παίκτης ανοίγει το link που του έστειλαν ή βάζει τον κωδικό χειροκίνητα στο πεδίο <em>"Είσοδος"</em>.
+    </div>
+    <button class="btn btn-primary" id="btnCreateReal" style="margin-bottom:10px; background:linear-gradient(135deg, #10b981, #059669)">＋ Δημιουργία Δωματίου</button>
+    <div style="display:flex; gap:8px;">
+      <input class="input" id="joinCode" placeholder="Γράψε κωδικό ή ID" style="flex:1" />
+      <button class="btn btn-primary" id="btnJoinReal" style="padding:0 15px">Είσοδος</button>
+    </div>
+    <button class="btn" style="background:transparent; border:none; color:#a855f7; margin-top:8px" onclick="document.getElementById('roomModal').style.display='none'">← Επιστροφή</button>
+  </div>
+</div>
+
 <div class="praise" id="praise"></div>
 
-<div id="lobby" class="screen active">
-<div class="logo">Λεξοδρομίες</div>
-<div class="subtitle">by FranklyGames · 4×4</div>
-<div class="lobby-card">
-<button class="btn btn-primary" id="btnSolo">▶ Solo</button>
-<button class="btn btn-secondary" id="btnCreate">＋ Δημιουργία Δωματίου</button>
-<div style="display:flex;gap:8px">
-<input class="input" id="joinCode" placeholder="Peer ID ή κωδικός" style="flex:1"/>
-<button class="btn btn-secondary" id="btnJoin" style="width:auto;padding:0 16px">Είσοδος</button>
+<div id="lobby" class="screen">
+  <div class="logo">Λεξοδρομίες</div>
+  <div class="subtitle">by FranklyGames · 4×4</div>
+  <div id="lobbyNickDisplay"></div>
+  
+  <div class="lobby-card">
+    <button class="btn btn-primary" id="btnSolo">▶ Solo (με Bot)</button>
+    <button class="btn btn-secondary" id="btnOpenRoomModal">🤝 Δωμάτιο (Multiplayer)</button>
+    <div class="room-info" id="lobbyStatus"></div>
+  </div>
+  <div class="highscores-box">
+    <div class="hs-title">🏆 High Scores (τοπικά)</div>
+    <div id="hsList"></div>
+  </div>
+  <footer>Λεξοδρομίες by FranklyGames</footer>
 </div>
-<div class="room-info" id="lobbyStatus"></div>
-</div>
-<div class="highscores-box">
-<div class="hs-title">🏆 High Scores (τοπικά)</div>
-<div id="hsList"></div>
-</div>
-<footer>Λεξοδρομίες by FranklyGames</footer>
-</div>
+
 <div id="game" class="screen">
-<header>
-<button class="back-btn" id="btnBack">←</button>
-<div class="players-bar" id="playersBar"></div>
-<div class="timer-box" id="timer">1:30</div>
-</header>
-<div class="current-word-area"><div id="currentWord"></div><div id="wordScore"></div></div>
-<div class="grid-container" id="grid"></div>
-<div class="controls">
-<span class="lang">Ελληνικά</span>
-<div style="display:flex;gap:8px">
-<button class="icon-btn" id="btnSound" title="Ήχος">🔊</button>
-<button class="icon-btn" id="btnShuffle" title="Νέο ταμπλό">↻</button>
-</div>
-</div>
-<div class="found-section">
-<div class="found-title"><span>Βρεθείσες λέξεις</span><span id="wordCount">0</span></div>
-<div id="foundWords"></div>
-</div>
-<div class="status-bar" id="statusBar"></div>
-<div class="invite-box" id="inviteBox" style="display:none">
-<input id="inviteLink" readonly/>
-<button class="copy-btn" id="btnCopy">Αντιγραφή</button>
-</div>
+  <header>
+    <button class="back-btn" id="btnBack">←</button>
+    <div class="players-bar" id="playersBar"></div>
+    <div class="timer-box" id="timer">1:30</div>
+  </header>
+  <div class="current-word-area"><div id="currentWord"></div><div id="wordScore"></div></div>
+  <div class="grid-container" id="grid"></div>
+  <div class="controls">
+    <span class="lang">Ελληνικά</span>
+    <div style="display:flex;gap:8px">
+      <button class="icon-btn" id="btnSound" title="Ήχος">🔊</button>
+      <button class="icon-btn" id="btnShuffle" title="Νέο ταμπλό">↻</button>
+    </div>
+  </div>
+  <div class="found-section">
+    <div class="found-title"><span>Βρεθείσες λέξεις</span><span id="wordCount">0</span></div>
+    <div id="foundWords"></div>
+  </div>
+  <div class="status-bar" id="statusBar"></div>
+  <div class="invite-box" id="inviteBox" style="display:none">
+    <input id="inviteLink" readonly/>
+    <button class="copy-btn" id="btnCopy">Αντιγραφή (Share)</button>
+  </div>
 </div>
 <div class="message" id="message"></div>
 
 <script>
+// Φόρτωση Δυναμικού Λεξικού από το Internet (Αντικαθιστά την τεράστια λίστα)
+let DICT = new Set(["ΛΥΡΑ", "ΟΥΡΑ", "ΕΓΩ", "ΝΑΙ", "ΟΧΙ", "ΑΥΡΑ"]); // Βασικές λέξεις για ασφάλεια
+fetch('https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/Greek.txt')
+  .then(response => response.text())
+  .then(text => {
+    const lines = text.split('\n');
+    lines.forEach(line => {
+      let word = line.split('/')[0].trim();
+      if(word) {
+        let clean = word.toLocaleUpperCase('el-GR').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if(clean.length >= 2 && /^[Α-Ω]+$/.test(clean)) DICT.add(clean);
+      }
+    });
+    console.log(`Το λεξικό φορτώθηκε δυναμικά: ${DICT.size} έγκυρες λέξεις!`);
+  })
+  .catch(err => console.error("Σφάλμα φόρτωσης λεξικού:", err));
+
 const LETTER_POINTS={'Α':1,'Β':8,'Γ':4,'Δ':4,'Ε':1,'Ζ':10,'Η':1,'Θ':10,'Ι':1,'Κ':2,'Λ':3,'Μ':3,'Ν':1,'Ξ':10,'Ο':1,'Π':2,'Ρ':2,'Σ':1,'Τ':1,'Υ':2,'Φ':8,'Χ':8,'Ψ':10,'Ω':3};
 const LETTER_BAG=[...'Α'.repeat(16),...'Ε'.repeat(12),...'Ι'.repeat(12),...'Ο'.repeat(12),...'Τ'.repeat(10),...'Σ'.repeat(9),...'Ν'.repeat(9),...'Η'.repeat(7),...'Ρ'.repeat(7),...'Π'.repeat(6),...'Κ'.repeat(6),...'Μ'.repeat(6),...'Λ'.repeat(6),...'Υ'.repeat(5),...'Ω'.repeat(3),...'Γ'.repeat(3),...'Δ'.repeat(3),...'Β'.repeat(2),...'Φ'.repeat(2),...'Χ'.repeat(2),'Ζ','Θ','Ξ','Ψ'];
-let DICT=new Set(["ΑΓΑΠΑΩ","ΑΓΑΠΗ","ΑΓΓΙΖΩ","ΑΓΓΟΥΡΙ","ΑΓΕΛΑΔΑ","ΑΓΙΑ","ΑΓΙΟ","ΑΓΙΟΣ","ΑΓΚΩΝΑΣ","ΑΓΟΡΑ","ΑΓΟΡΑΖΩ","ΑΓΟΡΑΣΕ","ΑΓΟΡΙ","ΑΓΩ","ΑΓΩΝΙΖΟΜΑΙ","ΑΔΕΙΑΖΩ","ΑΔΕΙΑΣΕ","ΑΔΕΡΦΗ","ΑΔΕΡΦΟΣ","ΑΔΙΚΙΑ","ΑΔΥΝΑΜΙΑ","ΑΔΥΝΑΜΟΣ","ΑΔΥΝΑΤΙΖΩ","ΑΔΥΝΑΤΟΣ","ΑΕΡ","ΑΕΡΑ","ΑΕΡΑΣ","ΑΕΡΟΔΡΟΜΙΟ","ΑΕΡΟΠΛΑΝΟ","ΑΘΛΗΜΑ","ΑΘΛΗΤΗΣ","ΑΘΩΟ","ΑΙΜΑ","ΑΙΤΙΑ","ΑΙΤΟΥΜΑΙ","ΑΚΙΝΗΣΙΑ","ΑΚΟΥ","ΑΚΟΥΕΙ","ΑΚΟΥΜΠΑΩ","ΑΚΟΥΩ","ΑΚΡΗ","ΑΚΡΟ","ΑΚΤΗ","ΑΛΑΣ","ΑΛΑΤΙ","ΑΛΕΥΡΙ","ΑΛΗΘΕΙΑ","ΑΛΛ","ΑΛΛΑ","ΑΛΛΑΓΗ","ΑΛΛΑΖΩ","ΑΛΛΑΞΕ","ΑΛΛΗ","ΑΛΛΟ","ΑΛΜΗ","ΑΛΟΓΟ","ΑΜΑ","ΑΜΕΛΩ","ΑΜΦΙΒΑΛΛΩ","ΑΜΦΙΤΑΛΑΝΤΕΥΟΜΑΙ","ΑΝ","ΑΝΑΚΑΛΥΠΤΩ","ΑΝΑΚΑΛΩ","ΑΝΑΚΑΜΠΤΩ","ΑΝΑΚΑΤΕΥΩ","ΑΝΑΚΟΙΝΩΝΩ","ΑΝΑΛΟΓΙΖΟΜΑΙ","ΑΝΑΜΕΝΩ","ΑΝΑΜΙΜΝΗΣΚΟΜΑΙ","ΑΝΑΠΑΥΟΜΑΙ","ΑΝΑΠΗΔΩ","ΑΝΑΠΤΥΞΗ","ΑΝΑΠΤΥΣΣΟΜΑΙ","ΑΝΑΡΡΙΧΩΜΑΙ","ΑΝΑΡΡΩΝΩ","ΑΝΔΡΑΣ","ΑΝΕΒΑ","ΑΝΕΒΑΙΝΩ","ΑΝΕΜΟΣ","ΑΝΘΡΩΠΟΣ","ΑΝΙΨΙΑ","ΑΝΙΨΙΟΣ","ΑΝΟΙΓΩ","ΑΝΟΙΞΕ","ΑΝΟΙΞΗ","ΑΝΤΑΠΟΚΡΙΝΟΜΑΙ","ΑΝΤΙ","ΑΝΤΙΔΡΩ","ΑΝΤΙΚΕΙΜΕΝΟ","ΑΝΤΙΛΑΜΒΑΝΟΜΑΙ","ΑΝΤΙΛΕΓΩ","ΑΝΤΙΤΙΘΕΜΑΙ","ΑΝΩ","ΑΞΙΑ","ΑΞΙΩΝΩ","ΑΠΑΙΤΩ","ΑΠΑΝΤΑΩ","ΑΠΑΝΤΗΣΗ","ΑΠΕΛΠΙΖΟΜΑΙ","ΑΠΕΧΘΑΝΟΜΑΙ","ΑΠΟ","ΑΠΟΒΙΩΝΩ","ΑΠΟΓΕΥΜΑ","ΑΠΟΔΕΧΟΜΑΙ","ΑΠΟΜΑΚΡΥΝΟΜΑΙ","ΑΠΟΡΡΙΠΤΩ","ΑΠΟΣΤΡΕΦΟΜΑΙ","ΑΠΟΤΑΜΙΕΥΩ","ΑΠΟΤΕΛΕΣΜΑ","ΑΠΟΤΥΓΧΑΝΩ","ΑΠΟΤΥΧΑΙΝΩ","ΑΠΟΦΑΣΙΖΩ","ΑΠΟΧΩΡΩ","ΑΠΡΙΛΙΟΣ","ΑΡΑ","ΑΡΑΧΝΗ","ΑΡΓΑ","ΑΡΓΟΣ","ΑΡΙΘΜΟΣ","ΑΡΚΕΤΑ","ΑΡΝΟΥΜΑΙ","ΑΡΡΩΣΤΑΙΝΩ","ΑΡΡΩΣΤΙΑ","ΑΡΤΙ","ΑΡΧΗ","ΑΡΧΙΖΩ","ΑΡΧΙΤΕΚΤΟΝΙΚΗ","ΑΣ","ΑΣΗΜΙ","ΑΣΘΕΝΩ","ΑΣΠΑΖΟΜΑΙ","ΑΣΠΡΟ","ΑΣΤΕΡΙ","ΑΣΤΥ","ΑΣΤΥΝΟΜΟΣ","ΑΣΧΗΜΑ","ΑΣΧΗΜΟΣ","ΑΤΑΞΙΑ","ΑΥΓΟ","ΑΥΓΟΥΣΤΟΣ","ΑΥΛΗ","ΑΥΞΑΝΩ","ΑΥΞΗΣΕ","ΑΥΞΗΣΗ","ΑΥΡΑ","ΑΥΡΙΟ","ΑΥΤΑ","ΑΥΤΕΣ","ΑΥΤΗ","ΑΥΤΙ","ΑΥΤΟ","ΑΥΤΟΙ","ΑΥΤΟΚΙΝΗΤΟ","ΑΥΤΟΣ","ΑΦΕΝΤΙΚΟ","ΑΦΗΓΟΥΜΑΙ","ΑΦΗΝΩ","ΑΦΗΣΕ","ΑΦΟΥ","ΑΦΤΙ","ΑΧ","ΑΧΛΑΔΙ","ΒΑΔΙΖΩ","ΒΑΖΑ","ΒΑΖΩ","ΒΑΘΗ","ΒΑΘΟΣ","ΒΑΛΕ","ΒΑΛΙΤΣΑ","ΒΑΡΗ","ΒΑΡΟΣ","ΒΑΡΥ","ΒΑΤΡΑΧΟΣ","ΒΓΑΖΩ","ΒΓΑΙΝΩ","ΒΓΑΛΕ","ΒΓΕ","ΒΓΕΣ","ΒΕΒΑΙΑ","ΒΕΛΗ","ΒΕΡΥΚΟΚΟ","ΒΗΜΑ","ΒΗΧΑ","ΒΗΧΑΣ","ΒΙΒΛΙΟ","ΒΙΔΑ","ΒΙΝΤΕΟ","ΒΙΟΛΟΓΙΑ","ΒΙΟΣ","ΒΛΕΠΕΙ","ΒΛΕΠΩ","ΒΛΕΦΑΡΟ","ΒΟΗΘΑΩ","ΒΟΗΘΗΣΕ","ΒΟΛΗ","ΒΟΥΛΕΥΤΗΣ","ΒΟΥΝΟ","ΒΟΥΤΑΩ","ΒΟΥΤΥΡΟ","ΒΡΑΔΙΝΟ","ΒΡΑΔΥ","ΒΡΕ","ΒΡΕΞΕ","ΒΡΕΣ","ΒΡΕΧΩ","ΒΡΙΣΚΩ","ΒΡΟΧΗ","ΒΡΩΜΙΖΩ","ΒΥΘΙΖΟΜΑΙ","ΓΑΛΑ","ΓΑΜΟ","ΓΑΜΟΣ","ΓΑΜΠΡΟΣ","ΓΑΝΤΙ","ΓΑΤΑ","ΓΕΓΟΝΟΣ","ΓΕΙΤΟΝΑΣ","ΓΕΙΤΟΝΙΑ","ΓΕΛΑΩ","ΓΕΜΙΖΩ","ΓΕΜΙΣΕ","ΓΕΝΝΑΩ","ΓΕΝΝΗΣΕ","ΓΕΝΝΗΣΗ","ΓΕΝΝΙΕΜΑΙ","ΓΕΝΝΩΜΑΙ","ΓΕΡΗ","ΓΕΡΝΑΩ","ΓΕΡΟ","ΓΕΥΜΑ","ΓΕΥΜΑΤΙΖΩ","ΓΕΥΟΜΑΙ","ΓΕΩΓΡΑΦΙΑ","ΓΗ","ΓΗΠΕΔΟ","ΓΙΑ","ΓΙΑΓΙΑ","ΓΙΑΙΝΩ","ΓΙΑΤΙ","ΓΙΑΤΡΟΣ","ΓΙΔΑ","ΓΙΔΙ","ΓΙΝΟΜΑΙ","ΓΙΟ","ΓΙΟΣ","ΓΚΟΛ","ΓΚΡΕΜΙΖΩ","ΓΚΡΙ","ΓΛΥΚΟ","ΓΛΥΠΤΙΚΗ","ΓΛΩΣΣΑ","ΓΟΝΑΤΟ","ΓΟΥΡΟΥΝΙ","ΓΡΑΒΑΤΑ","ΓΡΑΜΜΑ","ΓΡΑΜΜΗ","ΓΡΑΦΕΙΟ","ΓΡΑΦΩ","ΓΡΑΨΕ","ΓΡΗΓΟΡΑ","ΓΡΗΓΟΡΟΣ","ΓΡΙΑ","ΓΥΝΑΙΚΑ","ΓΥΡΙΖΩ","ΓΩΝΙΑ","ΔΑΚΡΥΖΩ","ΔΑΠΑΝΩ","ΔΑΣΗ","ΔΑΣΚΑΛΟΣ","ΔΑΣΟΣ","ΔΑΧΤΥΛΟ","ΔΕ","ΔΕΙ","ΔΕΙΠΝΩ","ΔΕΙΧΝΩ","ΔΕΚΑ","ΔΕΚΕΜΒΡΙΟΣ","ΔΕΜΑ","ΔΕΝ","ΔΕΝΤΡΟ","ΔΕΡΜΑ","ΔΕΣ","ΔΕΥΤΕΡΑ","ΔΕΥΤΕΡΟΣ","ΔΕΧΟΜΑΙ","ΔΗΛΩΝΩ","ΔΗΜΑΡΧΟΣ","ΔΗΜΙΟΥΡΓΩ","ΔΗΜΟ","ΔΗΜΟΣΙΟΓΡΑΦΟΣ","ΔΙΑ","ΔΙΑΒΑΖΩ","ΔΙΑΒΑΣΕ","ΔΙΑΒΙΩ","ΔΙΑΔΙΚΤΥΟ","ΔΙΑΙΤΗΤΗΣ","ΔΙΑΚΟΠΕΣ","ΔΙΑΛΕΓΟΜΑΙ","ΔΙΑΛΕΓΩ","ΔΙΑΜΕΝΩ","ΔΙΑΜΟΡΦΩΝΩ","ΔΙΑΣΑΦΗΝΙΖΩ","ΔΙΑΣΚΕΔΑΖΩ","ΔΙΑΦΩΝΩ","ΔΙΔΑΣΚΩ","ΔΙΕΥΚΡΙΝΙΖΩ","ΔΙΚΑΙΟΣΥΝΗ","ΔΙΚΑΙΩΜΑ","ΔΙΚΑΣΤΗΣ","ΔΙΚΗ","ΔΙΚΗΓΟΡΟΣ","ΔΙΝΩ","ΔΙΟΡΘΩΝΩ","ΔΙΟΡΘΩΣΕ","ΔΙΣΤΑΖΩ","ΔΙΨΑ","ΔΟΝΤΙ","ΔΟΞΑ","ΔΟΣΗ","ΔΟΥΛΕΙΑ","ΔΟΥΛΕΥΩ","ΔΟΥΛΕΨΕ","ΔΡΑΣΗ","ΔΡΟΜΟΣ","ΔΥΝΑΜΗ","ΔΥΝΑΜΩΝΩ","ΔΥΝΑΜΩΣΕ","ΔΥΝΑΤΟΣ","ΔΥΟ","ΔΥΣΗ","ΔΥΣΤΥΧΩΣ","ΔΩΔΕΚΑ","ΔΩΜΑΤΙΟ","ΔΩΡΙΖΩ","ΔΩΡΟ","ΔΩΣΕ","ΕΒΔΟΜΑΔΑ","ΕΒΔΟΜΗΝΤΑ","ΕΓΩ","ΕΔΩ","ΕΘΝΗ","ΕΙΔΗ","ΕΙΚΟΝΑ","ΕΙΚΟΣΙ","ΕΙΜΑΙ","ΕΙΜΑΣΤΕ","ΕΙΝΑΙ","ΕΙΡΗΝΗ","ΕΙΣ","ΕΙΣΑΙ","ΕΙΣΗΓΟΥΜΑΙ","ΕΙΣΙΤΗΡΙΟ","ΕΙΣΤΕ","ΕΚ","ΕΚΑΤΟ","ΕΚΑΤΟΜΜΥΡΙΟ","ΕΚΕΙ","ΕΚΕΙΝΟ","ΕΚΚΛΗΣΙΑ","ΕΚΠΑΙΔΕΥΟΜΑΙ","ΕΚΠΑΙΔΕΥΩ","ΕΛΑ","ΕΛΑΤΕ","ΕΛΕΥΘΕΡΙΑ","ΕΛΙΑ","ΕΛΠΙΔΑ","ΕΛΠΙΖΩ","ΕΜΕΙΣ","ΕΜΠΙΣΤΕΥΟΜΑΙ","ΕΝ","ΕΝΑ","ΕΝΑΝ","ΕΝΑΝΤΙΟΝ","ΕΝΑΣ","ΕΝΕΝΗΝΤΑ","ΕΝΕΡΓΕΙΑ","ΕΝΙΣΧΥΩ","ΕΝΝΕΑ","ΕΝΤΕΚΑ","ΕΝΩ","ΕΝΩΝΩ","ΕΝΩΣΕ","ΕΞ","ΕΞΑΙΤΙΑΣ","ΕΞΑΝΤΛΟΥΜΑΙ","ΕΞΗΓΩ","ΕΞΗΝΤΑ","ΕΞΙ","ΕΞΙΣΤΟΡΩ","ΕΞΟΙΚΟΝΟΜΩ","ΕΞΟΦΛΩ","ΕΞΩ","ΕΠΑΓΓΕΛΜΑ","ΕΠΙ","ΕΠΙΛΕΓΩ","ΕΠΙΣΚΕΥΑΖΩ","ΕΠΙΣΤΗΜΗ","ΕΠΙΤΥΓΧΑΝΩ","ΕΠΙΦΑΝΕΙΑ","ΕΠΟΣ","ΕΠΤΑ","ΕΡΓΑ","ΕΡΓΑΖΟΜΑΙ","ΕΡΓΟ","ΕΡΕΥΝΩ","ΕΡΧΟΜΑΙ","ΕΡΩΣ","ΕΡΩΤΗΣΗ","ΕΡΩΤΩ","ΕΣΕΙΣ","ΕΣΥ","ΕΤΗ","ΕΤΟΙΜΑΖΩ","ΕΤΟΣ","ΕΤΣΙ","ΕΥΚΑΙΡΙΑ","ΕΥΤΥΧΩΣ","ΕΥΦΡΑΙΝΟΜΑΙ","ΕΦΗΜΕΡΙΔΑ","ΕΦΘΑΣΑ","ΕΧΕΙ","ΕΧΕΙΣ","ΕΧΕΤΕ","ΕΧΟΥΜΕ","ΕΧΟΥΝ","ΕΧΩ","ΖΑΚΕΤΑ","ΖΑΛΗ","ΖΑΡΙ","ΖΑΧΑΡΗ","ΖΕΙ","ΖΕΣΤΑΙΝΩ","ΖΕΣΤΑΝΕ","ΖΕΣΤΗ","ΖΕΣΤΟ","ΖΗΣΕ","ΖΗΤΑ","ΖΗΤΑΩ","ΖΗΤΗΣΕ","ΖΗΤΩ","ΖΥΓΟ","ΖΥΜΗ","ΖΩ","ΖΩΓΡΑΦΙΚΗ","ΖΩΓΡΑΦΟΣ","ΖΩΗ","ΖΩΝΗ","ΖΩΟ","ΗΘΗ","ΗΘΟΠΟΙΟΣ","ΗΘΟΣ","ΗΛΕΚΤΡΟΛΟΓΟΣ","ΗΛΙΟ","ΗΛΙΟΣ","ΗΡΕΜΩ","ΗΡΩΣ","ΗΤΤΑ","ΗΤΤΩΜΑΙ","ΗΧΟΣ","ΗΧΩ","ΘΑ","ΘΑΛΑΣΣΑ","ΘΑΝΑΤΟΣ","ΘΕΑ","ΘΕΑΤΡΟ","ΘΕΙΑ","ΘΕΙΟ","ΘΕΙΟΣ","ΘΕΛΕΙ","ΘΕΛΩ","ΘΕΜΑ","ΘΕΟ","ΘΕΟΣ","ΘΕΡΑΠΕΥΟΜΑΙ","ΘΕΡΜΟΚΡΑΣΙΑ","ΘΕΣΗ","ΘΗΚΗ","ΘΛΙΒΟΜΑΙ","ΘΟΛΟ","ΘΡΗΣΚΕΙΑ","ΘΡΙΑΜΒΕΥΩ","ΘΥΜΑΜΑΙ","ΘΥΜΟΣ","ΘΥΜΩΝΩ","ΘΥΡΑ","ΙΑΝΟΥΑΡΙΟΣ","ΙΔΕΑ","ΙΔΙΟ","ΙΕΡΗ","ΙΕΡΟ","ΙΟΣ","ΙΟΥΛΙΟΣ","ΙΟΥΝΙΟΣ","ΙΠΤΑΜΑΙ","ΙΣΑ","ΙΣΟΣ","ΙΣΟΤΗΤΑ","ΙΣΤΟΡΙΑ","ΙΣΩΣ","ΙΧΝΗ","ΚΑΔΟ","ΚΑΘΑΡΕΥΩ","ΚΑΘΑΡΙΖΩ","ΚΑΘΑΡΙΣΕ","ΚΑΘΑΡΙΣΤΗΣ","ΚΑΘΕ","ΚΑΘΕΜΙΑ","ΚΑΘΕΝΑ","ΚΑΘΕΝΑΣ","ΚΑΘΙΣΕ","ΚΑΘΟΔΗΓΩ","ΚΑΘΟΜΑΙ","ΚΑΘΟΡΙΖΩ","ΚΑΙ","ΚΑΙΡΟΣ","ΚΑΙΩ","ΚΑΚΗ","ΚΑΚΟ","ΚΑΚΟΣ","ΚΑΛΑ","ΚΑΛΗ","ΚΑΛΟ","ΚΑΛΟΚΑΙΡΙ","ΚΑΛΟΣ","ΚΑΛΤΣΑ","ΚΑΜΙΑ","ΚΑΜΠΟΣ","ΚΑΝ","ΚΑΝΕΙ","ΚΑΝΕΙΣ","ΚΑΝΕΝΑ","ΚΑΝΕΝΑΣ","ΚΑΝΕΤΕ","ΚΑΝΟΥΜΕ","ΚΑΝΟΥΝ","ΚΑΝΩ","ΚΑΠΕΛΟ","ΚΑΠΟΙΑ","ΚΑΠΟΙΟ","ΚΑΠΟΙΟΣ","ΚΑΡΔΙΑ","ΚΑΡΕΚΛΑ","ΚΑΡΟΤΟ","ΚΑΡΠΟΣ","ΚΑΡΠΟΥΖΙ","ΚΑΡΤΑ","ΚΑΤΑ","ΚΑΤΑΙΓΙΔΑ","ΚΑΤΑΛΑΒΑΙΝΩ","ΚΑΤΑΣΚΕΥΑΖΩ","ΚΑΤΑΣΤΑΣΗ","ΚΑΤΑΣΤΗΜΑ","ΚΑΤΑΣΤΡΕΦΩ","ΚΑΤΑΦΕΡΝΩ","ΚΑΤΑΦΘΑΝΩ","ΚΑΤΕ","ΚΑΤΕΒΑ","ΚΑΤΕΒΑΖΩ","ΚΑΤΕΒΑΙΝΩ","ΚΑΤΕΒΑΣΕ","ΚΑΤΙ","ΚΑΤΟ","ΚΑΤΟΙΚΙΑ","ΚΑΤΟΙΚΟΣ","ΚΑΤΟΙΚΩ","ΚΑΤΩ","ΚΑΤΩΦΛΙ","ΚΑΦΕ","ΚΑΦΕΣ","ΚΑΨΕ","ΚΕΝΑ","ΚΕΝΤΡΟ","ΚΕΡΑΣΙ","ΚΕΡΔΑΙΝΩ","ΚΕΡΔΙΖΩ","ΚΕΦΑΛΙ","ΚΗΠΟ","ΚΗΠΟΣ","ΚΗΠΟΥΡΟΣ","ΚΙ","ΚΙΛΟ","ΚΙΝΔΥΝΟΣ","ΚΙΝΗΣΗ","ΚΙΤΡΙΝΟ","ΚΛΑΔΙ","ΚΛΑΙΩ","ΚΛΕΙΔΑΡΙΑ","ΚΛΕΙΔΙ","ΚΛΕΙΝΩ","ΚΛΕΙΣΕ","ΚΟΒΩ","ΚΟΙΛΙΑ","ΚΟΙΜΑΜΑΙ","ΚΟΙΜΗΣΟΥ","ΚΟΙΜΟΥΜΑΙ","ΚΟΙΤΑ","ΚΟΙΤΑΖΩ","ΚΟΚΚΑΛΟ","ΚΟΚΚΙΝΟ","ΚΟΛΟΚΥΘΙ","ΚΟΛΥΜΠΑΩ","ΚΟΛΥΜΠΩ","ΚΟΜΗ","ΚΟΝΤΟΣ","ΚΟΠΗ","ΚΟΡΗ","ΚΟΡΙΤΣΙ","ΚΟΣΤΟΥΜΙ","ΚΟΤΑ","ΚΟΤΕΣ","ΚΟΤΟΠΟΥΛΟ","ΚΟΥΖΙΝΑ","ΚΟΥΝΟΥΠΙ","ΚΟΥΡΑΖΟΜΑΙ","ΚΟΨΕ","ΚΡΑΣΙ","ΚΡΑΤΑ","ΚΡΑΤΑΩ","ΚΡΑΥΓΑΖΩ","ΚΡΕΑΣ","ΚΡΕΒΑΤΙ","ΚΡΕΜΜΥΔΙ","ΚΡΥΑ","ΚΡΥΒΩ","ΚΡΥΟ","ΚΡΥΩΝΩ","ΚΡΥΩΣΕ","ΚΥΒΕΡΝΗΣΗ","ΚΥΚΛΟΣ","ΚΥΜΑ","ΚΥΡΙΑΚΗ","ΛΑΔΙ","ΛΑΘΗ","ΛΑΘΟΣ","ΛΑΙΜΟΣ","ΛΑΜΑ","ΛΑΜΒΑΝΩ","ΛΑΟ","ΛΑΤΡΕΥΩ","ΛΑΧΑΝΟ","ΛΕΕΙ","ΛΕΙΠΩ","ΛΕΜΕ","ΛΕΞΗ","ΛΕΠΤΟ","ΛΕΡΩΝΩ","ΛΕΣ","ΛΕΩ","ΛΕΩΦΟΡΕΙΟ","ΛΗΞΗ","ΛΗΣΜΟΝΩ","ΛΙΓΑ","ΛΙΓΟ","ΛΙΜΝΗ","ΛΙΝΟ","ΛΟΓΗ","ΛΟΓΟ","ΛΟΥΛΟΥΔΙ","ΛΟΦΟ","ΛΥΚΟ","ΛΥΠΑΜΑΙ","ΛΥΠΗ","ΛΥΣΗ","ΜΑ","ΜΑΓΕΙΡΑΣ","ΜΑΓΕΙΡΕΥΩ","ΜΑΖΑ","ΜΑΖΙ","ΜΑΘΑΙΝΩ","ΜΑΘΕ","ΜΑΘΗΜΑΤΙΚΑ","ΜΑΘΗΣΗ","ΜΑΘΗΤΗΣ","ΜΑΙΟΣ","ΜΑΚΑΡΟΝΙΑ","ΜΑΛΛΙΑ","ΜΑΝΑ","ΜΑΡΤΙΟΣ","ΜΑΣ","ΜΑΤΙ","ΜΑΥΡΟ","ΜΕ","ΜΕΓΑ","ΜΕΓΑΛΟΣ","ΜΕΓΑΛΩΝΩ","ΜΕΓΑΛΩΣΕ","ΜΕΓΕΘΟΣ","ΜΕΘΟΔΟΣ","ΜΕΙΝΕ","ΜΕΙΩΝΩ","ΜΕΙΩΣΕ","ΜΕΙΩΣΗ","ΜΕΛΕΤΑΩ","ΜΕΛΗ","ΜΕΛΙ","ΜΕΛΙΣΣΑ","ΜΕΛΙΤΖΑΝΑ","ΜΕΝ","ΜΕΝΩ","ΜΕΡΑ","ΜΕΡΗ","ΜΕΣΑ","ΜΕΣΗΜΕΡΙ","ΜΕΣΗΜΕΡΙΑΝΟ","ΜΕΣΟ","ΜΕΤΑ","ΜΕΤΑΚΟΜΙΖΩ","ΜΕΤΑΞΥ","ΜΕΤΑΤΡΕΠΩ","ΜΕΤΑΦΕΡΟΜΑΙ","ΜΕΧΡΙ","ΜΗ","ΜΗΚΟΣ","ΜΗΛΟ","ΜΗΝ","ΜΗΝΑ","ΜΗΝΑΣ","ΜΗΝΥΜΑ","ΜΗΤΕΡΑ","ΜΗΧΑΝΗ","ΜΙΑ","ΜΙΚΡΑΙΝΩ","ΜΙΚΡΟ","ΜΙΚΡΟΣ","ΜΙΚΡΥΝΕ","ΜΙΛΑ","ΜΙΛΑΩ","ΜΙΣΑ","ΜΙΣΘΟΣ","ΜΙΣΟ","ΜΙΣΩ","ΜΝΗΜΗ","ΜΟΔΑ","ΜΟΝΟΣ","ΜΟΡΦΗ","ΜΟΡΦΩΝΟΜΑΙ","ΜΟΡΦΩΝΩ","ΜΟΥ","ΜΟΥΣΙΚΗ","ΜΟΥΣΙΚΟΣ","ΜΠΑΙΝΩ","ΜΠΑΛΑ","ΜΠΑΛΚΟΝΙ","ΜΠΑΝΑΝΑ","ΜΠΑΝΙΟ","ΜΠΑΣΚΕΤ","ΜΠΕΡΔΕΥΟΜΑΙ","ΜΠΕΣ","ΜΠΙΡΑ","ΜΠΛΕ","ΜΠΟΡΕΙ","ΜΠΟΡΩ","ΜΠΡΟΣΤΑ","ΜΥΑΛΟ","ΜΥΓΑ","ΜΥΘΟΣ","ΜΥΡΙΖΩ","ΜΥΤΗ","ΜΩΒ","ΜΩΡΟ","ΝΑ","ΝΑΙ","ΝΑΟ","ΝΑΟΣ","ΝΑΥΤΗΣ","ΝΕΑ","ΝΕΟ","ΝΕΟΣ","ΝΕΡΟ","ΝΕΦΗ","ΝΕΩΝΩ","ΝΗΜΑ","ΝΗΣΙ","ΝΙ","ΝΙΚΑΩ","ΝΙΚΗ","ΝΙΩΘΩ","ΝΟΕΜΒΡΙΟΣ","ΝΟΗΜΑ","ΝΟΗΣΗ","ΝΟΜΗ","ΝΟΜΟ","ΝΟΜΟΣ","ΝΟΣΟΚΟΜΑ","ΝΟΣΟΚΟΜΕΙΟ","ΝΟΤΑ","ΝΟΥ","ΝΟΥΣ","ΝΤΟΜΑΤΑ","ΝΤΟΥΛΑΠΑ","ΝΥΦΗ","ΝΥΧΙ","ΝΥΧΤΑ","ΞΑΔΕΡΦΗ","ΞΑΔΕΡΦΟΣ","ΞΑΝΑ","ΞΑΝΗ","ΞΑΝΟ","ΞΕΚΙΝΑΩ","ΞΕΚΟΥΡΑΖΟΜΑΙ","ΞΕΜΑΘΑΙΝΩ","ΞΕΝΗ","ΞΕΝΟ","ΞΕΝΟΔΟΧΕΙΟ","ΞΕΝΟΣ","ΞΕΠΛΕΝΩ","ΞΕΡΕΙ","ΞΕΡΩ","ΞΕΦΕΥΓΩ","ΞΕΧΝΑΩ","ΞΗΡΗ","ΞΗΡΟ","ΞΙΦΗ","ΞΟΔΕΥΩ","ΞΥΔΙ","ΞΥΛΟ","ΞΥΠΝΑ","ΞΥΠΝΑΩ","ΞΥΠΝΗΜΑΙ","ΟΓΔΟΝΤΑ","ΟΓΚΟ","ΟΓΚΟΣ","ΟΔΗΓΑΩ","ΟΔΗΓΟΣ","ΟΔΗΓΩ","ΟΔΟΣ","ΟΘΟΝΗ","ΟΙ","ΟΙΚΟ","ΟΙΚΟΓΕΝΕΙΑ","ΟΙΝΟ","ΟΚΤΩ","ΟΚΤΩΒΡΙΟΣ","ΟΛΑ","ΟΛΟ","ΟΛΟΙ","ΟΛΟΣ","ΟΜΑΔΑ","ΟΜΟΡΦΟΣ","ΟΜΩΣ","ΟΝΕΙΡΕΥΟΜΑΙ","ΟΝΕΙΡΟ","ΟΝΕΙΡΟΠΟΛΩ","ΟΠΛΟ","ΟΠΟΙΑ","ΟΠΟΙΟ","ΟΠΟΙΟΣ","ΟΠΩΣ","ΟΡΓΑΝΩΣΗ","ΟΡΓΗ","ΟΡΓΙΖΟΜΑΙ","ΟΡΗ","ΟΡΘΟΓΩΝΙΟ","ΟΡΙΑ","ΟΡΙΖΩ","ΟΡΙΟ","ΟΡΟΣ","ΟΡΟΦΟΣ","ΟΣΑ","ΟΣΕΣ","ΟΣΗ","ΟΣΙΑ","ΟΣΙΟ","ΟΣΜΗ","ΟΣΟ","ΟΣΟΙ","ΟΣΟΣ","ΟΤΑΝ","ΟΤΙ","ΟΥ","ΟΥΡΑΝΟΣ","ΟΥΣΙΑ","ΟΦΕΙΛΩ","ΟΧΘΗ","ΟΧΙ","ΟΨΗ","ΠΑΓΩΤΟ","ΠΑΕΙ","ΠΑΘΗ","ΠΑΙΔΙ","ΠΑΙΖΩ","ΠΑΙΚΤΗΣ","ΠΑΙΞΕ","ΠΑΙΡΝΩ","ΠΑΙΧΝΙΔΙ","ΠΑΛΕΥΩ","ΠΑΛΗ","ΠΑΛΙΟΣ","ΠΑΛΤΟ","ΠΑΜΕ","ΠΑΝ","ΠΑΝΕ","ΠΑΝΕΠΙΣΤΗΜΙΟ","ΠΑΝΟ","ΠΑΝΤΑ","ΠΑΝΤΕΛΟΝΙ","ΠΑΝΤΟΥ","ΠΑΝΩ","ΠΑΠΑ","ΠΑΠΑΔΑΣ","ΠΑΠΙ","ΠΑΠΙΑ","ΠΑΠΟΥΤΣΙ","ΠΑΠΠΟΥΣ","ΠΑΡΑ","ΠΑΡΑΓΩ","ΠΑΡΑΔΕΧΟΜΑΙ","ΠΑΡΑΔΙΔΩ","ΠΑΡΑΘΥΡΟ","ΠΑΡΑΛΙΑ","ΠΑΡΑΜΕΛΩ","ΠΑΡΑΜΕΝΩ","ΠΑΡΑΜΥΘΙ","ΠΑΡΑΣΚΕΥΗ","ΠΑΡΑΤΗΡΩ","ΠΑΡΕ","ΠΑΡΕΧΩ","ΠΑΣ","ΠΑΣΑ","ΠΑΤΑΤΑ","ΠΑΤΕ","ΠΑΤΕΡΑΣ","ΠΑΤΩΜΑ","ΠΑΧΗ","ΠΑΩ","ΠΕΖΗ","ΠΕΖΟ","ΠΕΘΑΙΝΩ","ΠΕΘΑΝΕ","ΠΕΙ","ΠΕΙΝΑ","ΠΕΛΑΤΗΣ","ΠΕΜΠΤΗ","ΠΕΝΑ","ΠΕΝΗΝΤΑ","ΠΕΝΤΕ","ΠΕΠΟΙΘΑ","ΠΕΠΟΝΙ","ΠΕΡΙΓΡΑΦΩ","ΠΕΡΙΗΓΟΥΜΑΙ","ΠΕΡΙΜΕΝΩ","ΠΕΡΙΟΔΙΚΟ","ΠΕΡΙΟΧΗ","ΠΕΡΙΠΤΩΣΗ","ΠΕΡΙΣΤΑΤΙΚΟ","ΠΕΡΝΑΩ","ΠΕΡΠΑΤΑ","ΠΕΡΠΑΤΑΩ","ΠΕΣ","ΠΕΤΑΩ","ΠΕΤΥΧΑΙΝΩ","ΠΕΦΤΩ","ΠΗΓΑΙΝΕ","ΠΗΓΑΙΝΕΤΕ","ΠΗΔΑΩ","ΠΙ","ΠΙΑ","ΠΙΑΝΩ","ΠΙΕ","ΠΙΕΣΗ","ΠΙΛΟΤΟΣ","ΠΙΝΩ","ΠΙΟ","ΠΙΠΕΡΙ","ΠΙΠΕΡΙΑ","ΠΙΣΤΕΥΩ","ΠΙΣΤΗ","ΠΙΣΩ","ΠΛΑΙ","ΠΛΑΤΕΙΑ","ΠΛΑΤΗ","ΠΛΑΤΟΣ","ΠΛΕΝΩ","ΠΛΕΥΡΑ","ΠΛΗΚΤΡΟΛΟΓΙΟ","ΠΛΗΡΩΝΩ","ΠΛΗΣΙΑΖΩ","ΠΛΗΣΙΑΣΕ","ΠΛΟΙΟ","ΠΛΟΥΣΙΟΣ","ΠΛΟΥΤΙΖΩ","ΠΝΟΗ","ΠΟΔΗΛΑΤΟ","ΠΟΔΙ","ΠΟΔΟΣΦΑΙΡΟ","ΠΟΖΑ","ΠΟΙΑ","ΠΟΙΗΤΗΣ","ΠΟΙΟ","ΠΟΙΟΣ","ΠΟΛΕΜΟΣ","ΠΟΛΗ","ΠΟΛΙΤΙΚΗ","ΠΟΛΙΤΙΚΟΣ","ΠΟΛΛΑ","ΠΟΛΥ","ΠΟΝΟ","ΠΟΝΟΣ","ΠΟΡΤΑ","ΠΟΡΤΟΚΑΛΙ","ΠΟΡΤΟΦΟΛΙ","ΠΟΣΑ","ΠΟΣΟ","ΠΟΤΑ","ΠΟΤΑΜΙ","ΠΟΤΕ","ΠΟΤΟ","ΠΟΥ","ΠΟΥΘΕΝΑ","ΠΟΥΚΑΜΙΣΟ","ΠΟΥΛΑΩ","ΠΟΥΛΗΣΕ","ΠΟΥΛΙ","ΠΡΑΓΜΑ","ΠΡΑΣΙΝΟ","ΠΡΕΠΕΙ","ΠΡΙΝ","ΠΡΟ","ΠΡΟΒΑΤΟ","ΠΡΟΒΛΗΜΑ","ΠΡΟΓΡΑΜΜΑ","ΠΡΟΕΔΡΟΣ","ΠΡΟΕΤΟΙΜΑΖΩ","ΠΡΟΜΗΘΕΥΟΜΑΙ","ΠΡΟΠΟΝΗΤΗΣ","ΠΡΟΣ","ΠΡΟΣΔΟΚΩ","ΠΡΟΣΕΥΧΗ","ΠΡΟΣΠΑΘΩ","ΠΡΟΣΦΕΡΩ","ΠΡΟΤΑΣΗ","ΠΡΟΤΕΙΝΩ","ΠΡΟΤΙΜΩ","ΠΡΟΧΩΡΑΩ","ΠΡΩΙ","ΠΡΩΙΝΟ","ΠΡΩΤΟΣ","ΠΤΩΣΗ","ΠΥΛΗ","ΠΥΡΕΤΟΣ","ΠΩΛΩ","ΠΩΣ","ΡΑΒΩ","ΡΕ","ΡΕΒΙΘΙΑ","ΡΕΜΑ","ΡΗΓΑ","ΡΗΜΑ","ΡΗΞΗ","ΡΙΖΑ","ΡΙΠΗ","ΡΟΔΑ","ΡΟΔΑΚΙΝΟ","ΡΟΔΙ","ΡΟΔΟ","ΡΟΖ","ΡΟΗ","ΡΟΛΟ","ΡΟΠΗ","ΡΟΥΦΑΩ","ΡΟΥΧΑ","ΡΟΥΧΟ","ΡΥΖΙ","ΡΩΤΑΩ","ΣΑΒΒΑΤΟ","ΣΑΛΑΤΑ","ΣΑΛΟΝΙ","ΣΑΝ","ΣΑΡΑΝΤΑ","ΣΑΣ","ΣΒΗΝΩ","ΣΒΗΣΕ","ΣΕ","ΣΕΛΙΔΑ","ΣΕΠΤΕΜΒΡΙΟΣ","ΣΕΡΒΙΤΟΡΟΣ","ΣΗΚΩ","ΣΗΚΩΝΟΜΑΙ","ΣΗΚΩΝΩ","ΣΗΚΩΣΕ","ΣΗΜΑ","ΣΗΜΕΙΟ","ΣΗΜΕΡΑ","ΣΙΔΕΡΩΝΩ","ΣΙΤΑ","ΣΙΩΠΑΩ","ΣΙΩΠΗ","ΣΙΩΠΗΣΕ","ΣΚΑΛΑ","ΣΚΑΡΦΑΛΩΝΩ","ΣΚΕΠΤΟΜΑΙ","ΣΚΕΦΤΟΜΑΙ","ΣΚΕΨΗ","ΣΚΗΝΟΘΕΤΗΣ","ΣΚΙΑ","ΣΚΛΑΒΙΑ","ΣΚΟΠΟΣ","ΣΚΟΡ","ΣΚΟΡΔΟ","ΣΚΟΤΑΔΙ","ΣΚΟΤΕΙΝΙΑΖΩ","ΣΚΥΛΟΣ","ΣΟΓΙ","ΣΟΛΑ","ΣΟΥ","ΣΟΥΠΑ","ΣΟΥΠΕΡΜΑΡΚΕΤ","ΣΟΦΗ","ΣΟΦΟ","ΣΠΑΝΙΑ","ΣΠΙΤΙ","ΣΠΙΤΙΑ","ΣΠΟΡΟΣ","ΣΠΟΥΔΑΖΩ","ΣΠΡΩΞΕ","ΣΠΡΩΧΝΩ","ΣΤΑ","ΣΤΑΘΕΡΟΤΗΤΑ","ΣΤΑΘΜΟΣ","ΣΤΑΜΑΤΑΩ","ΣΤΑΦΥΛΙ","ΣΤΕΓΗ","ΣΤΕΓΝΩΝΩ","ΣΤΕΓΝΩΣΕ","ΣΤΕΚΟΜΑΙ","ΣΤΗ","ΣΤΗΘΟΣ","ΣΤΗΝ","ΣΤΙΣ","ΣΤΟ","ΣΤΟΑ","ΣΤΟΜΑ","ΣΤΟΝ","ΣΤΟΧΑΖΟΜΑΙ","ΣΤΟΧΟΣ","ΣΤΡΑΤΙΩΤΗΣ","ΣΥΓΓΡΑΦΕΑΣ","ΣΥΖΗΤΑΩ","ΣΥΚΟ","ΣΥΛΛΑΜΒΑΝΩ","ΣΥΜΒΟΛΟ","ΣΥΜΦΩΝΩ","ΣΥΝ","ΣΥΝΑΔΕΛΦΟΣ","ΣΥΝΑΧΙ","ΣΥΝΔΡΑΜΩ","ΣΥΝΕΧΙΖΩ","ΣΥΝΘΗΚΗ","ΣΥΝΝΕΦΟ","ΣΥΝΟΙΚΙΑ","ΣΥΝΟΜΙΛΩ","ΣΥΝΤΗΡΩ","ΣΥΣΤΗΜΑ","ΣΥΧΝΑ","ΣΦΑΙΡΑ","ΣΧΕΔΙΟ","ΣΧΗΜΑ","ΣΧΟΛΕΙΟ","ΣΩΜΑ","ΣΩΣΤΑ","ΤΑ","ΤΑΒΑΝΙ","ΤΑΙΝΙΑ","ΤΑΞΗ","ΤΑΞΙ","ΤΑΞΙΔΕΥΩ","ΤΑΞΙΔΙ","ΤΑΣΗ","ΤΑΧΑ","ΤΑΧΥΤΗΤΑ","ΤΕΛΕΙΩΝΩ","ΤΕΛΕΥΤΑΙΟΣ","ΤΕΛΗ","ΤΕΛΟΣ","ΤΕΣΣΕΡΑ","ΤΕΣΣΕΡΙΣ","ΤΕΣΤ","ΤΕΤΑΡΤΗ","ΤΕΤΟΙΟ","ΤΕΤΡΑΓΩΝΟ","ΤΕΧΝΗ","ΤΗ","ΤΗΛΕΦΩΝΟ","ΤΗΝ","ΤΗΞΗ","ΤΗΣ","ΤΙ","ΤΙΠΟΤΑ","ΤΟ","ΤΟΙΧΟΣ","ΤΟΛΜΩ","ΤΟΝ","ΤΟΞΟ","ΤΟΠΙ","ΤΟΠΟ","ΤΟΣΑ","ΤΟΣΟ","ΤΟΥ","ΤΟΥΣ","ΤΟΥΤΟ","ΤΡΑΒΑ","ΤΡΑΒΑΩ","ΤΡΑΓΟΥΔΑΩ","ΤΡΑΓΟΥΔΙ","ΤΡΑΓΟΥΔΙΣΤΗΣ","ΤΡΑΠΕΖΑ","ΤΡΑΠΕΖΙ","ΤΡΕΙΣ","ΤΡΕΜΩ","ΤΡΕΝΟ","ΤΡΕΞΕ","ΤΡΕΧΑΛΑΩ","ΤΡΕΧΩ","ΤΡΙΑ","ΤΡΙΑΝΤΑ","ΤΡΙΓΩΝΟ","ΤΡΙΤΗ","ΤΡΙΤΟΣ","ΤΡΟΜΑΖΩ","ΤΡΟΠΟΣ","ΤΡΩΓΩ","ΤΡΩΩ","ΤΣΑΙ","ΤΣΑΝΤΑ","ΤΥΠΟ","ΤΥΡΙ","ΤΥΧΗ","ΤΩΝ","ΤΩΡΑ","ΥΓΕΙΑ","ΥΓΙΗ","ΥΓΡΑ","ΥΓΡΟ","ΥΔΡΑΥΛΙΚΟΣ","ΥΛΕΣ","ΥΛΗ","ΥΜΝΟ","ΥΠΑΛΛΗΛΟΣ","ΥΠΑΡΞΕ","ΥΠΑΡΧΩ","ΥΠΕΝΘΥΜΙΖΩ","ΥΠΕΡ","ΥΠΝΟ","ΥΠΟΛΟΓΙΣΤΗΣ","ΥΠΟΣΤΗΡΙΖΩ","ΥΠΟΥΡΓΟΣ","ΥΨΟΣ","ΦΑΓΗΤΟ","ΦΑΕ","ΦΑΙΝΟΜΑΙ","ΦΑΚΑ","ΦΑΚΗ","ΦΑΚΙ","ΦΑΚΟ","ΦΑΚΟΣ","ΦΑΝΤΑΖΟΜΑΙ","ΦΑΝΤΑΣΙΩΝΟΜΑΙ","ΦΑΡΜΑΚΟ","ΦΑΡΟ","ΦΑΣΗ","ΦΑΣΟΛΙΑ","ΦΑΤΑ","ΦΑΤΝΗ","ΦΑΤΟ","ΦΑΤΣΑ","ΦΕΒΡΟΥΑΡΙΟΣ","ΦΕΓΓΑΡΙ","ΦΕΤΑ","ΦΕΥΓΩ","ΦΗΜΗ","ΦΘΙΝΟΠΩΡΟ","ΦΙΔΙ","ΦΙΛΑΩ","ΦΙΛΗ","ΦΙΛΙΑ","ΦΙΛΟ","ΦΙΛΟΣ","ΦΟΒΑΜΑΙ","ΦΟΒΟ","ΦΟΒΟΣ","ΦΟΙΤΗΤΗΣ","ΦΟΙΤΩ","ΦΟΡΑ","ΦΟΡΑΩ","ΦΟΡΕΜΑ","ΦΟΥΣΤΑ","ΦΡΑΟΥΛΑ","ΦΡΟΥΤΟ","ΦΡΥΔΙ","ΦΤΑΝΩ","ΦΤΙΑΧΝΩ","ΦΤΩΧΑΙΝΩ","ΦΤΩΧΟΣ","ΦΥΓΕ","ΦΥΓΗ","ΦΥΛΛΟ","ΦΥΛΟ","ΦΥΣΙΚΑ","ΦΥΣΙΚΗ","ΦΥΤΑ","ΦΥΤΟ","ΦΩΝΑΖΩ","ΦΩΝΑΞΕ","ΦΩΝΗ","ΦΩΣ","ΦΩΤΑ","ΦΩΤΙΑ","ΦΩΤΙΖΩ","ΦΩΤΙΣΕ","ΦΩΤΟΓΡΑΦΙΑ","ΦΩΤΟΓΡΑΦΟΣ","ΧΑΖΗ","ΧΑΖΟ","ΧΑΙΡΟΜΑΙ","ΧΑΛΑΩ","ΧΑΛΙ","ΧΑΜΟ","ΧΑΝΕΙ","ΧΑΝΕΙΣ","ΧΑΝΟΜΑΙ","ΧΑΝΟΥΜΕ","ΧΑΝΩ","ΧΑΡΑ","ΧΑΡΗ","ΧΑΡΙΖΩ","ΧΕΙΛΟΣ","ΧΕΙΜΩΝΑΣ","ΧΕΙΡ","ΧΕΙΡΙΖΟΜΑΙ","ΧΕΛΙ","ΧΕΡΙ","ΧΗΜΕΙΑ","ΧΗΝΑ","ΧΗΡΑ","ΧΗΡΟ","ΧΘΕΣ","ΧΙΛΙΑ","ΧΙΟΝΙ","ΧΟΛΗ","ΧΟΝΤΡΟΣ","ΧΟΡΕΥΩ","ΧΟΡΟ","ΧΟΡΟΣ","ΧΟΡΤΟ","ΧΡΕΗ","ΧΡΕΙΑΖΟΜΑΙ","ΧΡΗΜΑ","ΧΡΗΣΙΜΟΠΟΙΩ","ΧΡΟΝΟΣ","ΧΡΥΣΟ","ΧΡΩΜΑ","ΧΡΩΣΤΑΩ","ΧΤΙΣΤΗΣ","ΧΥΜΟ","ΧΥΜΟΣ","ΧΩΜΑ","ΧΩΡΑ","ΧΩΡΙΖΩ","ΧΩΡΙΟ","ΧΩΡΙΣ","ΧΩΡΙΣΕ","ΧΩΡΟ","ΨΑΘΑ","ΨΑΞΕ","ΨΑΡΙ","ΨΑΧΝΩ","ΨΕΜΑ","ΨΗΛΗ","ΨΗΛΟ","ΨΗΛΟΣ","ΨΗΝΩ","ΨΗΦΟ","ΨΙΘΥΡΙΖΩ","ΨΙΧΑ","ΨΥΧΑΓΩΓΟΥΜΑΙ","ΨΥΧΗ","ΨΩΜΙ","ΩΜΕΣ","ΩΜΟΣ","ΩΡΑ","ΩΡΕΣ","ΩΣ"]);
+
 let board=[],selected=[],isDragging=false,players={},foundWords=new Map(),timeLeft=90,timerId=null,gameOver=false,soundOn=true,mode='solo',peer=null,conn=null,myId=null,aiInterval=null;
 let myName = localStorage.getItem('lexo_nick') || '';
-const GREEK_NAMES = ['Νίκος','Μαρία','Γιώργος','Ελένη','Κώστας','Αννα','Δημήτρης','Σοφία','Αλέξης','Ειρήνη','Παναγιώτης','Κατερίνα','Γιάννης','Ολγα','Στέλιος','Δέσποινα','Βασίλης','Χριστίνα','Θοδωρής','Ιωάννα'];
+const GREEK_NAMES = ['Νίκος','Μαρία','Γιώργος','Ελένη','Κώστας','Αννα','Δημήτρης','Σοφία','Αλέξης','Ειρήνη','Παναγιώτης','Κατερίνα'];
+
 const PRAISE = [
   {min:20, texts:['Σούπερ!','Καταπληκτικά!','Φανταστικά!']},
   {min:12, texts:['Τέλεια!','Μπράβο!','Άψογα!']},
   {min:6,  texts:['Καλό!','Ναι!','Ωραία!']},
   {min:0,  texts:['Μπράβο!','Ωραία!']}
 ];
+
 function showPraise(pts){
   const tier = PRAISE.find(t=>pts>=t.min) || PRAISE[PRAISE.length-1];
   const text = tier.texts[Math.floor(Math.random()*tier.texts.length)];
@@ -181,7 +231,8 @@ function showPraise(pts){
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'), 900);
 }
-const AVATAR_ICONS = ['🦊','🐺','🐼','🦁','🐯','🐸','🦉','🦄','🐲','🐧','🐱','🐶','🐰','🐻','🐨'];
+
+const AVATAR_ICONS = ['🦊','🐺','🐼','🦁','🐯','🐸','🦉','🦄','🐲','🐧'];
 function randomOpponent(){
   const name = GREEK_NAMES[Math.floor(Math.random()*GREEK_NAMES.length)];
   const colors = ['#0ea5e9','#8b5cf6','#ec4899','#10b981','#f59e0b','#ef4444','#14b8a6','#a855f7'];
@@ -195,161 +246,146 @@ function playSelect(){beep(520+selected.length*40,.06,'sine',.08)}
 function playGood(){beep(660,.1);setTimeout(()=>beep(880,.12),80)}
 function playBad(){beep(180,.2,'sawtooth',.1)}
 function playTick(){beep(900,.03,'square',.04)}
+
 function loadHS(){try{return JSON.parse(localStorage.getItem('wb_hs')||'[]')}catch{return[]}}
 function saveHS(score){const list=loadHS();list.push({score,date:new Date().toLocaleDateString('el'),name:myName});list.sort((a,b)=>b.score-a.score);localStorage.setItem('wb_hs',JSON.stringify(list.slice(0,10)));renderHS()}
 function renderHS(){const list=loadHS(),el=document.getElementById('hsList');if(!list.length){el.innerHTML='<div style="opacity:.4;font-size:13px">Δεν υπάρχουν ακόμα</div>';return}el.innerHTML=list.map((h,i)=>`<div class="hs-row"><span class="rank">${i+1}.</span><span>${h.name}</span><span>${h.score}</span></div>`).join('')}
 function randomLetter(){return LETTER_BAG[Math.floor(Math.random()*LETTER_BAG.length)]}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function generateBoard(){board=[];for(let r=0;r<4;r++){const row=[];for(let c=0;c<4;c++){const L=randomLetter();row.push({letter:L,points:LETTER_POINTS[L]||1,bonus:null})}board.push(row)}const pos=shuffle([...Array(16).keys()]);let i=0;const nw=Math.random()<.55?2:1;for(let k=0;k<nw;k++){const p=pos[i++];board[Math.floor(p/4)][p%4].bonus='2Λ'}board[Math.floor(pos[i]/4)][pos[i++]%4].bonus='3Γ';board[Math.floor(pos[i]/4)][pos[i]%4].bonus='2Γ'}
+
+function generateBoard(){
+  board=[];for(let r=0;r<4;r++){const row=[];for(let c=0;c<4;c++){const L=randomLetter();row.push({letter:L,points:LETTER_POINTS[L]||1,bonus:null})}board.push(row)}
+  const pos=shuffle([...Array(16).keys()]);let i=0;const nw=Math.random()<.55?2:1;
+  for(let k=0;k<nw;k++){const p=pos[i++];board[Math.floor(p/4)][p%4].bonus='2Λ'}
+  board[Math.floor(pos[i]/4)][pos[i++]%4].bonus='3Γ';board[Math.floor(pos[i]/4)][pos[i]%4].bonus='2Γ'
+}
+
 function boardToJSON(){return board.map(row=>row.map(c=>({l:c.letter,p:c.points,b:c.bonus})))}
 function boardFromJSON(data){board=data.map(row=>row.map(c=>({letter:c.l,points:c.p,bonus:c.b})))}
 function renderBoard(){const grid=document.getElementById('grid');grid.innerHTML='';for(let r=0;r<4;r++)for(let c=0;c<4;c++){const cell=board[r][c];const t=document.createElement('div');t.className='tile';t.dataset.r=r;t.dataset.c=c;t.innerHTML=`<span class="points">${cell.points}</span>${cell.letter}${cell.bonus?`<span class="bonus ${bonusClass(cell.bonus)}">${cell.bonus}</span>`:''}`;grid.appendChild(t)}updateSelectionUI()}
 function bonusClass(b){return b==='2Λ'?'word2':b==='2Γ'?'letter2':'letter3'}
-function updateSelectionUI(){document.querySelectorAll('.tile').forEach(t=>t.classList.remove('selected'));selected.forEach(({r,c})=>{const t=document.querySelector(`.tile[data-r="${r}"][data-c="${c}"]`);if(t)t.classList.add('selected')});const word=selected.map(({r,c})=>board[r][c].letter).join('');const el=document.getElementById('currentWord');el.textContent=word;el.classList.add('pop');setTimeout(()=>el.classList.remove('pop'),150);document.getElementById('wordScore').textContent=word.length>=2?calcScore(selected)+' πόντοι':''}
-function renderPlayers(){const bar=document.getElementById('playersBar');bar.innerHTML='';Object.values(players).forEach(p=>{const div=document.createElement('div');div.className='p-card';const color=p.isMe?'linear-gradient(135deg,#7c3aed,#ec4899)':(p.color?p.color:(p.isAI?'linear-gradient(135deg,#0ea5e9,#6366f1)':'linear-gradient(135deg,#059669,#10b981)'));const icon=p.isMe?'🎮':(p.icon||(p.name||'?')[0]);
-div.innerHTML=`<div class="avatar" style="background:${color};font-size:18px">${icon}</div><div class="p-name">${p.name||'?'}</div><div class="p-score">${p.score||0}</div>`;bar.appendChild(div)})}
+
+function updateSelectionUI(){
+  document.querySelectorAll('.tile').forEach(t=>t.classList.remove('selected'));
+  selected.forEach(({r,c})=>{const t=document.querySelector(`.tile[data-r="${r}"][data-c="${c}"]`);if(t)t.classList.add('selected')});
+  const word=selected.map(({r,c})=>board[r][c].letter).join('');
+  const el=document.getElementById('currentWord');
+  el.textContent=word;el.classList.add('pop');setTimeout(()=>el.classList.remove('pop'),150);
+  document.getElementById('wordScore').textContent=word.length>=2?calcScore(selected)+' πόντοι':''
+}
+
+function renderPlayers(){
+  const bar=document.getElementById('playersBar');bar.innerHTML='';
+  Object.values(players).forEach(p=>{
+    const div=document.createElement('div');div.className='p-card';
+    const color=p.isMe?'linear-gradient(135deg,#7c3aed,#ec4899)':(p.color?p.color:(p.isAI?'linear-gradient(135deg,#0ea5e9,#6366f1)':'linear-gradient(135deg,#059669,#10b981)'));
+    const icon=p.isMe?'🎮':(p.icon||(p.name||'?')[0]);
+    div.innerHTML=`<div class="avatar" style="background:${color};font-size:18px">${icon}</div><div class="p-name">${p.name||'?'}</div><div class="p-score">${p.score||0}</div>`;
+    bar.appendChild(div)
+  })
+}
+
 function renderFound(){
-  // Show ONLY my own words during the game
-  const el=document.getElementById('foundWords');
-  el.innerHTML='';
+  const el=document.getElementById('foundWords');el.innerHTML='';
   const mine=[...foundWords.values()].filter(info=>info.by===myId).sort((a,b)=>b.pts-a.pts);
   mine.forEach(info=>{
-    const s=document.createElement('span');
-    s.className='found-word';
-    s.innerHTML=`${info.word}<span class="pts">+${info.pts}</span>`;
-    el.appendChild(s);
+    const s=document.createElement('span');s.className='found-word';
+    s.innerHTML=`${info.word}<span class="pts">+${info.pts}</span>`;el.appendChild(s);
   });
   document.getElementById('wordCount').textContent=mine.length;
 }
+
 function calcScore(path){let total=0,mult=1;for(const{r,c}of path){const cell=board[r][c];let p=cell.points;if(cell.bonus==='2Γ')p*=2;if(cell.bonus==='3Γ')p*=3;total+=p;if(cell.bonus==='2Λ')mult=2}return total*mult}
 function isAdj(r1,c1,r2,c2){return Math.abs(r1-r2)<=1&&Math.abs(c1-c2)<=1&&!(r1===r2&&c1===c2)}
 function already(r,c){return selected.some(p=>p.r===r&&p.c===c)}
+
 function startSelect(r,c){if(gameOver)return;selected=[{r,c}];isDragging=true;playSelect();updateSelectionUI()}
-function contSelect(r,c){if(!isDragging||gameOver)return;const last=selected[selected.length-1];if(last.r===r&&last.c===c)return;if(already(r,c)){if(selected.length>=2){const prev=selected[selected.length-2];if(prev.r===r&&prev.c===c){selected.pop();updateSelectionUI()}}return}if(isAdj(last.r,last.c,r,c)){selected.push({r,c});playSelect();updateSelectionUI()}}
+function contSelect(r,c){
+  if(!isDragging||gameOver)return;
+  const last=selected[selected.length-1];if(last.r===r&&last.c===c)return;
+  if(already(r,c)){if(selected.length>=2){const prev=selected[selected.length-2];if(prev.r===r&&prev.c===c){selected.pop();updateSelectionUI()}}return}
+  if(isAdj(last.r,last.c,r,c)){selected.push({r,c});playSelect();updateSelectionUI()}
+}
 function endSelect(){if(!isDragging)return;isDragging=false;submitWord()}
-function submitWord(byId=myId){if(selected.length<2){selected=[];updateSelectionUI();return}const word=selected.map(({r,c})=>board[r][c].letter).join('');const pts=calcScore(selected);selected=[];updateSelectionUI();
-// Only block if THIS player already found this word
-const alreadyByMe=[...foundWords.values()].some(info=>info.word===word&&info.by===byId);
-if(alreadyByMe){showMsg('Την έχεις ήδη!','bad');playBad();return}
-if(!DICT.has(word)){showMsg('Μη έγκυρη','bad');playBad();return}
-const id=Date.now()+Math.random();
-foundWords.set(id,{word,pts,by:byId});
-if(players[byId]){players[byId].score+=pts;if(!players[byId].words)players[byId].words=0;players[byId].words++}
-renderPlayers();renderFound();
-if(byId===myId){showMsg(`+${pts}  ${word}`,'good');playGood();spawnParticles(pts);showPraise(pts)}
-broadcast({type:'word',word,pts,by:byId})}
+
+function submitWord(byId=myId){
+  if(selected.length<2){selected=[];updateSelectionUI();return}
+  const word=selected.map(({r,c})=>board[r][c].letter).join('');
+  const pts=calcScore(selected);selected=[];updateSelectionUI();
+  
+  const alreadyByMe=[...foundWords.values()].some(info=>info.word===word&&info.by===byId);
+  if(alreadyByMe){showMsg('Την έχεις ήδη!','bad');playBad();return}
+  if(!DICT.has(word)){showMsg('Μη έγκυρη','bad');playBad();return}
+  
+  const id=Date.now()+Math.random();
+  foundWords.set(id,{word,pts,by:byId});
+  if(players[byId]){players[byId].score+=pts;if(!players[byId].words)players[byId].words=0;players[byId].words++}
+  renderPlayers();renderFound();
+  
+  if(byId===myId){showMsg(`+${pts}  ${word}`,'good');playGood();spawnParticles(pts);showPraise(pts)}
+  broadcast({type:'word',word,pts,by:byId})
+}
+
 function showMsg(txt,type){const m=document.getElementById('message');m.textContent=txt;m.className='message show '+type;setTimeout(()=>m.classList.remove('show'),900)}
 function spawnParticles(pts){const colors=['#c084fc','#ec4899','#2dd4bf','#fbbf24'];for(let i=0;i<5;i++){const p=document.createElement('div');p.className='particle';p.textContent='+'+pts;p.style.left=(35+Math.random()*30)+'%';p.style.top='38%';p.style.color=colors[i%colors.length];p.style.animationDelay=(i*.04)+'s';document.body.appendChild(p);setTimeout(()=>p.remove(),950)}}
+
 function findAIWords(max=4){const results=[],dirs=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];function dfs(r,c,path,used){if(path.length>=2){const w=path.map(([rr,cc])=>board[rr][cc].letter).join('');if(DICT.has(w)&&![...foundWords.values()].some(i=>i.word===w&&i.by===ai?.id))results.push({word:w,path:path.map(([rr,cc])=>({r:rr,c:cc})),pts:calcScore(path.map(([rr,cc])=>({r:rr,c:cc})))})}if(path.length>=6||results.length>35)return;for(const[dr,dc]of dirs){const nr=r+dr,nc=c+dc;if(nr<0||nr>3||nc<0||nc>3)continue;const key=nr*4+nc;if(used.has(key))continue;used.add(key);path.push([nr,nc]);dfs(nr,nc,path,used);path.pop();used.delete(key)}}for(let r=0;r<4;r++)for(let c=0;c<4;c++){const used=new Set([r*4+c]);dfs(r,c,[[r,c]],used)}results.sort((a,b)=>b.pts-a.pts||b.word.length-a.word.length);return results.slice(0,max)}
 function runAI(){if(gameOver)return;const aiPlayers=Object.values(players).filter(p=>p.isAI);if(!aiPlayers.length)return;const ai=aiPlayers[Math.floor(Math.random()*aiPlayers.length)];const candidates=findAIWords(5);if(!candidates.length)return;let choice;if(ai.level==='easy')choice=candidates[Math.floor(Math.random()*Math.min(3,candidates.length))];else if(ai.level==='medium')choice=candidates[Math.floor(Math.random()*Math.min(2,candidates.length))];else choice=candidates[0];if(choice&&![...foundWords.values()].some(i=>i.word===choice.word&&i.by===ai.id)){selected=choice.path;submitWord(ai.id);selected=[]}}
+
 function startTimer(){clearInterval(timerId);timeLeft=90;updateTimer();timerId=setInterval(()=>{timeLeft--;updateTimer();if(timeLeft<=15&&timeLeft>0)playTick();if(timeLeft<=0)endGame()},1000)}
 function updateTimer(){const m=Math.floor(timeLeft/60),s=timeLeft%60;const el=document.getElementById('timer');el.textContent=`${m}:${s.toString().padStart(2,'0')}`;el.classList.toggle('warning',timeLeft<=15)}
+
 function endGame(){
   clearInterval(timerId);clearInterval(aiInterval);gameOver=true;
   const me=players[myId];
   if(me)saveHS(me.score);
-  // Build final summary - show everyone's word count + points
   let summary='Τέλος παιχνιδιού!\n\n';
   const sorted=Object.values(players).sort((a,b)=>(b.score||0)-(a.score||0));
-  sorted.forEach((p,i)=>{
-    const wc=p.words||0;
-    summary+=`${i+1}. ${p.name}: ${wc} λέξεις · ${p.score||0} πόντοι\n`;
-  });
+  sorted.forEach((p,i)=>{summary+=`${i+1}. ${p.name}: ${p.words||0} λέξεις · ${p.score||0} πόντοι\n`});
   showMsg(`Τέλος! Σκορ: ${me?me.score:0}`,'good');
   setTimeout(()=>{alert(summary);if(confirm('Πίσω στο lobby;'))goLobby()},800);
 }
-function initPeer(asHost=false){return new Promise((resolve,reject)=>{peer=new Peer({
-  debug:1,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
-    ]
-  }
-});peer.on('open',id=>{myId=id;resolve(id)});peer.on('error',err=>{document.getElementById('lobbyStatus').textContent='Σφάλμα: '+(err.type||err);reject(err)});if(asHost)peer.on('connection',c=>{conn=c;setupConn(c)})})}
-function setupConn(c){c.on('open',()=>{
-  document.getElementById('statusBar').textContent='Συνδεδεμένος!';
-  if(mode==='host'){
-    const payload={type:'init',board:boardToJSON(),players,found:[...foundWords.entries()],timeLeft,hostName:myName};
-    c.send(payload);
-    // resend once after 1s in case first packet lost
-    setTimeout(()=>{if(c.open)c.send(payload)},1000);
-  }
-});c.on('data',data=>handleNet(data));c.on('close',()=>document.getElementById('statusBar').textContent='Αντίπαλος αποσυνδέθηκε')}
-function handleNet(data){if(data.type==='init'&&mode==='guest'){
-  boardFromJSON(data.board);
-  players=data.players||{};
-  players[myId]={id:myId,name:myName,score:0,words:0,isMe:true,isAI:false};
-  foundWords=new Map(data.found||[]);
-  timeLeft=data.timeLeft||90;
-  renderBoard();
-  renderPlayers();
-  renderFound();
-  startTimer();
-  document.getElementById('statusBar').textContent='Συνδεδεμένος με '+(data.hostName||'host')+' ✓';
-  showMsg('Συνδέθηκες!','good');
-}if(data.type==='word'){
-  // Opponent found a word - add it under their name, do NOT block us from finding the same word
-  const already=[...foundWords.values()].some(i=>i.word===data.word&&i.by===data.by);
-  if(already)return;
-  const id=Date.now()+Math.random();
-  foundWords.set(id,{word:data.word,pts:data.pts,by:data.by});
-  if(players[data.by]){players[data.by].score+=data.pts;if(!players[data.by].words)players[data.by].words=0;players[data.by].words++}
-  renderPlayers();renderFound();
-}if(data.type==='board'&&mode==='guest'){boardFromJSON(data.board);renderBoard()}}
+
+function initPeer(asHost=false){return new Promise((resolve,reject)=>{peer=new Peer({config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}});peer.on('open',id=>{myId=id;resolve(id)});peer.on('error',err=>{document.getElementById('lobbyStatus').textContent='Σφάλμα: '+(err.type||err);reject(err)});if(asHost)peer.on('connection',c=>{conn=c;setupConn(c)})})}
+function setupConn(c){c.on('open',()=>{document.getElementById('statusBar').textContent='Συνδεδεμένος!';if(mode==='host'){const payload={type:'init',board:boardToJSON(),players,found:[...foundWords.entries()],timeLeft,hostName:myName};c.send(payload);setTimeout(()=>{if(c.open)c.send(payload)},1000)}});c.on('data',data=>handleNet(data));c.on('close',()=>document.getElementById('statusBar').textContent='Αντίπαλος αποσυνδέθηκε')}
+function handleNet(data){if(data.type==='init'&&mode==='guest'){boardFromJSON(data.board);players=data.players||{};players[myId]={id:myId,name:myName,score:0,words:0,isMe:true,isAI:false};foundWords=new Map(data.found||[]);timeLeft=data.timeLeft||90;renderBoard();renderPlayers();renderFound();startTimer();document.getElementById('statusBar').textContent='Συνδεδεμένος με '+(data.hostName||'host')+' ✓';showMsg('Συνδέθηκες!','good')}if(data.type==='word'){const already=[...foundWords.values()].some(i=>i.word===data.word&&i.by===data.by);if(already)return;const id=Date.now()+Math.random();foundWords.set(id,{word:data.word,pts:data.pts,by:data.by});if(players[data.by]){players[data.by].score+=data.pts;if(!players[data.by].words)players[data.by].words=0;players[data.by].words++}renderPlayers();renderFound()}if(data.type==='board'&&mode==='guest'){boardFromJSON(data.board);renderBoard()}}
 function broadcast(msg){if(conn&&conn.open)conn.send(msg)}
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+
 function goLobby(){clearInterval(timerId);clearInterval(aiInterval);if(peer){try{peer.destroy()}catch(e){}peer=null}conn=null;gameOver=false;showScreen('lobby');renderHS();document.getElementById('lobbyStatus').textContent=''}
-function startSolo(){mode='solo';myId='me';const opp=randomOpponent();
-players={
-  me:{id:'me',name:myName||'Εσύ',score:0,words:0,isMe:true,isAI:false},
-  ai1:{id:'ai1',name:opp.name,score:0,words:0,isMe:false,isAI:true,level:'medium',color:opp.color,icon:opp.icon}
-};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='';startTimer();aiInterval=setInterval(runAI,4200+Math.random()*2500)}
-async function createRoom(){document.getElementById('lobbyStatus').textContent='Δημιουργία...';try{await initPeer(true);mode='host';players={[myId]:{id:myId,name:myName||'Παίκτης',score:0,words:0,isMe:true,isAI:false}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='flex';const link=location.href.split('?')[0]+'?room='+myId;document.getElementById('inviteLink').value=link;document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Κράτα ανοιχτή αυτή τη σελίδα και στείλε το link';startTimer()}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία. Δοκίμασε Solo.'}}
+
+function startSolo(){mode='solo';myId='me';const opp=randomOpponent();players={me:{id:'me',name:myName||'Εσύ',score:0,words:0,isMe:true,isAI:false},ai1:{id:'ai1',name:opp.name,score:0,words:0,isMe:false,isAI:true,level:'medium',color:opp.color,icon:opp.icon}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='';startTimer();aiInterval=setInterval(runAI,4200+Math.random()*2500)}
+
+async function createRoom(){document.getElementById('roomModal').style.display='none';document.getElementById('lobbyStatus').textContent='Δημιουργία...';try{await initPeer(true);mode='host';players={[myId]:{id:myId,name:myName||'Παίκτης',score:0,words:0,isMe:true,isAI:false}};generateBoard();foundWords.clear();gameOver=false;showScreen('game');renderBoard();renderPlayers();renderFound();document.getElementById('inviteBox').style.display='flex';const link=location.href.split('?')[0]+'?room='+myId;document.getElementById('inviteLink').value=link;document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Κράτα ανοιχτή αυτή τη σελίδα και στείλε το link';startTimer()}catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία.'}}
 async function joinRoom(code){
   if(!code||!code.trim())return;
   const cleanCode=code.trim();
+  document.getElementById('roomModal').style.display='none';
   document.getElementById('lobbyStatus').textContent='Σύνδεση...';
   try{
-    await initPeer(false);
-    mode='guest';
-    players={[myId]:{id:myId,name:myName||'Παίκτης',score:0,words:0,isMe:true,isAI:false}};
-    showScreen('game');
-    document.getElementById('inviteBox').style.display='none';
-    document.getElementById('statusBar').textContent='Συνδέομαι με host... Περίμενε λίγο';
-    // Clear grid and show waiting message in the grid area
-    const grid=document.getElementById('grid');
-    grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;opacity:0.8"><div style="font-size:28px">⏳</div><div style="font-size:15px;line-height:1.5">Συνδέομαι με τον host...<br><span style="font-size:12px;opacity:0.7">Ο host πρέπει να έχει ανοιχτό το παιχνίδι</span></div></div>';
-    
-    conn=peer.connect(cleanCode,{reliable:true});
-    setupConn(conn);
-    
-    // Timeout after 12 seconds
-    setTimeout(()=>{
-      if(mode==='guest' && (!conn || !conn.open) && board.length===0){
-        document.getElementById('statusBar').textContent='Αποτυχία σύνδεσης';
-        grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 16px;text-align:center"><div style="font-size:32px">😕</div><div style="font-size:15px;line-height:1.5">Δεν βρέθηκε ο host.<br>Βεβαιώσου ότι έχει ανοιχτό το παιχνίδι<br>και δοκίμασε ξανά.</div><button class="btn btn-primary" style="margin-top:8px;padding:10px 20px;font-size:14px" onclick="goLobby()">← Πίσω στο Lobby</button></div>';
-      }
-    },12000);
-  }catch(e){
-    document.getElementById('lobbyStatus').textContent='Αποτυχία σύνδεσης.';
-    console.error(e);
-  }
+    await initPeer(false);mode='guest';players={[myId]:{id:myId,name:myName||'Παίκτης',score:0,words:0,isMe:true,isAI:false}};showScreen('game');document.getElementById('inviteBox').style.display='none';document.getElementById('statusBar').textContent='Συνδέομαι με host... Περίμενε λίγο';
+    const grid=document.getElementById('grid');grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;opacity:0.8"><div style="font-size:28px">⏳</div><div style="font-size:15px;line-height:1.5">Συνδέομαι με τον host...<br><span style="font-size:12px;opacity:0.7">Ο host πρέπει να έχει ανοιχτό το παιχνίδι</span></div></div>';
+    conn=peer.connect(cleanCode,{reliable:true});setupConn(conn);
+    setTimeout(()=>{if(mode==='guest' && (!conn || !conn.open) && board.length===0){document.getElementById('statusBar').textContent='Αποτυχία σύνδεσης';grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 16px;text-align:center"><div style="font-size:32px">😕</div><div style="font-size:15px;line-height:1.5">Δεν βρέθηκε ο host.</div><button class="btn btn-primary" style="margin-top:8px;padding:10px 20px;font-size:14px" onclick="goLobby()">← Πίσω στο Lobby</button></div>';}},12000);
+  }catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία σύνδεσης.'}
 }
+
+// Event Listeners Κουμπιών
 document.getElementById('btnSolo').onclick=startSolo;
-document.getElementById('btnCreate').onclick=createRoom;
-document.getElementById('btnJoin').onclick=()=>joinRoom(document.getElementById('joinCode').value);
+document.getElementById('btnOpenRoomModal').onclick = () => document.getElementById('roomModal').style.display = 'flex';
+document.getElementById('btnCreateReal').onclick = createRoom;
+document.getElementById('btnJoinReal').onclick = () => joinRoom(document.getElementById('joinCode').value);
 document.getElementById('btnBack').onclick=goLobby;
 document.getElementById('btnShuffle').onclick=()=>{if(mode==='guest')return showMsg('Μόνο ο host','bad');if(confirm('Νέο ταμπλό;')){generateBoard();foundWords.clear();Object.values(players).forEach(p=>{p.score=0;p.words=0});renderBoard();renderPlayers();renderFound();broadcast({type:'board',board:boardToJSON()})}};
 document.getElementById('btnSound').onclick=()=>{soundOn=!soundOn;document.getElementById('btnSound').textContent=soundOn?'🔊':'🔇'};
 document.getElementById('btnCopy').onclick=async ()=>{
   const link=document.getElementById('inviteLink').value;
-  if(navigator.share){
-    try{ await navigator.share({title:'Λεξοδρομίες',text:'Πάμε να παίξουμε Λεξοδρομίες!',url:link}); return; }catch(e){}
-  }
+  if(navigator.share){try{ await navigator.share({title:'Λεξοδρομίες',text:'Πάμε να παίξουμε Λεξοδρομίες!',url:link}); return; }catch(e){}}
   try{ await navigator.clipboard.writeText(link); showMsg('Αντιγράφηκε!','good'); }
   catch(e){ document.getElementById('inviteLink').select(); document.execCommand('copy'); showMsg('Αντιγράφηκε','good'); }
 };
+
+// Logic Σύρματος (Drag) στο ταμπλό
 const grid=document.getElementById('grid');
 function tileAt(x,y){const el=document.elementFromPoint(x,y);const t=el?.closest('.tile');return t?{r:+t.dataset.r,c:+t.dataset.c}:null}
 grid.addEventListener('mousedown',e=>{e.preventDefault();const t=tileAt(e.clientX,e.clientY);if(t)startSelect(t.r,t.c)});
@@ -358,22 +394,73 @@ window.addEventListener('mouseup',endSelect);
 grid.addEventListener('touchstart',e=>{e.preventDefault();const tch=e.touches[0];const t=tileAt(tch.clientX,tch.clientY);if(t)startSelect(t.r,t.c)},{passive:false});
 grid.addEventListener('touchmove',e=>{e.preventDefault();if(!isDragging)return;const tch=e.touches[0];const t=tileAt(tch.clientX,tch.clientY);if(t)contSelect(t.r,t.c)},{passive:false});
 grid.addEventListener('touchend',e=>{e.preventDefault();endSelect()});
-const params=new URLSearchParams(location.search);
-if(params.get('room')){document.getElementById('joinCode').value=params.get('room');setTimeout(()=>joinRoom(params.get('room')),700)}
 
-function ensureNick(){
-  if(myName) return;
-  document.getElementById('nickModal').style.display='flex';
-  document.getElementById('nickInput').focus();
+const params=new URLSearchParams(location.search);
+if(params.get('room')){document.getElementById('joinCode').value=params.get('room');setTimeout(()=>joinRoom(params.get('room')),1000)}
+
+function updateLobbyNick() {
+  if(myName) document.getElementById('lobbyNickDisplay').textContent = "Παίκτης: " + myName;
 }
+
 document.getElementById('btnSaveNick').onclick = ()=>{
   const v = document.getElementById('nickInput').value.trim();
   if(v.length < 2){ alert('Γράψε τουλάχιστον 2 γράμματα'); return; }
   myName = v;
   localStorage.setItem('lexo_nick', myName);
   document.getElementById('nickModal').style.display='none';
+  updateLobbyNick();
 };
-renderHS();
-ensureNick();
 
+// Animation της Οθόνης Έναρξης (Splash)
+function playSplash() {
+    const letters = "ΛΕΞΟΔΡΟΜΙΕΣ".split('');
+    const container = document.getElementById('splashLetters');
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2 + 30; // κάτω από τον τίτλο
+    const spacing = Math.min(30, window.innerWidth / 13); // για να χωράει και σε μικρές οθόνες
+
+    letters.forEach((char, i) => {
+        let el = document.createElement('div');
+        el.textContent = char;
+        el.style.position = 'absolute';
+        el.style.fontSize = '26px';
+        el.style.fontWeight = 'bold';
+        el.style.color = 'var(--purple)';
+        el.style.left = (Math.random() * window.innerWidth) + 'px';
+        el.style.top = (Math.random() * window.innerHeight) + 'px';
+        el.style.opacity = '0';
+        el.style.transform = `scale(${Math.random() * 2})`;
+        el.style.transition = 'all 1.5s cubic-bezier(0.25, 1, 0.5, 1)';
+        container.appendChild(el);
+
+        setTimeout(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'scale(1)';
+            let targetX = centerX - ((letters.length - 1) * spacing) / 2 + (i * spacing);
+            el.style.left = targetX + 'px';
+            el.style.top = centerY + 'px';
+        }, 100 + i * 50);
+    });
+
+    // Μετά από 2.8 δευτερόλεπτα κλείνει το splash screen και μπαίνουμε στο μενού
+    setTimeout(() => {
+        document.getElementById('splash').classList.remove('active');
+        document.getElementById('lobby').classList.add('active');
+        
+        if(!myName && !params.get('room')) {
+            document.getElementById('nickModal').style.display='flex';
+            document.getElementById('nickInput').focus();
+        } else {
+            updateLobbyNick();
+        }
+    }, 2800);
+}
+
+// Εκκίνηση όταν φορτώσει η σελίδα
+window.onload = () => {
+    playSplash();
+    renderHS();
+};
 </script>
+</body>
+</html>
