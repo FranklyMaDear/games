@@ -238,7 +238,7 @@ footer{margin-top:12px;font-size:11px;opacity:.35}
     <span class="lang">Ελληνικά</span>
     <div style="display:flex;gap:8px">
       <button class="icon-btn" id="btnSound" title="Ήχος">🔊</button>
-      <button class="icon-btn" id="btnShuffle" title="Νέο ταμπλό">↻</button>
+      <button class="icon-btn" id="btnShuffle" title="Ανακάτεμα γραμμάτων">↻</button>
     </div>
   </div>
   <div class="found-section">
@@ -443,7 +443,8 @@ function saveHS(score){const list=loadHS();list.push({score,date:new Date().toLo
 function renderHS(){const list=loadHS(),el=document.getElementById('hsList');if(!list.length){el.innerHTML='<div style="opacity:.4;font-size:13px">Δεν υπάρχουν ακόμα</div>';return}el.innerHTML=list.map((h,i)=>`<div class="hs-row"><span class="rank">${i+1}.</span><span>${esc(h.name)}</span><span>${esc(h.score)}</span></div>`).join('')}
 
 // ===== Diamonds & Arenas =====
-const ARENA_THRESHOLDS = [0, 80, 200, 400, 700]; // cumulative diamonds to unlock
+// Πιο προσιτά thresholds – νιώθεις πρόοδο πιο γρήγορα
+const ARENA_THRESHOLDS = [0, 40, 120, 250, 450]; // cumulative diamonds
 const ARENA_NAMES = ['Βασική','Δάσος','Έρημος','Νέον','Ωκεανός'];
 function loadDiamonds(){try{return parseInt(localStorage.getItem('lexo_diamonds')||'0',10)||0}catch{return 0}}
 function saveDiamonds(n){try{localStorage.setItem('lexo_diamonds',String(n))}catch(e){}}
@@ -469,9 +470,11 @@ function updateDiamondsUI(){
   applyArenaTheme(a);
 }
 function awardDiamonds(score){
-  // ~1 diamond per 8 points, min 1 if score>0
-  const gained = score>0 ? Math.max(1, Math.floor(score/8)) : 0;
-  if(gained<=0) return 0;
+  // Πιο γενναιόδωρο: ~1 διαμάντι ανά 6 πόντους + bonus για καλό σκορ
+  if(score<=0) return 0;
+  let gained = Math.max(1, Math.floor(score/6));
+  if(score>=80) gained += 2;   // μικρό bonus για καλό παιχνίδι
+  if(score>=120) gained += 3;
   const prev = loadDiamonds();
   const next = prev + gained;
   saveDiamonds(next);
@@ -733,10 +736,10 @@ function handleNet(data,c){
   }
 
   if(data.type==='board'&&mode==='guest'){
+    // Μόνο νέο ταμπλό (shuffle) – κρατάμε λέξεις & σκορ
     boardFromJSON(data.board);
-    foundWords.clear();
-    Object.values(players).forEach(p=>{p.score=0;p.words=0});
-    renderBoard();renderPlayers();renderFound();
+    renderBoard();
+    renderFound();
   }
 }
 function broadcast(msg){if(conn&&conn.open)conn.send(msg)}
@@ -802,7 +805,7 @@ document.getElementById('btnPlayAgain').onclick=startSolo;
 document.getElementById('btnShuffle').onclick=()=>{
   if(mode==='guest')return showMsg('Μόνο ο host','bad');
   if(waiting||gameOver)return;
-  // Pure shuffle of existing letters + bonuses
+  // Pure shuffle: ίδια γράμματα + μπόνους. Οι βρεθείσες λέξεις και το σκορ ΜΕΝΟΥΝ.
   const cells = board.flat();
   const letters = cells.map(c=>({letter:c.letter,points:c.points}));
   const bonuses = cells.map(c=>c.bonus);
@@ -815,9 +818,8 @@ document.getElementById('btnShuffle').onclick=()=>{
     board[r][c].bonus = bonuses[i];
     i++;
   }
-  foundWords.clear();
-  Object.values(players).forEach(p=>{p.score=0;p.words=0});
-  renderBoard();renderPlayers();renderFound();
+  renderBoard();
+  renderFound();
   broadcast({type:'board',board:boardToJSON()});
   showMsg('Ανακάτεμα!','good');
 };
