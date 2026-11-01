@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ζωγράφισε & Μάθε! - Εκπαιδευτικό Παιχνίδι</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+  <style>
+    /* ===== RESET & BASE ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --primary: #4a90e2;
+      --primary-dark: #357abd;
+      --success: #27ae60;
+      --warning: #f39c12;
+      --danger: #e74c3c;
+      --bg: #e8f4fd;
+      --card: #ffffff;
+      --text: #2c3e50;
+      --radius: 16px;
+      --shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen {
+      display: none;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* ===== START SCREEN ===== */
+    #start-screen {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      padding: 20px;
+    }
+
+    .start-content h1 {
+      font-size: clamp(2.2rem, 8vw, 3.5rem);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+    }
+
+    .info-box {
+      margin-top: 2rem;
+      background: rgba(255,255,255,0.15);
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-size: 0.95rem;
+    }
+
+    /* ===== BUTTONS ===== */
+    .big-btn {
+      background: white;
+      color: #5a4fcf;
+      border: none;
+      padding: 16px 40px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .big-btn:active {
+      transform: scale(0.96);
+    }
+
+    .big-btn.primary {
+      background: var(--primary);
+      color: white;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .big-btn.secondary {
+      background: #ecf0f1;
+      color: var(--text);
+      margin-top: 10px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .icon-btn {
+      background: rgba(255,255,255,0.9);
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* ===== GAME HEADER ===== */
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: white;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+
+    .score-box {
+      background: #fff8e1;
+      padding: 6px 14px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .level-info {
+      text-align: center;
+    }
+
+    #category-badge {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--primary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #level-number {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    /* ===== PROMPT ===== */
+    .prompt-area {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      background: linear-gradient(90deg, #e3f2fd, #f3e5f5);
+    }
+
+    #prompt-text {
+      font-size: clamp(1.1rem, 4vw, 1.4rem);
+      font-weight: 600;
+    }
+
+    #prompt-text strong {
+      color: var(--primary);
+      font-size: 1.3em;
+    }
+
+    /* ===== CANVAS ===== */
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 12px;
+      min-height: 280px;
+    }
+
+    #draw-canvas {
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      touch-action: none;
+      max-width: 100%;
+      max-height: 55vh;
+      border: 3px solid #dfe6e9;
+    }
+
+    /* ===== TOOLBAR ===== */
+    .toolbar {
+      background: white;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.05);
+    }
+
+    .color-palette {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .color-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .color-btn.active {
+      border-color: #2c3e50;
+      transform: scale(1.15);
+    }
+
+    .tools {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tool-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      background: #f1f2f6;
+      font-size: 1.3rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .tool-btn.active {
+      background: #dfe6e9;
+    }
+
+    /* ===== ACTION BAR ===== */
+    .action-bar {
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      background: white;
+    }
+
+    /* ===== RESULT OVERLAY ===== */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .result-card {
+      background: white;
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: center;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: popIn 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .result-emoji {
+      font-size: 4rem;
+      margin-bottom: 8px;
+    }
+
+    .result-card h2 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+    }
+
+    .result-card p {
+      color: #7f8c8d;
+      margin-bottom: 16px;
+    }
+
+    .confidence {
+      font-size: 0.95rem;
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    /* ===== CONFETTI ===== */
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 480px) {
+      .color-btn {
+        width: 32px;
+        height: 32px;
+      }
+      .tool-btn {
+        width: 40px;
+        height: 40px;
+      }
+      .big-btn {
+        padding: 14px 28px;
+        font-size: 1.1rem;
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 500px) {
+      .canvas-container {
+        min-height: 180px;
+      }
+      #draw-canvas {
+        max-height: 40vh;
+      }
+      .prompt-area {
+        padding: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Screen -->
+  <div id="start-screen" class="screen active">
+    <div class="start-content">
+      <h1>🎨 Ζωγράφισε & Μάθε!</h1>
+      <p class="subtitle">Σχεδίασε, μάθε και κέρδισε αστεράκια!</p>
+      <button id="start-btn" class="big-btn">ΠΑΙΞΕ ΤΩΡΑ</button>
+      <div class="info-box">
+        <p>✨ Αριθμοί • Γράμματα • Ζώα • Αντικείμενα</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen">
+    <header class="game-header">
+      <div class="score-box">
+        <span class="star">⭐</span>
+        <span id="score">0</span>
+      </div>
+      <div class="level-info">
+        <span id="category-badge">Αριθμοί</span>
+        <span id="level-number">Επίπεδο 1</span>
+      </div>
+      <button id="menu-btn" class="icon-btn" title="Μενού">☰</button>
+    </header>
+
+    <div class="prompt-area">
+      <p id="prompt-text">Ζωγράφισε τον αριθμό <strong>5</strong></p>
+      <button id="speak-btn" class="icon-btn" title="Άκουσε">🔊</button>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+
+    <div class="toolbar">
+      <div class="color-palette">
+        <button class="color-btn active" data-color="#000000" style="background:#000"></button>
+        <button class="color-btn" data-color="#e74c3c" style="background:#e74c3c"></button>
+        <button class="color-btn" data-color="#3498db" style="background:#3498db"></button>
+        <button class="color-btn" data-color="#2ecc71" style="background:#2ecc71"></button>
+        <button class="color-btn" data-color="#f39c12" style="background:#f39c12"></button>
+        <button class="color-btn" data-color="#9b59b6" style="background:#9b59b6"></button>
+      </div>
+      <div class="tools">
+        <button id="brush-size-btn" class="tool-btn" title="Μέγεθος">✏️</button>
+        <button id="eraser-btn" class="tool-btn" title="Σβήστρα">🩹</button>
+        <button id="clear-btn" class="tool-btn" title="Καθαρισμός">🗑️</button>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button id="check-btn" class="big-btn primary">ΕΛΕΓΧΟΣ ✓</button>
+    </div>
+  </div>
+
+  <!-- Result Overlay -->
+  <div id="result-overlay" class="overlay">
+    <div class="result-card">
+      <div id="result-emoji" class="result-emoji">🎉</div>
+      <h2 id="result-title">Μπράβο!</h2>
+      <p id="result-message">Το σχέδιό σου είναι υπέροχο!</p>
+      <div id="result-confidence" class="confidence"></div>
+      <button id="next-btn" class="big-btn">ΕΠΟΜΕΝΟ ΕΠΙΠΕΔΟ →</button>
+      <button id="retry-btn" class="big-btn secondary">ΔΟΚΙΜΑΣΕ ΞΑΝΑ</button>
+    </div>
+  </div>
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    // ==================== LEVELS ====================
+    const LEVELS = {
+      numbers: {
+        name: "Αριθμοί",
+        emoji: "🔢",
+        items: [
+          { id: "0", label: "0", prompt: "Ζωγράφισε τον αριθμό <strong>0</strong>" },
+          { id: "1", label: "1", prompt: "Ζωγράφισε τον αριθμό <strong>1</strong>" },
+          { id: "2", label: "2", prompt: "Ζωγράφισε τον αριθμό <strong>2</strong>" },
+          { id: "3", label: "3", prompt: "Ζωγράφισε τον αριθμό <strong>3</strong>" },
+          { id: "4", label: "4", prompt: "Ζωγράφισε τον αριθμό <strong>4</strong>" },
+          { id: "5", label: "5", prompt: "Ζωγράφισε τον αριθμό <strong>5</strong>" },
+          { id: "6", label: "6", prompt: "Ζωγράφισε τον αριθμό <strong>6</strong>" },
+          { id: "7", label: "7", prompt: "Ζωγράφισε τον αριθμό <strong>7</strong>" },
+          { id: "8", label: "8", prompt: "Ζωγράφισε τον αριθμό <strong>8</strong>" },
+          { id: "9", label: "9", prompt: "Ζωγράφισε τον αριθμό <strong>9</strong>" }
+        ]
+      },
+      letters: {
+        name: "Γράμματα",
+        emoji: "🔤",
+        items: [
+          { id: "A", label: "Α", prompt: "Ζωγράφισε το γράμμα <strong>Α</strong>" },
+          { id: "B", label: "Β", prompt: "Ζωγράφισε το γράμμα <strong>Β</strong>" },
+          { id: "G", label: "Γ", prompt: "Ζωγράφισε το γράμμα <strong>Γ</strong>" },
+          { id: "D", label: "Δ", prompt: "Ζωγράφισε το γράμμα <strong>Δ</strong>" },
+          { id: "E", label: "Ε", prompt: "Ζωγράφισε το γράμμα <strong>Ε</strong>" },
+          { id: "Z", label: "Ζ", prompt: "Ζωγράφισε το γράμμα <strong>Ζ</strong>" },
+          { id: "H", label: "Η", prompt: "Ζωγράφισε το γράμμα <strong>Η</strong>" },
+          { id: "O", label: "Ο", prompt: "Ζωγράφισε το γράμμα <strong>Ο</strong>" },
+          { id: "K", label: "Κ", prompt: "Ζωγράφισε το γράμμα <strong>Κ</strong>" },
+          { id: "M", label: "Μ", prompt: "Ζωγράφισε το γράμμα <strong>Μ</strong>" }
+        ]
+      },
+      animals: {
+        name: "Ζώα",
+        emoji: "🐾",
+        items: [
+          { id: "cat", label: "γάτα", prompt: "Ζωγράφισε μια <strong>γάτα</strong>" },
+          { id: "dog", label: "σκύλο", prompt: "Ζωγράφισε έναν <strong>σκύλο</strong>" },
+          { id: "fish", label: "ψάρι", prompt: "Ζωγράφισε ένα <strong>ψάρι</strong>" },
+          { id: "bird", label: "πουλί", prompt: "Ζωγράφισε ένα <strong>πουλί</strong>" },
+          { id: "rabbit", label: "κουνέλι", prompt: "Ζωγράφισε ένα <strong>κουνέλι</strong>" },
+          { id: "butterfly", label: "πεταλούδα", prompt: "Ζωγράφισε μια <strong>πεταλούδα</strong>" }
+        ]
+      },
+      objects: {
+        name: "Αντικείμενα",
+        emoji: "🏠",
+        items: [
+          { id: "house", label: "σπίτι", prompt: "Ζωγράφισε ένα <strong>σπίτι</strong>" },
+          { id: "tree", label: "δέντρο", prompt: "Ζωγράφισε ένα <strong>δέντρο</strong>" },
+          { id: "car", label: "αυτοκίνητο", prompt: "Ζωγράφισε ένα <strong>αυτοκίνητο</strong>" },
+          { id: "sun", label: "ήλιο", prompt: "Ζωγράφισε έναν <strong>ήλιο</strong>" },
+          { id: "flower", label: "λουλούδι", prompt: "Ζωγράφισε ένα <strong>λουλούδι</strong>" },
+          { id: "star", label: "αστέρι", prompt: "Ζωγράφισε ένα <strong>αστέρι</strong>" }
+        ]
+      }
+    };
+
+    const CATEGORY_ORDER = ["numbers", "letters", "animals", "objects"];
+
+    const MESSAGES = {
+      success: [
+        "Μπράβο! Είσαι σούπερ!",
+        "Φανταστικό σχέδιο!",
+        "Τέλεια! Συνέχισε έτσι!",
+        "Είσαι καλλιτέχνης!",
+        "Υπέροχα! Κέρδισες αστεράκια!"
+      ],
+      tryAgain: [
+        "Πολύ καλή προσπάθεια! Δοκίμασε ξανά!",
+        "Σχεδόν! Πρόσθεσε λίγες λεπτομέρειες!",
+        "Μπράβο που προσπάθησες! Ξαναδοκίμασε!",
+        "Ωραία αρχή! Κάνε το ακόμα καλύτερο!",
+        "Συνέχισε! Θα τα καταφέρεις!"
+      ]
+    };
+
+    function getRandomMessage(type) {
+      const list = MESSAGES[type];
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    // ==================== CANVAS ====================
+    class DrawingCanvas {
+      constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.isDrawing = false;
+        this.currentColor = '#000000';
+        this.brushSize = 8;
+        this.isEraser = false;
+
+        this.resizeCanvas();
+        this.setupEvents();
+        window.addEventListener('resize', () => this.resizeCanvas());
+      }
+
+      resizeCanvas() {
+        const container = this.canvas.parentElement;
+        const size = Math.min(container.clientWidth - 24, container.clientHeight - 24, 500);
+        
+        const temp = document.createElement('canvas');
+        temp.width = this.canvas.width;
+        temp.height = this.canvas.height;
+        temp.getContext('2d').drawImage(this.canvas, 0, 0);
+
+        this.canvas.width = size;
+        this.canvas.height = size;
+
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(0, 0, size, size);
+        
+        if (temp.width > 0) {
+          this.ctx.drawImage(temp, 0, 0, size, size);
+        }
+
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+      }
+
+      setupEvents() {
+        this.canvas.addEventListener('mousedown', (e) => this.start(e));
+        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+        this.canvas.addEventListener('mouseup', () => this.stop());
+        this.canvas.addEventListener('mouseout', () => this.stop());
+
+        this.canvas.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          this.start(e.touches[0]);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          this.draw(e.touches[0]);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          this.stop();
+        });
+      }
+
+      getPos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top) * scaleY
+        };
+      }
+
+      start(e) {
+        this.isDrawing = true;
+        const pos = this.getPos(e);
+        this.ctx.beginPath();
+        this.ctx.moveTo(pos.x, pos.y);
+      }
+
+      draw(e) {
+        if (!this.isDrawing) return;
+        const pos = this.getPos(e);
+
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.strokeStyle = this.isEraser ? '#ffffff' : this.currentColor;
+        this.ctx.lineTo(pos.x, pos.y);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(pos.x, pos.y);
+      }
+
+      stop() {
+        this.isDrawing = false;
+        this.ctx.beginPath();
+      }
+
+      clear() {
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+
+      setColor(color) {
+        this.currentColor = color;
+        this.isEraser = false;
+      }
+
+      setEraser(active) {
+        this.isEraser = active;
+      }
+
+      setBrushSize(size) {
+        this.brushSize = size;
+      }
+
+      getImageData() {
+        return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      }
+    }
+
+    // ==================== RECOGNITION ====================
+    class DrawingRecognizer {
+      constructor() {
+        this.model = null;
+        this.isReady = false;
+        this.labels = [];
+      }
+
+      async loadModel(modelUrl = './model/model.json') {
+        try {
+          console.log('Φόρτωση μοντέλου...');
+          this.model = await tf.loadLayersModel(modelUrl);
+          this.isReady = true;
+          console.log('Μοντέλο φορτώθηκε επιτυχώς!');
+          return true;
+        } catch (err) {
+          console.warn('Δεν βρέθηκε μοντέλο. Λειτουργία σε DEMO mode.', err.message);
+          this.isReady = false;
+          return false;
+        }
+      }
+
+      preprocess(canvas) {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = 28;
+        offscreen.height = 28;
+        const ctx = offscreen.getContext('2d');
+
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 28, 28);
+        ctx.drawImage(canvas, 0, 0, 28, 28);
+
+        const imageData = ctx.getImageData(0, 0, 28, 28);
+        const data = imageData.data;
+
+        const input = new Float32Array(28 * 28);
+        for (let i = 0; i < data.length; i += 4) {
+          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          input[i / 4] = (255 - avg) / 255;
+        }
+
+        return tf.tensor4d(input, [1, 28, 28, 1]);
+      }
+
+      async predict(canvas, expectedId) {
+        if (!this.model || !this.isReady) {
+          return this.mockPredict(expectedId);
+        }
+
+        const tensor = this.preprocess(canvas);
+        const prediction = await this.model.predict(tensor).data();
+        tensor.dispose();
+
+        let maxIdx = 0;
+        let maxProb = prediction[0];
+        for (let i = 1; i < prediction.length; i++) {
+          if (prediction[i] > maxProb) {
+            maxProb = prediction[i];
+            maxIdx = i;
+          }
+        }
+
+        const predictedLabel = this.labels[maxIdx] || `class_${maxIdx}`;
+        const confidence = maxProb;
+        const success = confidence > 0.65 && this.matchesExpected(predictedLabel, expectedId);
+
+        return { success, confidence, predicted: predictedLabel };
+      }
+
+      matchesExpected(predicted, expectedId) {
+        const mapping = {
+          '0': ['0', 'zero'], '1': ['1', 'one'], '2': ['2', 'two'],
+          '3': ['3', 'three'], '4': ['4', 'four'], '5': ['5', 'five'],
+          '6': ['6', 'six'], '7': ['7', 'seven'], '8': ['8', 'eight'],
+          '9': ['9', 'nine'],
+          'cat': ['cat', 'γάτα'], 'dog': ['dog', 'σκύλος'],
+          'fish': ['fish', 'ψάρι'], 'bird': ['bird', 'πουλί'],
+          'house': ['house', 'σπίτι'], 'tree': ['tree', 'δέντρο'],
+          'car': ['car', 'αυτοκίνητο'], 'sun': ['sun', 'ήλιος']
+        };
+
+        const possible = mapping[expectedId] || [expectedId];
+        return possible.some(p => predicted.toLowerCase().includes(p.toLowerCase()));
+      }
+
+      mockPredict(expectedId) {
+        const successChance = 0.72;
+        const success = Math.random() < successChance;
+        const confidence = success
+          ? 0.70 + Math.random() * 0.28
+          : 0.25 + Math.random() * 0.40;
+
+        return {
+          success,
+          confidence,
+          predicted: success ? expectedId : 'unknown'
+        };
+      }
+    }
+
+    // ==================== GAME ====================
+    class Game {
+      constructor() {
+        this.score = 0;
+        this.currentCategoryIndex = 0;
+        this.currentLevelIndex = 0;
+        this.canvas = null;
+        this.recognizer = new DrawingRecognizer();
+        this.isChecking = false;
+
+        this.cacheDOM();
+        this.bindEvents();
+        this.init();
+      }
+
+      cacheDOM() {
+        this.startScreen = document.getElementById('start-screen');
+        this.gameScreen = document.getElementById('game-screen');
+        this.resultOverlay = document.getElementById('result-overlay');
+        this.scoreEl = document.getElementById('score');
+        this.categoryBadge = document.getElementById('category-badge');
+        this.levelNumber = document.getElementById('level-number');
+        this.promptText = document.getElementById('prompt-text');
+        this.resultEmoji = document.getElementById('result-emoji');
+        this.resultTitle = document.getElementById('result-title');
+        this.resultMessage = document.getElementById('result-message');
+        this.resultConfidence = document.getElementById('result-confidence');
+        this.nextBtn = document.getElementById('next-btn');
+        this.retryBtn = document.getElementById('retry-btn');
+      }
+
+      bindEvents() {
+        document.getElementById('start-btn').addEventListener('click', () => this.startGame());
+        document.getElementById('check-btn').addEventListener('click', () => this.checkDrawing());
+        document.getElementById('clear-btn').addEventListener('click', () => this.canvas.clear());
+        document.getElementById('eraser-btn').addEventListener('click', (e) => this.toggleEraser(e));
+        document.getElementById('brush-size-btn').addEventListener('click', () => this.cycleBrushSize());
+        document.getElementById('speak-btn').addEventListener('click', () => this.speakPrompt());
+        document.getElementById('menu-btn').addEventListener('click', () => this.goToStart());
+
+        this.nextBtn.addEventListener('click', () => this.nextLevel());
+        this.retryBtn.addEventListener('click', () => this.retryLevel());
+
+        document.querySelectorAll('.color-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            this.canvas.setColor(e.target.dataset.color);
+            document.getElementById('eraser-btn').classList.remove('active');
+          });
+        });
+      }
+
+      async init() {
+        this.canvas = new DrawingCanvas('draw-canvas');
+        await this.recognizer.loadModel('./model/model.json');
+      }
+
+      startGame() {
+        this.score = 0;
+        this.currentCategoryIndex = 0;
+        this.currentLevelIndex = 0;
+        this.updateScore();
+        this.loadLevel();
+        this.showScreen('game');
+      }
+
+      showScreen(name) {
+        this.startScreen.classList.remove('active');
+        this.gameScreen.classList.remove('active');
+        this.resultOverlay.classList.remove('active');
+
+        if (name === 'start') this.startScreen.classList.add('active');
+        if (name === 'game') this.gameScreen.classList.add('active');
+      }
+
+      getCurrentCategory() {
+        const key = CATEGORY_ORDER[this.currentCategoryIndex];
+        return LEVELS[key];
+      }
+
+      getCurrentItem() {
+        const cat = this.getCurrentCategory();
+        return cat.items[this.currentLevelIndex];
+      }
+
+      loadLevel() {
+        const cat = this.getCurrentCategory();
+        const item = this.getCurrentItem();
+
+        this.categoryBadge.textContent = `${cat.emoji} ${cat.name}`;
+        this.levelNumber.textContent = `Επίπεδο ${this.currentLevelIndex + 1} / ${cat.items.length}`;
+        this.promptText.innerHTML = item.prompt;
+
+        this.canvas.clear();
+        this.canvas.setColor('#000000');
+        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.color-btn[data-color="#000000"]').classList.add('active');
+        document.getElementById('eraser-btn').classList.remove('active');
+      }
+
+      async checkDrawing() {
+        if (this.isChecking) return;
+        this.isChecking = true;
+
+        const checkBtn = document.getElementById('check-btn');
+        checkBtn.textContent = 'ΕΛΕΓΧΟΣ...';
+        checkBtn.disabled = true;
+
+        const item = this.getCurrentItem();
+        const result = await this.recognizer.predict(this.canvas.canvas, item.id);
+
+        this.showResult(result);
+        this.isChecking = false;
+        checkBtn.textContent = 'ΕΛΕΓΧΟΣ ✓';
+        checkBtn.disabled = false;
+      }
+
+      showResult(result) {
+        this.resultOverlay.classList.add('active');
+
+        if (result.success) {
+          this.resultEmoji.textContent = '🎉';
+          this.resultTitle.textContent = 'Μπράβο!';
+          this.resultMessage.textContent = getRandomMessage('success');
+          this.resultConfidence.textContent = `Βεβαιότητα: ${(result.confidence * 100).toFixed(0)}%`;
+          this.resultConfidence.style.color = 'var(--success)';
+
+          this.nextBtn.style.display = 'inline-block';
+          this.retryBtn.style.display = 'none';
+
+          const points = Math.round(result.confidence * 100);
+          this.score += points;
+          this.updateScore();
+
+          this.launchConfetti();
+          this.playSuccessSound();
+        } else {
+          this.resultEmoji.textContent = '💪';
+          this.resultTitle.textContent = 'Σχεδόν!';
+          this.resultMessage.textContent = getRandomMessage('tryAgain');
+          this.resultConfidence.textContent = `Βεβαιότητα: ${(result.confidence * 100).toFixed(0)}%`;
+          this.resultConfidence.style.color = 'var(--warning)';
+
+          this.nextBtn.style.display = 'none';
+          this.retryBtn.style.display = 'inline-block';
+        }
+      }
+
+      nextLevel() {
+        this.resultOverlay.classList.remove('active');
+        const cat = this.getCurrentCategory();
+
+        this.currentLevelIndex++;
+
+        if (this.currentLevelIndex >= cat.items.length) {
+          this.currentCategoryIndex++;
+          this.currentLevelIndex = 0;
+
+          if (this.currentCategoryIndex >= CATEGORY_ORDER.length) {
+            this.gameComplete();
+            return;
+          }
+        }
+
+        this.loadLevel();
+      }
+
+      retryLevel() {
+        this.resultOverlay.classList.remove('active');
+        this.canvas.clear();
+      }
+
+      gameComplete() {
+        this.resultEmoji.textContent = '🏆';
+        this.resultTitle.textContent = 'Συγχαρητήρια!';
+        this.resultMessage.textContent = `Ολοκλήρωσες όλα τα επίπεδα! Συνολικοί πόντοι: ${this.score}`;
+        this.resultConfidence.textContent = '';
+        this.nextBtn.textContent = 'ΠΑΙΞΕ ΞΑΝΑ';
+        this.nextBtn.style.display = 'inline-block';
+        this.retryBtn.style.display = 'none';
+
+        this.nextBtn.onclick = () => {
+          this.nextBtn.onclick = null;
+          this.nextBtn.textContent = 'ΕΠΟΜΕΝΟ ΕΠΙΠΕΔΟ →';
+          this.startGame();
+        };
+      }
+
+      updateScore() {
+        this.scoreEl.textContent = this.score;
+      }
+
+      toggleEraser(e) {
+        const btn = e.currentTarget;
+        const active = !btn.classList.contains('active');
+        btn.classList.toggle('active', active);
+        this.canvas.setEraser(active);
+
+        if (active) {
+          document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+        }
+      }
+
+      cycleBrushSize() {
+        const sizes = [4, 8, 14, 22];
+        const current = this.canvas.brushSize;
+        const next = sizes[(sizes.indexOf(current) + 1) % sizes.length];
+        this.canvas.setBrushSize(next);
+
+        const btn = document.getElementById('brush-size-btn');
+        btn.style.transform = `scale(${0.9 + next / 30})`;
+        setTimeout(() => btn.style.transform = '', 200);
+      }
+
+      speakPrompt() {
+        if (!('speechSynthesis' in window)) return;
+        const item = this.getCurrentItem();
+        const text = item.prompt.replace(/<[^>]*>/g, '');
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'el-GR';
+        utterance.rate = 0.9;
+        speechSynthesis.speak(utterance);
+      }
+
+      goToStart() {
+        if (confirm('Θέλεις να επιστρέψεις στην αρχή;')) {
+          this.showScreen('start');
+        }
+      }
+
+      launchConfetti() {
+        const confettiCanvas = document.getElementById('confetti-canvas');
+        const ctx = confettiCanvas.getContext('2d');
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22'];
+
+        for (let i = 0; i < 120; i++) {
+          particles.push({
+            x: Math.random() * confettiCanvas.width,
+            y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+            r: Math.random() * 6 + 3,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            speed: Math.random() * 3 + 2,
+            angle: Math.random() * Math.PI * 2,
+            spin: Math.random() * 0.2 - 0.1
+          });
+        }
+
+        let frame = 0;
+        const animate = () => {
+          ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+          particles.forEach(p => {
+            p.y += p.speed;
+            p.x += Math.sin(p.angle) * 1.5;
+            p.angle += p.spin;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+          });
+          frame++;
+          if (frame < 90) {
+            requestAnimationFrame(animate);
+          } else {
+            ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+          }
+        };
+        animate();
+      }
+
+      playSuccessSound() {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 880;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.4);
+        } catch (e) {}
+      }
+    }
+
+    // Εκκίνηση
+    document.addEventListener('DOMContentLoaded', () => {
+      window.game = new Game();
+    });
+  </script>
+</body>
+</html>
