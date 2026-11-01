@@ -473,14 +473,15 @@
       </ul>
       <p><strong>💎 Διαμάντια (σκορ):</strong></p>
       <ul style="padding-left:20px; margin:6px 0;">
-        <li>1η προσπάθεια: <strong>5 💎</strong></li>
-        <li>2η προσπάθεια: <strong>4 💎</strong></li>
-        <li>3η προσπάθεια: <strong>3 💎</strong></li>
-        <li>4η προσπάθεια: <strong>2 💎</strong></li>
-        <li>5η προσπάθεια: <strong>1 💎</strong></li>
-        <li>Λάθος / Timeout: −1 💎</li>
-        <li>Αποτυχία λέξης: −3 💎</li>
+        <li>1η προσπάθεια: <strong>50 💎</strong></li>
+        <li>2η προσπάθεια: <strong>40 💎</strong></li>
+        <li>3η προσπάθεια: <strong>30 💎</strong></li>
+        <li>4η προσπάθεια: <strong>20 💎</strong></li>
+        <li>5η προσπάθεια: <strong>10 💎</strong></li>
+        <li>Λάθος / Timeout: −10 💎</li>
+        <li>Αποτυχία λέξης: −30 💎</li>
       </ul>
+      <p>Τα διαμάντια αποθηκεύονται μόνιμα στο προφίλ σου (ψευδώνυμο).</p>
       <p><strong>Προπόνηση:</strong> Διάλεξε δυσκολία (Εύκολο / Μέτριο / Δύσκολο) και εξασκήσου χωρίς ανταγωνιστικό σκορ διαμαντιών.</p>
       <p><strong>Βοήθειες:</strong> 🟩 σωστό γράμμα • 🟧 γράμμα στη λέξη • ⚡ αφαίρεση λάθος γραμμάτων • ❄️ πάγωμα χρόνου</p>
       <p><strong>2 Παίκτες:</strong> Εναλλάσσεστε προσπάθειες. Αν λήξει ο χρόνος, χάνεις τη σειρά σου.</p>
@@ -489,6 +490,28 @@
   </div>
 </div>
 
+
+
+<!-- Nickname Modal -->
+<div id="nicknameModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#12204a; color:white; padding:28px; border-radius:16px; max-width:380px; width:90%; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+    <h2 style="margin-top:0; color:#fbbf24;" id="nickModalTitle">Ψευδώνυμο</h2>
+    <div id="nickForm1" style="display:none;">
+      <p style="font-size:0.9rem; color:#93c5fd; margin-bottom:12px;">Γράψε το ψευδώνυμό σου</p>
+      <input id="nickInput1" type="text" maxlength="16" placeholder="Π.χ. Frank" style="width:100%; padding:12px 14px; border-radius:10px; border:2px solid #3b5aaa; background:#0f2348; color:#fff; font-size:1.1rem; text-align:center; outline:none;" />
+      <div id="nickHint1" style="font-size:0.8rem; color:#93c5fd; margin-top:8px; min-height:1.2em;"></div>
+    </div>
+    <div id="nickForm2" style="display:none;">
+      <p style="font-size:0.9rem; color:#93c5fd; margin-bottom:8px;">Παίκτης 1</p>
+      <input id="nickInputP1" type="text" maxlength="16" placeholder="Όνομα Παίκτη 1" style="width:100%; padding:12px 14px; border-radius:10px; border:2px solid #3b5aaa; background:#0f2348; color:#fff; font-size:1.05rem; text-align:center; outline:none; margin-bottom:12px;" />
+      <p style="font-size:0.9rem; color:#93c5fd; margin-bottom:8px;">Παίκτης 2</p>
+      <input id="nickInputP2" type="text" maxlength="16" placeholder="Όνομα Παίκτη 2" style="width:100%; padding:12px 14px; border-radius:10px; border:2px solid #3b5aaa; background:#0f2348; color:#fff; font-size:1.05rem; text-align:center; outline:none;" />
+      <div id="nickHint2" style="font-size:0.8rem; color:#93c5fd; margin-top:8px; min-height:1.2em;"></div>
+    </div>
+    <button class="play-btn" style="position:static; display:block; margin:18px auto 0; min-width:180px;" onclick="confirmNicknames()">Έναρξη ▶</button>
+    <button class="play-btn" style="position:static; display:block; margin:10px auto 0; min-width:180px; background:linear-gradient(135deg,#64748b,#94a3b8); color:#fff; font-size:1rem; padding:10px 20px;" onclick="hideNicknameModal()">Ακύρωση</button>
+  </div>
+</div>
 
 <!-- Προπόνηση – Επιλογή Δυσκολίας -->
 <div id="difficulty" class="screen" style="background: linear-gradient(160deg, #0a1228 0%, #12204a 50%, #0c1a38 100%); justify-content: center; align-items: center;">
@@ -1559,8 +1582,15 @@ function useBooster(type) {
   }
 }
 
-// ===== LOCAL STORAGE HIGH SCORES =====
+// ===== LOCAL STORAGE: PROFILES + HIGH SCORES =====
 const HS_KEY = "frankLingo_highScores";
+const PROFILES_KEY = "frankLingo_profiles";
+const LAST_NICK_KEY = "frankLingo_lastNick";
+
+let playerName1 = "Παίκτης 1";
+let playerName2 = "Παίκτης 2";
+let pendingMode = 1; // mode που περιμένει μετά το nickname modal
+
 function loadHighScores() {
   try {
     const raw = localStorage.getItem(HS_KEY);
@@ -1571,6 +1601,55 @@ function loadHighScores() {
 function saveHighScores(data) {
   try { localStorage.setItem(HS_KEY, JSON.stringify(data)); } catch(e) {}
 }
+
+function loadProfiles() {
+  try {
+    const raw = localStorage.getItem(PROFILES_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return {}; // { "nickname": { totalDiamonds: N, games: N, bestMatch: N } }
+}
+function saveProfiles(data) {
+  try { localStorage.setItem(PROFILES_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function normalizeNick(n) {
+  return (n || "").trim().slice(0, 16);
+}
+
+function getProfile(nick) {
+  const profiles = loadProfiles();
+  const key = normalizeNick(nick).toUpperCase();
+  if (!key) return null;
+  if (!profiles[key]) {
+    profiles[key] = { name: normalizeNick(nick), totalDiamonds: 0, games: 0, bestMatch: 0 };
+    saveProfiles(profiles);
+  }
+  return profiles[key];
+}
+
+function addDiamondsToProfile(nick, amount, matchScore) {
+  const profiles = loadProfiles();
+  const key = normalizeNick(nick).toUpperCase();
+  if (!key) return null;
+  if (!profiles[key]) {
+    profiles[key] = { name: normalizeNick(nick), totalDiamonds: 0, games: 0, bestMatch: 0 };
+  }
+  profiles[key].totalDiamonds = Math.max(0, (profiles[key].totalDiamonds || 0) + amount);
+  profiles[key].games = (profiles[key].games || 0) + 1;
+  if (matchScore > (profiles[key].bestMatch || 0)) profiles[key].bestMatch = matchScore;
+  profiles[key].name = normalizeNick(nick); // keep latest casing
+  saveProfiles(profiles);
+  return profiles[key];
+}
+
+function getTopProfiles(limit = 5) {
+  const profiles = loadProfiles();
+  return Object.values(profiles)
+    .sort((a, b) => (b.totalDiamonds || 0) - (a.totalDiamonds || 0))
+    .slice(0, limit);
+}
+
 function updateHighScores(mode, s1, s2) {
   const hs = loadHighScores();
   hs.gamesPlayed = (hs.gamesPlayed || 0) + 1;
@@ -1585,6 +1664,71 @@ function updateHighScores(mode, s1, s2) {
   }
   saveHighScores(hs);
   return hs;
+}
+
+function showNicknameModal(m) {
+  pendingMode = m;
+  const modal = document.getElementById("nicknameModal");
+  const form1 = document.getElementById("nickForm1");
+  const form2 = document.getElementById("nickForm2");
+  const title = document.getElementById("nickModalTitle");
+  if (m === 1) {
+    title.textContent = "Το ψευδώνυμό σου";
+    form1.style.display = "block";
+    form2.style.display = "none";
+    const last = localStorage.getItem(LAST_NICK_KEY) || "";
+    const inp = document.getElementById("nickInput1");
+    inp.value = last;
+    const prof = last ? getProfile(last) : null;
+    document.getElementById("nickHint1").textContent = prof
+      ? `Συνολικά διαμάντια: ${prof.totalDiamonds} 💎 • ${prof.games} παιχνίδια`
+      : "";
+    setTimeout(() => inp.focus(), 100);
+  } else {
+    title.textContent = "Ονόματα παικτών";
+    form1.style.display = "none";
+    form2.style.display = "block";
+    document.getElementById("nickInputP1").value = "";
+    document.getElementById("nickInputP2").value = "";
+    document.getElementById("nickHint2").textContent = "";
+    setTimeout(() => document.getElementById("nickInputP1").focus(), 100);
+  }
+  modal.style.display = "flex";
+}
+
+function hideNicknameModal() {
+  document.getElementById("nicknameModal").style.display = "none";
+}
+
+function confirmNicknames() {
+  if (pendingMode === 1) {
+    const nick = normalizeNick(document.getElementById("nickInput1").value);
+    if (!nick) {
+      document.getElementById("nickHint1").textContent = "Γράψε ένα ψευδώνυμο!";
+      return;
+    }
+    playerName1 = nick;
+    playerName2 = "Παίκτης 2";
+    try { localStorage.setItem(LAST_NICK_KEY, nick); } catch(e) {}
+    getProfile(nick); // ensure profile exists
+  } else {
+    const n1 = normalizeNick(document.getElementById("nickInputP1").value);
+    const n2 = normalizeNick(document.getElementById("nickInputP2").value);
+    if (!n1 || !n2) {
+      document.getElementById("nickHint2").textContent = "Συμπλήρωσε και τα δύο ονόματα!";
+      return;
+    }
+    if (n1.toUpperCase() === n2.toUpperCase()) {
+      document.getElementById("nickHint2").textContent = "Τα ονόματα πρέπει να είναι διαφορετικά!";
+      return;
+    }
+    playerName1 = n1;
+    playerName2 = n2;
+    getProfile(n1);
+    getProfile(n2);
+  }
+  hideNicknameModal();
+  beginRankedGame(pendingMode);
 }
 
 
@@ -1650,11 +1794,17 @@ function showHome() { showScreen("home"); clearInterval(timerInterval); stopTick
 function showMode() {
   showScreen("mode");
   const hs = loadHighScores();
+  const top = getTopProfiles(3);
   const el = document.getElementById("highScorePreview");
   if (el) {
-    el.innerHTML = `🏆 Καλύτερο: <strong>${hs.best1 || 0}</strong> 💎` +
-      (hs.best2 ? ` &nbsp;|&nbsp; Π2: <strong>${hs.best2}</strong> 💎` : '') +
-      (hs.gamesPlayed ? ` &nbsp;•&nbsp; ${hs.gamesPlayed} παιχνίδια` : '');
+    let html = `🏆 Καλύτερο ματς: <strong>${hs.best1 || 0}</strong> 💎`;
+    if (hs.gamesPlayed) html += ` • ${hs.gamesPlayed} παιχνίδια`;
+    if (top.length) {
+      html += `<div style="margin-top:6px;font-size:0.82rem;">`;
+      html += top.map((p, i) => `${i + 1}. ${p.name}: <strong>${p.totalDiamonds}</strong> 💎`).join(" &nbsp;|&nbsp; ");
+      html += `</div>`;
+    }
+    el.innerHTML = html;
   }
 }
 function showInstructions() {
@@ -1666,6 +1816,11 @@ function hideInstructions() {
 
 // ============ GAME FLOW ============
 function startRanked(m) {
+  // Άνοιγμα modal ψευδωνύμου πριν την έναρξη
+  showNicknameModal(m);
+}
+
+function beginRankedGame(m) {
   // Κανονικό παιχνίδι: 8 γύροι, διαμάντια
   isPractice = false;
   mode = m;
@@ -1785,25 +1940,23 @@ function placeFirstLetterGreen(row) {
 
 function updateUI() {
   if (mode === 2 && !isPractice) {
-    turnInfo.textContent = `▶ Παίκτης ${currentPlayer}`;
+    const activeName = currentPlayer === 1 ? playerName1 : playerName2;
+    turnInfo.textContent = `▶ ${activeName}`;
     turnInfo.classList.add("active-turn");
-    document.getElementById("score1").textContent = scoreP1;
-    document.getElementById("score2").textContent = scoreP2;
     scoreInfo.textContent = `💎 ${scoreP1} | ${scoreP2}`;
     scoresBox.style.display = "flex";
-    // Highlight ενεργού παίκτη
     const p1 = document.getElementById("p1ScoreWrap");
     const p2 = document.getElementById("p2ScoreWrap");
     if (p1 && p2) {
       p1.classList.toggle("active-turn", currentPlayer === 1);
       p2.classList.toggle("active-turn", currentPlayer === 2);
-      p1.innerHTML = (currentPlayer === 1 ? "▶ " : "") + `Π1: <span id="score1">${scoreP1}</span> 💎`;
-      p2.innerHTML = (currentPlayer === 2 ? "▶ " : "") + `Π2: <span id="score2">${scoreP2}</span> 💎`;
+      p1.innerHTML = (currentPlayer === 1 ? "▶ " : "") + `${playerName1}: <span id="score1">${scoreP1}</span> 💎`;
+      p2.innerHTML = (currentPlayer === 2 ? "▶ " : "") + `${playerName2}: <span id="score2">${scoreP2}</span> 💎`;
     }
   } else {
-    turnInfo.textContent = isPractice ? "Προπόνηση" : "1 Παίκτης";
+    turnInfo.textContent = isPractice ? "Προπόνηση" : (playerName1 || "1 Παίκτης");
     turnInfo.classList.remove("active-turn");
-    scoreInfo.textContent = isPractice ? `💎 ${score}` : `💎 ${score}`;
+    scoreInfo.textContent = `💎 ${score}`;
     scoresBox.style.display = "none";
   }
 }
@@ -1882,8 +2035,8 @@ function applyPenalty(pts) {
 }
 
 function handleTimeout() {
-  messageEl.textContent = isPractice ? "Τέλος χρόνου!" : "Τέλος χρόνου! (−1 💎)";
-  applyPenalty(1);
+  messageEl.textContent = isPractice ? "Τέλος χρόνου!" : "Τέλος χρόνου! (−10 💎)";
+  applyPenalty(10);
   // sfx ήδη παίχτηκε από τον timer
 
   if (mode === 1) {
@@ -1913,7 +2066,7 @@ function handleTimeout() {
       }
     }
     currentPlayer = currentPlayer === 1 ? 2 : 1;
-    messageEl.textContent = `Τέλος χρόνου • Σειρά: Παίκτης ${currentPlayer}`;
+    messageEl.textContent = `Τέλος χρόνου • Σειρά: ${currentPlayer === 1 ? playerName1 : playerName2}`;
     updateUI();
     startTimer();
   }
@@ -1925,8 +2078,8 @@ function advanceAfterFail() {
   inputDisplay.textContent = "";
   if (currentRow >= maxAttempts) {
     // Full failure of word
-    applyPenalty(3);
-    messageEl.textContent = `Η λέξη ήταν: ${secret} (−3 💎)`;
+    applyPenalty(30);
+    messageEl.textContent = `Η λέξη ήταν: ${secret} (−30 💎)`;
     sfxLoss();
     endWord(false);
   } else {
@@ -1935,7 +2088,7 @@ function advanceAfterFail() {
     if (mode === 2) {
       // Switch player
       currentPlayer = currentPlayer === 1 ? 2 : 1;
-      messageEl.textContent = `Προσπάθεια ${currentRow + 1}/${maxAttempts} • Παίκτης ${currentPlayer}`;
+      messageEl.textContent = `Προσπάθεια ${currentRow + 1}/${maxAttempts} • ${currentPlayer === 1 ? playerName1 : playerName2}`;
       updateUI();
     } else {
       messageEl.textContent = `Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
@@ -2033,8 +2186,8 @@ function submitGuess() {
     if (isWin) {
       sfxSuccess();
       // Διαμάντια: 5,4,3,2,1 ανά προσπάθεια
-      const pointsTable = [5, 4, 3, 2, 1];
-      const pts = isPractice ? 0 : (pointsTable[Math.min(currentRow, 4)] || 1);
+      const pointsTable = [50, 40, 30, 20, 10];
+      const pts = isPractice ? 0 : (pointsTable[Math.min(currentRow, 4)] || 10);
       if (mode === 1) score += pts;
       else {
         if (currentPlayer === 1) scoreP1 += pts;
@@ -2050,14 +2203,14 @@ function submitGuess() {
     }
 
     // Not the secret word
-    applyPenalty(1);
+    applyPenalty(10);
     if (!valid) {
-      messageEl.textContent = isPractice ? "Η λέξη δεν υπάρχει!" : "Η λέξη δεν υπάρχει! (−1 💎)";
+      messageEl.textContent = isPractice ? "Η λέξη δεν υπάρχει!" : "Η λέξη δεν υπάρχει! (−10 💎)";
       sfxZonk();
     } else {
       messageEl.textContent = isPractice
         ? `Λάθος • Προσπάθεια ${currentRow + 1}/${maxAttempts}`
-        : `Λάθος (−1 💎) • Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
+        : `Λάθος (−10 💎) • Προσπάθεια ${currentRow + 1}/${maxAttempts}`;
       sfxWrong();
     }
     advanceAfterFail();
@@ -2155,7 +2308,7 @@ function endWord(won) {
 
   // Show the answer if failed
   if (!won) {
-    messageEl.textContent = `Η λέξη ήταν: ${secret}` + (mode === 1 ? "" : ` • Σειρά για επόμενη: Παίκτης ${currentPlayer === 1 ? 2 : 1}`);
+    messageEl.textContent = `Η λέξη ήταν: ${secret}` + (mode === 1 ? "" : ` • Σειρά: ${currentPlayer === 1 ? playerName2 : playerName1}`);
     if (mode === 2) {
       currentPlayer = currentPlayer === 1 ? 2 : 1;
     }
@@ -2201,26 +2354,36 @@ function endMatch() {
     return;
   }
   const hs = updateHighScores(mode, mode === 1 ? score : scoreP1, scoreP2);
+
+  // Μόνιμη αποθήκευση διαμαντιών στο προφίλ κάθε παίκτη
   if (mode === 1) {
-    document.getElementById("resultTitle").textContent = "Τέλος!";
+    const prof = addDiamondsToProfile(playerName1, score, score);
     const isNewBest = score >= hs.best1 && score > 0;
+    document.getElementById("resultTitle").textContent = "Τέλος!";
     document.getElementById("resultScores").innerHTML = `
-      <div style="font-size:1.6rem;margin:12px 0;">💎 Διαμάντια: <strong>${score}</strong></div>
-      ${isNewBest ? '<div style="color:#22c55e;font-weight:bold;margin:8px 0;">🏆 Νέο προσωπικό ρεκόρ!</div>' : ''}
-      <div style="margin-top:16px;font-size:0.95rem;opacity:0.9;">
-        Καλύτερο: <strong>${hs.best1}</strong> 💎<br>
-        Παιχνίδια: ${hs.gamesPlayed}
+      <div style="font-size:1.15rem;margin:8px 0;color:#93c5fd;">${playerName1}</div>
+      <div style="font-size:1.6rem;margin:8px 0;">Ματς: <strong>${score}</strong> 💎</div>
+      <div style="font-size:1.15rem;margin:8px 0;">Συνολικά προφίλ: <strong>${prof ? prof.totalDiamonds : score}</strong> 💎</div>
+      ${isNewBest ? '<div style="color:#22c55e;font-weight:bold;margin:8px 0;">🏆 Νέο ρεκόρ ματς!</div>' : ''}
+      <div style="margin-top:12px;font-size:0.9rem;opacity:0.9;">
+        Καλύτερο ματς: <strong>${hs.best1}</strong> 💎 • Παιχνίδια προφίλ: ${prof ? prof.games : 1}
       </div>`;
   } else {
-    const title = scoreP1 > scoreP2 ? "Νικητής: Παίκτης 1!" : scoreP2 > scoreP1 ? "Νικητής: Παίκτης 2!" : "Ισοπαλία!";
+    const prof1 = addDiamondsToProfile(playerName1, scoreP1, scoreP1);
+    const prof2 = addDiamondsToProfile(playerName2, scoreP2, scoreP2);
+    const title = scoreP1 > scoreP2
+      ? `Νικητής: ${playerName1}!`
+      : scoreP2 > scoreP1
+        ? `Νικητής: ${playerName2}!`
+        : "Ισοπαλία!";
     document.getElementById("resultTitle").textContent = title;
     document.getElementById("resultScores").innerHTML = `
-      <div style="font-size:1.4rem;margin:12px 0;">
-        Παίκτης 1: <strong>${scoreP1}</strong> 💎 &nbsp;|&nbsp; Παίκτης 2: <strong>${scoreP2}</strong> 💎
+      <div style="font-size:1.25rem;margin:12px 0;">
+        ${playerName1}: <strong>${scoreP1}</strong> 💎 &nbsp;|&nbsp; ${playerName2}: <strong>${scoreP2}</strong> 💎
       </div>
-      <div style="margin-top:16px;font-size:0.95rem;opacity:0.9;">
-        Καλύτερο Π1: <strong>${hs.best1}</strong> 💎 &nbsp;|&nbsp; Καλύτερο Π2: <strong>${hs.best2}</strong> 💎<br>
-        Παιχνίδια: ${hs.gamesPlayed}
+      <div style="margin-top:10px;font-size:0.9rem;opacity:0.9;">
+        Σύνολο ${playerName1}: <strong>${prof1 ? prof1.totalDiamonds : scoreP1}</strong> 💎<br>
+        Σύνολο ${playerName2}: <strong>${prof2 ? prof2.totalDiamonds : scoreP2}</strong> 💎
       </div>`;
   }
 }
@@ -2361,6 +2524,25 @@ document.querySelectorAll("button").forEach(btn => {
   btn.addEventListener("click", () => sfxClick());
 });
 initSpeech();
+
+// Nickname modal helpers
+["nickInput1", "nickInputP1", "nickInputP2"].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") confirmNicknames();
+  });
+});
+document.getElementById("nickInput1")?.addEventListener("input", () => {
+  const nick = normalizeNick(document.getElementById("nickInput1").value);
+  const hint = document.getElementById("nickHint1");
+  if (!hint) return;
+  if (!nick) { hint.textContent = ""; return; }
+  const prof = getProfile(nick);
+  hint.textContent = prof
+    ? `Συνολικά διαμάντια: ${prof.totalDiamonds} 💎 • ${prof.games} παιχνίδια`
+    : "Νέο προφίλ";
+});
 
 // ============ HOME ANIMATION ============
 function assembleText(elementId, finalText, delay = 0) {
