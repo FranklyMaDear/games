@@ -231,6 +231,18 @@
     font-size: 0.95rem;
   }
   .timer-box.warning { background: #ef4444; }
+  .timer-box.frozen {
+    background: #0ea5e9 !important;
+    box-shadow: 0 0 12px rgba(14,165,233,0.6);
+    position: relative;
+  }
+  .timer-box.frozen::after {
+    content: "❄️";
+    position: absolute;
+    top: -8px;
+    right: -6px;
+    font-size: 0.85rem;
+  }
   .level-info { font-size: 0.85rem; color: #93c5fd; margin-bottom: 4px; text-align: center; }
   .scores { display: flex; gap: 20px; font-weight: bold; margin-bottom: 6px; }
   .game-area { width: 100%; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -332,6 +344,12 @@
     background: #334155 !important;
     border: 2px solid #475569 !important;
     color: #94a3b8 !important;
+  }
+  .tile.burned, .row .tile.burned, #grid .tile.burned {
+    background: #b91c1c !important;
+    border: 2px solid #991b1b !important;
+    color: #fecaca !important;
+    box-shadow: 0 0 8px rgba(185,28,28,0.45);
   }
 
 
@@ -465,10 +483,10 @@
   <div class="game-area">
     <div id="grid-container"><div id="grid"></div></div>
     <div class="boosters" style="display:none;">
-      <div class="booster green-b" onclick="useBooster('green')">?<div class="count" id="b1">x3</div></div>
-      <div class="booster orange-b" onclick="useBooster('orange')">?<div class="count" id="b2">x3</div></div>
-      <div class="booster pink-b" onclick="useBooster('pink')">⚡<div class="count" id="b3">x3</div></div>
-      <div class="booster blue-b" onclick="useBooster('blue')">❄️<div class="count" id="b4">x3</div></div>
+      <div class="booster green-b" onclick="useBooster('green')" title="Αποκάλυψη σωστού γράμματος">🟩<div class="count" id="b1">x3</div></div>
+      <div class="booster orange-b" onclick="useBooster('orange')" title="Σωστό γράμμα σε λάθος θέση">🟧<div class="count" id="b2">x3</div></div>
+      <div class="booster pink-b" onclick="useBooster('pink')" title="Αφαίρεση 6 λάθος γραμμάτων">⚡<div class="count" id="b3">x3</div></div>
+      <div class="booster blue-b" onclick="useBooster('blue')" title="Πάγωμα χρόνου">❄️<div class="count" id="b4">x3</div></div>
     </div>
     <div id="input-row">
       <div id="input-display"></div>
@@ -1286,6 +1304,227 @@ let recognition = null, isListening = false;
 let wordsSolved = 0; // 0..5
 let frozen = false;
 
+// ===== BOOSTERS =====
+// Inventory: 3 of each per match (resets on startGame)
+let boosters = { green: 3, orange: 3, pink: 3, blue: 3 };
+// Track letters already revealed by boosters this word (avoid repeats)
+let boosterRevealedPositions = new Set(); // positions already green-locked by green booster
+let boosterKnownLetters = new Set();     // letters shown via orange booster
+
+function resetBoosters() {
+  boosters = { green: 3, orange: 3, pink: 3, blue: 3 };
+  boosterRevealedPositions = new Set();
+  boosterKnownLetters = new Set();
+  updateBoosterUI();
+}
+
+function updateBoosterUI() {
+  const map = { green: "b1", orange: "b2", pink: "b3", blue: "b4" };
+  for (const [type, id] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "x" + boosters[type];
+    const btn = el ? el.parentElement : null;
+    if (btn) {
+      if (boosters[type] <= 0) {
+        btn.style.opacity = "0.4";
+        btn.style.pointerEvents = "none";
+      } else {
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+      }
+    }
+  }
+}
+
+function useBooster(type) {
+  if (gameOver) return;
+  if (!boosters[type] || boosters[type] <= 0) {
+    messageEl.textContent = "Δεν έχεις άλλες βοηθείες αυτού του τύπου!";
+    sfxWrong();
+    return;
+  }
+
+  if (type === "green") {
+    // Βρες θέση που δεν έχει ακόμα πράσινο
+    const candidates = [];
+    for (let i = 0; i < wordLen; i++) {
+      if (boosterRevealedPositions.has(i)) continue;
+      let alreadyGreen = false;
+      for (let r = 0; r <= currentRow; r++) {
+        const t = document.getElementById("t" + r + i);
+        if (t && t.classList.contains("green")) { alreadyGreen = true; break; }
+      }
+      if (!alreadyGreen) candidates.push(i);
+    }
+    if (candidates.length === 0) {
+      messageEl.textContent = "Όλα τα γράμματα είναι ήδη γνωστά!";
+      sfxWrong();
+      return;
+    }
+    const pos = candidates[Math.floor(Math.random() * candidates.length)];
+    const letter = secret[pos];
+    const tile = document.getElementById("t" + currentRow + pos);
+    if (tile) {
+      tile.textContent = letter;
+      tile.classList.remove("orange", "absent", "burned", "flip");
+      tile.classList.add("green");
+    }
+    // Ενημέρωση currentGuess: βάζουμε το γράμμα στη σωστή θέση, γεμίζοντας κενά με ό,τι υπάρχει ήδη
+    let arr = [];
+    for (let i = 0; i < wordLen; i++) {
+      const t = document.getElementById("t" + currentRow + i);
+      if (t && t.classList.contains("green") && t.textContent) {
+        arr[i] = t.textContent;
+      } else if (currentGuess[i]) {
+        arr[i] = currentGuess[i];
+      } else {
+        arr[i] = "";
+      }
+    }
+    // Για το input display κρατάμε συνεχόμενο prefix
+    let str = "";
+    for (let i = 0; i < wordLen; i++) {
+      if (arr[i]) str += arr[i];
+      else break;
+    }
+    // Αν η πράσινη θέση είναι πιο μέσα, επεκτείνουμε με τα γνωστά πράσινα
+    if (pos >= str.length) {
+      str = "";
+      for (let i = 0; i <= Math.max(pos, currentGuess.length - 1); i++) {
+        if (arr[i]) str += arr[i];
+        else if (i < currentGuess.length && currentGuess[i]) str += currentGuess[i];
+        else if (i === pos) str += letter;
+        else break;
+      }
+    }
+    currentGuess = str;
+    inputDisplay.textContent = currentGuess;
+    updatePreview();
+    // Keyboard → green
+    document.querySelectorAll(".key").forEach(k => {
+      if (k.textContent === letter && k.textContent.length === 1) {
+        k.classList.remove("absent", "orange-key");
+        k.classList.add("green-key");
+      }
+    });
+    boosterRevealedPositions.add(pos);
+    boosters.green--;
+    messageEl.textContent = `Πράσινη βοήθεια: ${letter} στη θέση ${pos + 1}`;
+    sfxCorrect();
+    updateBoosterUI();
+    return;
+  }
+
+  if (type === "orange") {
+    // Διάλεξε γράμμα της κρυφής που δεν έχει ακόμα γνωστοποιηθεί
+    const secretLetters = [...new Set(secret.split(""))];
+    const known = new Set();
+    for (let r = 0; r <= currentRow; r++) {
+      for (let c = 0; c < wordLen; c++) {
+        const t = document.getElementById("t" + r + c);
+        if (t && t.textContent && (t.classList.contains("green") || t.classList.contains("orange"))) {
+          known.add(t.textContent);
+        }
+      }
+    }
+    boosterKnownLetters.forEach(l => known.add(l));
+    const candidates = secretLetters.filter(l => !known.has(l));
+    if (candidates.length === 0) {
+      messageEl.textContent = "Δεν υπάρχουν άγνωστα γράμματα για αποκάλυψη!";
+      sfxWrong();
+      return;
+    }
+    const letter = candidates[Math.floor(Math.random() * candidates.length)];
+    // Βάλε το σε άδειο (μη-πράσινο) κελί της τρέχουσας γραμμής
+    let placed = false;
+    for (let i = 0; i < wordLen; i++) {
+      const tile = document.getElementById("t" + currentRow + i);
+      if (tile && !tile.classList.contains("green") && !tile.textContent) {
+        tile.textContent = letter;
+        tile.classList.remove("absent", "burned", "flip");
+        tile.classList.add("orange");
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      for (let i = 0; i < wordLen; i++) {
+        const tile = document.getElementById("t" + currentRow + i);
+        if (tile && !tile.classList.contains("green")) {
+          tile.textContent = letter;
+          tile.classList.remove("absent", "burned", "flip");
+          tile.classList.add("orange");
+          placed = true;
+          break;
+        }
+      }
+    }
+    // Keyboard → orange
+    document.querySelectorAll(".key").forEach(k => {
+      if (k.textContent === letter && k.textContent.length === 1) {
+        if (!k.classList.contains("green-key")) {
+          k.classList.remove("absent");
+          k.classList.add("orange-key");
+        }
+      }
+    });
+    boosterKnownLetters.add(letter);
+    boosters.orange--;
+    messageEl.textContent = `Πορτοκαλί βοήθεια: το γράμμα ${letter} υπάρχει στη λέξη`;
+    sfxCorrect();
+    updateBoosterUI();
+    return;
+  }
+
+  if (type === "pink") {
+    // Απενεργοποίησε έως 6 γράμματα που ΔΕΝ υπάρχουν στη λέξη
+    const secretSet = new Set(secret.split(""));
+    const candidates = [];
+    document.querySelectorAll(".key").forEach(k => {
+      const letter = k.textContent;
+      if (letter.length !== 1) return;
+      if (secretSet.has(letter)) return;
+      if (k.classList.contains("absent") || k.classList.contains("green-key") || k.classList.contains("orange-key")) return;
+      candidates.push(k);
+    });
+    if (candidates.length === 0) {
+      messageEl.textContent = "Δεν υπάρχουν άλλα λάθος γράμματα για αφαίρεση!";
+      sfxWrong();
+      return;
+    }
+    // Shuffle
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const toDisable = candidates.slice(0, 6);
+    toDisable.forEach(k => {
+      k.classList.add("absent");
+      // Δεν αλλάζουμε pointer-events με inline για να μην χαλάσει το layout· το CSS .key.absent ήδη το χειρίζεται
+    });
+    boosters.pink--;
+    messageEl.textContent = `Αφαιρέθηκαν ${toDisable.length} λάθος γράμματα από το πληκτρολόγιο`;
+    sfxClick();
+    updateBoosterUI();
+    return;
+  }
+
+  if (type === "blue") {
+    if (frozen) {
+      messageEl.textContent = "Ο χρόνος είναι ήδη παγωμένος!";
+      return;
+    }
+    frozen = true;
+    timerEl.classList.add("frozen");
+    stopTickTock();
+    boosters.blue--;
+    messageEl.textContent = "❄️ Χρόνος παγωμένος! Σκέψου χωρίς πίεση";
+    sfxCorrect();
+    updateBoosterUI();
+    return;
+  }
+}
+
 // ===== LOCAL STORAGE HIGH SCORES =====
 const HS_KEY = "frankLingo_highScores";
 function loadHighScores() {
@@ -1402,14 +1641,15 @@ function startGame(m) {
   } else {
     scoresBox.style.display = "none";
   }
-  const boostersEl = document.querySelector(".boosters");
-  if (boostersEl) boostersEl.style.display = "none";
+  resetBoosters();
   showScreen("difficulty");
 }
 
 function setDifficulty(d) {
   difficulty = d;
   showScreen("game");
+  const boostersEl = document.querySelector(".boosters");
+  if (boostersEl) boostersEl.style.display = "flex";
   nextWord();
 }
 
@@ -1458,19 +1698,18 @@ function nextWord() {
   currentRow = 0;
   currentGuess = "";
   gameOver = false;
+  frozen = false;
+  // Νέα λέξη → καθαρίζουμε μόνο τα προσωρινά marks των βοηθειών (το inventory παραμένει)
+  boosterRevealedPositions = new Set();
+  boosterKnownLetters = new Set();
   initGrid();
   buildKeyboard();
   inputDisplay.textContent = "";
   messageEl.textContent = `Πρώτο γράμμα: ${secret[0]}`;
-  // Reveal first letter GREEN on every row from the start (locked)
-  for (let r = 0; r < maxAttempts; r++) {
-    const tile = document.getElementById(`t${r}0`);
-    if (tile) {
-      tile.textContent = secret[0];
-      tile.classList.add("green");
-    }
-  }
+  // Το πρώτο γράμμα ΔΕΝ πρασινίζει προκαταβολικά σε όλες τις γραμμές.
+  // Θα εμφανίζεται (χωρίς πράσινο) μόνο στην ενεργή γραμμή και θα γίνεται πράσινο μόνο μετά την υποβολή.
   updateUI();
+  updateBoosterUI();
   startTimer();
 }
 
@@ -1531,7 +1770,7 @@ function startTimer() {
   timeLeft = 20;
   frozen = false;
   timerEl.textContent = timeLeft;
-  timerEl.classList.remove("warning");
+  timerEl.classList.remove("warning", "frozen");
   timerInterval = setInterval(() => {
     if (frozen || gameOver) return;
     timeLeft--;
@@ -1563,46 +1802,39 @@ function applyPenalty(pts) {
 function handleTimeout() {
   messageEl.textContent = "Τέλος χρόνου! (−5)";
   applyPenalty(5);
-  // Pad guess with empty and evaluate what was typed
-  let g = currentGuess;
-  while (g.length < wordLen) g += " ";
-  // Build result only for typed letters; keep locked greens
-  const result = [];
-  const s = secret.split("");
-  const gArr = g.split("");
-  for (let i = 0; i < wordLen; i++) {
-    if (gArr[i] === secret[i]) {
-      result.push("green");
-      s[i] = null;
-      gArr[i] = null;
-    } else {
-      result.push(null); // placeholder
+  // sfx ήδη παίχτηκε από τον timer
+
+  if (mode === 1) {
+    // Single-player: ολόκληρη η γραμμή κοκκινίζει («κάηκε») και πάμε αυτόματα στην επόμενη προσπάθεια
+    for (let i = 0; i < wordLen; i++) {
+      const tile = document.getElementById("t" + currentRow + i);
+      if (!tile) continue;
+      // Κρατάμε τυχόν ήδη πράσινα (από προηγούμενες), τα υπόλοιπα γίνονται κόκκινα (burned)
+      if (!tile.classList.contains("green")) {
+        if (currentGuess[i]) tile.textContent = currentGuess[i];
+        tile.classList.remove("orange", "absent", "flip");
+        tile.classList.add("burned");
+      }
     }
-  }
-  for (let i = 0; i < wordLen; i++) {
-    if (result[i] === "green") continue;
-    if (gArr[i] && gArr[i] !== " " && s.includes(gArr[i])) {
-      result[i] = "orange";
-      s[s.indexOf(gArr[i])] = null;
-    } else if (gArr[i] && gArr[i] !== " ") {
-      result[i] = "absent";
-    } else {
-      result[i] = "absent";
+    advanceAfterFail();
+  } else {
+    // Multiplayer: ο παίκτης χάνει απλά τη σειρά του → περνάει στον άλλο παίκτη
+    // Δεν προχωράμε γραμμή, καθαρίζουμε την τρέχουσα προσπάθεια
+    currentGuess = "";
+    inputDisplay.textContent = "";
+    // Καθαρίζουμε προσωρινά γράμματα της ενεργής γραμμής (εκτός από ήδη πράσινα)
+    for (let i = 0; i < wordLen; i++) {
+      const tile = document.getElementById("t" + currentRow + i);
+      if (tile && !tile.classList.contains("green")) {
+        tile.textContent = "";
+        tile.classList.remove("orange", "absent", "flip");
+      }
     }
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    messageEl.textContent = `Τέλος χρόνου • Σειρά: Παίκτης ${currentPlayer}`;
+    updateUI();
+    startTimer();
   }
-  // Apply colors (no full flip needed on timeout)
-  for (let i = 0; i < wordLen; i++) {
-    const tile = document.getElementById("t" + currentRow + i);
-    if (!tile) continue;
-    if (currentGuess[i]) {
-      tile.textContent = currentGuess[i];
-      tile.classList.remove("green", "orange", "absent");
-      tile.classList.add(result[i]);
-    } else if (!tile.classList.contains("green")) {
-      tile.classList.add("absent");
-    }
-  }
-  advanceAfterFail();
 }
 
 function advanceAfterFail() {
@@ -1631,6 +1863,8 @@ function advanceAfterFail() {
 }
 
 function carryGreens() {
+  // Μεταφέρει μόνο τα πραγματικά πράσινα γράμματα από προηγούμενες προσπάθειες.
+  // Το πρώτο γράμμα ΔΕΝ πρασινίζει αυτόματα — μόνο μετά από υποβολή.
   for (let i = 0; i < wordLen; i++) {
     let foundGreen = null;
     for (let r = 0; r < currentRow; r++) {
@@ -1639,8 +1873,6 @@ function carryGreens() {
         foundGreen = prev.textContent;
       }
     }
-    if (i === 0) foundGreen = secret[0];
-    // Also: if this position matches secret known from evaluation, use it
     const nextTile = document.getElementById("t" + currentRow + i);
     if (nextTile && foundGreen) {
       nextTile.textContent = foundGreen;
@@ -1662,12 +1894,10 @@ function handleKey(key) {
     submitGuess();
     return;
   } else if (currentGuess.length < wordLen && GREEK.includes(key)) {
-    // Auto-prefix first letter if empty (it's always known & green)
+    // Auto-prefix πρώτο γράμμα (γνωστό) αλλά χωρίς πράσινο μέχρι την υποβολή
     if (currentGuess.length === 0) {
       currentGuess = secret[0];
-      if (key === secret[0]) {
-        // user typed the first letter itself - already set
-      } else {
+      if (key !== secret[0]) {
         currentGuess += key;
       }
     } else {
