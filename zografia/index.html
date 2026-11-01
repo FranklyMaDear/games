@@ -14,6 +14,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 #start-screen,#mode-screen{background:linear-gradient(135deg,#667eea,#764ba2);justify-content:center;align-items:center;text-align:center;color:#fff;padding:20px}
 h1{font-size:clamp(2.1rem,7vw,3.2rem);margin-bottom:.5rem;text-shadow:0 4px 12px rgba(0,0,0,.25)}
 .subtitle{font-size:1.15rem;opacity:.9;margin-bottom:2rem}
+.screen{position:relative}
+.floaters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.floaters+div{position:relative;z-index:1}
+.fl{position:absolute;bottom:-70px;opacity:.55;animation:flt linear infinite}
+@keyframes flt{0%{transform:translateY(0) rotate(0)}50%{transform:translateY(-60vh) rotate(180deg) translateX(18px)}100%{transform:translateY(-120vh) rotate(360deg)}}
 .big-btn{background:#fff;color:#5a4fcf;border:none;padding:16px 42px;font-size:1.25rem;font-weight:700;border-radius:50px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.2)}
 .big-btn:active{transform:scale(.96)}
 .big-btn.primary{background:var(--primary);color:#fff;width:100%;max-width:280px}
@@ -59,6 +64,7 @@ h1{font-size:clamp(2.1rem,7vw,3.2rem);margin-bottom:.5rem;text-shadow:0 4px 12px
 </head>
 <body>
 <div id="start-screen" class="screen active">
+  <div class="floaters"></div>
   <div>
     <h1>🎨 Ζωγραφιά</h1>
     <p class="subtitle">Σχεδίασε σωστά και κέρδισε αστεράκια!</p>
@@ -70,7 +76,7 @@ h1{font-size:clamp(2.1rem,7vw,3.2rem);margin-bottom:.5rem;text-shadow:0 4px 12px
   <h1 style="font-size:2rem">Τι θέλεις να παίξεις;</h1>
   <p class="subtitle" style="margin-bottom:1.2rem">Διάλεξε</p>
   <div class="mode-list">
-    <button class="mode-btn" data-mode="all">🏆 Όλο το παιχνίδι<small>Αριθμοί, γράμματα, σχέδια • με πόντους</small></button>
+    <button class="mode-btn" data-mode="all">🏆 Play now<small>Αριθμοί, γράμματα, σχέδια • με πόντους</small></button>
     <button class="mode-btn" data-mode="numbers">🔢 Μόνο Αριθμοί<small>Προπόνηση • χωρίς πόντους</small></button>
     <button class="mode-btn" data-mode="letters">🔤 Μόνο Γράμματα<small>Προπόνηση • χωρίς πόντους</small></button>
     <button class="mode-btn" data-mode="shapes">✏️ Μόνο Σχέδια<small>Προπόνηση • χωρίς πόντους</small></button>
@@ -162,11 +168,19 @@ const LEVELS={
     ["rabbit","ένα <strong>κουνέλι</strong>"],["elephant","έναν <strong>ελέφαντα</strong>"],["bike","ένα <strong>ποδήλατο</strong>"],
     ["plane","ένα <strong>αεροπλάνο</strong>"],["apple","ένα <strong>μήλο</strong>"]],false)}
 };
+Object.assign(LEVELS,{
+ lower:{name:'Μικρά γράμματα',strict:true,items:[...'αβγδεζηθικλμνξοπρστυφχψω'].map(l=>({id:l,text:l,prompt:`Ζωγράφισε το μικρό γράμμα <strong>${l}</strong>`}))},
+ shapes2:{name:'Περισσότερα σχήματα',strict:true,items:P([['pentagon','ένα <strong>πεντάγωνο</strong>'],['hexagon','ένα <strong>εξάγωνο</strong>'],['oval','ένα <strong>οβάλ</strong>'],['cross','έναν <strong>σταυρό</strong>'],['arrow','ένα <strong>βέλος</strong>'],['semicircle','ένα <strong>ημικύκλιο</strong>']],true)},
+ objects:{name:'Αντικείμενα',strict:true,items:P([['rocket','έναν <strong>πύραυλο</strong>'],['icecream','ένα <strong>παγωτό</strong>'],['mushroom','ένα <strong>μανιτάρι</strong>'],['key','ένα <strong>κλειδί</strong>'],['umbrella','μια <strong>ομπρέλα</strong>'],['light','ένα <strong>φανάρι</strong>']],true)},
+ lines:{name:'Γραμμές',strict:true,items:P([['zigzag','ένα <strong>ζιγκ-ζαγκ</strong>'],['wave','ένα <strong>κύμα</strong>'],['spiral','μια <strong>σπείρα</strong>'],['stairs','μια <strong>σκάλα</strong>']],true)},
+ count:{name:'Μετρώ και ζωγραφίζω',strict:true,items:[[2,'circle','κύκλους'],[3,'star','αστέρια'],[2,'square','τετράγωνα'],[3,'triangle','τρίγωνα'],[2,'heart','καρδιές'],[4,'circle','κύκλους']].map(([n,s,w])=>({id:'n'+n+s,count:n,shape:s,preview:s,prompt:`Ζωγράφισε <strong>${n} ${w}</strong>`}))},
+ complete:{name:'Συμπλήρωσε',strict:true,items:[['heart','την καρδιά'],['house','το σπίτι'],['tree','το δέντρο'],['smiley','το προσωπάκι'],['balloon','το μπαλόνι'],['star','το αστέρι']].map(([id,w])=>({id,ghost:true,preview:id,prompt:`Συμπλήρωσε <strong>${w}</strong>`}))}
+});
 const MODES={
-  all:{cats:["numbers1","numbers2","letters","digraphs","shapes","more"],points:true},
+  all:{cats:["numbers1","numbers2","letters","lower","digraphs","shapes","shapes2","objects","lines","count","complete"],points:true},
   numbers:{cats:["numbers1","numbers2"]},
-  letters:{cats:["letters","digraphs"]},
-  shapes:{cats:["shapes","more"]}
+  letters:{cats:["letters","lower","digraphs"]},
+  shapes:{cats:["shapes","shapes2","objects","lines","count","complete"]}
 };
 const MESSAGES={
   success:["Μπράβο! Είσαι σούπερ!","Φανταστικό σχέδιο!","Τέλεια!","Είσαι καλλιτέχνης!","Υπέροχα!","Εκπληκτικό!","Το κατάφερες!"],
@@ -193,11 +207,30 @@ const PREVIEWS={
   balloon:`<svg viewBox="0 0 40 40" fill="none" stroke="#9b59b6" stroke-width="2.2"><ellipse cx="20" cy="16" rx="10" ry="12"/><path d="M20 28v8M17 36h6"/></svg>`,
   smiley:`<svg viewBox="0 0 40 40" fill="none" stroke="#f39c12" stroke-width="2.2"><circle cx="20" cy="20" r="14"/><circle cx="14" cy="16" r="2" fill="#f39c12"/><circle cx="26" cy="16" r="2" fill="#f39c12"/><path d="M13 24c2 4 12 4 14 0"/></svg>`
 };
+const V=(c,b)=>`<svg viewBox='0 0 40 40' fill='none' stroke='${c}' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'>${b}</svg>`;
+Object.assign(PREVIEWS,{
+ pentagon:V('#4a90e2',"<path d='M20 5L35 16L29 34H11L5 16z'/>"),
+ hexagon:V('#27ae60',"<path d='M11 6H29L37 20L29 34H11L3 20z'/>"),
+ oval:V('#9b59b6',"<ellipse cx='20' cy='20' rx='16' ry='10'/>"),
+ cross:V('#e74c3c',"<path d='M15 5h10v10h10v10H25v10H15V25H5V15h10z'/>"),
+ arrow:V('#f39c12',"<path d='M4 20H33M23 10L34 20L23 30'/>"),
+ semicircle:V('#3498db',"<path d='M5 28A15 15 0 0 1 35 28z'/>"),
+ rocket:V('#e74c3c',"<path d='M20 4c6 6 7 14 5 22H15c-2-8-1-16 5-22z'/><path d='M15 22l-5 7 5-2M25 22l5 7-5-2M18 30l2 6 2-6'/><circle cx='20' cy='14' r='2.5'/>"),
+ icecream:V('#e67e22',"<path d='M12 20L20 36L28 20z'/><path d='M11 20a9 9 0 1 1 18 0z'/>"),
+ mushroom:V('#e74c3c',"<path d='M6 22a14 14 0 0 1 28 0z'/><path d='M15 22v10h10V22'/>"),
+ key:V('#f39c12',"<circle cx='12' cy='20' r='6'/><path d='M18 20H35M30 20v6M35 20v5'/>"),
+ umbrella:V('#9b59b6',"<path d='M4 21A16 16 0 0 1 36 21z'/><path d='M20 21v12a3 3 0 0 1-6 0'/>"),
+ light:V('#2c3e50',"<rect x='12' y='3' width='16' height='34' rx='4'/><circle cx='20' cy='11' r='3'/><circle cx='20' cy='20' r='3'/><circle cx='20' cy='29' r='3'/>"),
+ zigzag:V('#4a90e2',"<path d='M4 28L12 12L20 28L28 12L36 28'/>"),
+ wave:V('#3498db',"<path d='M3 20C8 6 13 6 18 20S28 34 33 20'/>"),
+ spiral:V('#9b59b6',"<path d='M20 21a1.5 1.5 0 1 1 1.5-1.5 4 4 0 1 1-4-4 7 7 0 1 1 7 7 10 10 0 1 1-10-10'/>"),
+ stairs:V('#27ae60',"<path d='M4 34H13V25H22V16H31V7H36'/>")
+});
 const IMGS={};
 Object.keys(PREVIEWS).forEach(k=>{const im=new Image();im.onload=()=>IMGS[k]=im;im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(PREVIEWS[k].replace('<svg','<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"'))});
 
 /* ===== STORAGE ===== */
-const SAVE_KEY="zografia_v3";
+const SAVE_KEY="zografia_v4";
 function save(d){try{localStorage.setItem(SAVE_KEY,JSON.stringify(d))}catch(e){}}
 function load(){try{const r=localStorage.getItem(SAVE_KEY);return r?JSON.parse(r):null}catch(e){return null}}
 function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
@@ -230,6 +263,7 @@ class DrawingCanvas{
   clear(){
     const c=this.ctx;c.save();c.setTransform(1,0,0,1,0,0);c.globalCompositeOperation='source-over';
     c.fillStyle='#fff';c.fillRect(0,0,this.canvas.width,this.canvas.height);c.restore();c.beginPath();this.drawing=false;
+    if(this.ghost&&IMGS[this.ghost]){const W=this.canvas.clientWidth,H=this.canvas.clientHeight,s=Math.min(W,H)*.75;c.save();c.beginPath();c.rect(0,0,W/2,H);c.clip();c.drawImage(IMGS[this.ghost],(W-s)/2,(H-s)/2,s,s);c.restore();c.beginPath()}
   }
   setColor(c){this.color=c;this.eraser=false}
   setEraser(v){this.eraser=v}
@@ -279,12 +313,27 @@ class Recognizer{
       const s=d.ink>350&&big?.62+Math.random()*.25:.2;
       return{success:s>=.5,confidence:s};
     }
+    if(it.count){const cs=this.comps(d),tt=this.tpl({id:it.shape});
+      if(cs.length!==it.count)return{success:false,confidence:.2,note:`Μέτρησα ${cs.length} σχήματα, ζητάω ${it.count}. Κάθε σχήμα να είναι χωριστό!`};
+      const r=cs.map(q=>this.cmp(this.grid(q),tt)),m=r.reduce((a,b)=>a+b.f,0)/r.length;
+      return{success:r.every(q=>q.ok),confidence:Math.min(.97,Math.max(.1,m))};}
     const t=this.tpl(it);
     if(!t)return{success:d.ink>400,confidence:.5};
-    const c=this.grid(d);
-    const rec=this.cover(t,this.dil(c,1)),pre=this.cover(c,this.dil(t,2));
-    const f=rec+pre?2*rec*pre/(rec+pre):0;
-    return{success:rec>=.6&&pre>=.6&&f>=.65,confidence:Math.min(.97,Math.max(.1,f))};
+    const r=this.cmp(this.grid(d),t);
+    return{success:r.ok,confidence:Math.min(.97,Math.max(.1,r.f))};
+  }
+  cmp(c,t){const rec=this.cover(t,this.dil(c,1)),pre=this.cover(c,this.dil(t,2)),f=rec+pre?2*rec*pre/(rec+pre):0;return{f,ok:rec>=.6&&pre>=.6&&f>=.65}}
+  comps(d){
+    const k=5,cw=Math.ceil(d.w/k),ch=Math.ceil(d.h/k),cell=new Uint8Array(cw*ch),lab=new Int16Array(cw*ch),cnt=[0];let n=0;
+    for(let y=d.minY;y<=d.maxY;y++)for(let x=d.minX;x<=d.maxX;x++)if(d.bin[y*d.w+x])cell[(y/k|0)*cw+(x/k|0)]=1;
+    for(let i=0;i<cell.length;i++)if(cell[i]&&!lab[i]){n++;cnt[n]=0;const st=[i];lab[i]=n;
+      while(st.length){const j=st.pop(),jx=j%cw,jy=j/cw|0;cnt[n]++;
+        for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const a=jx+dx,b=jy+dy;if(a<0||b<0||a>=cw||b>=ch)continue;const q=b*cw+a;if(cell[q]&&!lab[q]){lab[q]=n;st.push(q)}}}}
+    const out={};
+    for(let y=d.minY;y<=d.maxY;y++)for(let x=d.minX;x<=d.maxX;x++)if(d.bin[y*d.w+x]){const l=lab[(y/k|0)*cw+(x/k|0)];if(cnt[l]<5)continue;
+      const o=out[l]||(out[l]={bin:new Uint8Array(d.w*d.h),w:d.w,h:d.h,minX:x,minY:y,maxX:x,maxY:y,ink:0});
+      o.bin[y*d.w+x]=1;o.ink++;o.minX=Math.min(o.minX,x);o.maxX=Math.max(o.maxX,x);o.minY=Math.min(o.minY,y);o.maxY=Math.max(o.maxY,y)}
+    return Object.values(out).map(o=>(o.bw=o.maxX-o.minX+1,o.bh=o.maxY-o.minY+1,o)).filter(o=>o.ink>=40);
   }
 }
 
@@ -342,7 +391,7 @@ class Game{
     this.$lvl.textContent=`Επίπεδο ${this.lvlIdx+1} / ${c.items.length}`;
     this.$prompt.innerHTML=it.prompt;
     this.$preview.innerHTML=it.preview&&PREVIEWS[it.preview]?PREVIEWS[it.preview]:'';
-    this.canvas.clear();this.canvas.setColor('#000');
+    this.canvas.ghost=it.ghost?it.id:null;this.canvas.clear();this.canvas.setColor('#000');
     document.querySelectorAll('.color-btn').forEach(b=>b.classList.toggle('active',b.dataset.color==='#000000'));
     this.g('eraser-btn').classList.remove('active');
     this.persist();
@@ -364,7 +413,7 @@ class Game{
       if(!this.practice){this.score+=Math.round(res.confidence*100);this.updateScore()}
       this.persist();this.fx();winSound();if(Math.random()<.6)say(m);
     }else{
-      this.$emoji.textContent='💪';this.$title.textContent='Σχεδόν!';this.$msg.textContent=randMsg('tryAgain');
+      this.$emoji.textContent='💪';this.$title.textContent='Σχεδόν!';this.$msg.textContent=res.note||randMsg('tryAgain');
       this.$conf.style.color='var(--warning)';this.$next.style.display='none';this.$retry.style.display='inline-block';failSound();
     }
   }
@@ -418,7 +467,12 @@ class Game{
     };anim();
   }
 }
-document.addEventListener('DOMContentLoaded',()=>window.game=new Game());
+document.addEventListener('DOMContentLoaded',()=>{
+  const fl=document.querySelector('.floaters'),it=['⭐','❤️','🔺','🟦','🔷','☀️','🌙','☁️','🎈','🏠','🌳','🌸','😊','1','2','3','7','Α','Β','Μ','Σ','Ω'];
+  for(let i=0;i<22;i++){const s=document.createElement('span');s.className='fl';s.textContent=it[i%it.length];
+    s.style.cssText=`left:${Math.random()*92}%;font-size:${26+Math.random()*34}px;animation-duration:${9+Math.random()*9}s;animation-delay:-${Math.random()*14}s;color:#fff;font-weight:700`;fl.appendChild(s)}
+  window.game=new Game();
+});
 </script>
 </body>
 </html>
