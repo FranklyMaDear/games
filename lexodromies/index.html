@@ -260,7 +260,6 @@ footer{margin-top:12px;font-size:11px;opacity:.35}
     <div class="logo-circle">
       <img src="photo.png" alt="Λεξοδρομίες" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\'width:100%;height:100%;border-radius:50%;background:#1a1229;display:flex;align-items:center;justify-content:center;font-size:56px\'>🎮</div>'"/>
     </div>
-    <div class="home-title">Λεξοδρομίες</div>
   </div>
   <div class="home-bottom">
     <div class="play-share-row">
@@ -807,7 +806,7 @@ function submitWord(byId=myId,path=null){
   if(players[byId]){players[byId].score=(players[byId].score||0)+pts;players[byId].words=(players[byId].words||0)+1}
   renderPlayers();renderFound();
 
-  if(isMe){showMsg(`+${pts}  ${word}`,'good');playGood();spawnParticles(pts);showPraise(pts)}
+  if(isMe){showMsg(`+${pts}  ${word}`,'good');playGood();spawnParticles(pts);showPraise(pts);saveGameSnapshot(null)}
   broadcast({type:'word',word,pts,by:byId})
 }
 
@@ -893,6 +892,7 @@ function showRewardedAd(){
 const GAME_SNAP_KEY = 'lexo_game_snap';
 function saveGameSnapshot(pendingReward){
   try {
+    if(!board || !board.length) return;
     const snap = {
       pendingReward: pendingReward || null, // 'hint' | 'extraTime' | 'double' | null
       mode, myId, myName,
@@ -924,7 +924,18 @@ function loadGameSnapshot(){
     return snap;
   } catch(e){ return null; }
 }
-function restoreGameFromSnapshot(snap){
+function ensureGameScreenVisible(){
+  const gameEl = document.getElementById('game');
+  if(!gameEl) return;
+  if(gameEl.classList.contains('active')) return;
+  document.getElementById('splash')?.classList.remove('active');
+  document.getElementById('lobby')?.classList.remove('active');
+  document.getElementById('nickModal') && (document.getElementById('nickModal').style.display = 'none');
+  document.getElementById('roomModal') && (document.getElementById('roomModal').style.display = 'none');
+  document.getElementById('arenaMapModal') && (document.getElementById('arenaMapModal').style.display = 'none');
+  showScreen('game');
+}
+function restoreGameFromSnapshot(snap, applyPending){
   if(!snap || !snap.board) return false;
   mode = snap.mode || 'solo';
   myId = snap.myId || 'me';
@@ -948,12 +959,14 @@ function restoreGameFromSnapshot(snap){
   document.getElementById('resultModal').style.display = 'none';
   document.getElementById('splash').classList.remove('active');
   document.getElementById('lobby').classList.remove('active');
+  document.getElementById('nickModal').style.display = 'none';
+  document.getElementById('roomModal').style.display = 'none';
   showScreen('game');
   renderBoard();
   renderPlayers();
   renderFound();
-  document.getElementById('inviteBox').style.display = 'none';
-  document.getElementById('statusBar').textContent = '';
+  document.getElementById('inviteBox').style.display = (mode === 'host' && waiting) ? 'flex' : 'none';
+  document.getElementById('statusBar').textContent = waiting ? 'Περιμένω αντίπαλο... Στείλε το link' : '';
   const hBtn = document.getElementById('btnHint'), eBtn = document.getElementById('btnExtraTime');
   if(hBtn) hBtn.disabled = false;
   if(eBtn) eBtn.disabled = false;
@@ -983,7 +996,23 @@ function restoreGameFromSnapshot(snap){
     }
     document.getElementById('resultModal').style.display = 'flex';
   }
+  // Only apply pending reward when explicitly requested (successful ad completion path)
+  if(applyPending && snap.pendingReward){
+    applyPendingReward(snap.pendingReward);
+  }
+  // Keep a clean snapshot of the restored state (no pending) so another reload stays on game
+  try {
+    const cleaned = Object.assign({}, snap, { pendingReward: null, savedAt: Date.now() });
+    const raw = JSON.stringify(cleaned);
+    sessionStorage.setItem(GAME_SNAP_KEY, raw);
+    localStorage.setItem(GAME_SNAP_KEY, raw);
+  } catch(e){}
   return true;
+}
+function tryRestoreFromSnapshot(applyPending){
+  const snap = loadGameSnapshot();
+  if(!snap || !snap.board) return false;
+  return restoreGameFromSnapshot(snap, !!applyPending);
 }
 function applyPendingReward(kind){
   if(kind === 'hint'){
@@ -1071,17 +1100,20 @@ function useHint(){
   showRewardedAd()
     .then(() => {
       revealHintWord();
-      clearGameSnapshot();
+      // Update snapshot without pending reward; keep game state for further reloads
+      saveGameSnapshot(null);
     })
     .catch(() => {
       showMsg('Η διαφήμιση δεν ολοκληρώθηκε','bad');
-      clearGameSnapshot();
+      // ΜΗΝ καθαρίζεις το snapshot — αν η σελίδα ξαναφορτώσει πρέπει να μείνουμε στο παιχνίδι
+      saveGameSnapshot(null);
     })
     .finally(() => {
       adInProgress = false;
       resumeTimer();
       if(btn) btn.disabled = false;
       updateTimer();
+      ensureGameScreenVisible();
     });
 }
 
@@ -1099,17 +1131,18 @@ function useExtraTime(){
       updateTimer();
       showMsg('⏱ Χρόνος → 1:00!','good');
       playGood();
-      clearGameSnapshot();
+      saveGameSnapshot(null);
     })
     .catch(() => {
       showMsg('Η διαφήμιση δεν ολοκληρώθηκε','bad');
-      clearGameSnapshot();
+      saveGameSnapshot(null);
     })
     .finally(() => {
       adInProgress = false;
       resumeTimer();
       if(btn) btn.disabled = false;
       updateTimer();
+      ensureGameScreenVisible();
     });
 }
 
@@ -1144,15 +1177,16 @@ function useDoubleScore(){
       if(btn){ btn.style.display = 'none'; }
       showMsg('x2! ' + oldScore + ' → ' + me.score, 'good');
       playGood();
-      clearGameSnapshot();
+      saveGameSnapshot(null);
     })
     .catch(() => {
       showMsg('Η διαφήμιση δεν ολοκληρώθηκε','bad');
       if(btn) btn.disabled = false;
-      clearGameSnapshot();
+      saveGameSnapshot(null);
     })
     .finally(() => {
       adInProgress = false;
+      ensureGameScreenVisible();
     });
 }
 
@@ -1273,6 +1307,7 @@ function startSolo(){
   runCountdown(()=>{
     startTimer(90);
     aiInterval=setInterval(runAI,4200+Math.random()*2500);
+    saveGameSnapshot(null);
   });
 }
 
@@ -1288,6 +1323,7 @@ async function createRoom(){
     document.getElementById('inviteLink').value=link;
     document.getElementById('statusBar').textContent='Περιμένω αντίπαλο... Στείλε το link';
     timeLeft=90;updateTimer();
+    saveGameSnapshot(null);
     const hBtn=document.getElementById('btnHint'), eBtn=document.getElementById('btnExtraTime');
     if(hBtn) hBtn.disabled=false; if(eBtn) eBtn.disabled=false;
   }catch(e){document.getElementById('lobbyStatus').textContent='Αποτυχία.'}
@@ -1535,21 +1571,9 @@ window.onload = () => {
   } catch(e){}
 
   // If page reloaded during/after rewarded ad (common in PWA), restore game
-  const snap = loadGameSnapshot();
-  if(snap && snap.board){
-    const pending = snap.pendingReward;
-    if(restoreGameFromSnapshot(snap)){
-      // Apply reward that was pending when the ad opened
-      if(pending){
-        setTimeout(() => {
-          applyPendingReward(pending);
-          clearGameSnapshot();
-        }, 400);
-      } else {
-        clearGameSnapshot();
-      }
-      return; // skip normal splash/room bootstrap
-    }
+  // Do NOT auto-apply pending reward after reload (user may have closed ad with X)
+  if(tryRestoreFromSnapshot(false)){
+    return; // skip normal splash/room bootstrap
   }
 
   if(params.get('room')) {
@@ -1560,6 +1584,40 @@ window.onload = () => {
     }
   }
 };
+
+// Επιστροφή από διαφήμιση / bfcache: κράτα το παιχνίδι ορατό
+window.addEventListener('pageshow', (ev) => {
+  const gameEl = document.getElementById('game');
+  const onGame = gameEl && gameEl.classList.contains('active') && board && board.length;
+  if(onGame){
+    ensureGameScreenVisible();
+    return;
+  }
+  // Αν είμαστε στην αρχική αλλά υπάρχει snapshot, επανάφερε το παιχνίδι
+  if(tryRestoreFromSnapshot(false)){
+    ensureGameScreenVisible();
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible') return;
+  if(board && board.length && !gameOver){
+    ensureGameScreenVisible();
+    // αν ο χρόνος είχε παγώσει λόγω διαφήμισης και δεν υπάρχει πια ad
+    if(adInProgress){
+      adInProgress = false;
+      resumeTimer();
+      updateTimer();
+    }
+  } else if((!board || !board.length) && loadGameSnapshot()){
+    tryRestoreFromSnapshot(false);
+  }
+});
+window.addEventListener('pagehide', () => {
+  // Αποθήκευση πριν φύγει η σελίδα (π.χ. άνοιγμα full-screen ad)
+  if(board && board.length){
+    saveGameSnapshot(adInProgress ? (loadGameSnapshot()?.pendingReward || null) : null);
+  }
+});
 
 </script>
 </body>
