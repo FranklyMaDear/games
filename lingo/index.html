@@ -1363,6 +1363,8 @@ let recognition = null, isListening = false;
 let wordsSolved = 0; // 0..7 για ranked (8 γύροι), 0..4 για practice
 let totalWords = 8; // 8 για ranked, 5 για practice
 let frozen = false;
+let guessSubmitting = false; // αποφυγή διπλής υποβολής (πληκτρολόγιο + μικρόφωνο)
+let speechSubmitTimer = null;
 
 // ===== BOOSTERS =====
 // Inventory: 2 of each, persisted in localStorage (do NOT reset on new match)
@@ -2261,6 +2263,8 @@ function getWordConfig(idx) {
 
 function nextWord() {
   stopMic();
+  guessSubmitting = false;
+  if (speechSubmitTimer) { clearTimeout(speechSubmitTimer); speechSubmitTimer = null; }
   const nextBtn = document.getElementById("nextWordBtn");
   if (nextBtn) nextBtn.style.display = "none";
   if (wordsSolved >= totalWords) { endMatch(); return; }
@@ -2407,6 +2411,10 @@ function applyPenalty(pts) {
 }
 
 function handleTimeout() {
+  if (guessSubmitting) return;
+  guessSubmitting = true;
+  if (speechSubmitTimer) { clearTimeout(speechSubmitTimer); speechSubmitTimer = null; }
+  try { stopMic(); } catch (e) {}
   messageEl.textContent = isPractice ? "Τέλος χρόνου!" : "Τέλος χρόνου! (−10 💎)";
   applyPenalty(10);
   // sfx ήδη παίχτηκε από τον timer
@@ -2440,11 +2448,13 @@ function handleTimeout() {
     currentPlayer = currentPlayer === 1 ? 2 : 1;
     messageEl.textContent = `Τέλος χρόνου • Σειρά: ${currentPlayer === 1 ? playerName1 : playerName2}`;
     updateUI();
+    guessSubmitting = false;
     startTimer();
   }
 }
 
 function advanceAfterFail() {
+  guessSubmitting = false;
   currentRow++;
   currentGuess = "";
   inputDisplay.textContent = "";
@@ -2493,8 +2503,12 @@ function carryGreens() {
 
 // ============ INPUT ============
 function handleKey(key) {
-  if (gameOver) return;
+  if (gameOver || guessSubmitting) return;
   sfxClick();
+  // Πληκτρολόγηση → κλείσε μικρόφωνο (αποφυγή διπλής υποβολής)
+  if (micPersistent || isListening) {
+    try { stopMic(); } catch (e) {}
+  }
   if (key === "⌫") {
     if (currentGuess.length > 0) currentGuess = currentGuess.slice(0, -1);
   } else if (key === "OK" || key === "Enter") {
@@ -2534,6 +2548,7 @@ function isValidWord(w) {
 
 function submitGuess() {
   if (gameOver) return;
+  if (guessSubmitting) return; // ήδη τρέχει αποκάλυψη γραμμής
   if (currentGuess.length !== wordLen) {
     messageEl.textContent = `Χρειάζονται ${wordLen} γράμματα!`;
     return;
@@ -2542,6 +2557,11 @@ function submitGuess() {
     messageEl.textContent = `Πρέπει να ξεκινάει από ${secret[0]}!`;
     return;
   }
+
+  // Κλείδωσε υποβολή + σταμάτα μικρόφωνο (αλλιώς φωνή/αυτο-υποβολή πηδάει 2 γραμμές)
+  guessSubmitting = true;
+  if (speechSubmitTimer) { clearTimeout(speechSubmitTimer); speechSubmitTimer = null; }
+  try { stopMic(); } catch (e) {}
 
   // Freeze timer during evaluation
   clearInterval(timerInterval);
@@ -2672,6 +2692,8 @@ function updateKeyboardFromResult(guess, result) {
 
 function endWord(won) {
   gameOver = true;
+  guessSubmitting = false;
+  if (speechSubmitTimer) { clearTimeout(speechSubmitTimer); speechSubmitTimer = null; }
   clearInterval(timerInterval);
   stopTickTock();
   stopMic();
@@ -3028,10 +3050,16 @@ function handleSpokenWord(spoken, isFinal) {
   }
 
   if (spoken.length >= wordLen) {
+    if (guessSubmitting) return;
     if (messageEl) messageEl.textContent = `Άκουσες: ${currentGuess}`;
     sfxClick();
-    setTimeout(() => {
-      if (!gameOver && currentGuess.length === wordLen) submitGuess();
+    // Σταμάτα την αναγνώριση πριν την υποβολή — αλλιώς δεύτερο onresult ξαναϋποβάλλει
+    micPersistent = false;
+    try { if (recognition) { recognition.onend = null; recognition.stop(); } } catch (e) {}
+    if (speechSubmitTimer) clearTimeout(speechSubmitTimer);
+    speechSubmitTimer = setTimeout(() => {
+      speechSubmitTimer = null;
+      if (!gameOver && !guessSubmitting && currentGuess.length === wordLen) submitGuess();
     }, 280);
   } else {
     if (messageEl) messageEl.textContent = `Άκουσες: ${currentGuess} (συνέχισε...)`;
