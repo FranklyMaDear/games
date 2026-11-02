@@ -36,6 +36,8 @@
 <meta name="twitter:title" content="FrankLingo">
 <meta name="twitter:description" content="Το παιχνίδι των λέξεων. Βρες τη λέξη!">
 <meta name="twitter:image" content="https://franklymadear.github.io/games/lingo/photo.png">
+<!-- Monetag SDK -->
+<script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
 <style>
   :root {
@@ -483,7 +485,7 @@
       </ul>
       <p>Τα διαμάντια αποθηκεύονται μόνιμα στο προφίλ σου (ψευδώνυμο).</p>
       <p><strong>Προπόνηση:</strong> Διάλεξε δυσκολία (Εύκολο / Μέτριο / Δύσκολο) και εξασκήσου χωρίς ανταγωνιστικό σκορ διαμαντιών.</p>
-      <p><strong>Βοήθειες:</strong> 🟩 σωστό γράμμα • 🟧 γράμμα στη λέξη • ⚡ αφαίρεση λάθος γραμμάτων • ❄️ πάγωμα χρόνου</p>
+      <p><strong>Βοήθειες:</strong> 🟩 σωστό γράμμα • 🟧 γράμμα στη λέξη • ⚡ αφαίρεση λάθος γραμμάτων • ❄️ πάγωμα χρόνου. Κάθε τύπος έχει 2 χρήσεις και αποθηκεύονται. Όταν τελειώσουν, πάτησε ξανά για να δεις διαφήμιση και να ανανεωθούν σε x2.</p>
       <p><strong>2 Παίκτες:</strong> Εναλλάσσεστε προσπάθειες. Αν λήξει ο χρόνος, χάνεις τη σειρά σου.</p>
     </div>
     <button class="play-btn" style="position:static; display:block; margin:16px auto 0; min-width:160px;" onclick="hideInstructions()">Κλείσιμο</button>
@@ -538,10 +540,10 @@
   <div class="game-area">
     <div id="grid-container"><div id="grid"></div></div>
     <div class="boosters" style="display:none;">
-      <div class="booster green-b" onclick="useBooster('green')" title="Αποκάλυψη σωστού γράμματος">🟩<div class="count" id="b1">x3</div></div>
-      <div class="booster orange-b" onclick="useBooster('orange')" title="Σωστό γράμμα σε λάθος θέση">🟧<div class="count" id="b2">x3</div></div>
-      <div class="booster pink-b" onclick="useBooster('pink')" title="Αφαίρεση 6 λάθος γραμμάτων">⚡<div class="count" id="b3">x3</div></div>
-      <div class="booster blue-b" onclick="useBooster('blue')" title="Πάγωμα χρόνου">❄️<div class="count" id="b4">x3</div></div>
+      <div class="booster green-b" onclick="useBooster('green')" title="Αποκάλυψη σωστού γράμματος">🟩<div class="count" id="b1">x2</div></div>
+      <div class="booster orange-b" onclick="useBooster('orange')" title="Σωστό γράμμα σε λάθος θέση">🟧<div class="count" id="b2">x2</div></div>
+      <div class="booster pink-b" onclick="useBooster('pink')" title="Αφαίρεση 6 λάθος γραμμάτων">⚡<div class="count" id="b3">x2</div></div>
+      <div class="booster blue-b" onclick="useBooster('blue')" title="Πάγωμα χρόνου">❄️<div class="count" id="b4">x2</div></div>
     </div>
     <div id="input-row">
       <div id="input-display"></div>
@@ -1362,14 +1364,39 @@ let totalWords = 8; // 8 για ranked, 5 για practice
 let frozen = false;
 
 // ===== BOOSTERS =====
-// Inventory: 3 of each per match (resets on startGame)
-let boosters = { green: 3, orange: 3, pink: 3, blue: 3 };
+// Inventory: 2 of each, persisted in localStorage (do NOT reset on new match)
+const BOOSTERS_KEY = "frankLingo_boosters";
+const BOOSTER_MAX = 2;
+
+function loadBoosters() {
+  try {
+    const raw = localStorage.getItem(BOOSTERS_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      return {
+        green: Math.max(0, Math.min(BOOSTER_MAX, data.green ?? BOOSTER_MAX)),
+        orange: Math.max(0, Math.min(BOOSTER_MAX, data.orange ?? BOOSTER_MAX)),
+        pink: Math.max(0, Math.min(BOOSTER_MAX, data.pink ?? BOOSTER_MAX)),
+        blue: Math.max(0, Math.min(BOOSTER_MAX, data.blue ?? BOOSTER_MAX))
+      };
+    }
+  } catch (e) {}
+  return { green: BOOSTER_MAX, orange: BOOSTER_MAX, pink: BOOSTER_MAX, blue: BOOSTER_MAX };
+}
+
+function saveBoosters() {
+  try {
+    localStorage.setItem(BOOSTERS_KEY, JSON.stringify(boosters));
+  } catch (e) {}
+}
+
+let boosters = loadBoosters();
 // Track letters already revealed by boosters this word (avoid repeats)
 let boosterRevealedPositions = new Set(); // positions already green-locked by green booster
 let boosterKnownLetters = new Set();     // letters shown via orange booster
 
+// Only clears per-word tracking — inventory is persistent
 function resetBoosters() {
-  boosters = { green: 3, orange: 3, pink: 3, blue: 3 };
   boosterRevealedPositions = new Set();
   boosterKnownLetters = new Set();
   updateBoosterUI();
@@ -1382,22 +1409,38 @@ function updateBoosterUI() {
     if (el) el.textContent = "x" + boosters[type];
     const btn = el ? el.parentElement : null;
     if (btn) {
-      if (boosters[type] <= 0) {
-        btn.style.opacity = "0.4";
-        btn.style.pointerEvents = "none";
-      } else {
-        btn.style.opacity = "1";
-        btn.style.pointerEvents = "auto";
-      }
+      // Always clickable: at 0 it triggers rewarded ad refill
+      btn.style.opacity = boosters[type] <= 0 ? "0.55" : "1";
+      btn.style.pointerEvents = "auto";
     }
   }
+}
+
+function offerBoosterRefill(type) {
+  messageEl.textContent = "Δες διαφήμιση για να ανανεώσεις τη βοήθεια (x2)...";
+  if (typeof show_11108267 !== "function") {
+    messageEl.textContent = "Η διαφήμιση δεν είναι διαθέσιμη αυτή τη στιγμή.";
+    sfxWrong();
+    return;
+  }
+  show_11108267("pop")
+    .then(() => {
+      boosters[type] = BOOSTER_MAX;
+      saveBoosters();
+      updateBoosterUI();
+      messageEl.textContent = "✓ Η βοήθεια ανανεώθηκε σε x2!";
+      sfxCorrect();
+    })
+    .catch(() => {
+      messageEl.textContent = "Δεν ολοκληρώθηκε η διαφήμιση. Δοκίμασε ξανά.";
+      sfxWrong();
+    });
 }
 
 function useBooster(type) {
   if (gameOver) return;
   if (!boosters[type] || boosters[type] <= 0) {
-    messageEl.textContent = "Δεν έχεις άλλες βοηθείες αυτού του τύπου!";
-    sfxWrong();
+    offerBoosterRefill(type);
     return;
   }
 
@@ -1466,6 +1509,7 @@ function useBooster(type) {
     });
     boosterRevealedPositions.add(pos);
     boosters.green--;
+    saveBoosters();
     messageEl.textContent = `Πράσινη βοήθεια: ${letter} στη θέση ${pos + 1}`;
     sfxCorrect();
     updateBoosterUI();
@@ -1527,6 +1571,7 @@ function useBooster(type) {
     });
     boosterKnownLetters.add(letter);
     boosters.orange--;
+    saveBoosters();
     messageEl.textContent = `Πορτοκαλί βοήθεια: το γράμμα ${letter} υπάρχει στη λέξη`;
     sfxCorrect();
     updateBoosterUI();
@@ -1560,6 +1605,7 @@ function useBooster(type) {
       // Δεν αλλάζουμε pointer-events με inline για να μην χαλάσει το layout· το CSS .key.absent ήδη το χειρίζεται
     });
     boosters.pink--;
+    saveBoosters();
     messageEl.textContent = `Αφαιρέθηκαν ${toDisable.length} λάθος γράμματα από το πληκτρολόγιο`;
     sfxClick();
     updateBoosterUI();
@@ -1575,6 +1621,7 @@ function useBooster(type) {
     timerEl.classList.add("frozen");
     stopTickTock();
     boosters.blue--;
+    saveBoosters();
     messageEl.textContent = "❄️ Χρόνος παγωμένος! Σκέψου χωρίς πίεση";
     sfxCorrect();
     updateBoosterUI();
