@@ -19,14 +19,15 @@
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
+        /* !important so Tailwind's .flex utility can never keep an inactive screen visible */
         .screen {
-            display: none;
-            width: 100vw;
+            display: none !important;
+            width: 100%;
             height: 100vh;
             height: 100dvh;
             flex-direction: column;
         }
-        .screen.active { display: flex; }
+        .screen.active { display: flex !important; }
 
         /* Calm, dim "armed" look: easy on the eyes for long rounds */
         .run-glow {
@@ -107,7 +108,7 @@
 
     <!-- SCREEN 2: Lobby -->
     <div id="screen-lobby" class="screen bg-slate-900">
-        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-10 space-y-5">
+        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-40 space-y-5">
             <div class="text-center">
                 <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Room code</p>
                 <h2 id="display-pin" class="text-5xl font-mono font-black text-white tracking-widest mt-2 bg-slate-800 inline-block px-6 py-2 rounded-2xl border border-slate-700 mb-3">----</h2>
@@ -155,6 +156,7 @@
             <!-- Sensors -->
             <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700 space-y-3">
                 <p id="sensor-status" class="text-sm font-semibold text-slate-300">Checking motion sensors…</p>
+                <p id="wake-status" class="text-xs text-slate-400"></p>
                 <button id="btn-request-sensors" class="w-full bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform text-lg border border-slate-600 hidden">📱 Enable motion sensors</button>
             </div>
 
@@ -164,7 +166,7 @@
     </div>
 
     <!-- SCREEN 3: Countdown -->
-    <div id="screen-countdown" class="screen bg-amber-500 text-amber-950 flex justify-center items-center">
+    <div id="screen-countdown" class="screen bg-amber-500 text-amber-950 justify-center items-center">
         <div class="text-center px-4">
             <h1 class="text-4xl md:text-5xl font-black mb-3 leading-tight">Phones down, face up!</h1>
             <p id="countdown-info" class="text-lg font-bold opacity-80 mb-6"></p>
@@ -174,7 +176,7 @@
     </div>
 
     <!-- SCREEN 4: Running (armed) -->
-    <div id="screen-running" class="screen run-glow text-white flex justify-center items-center select-none touch-none">
+    <div id="screen-running" class="screen run-glow text-white justify-center items-center select-none touch-none">
         <div class="text-center px-4">
             <div class="text-6xl mb-4">🤫</div>
             <h1 class="text-3xl font-black tracking-tight mb-6 text-red-300">HANDS OFF</h1>
@@ -204,7 +206,7 @@
 
     <!-- SCREEN 6: Result -->
     <div id="screen-result" class="screen bg-slate-900">
-        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-10">
+        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-40">
             <div class="bg-slate-800 p-6 rounded-[2rem] shadow-2xl border border-slate-700 text-center relative overflow-hidden">
                 <div id="result-deco" class="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
                 <div id="result-icon" class="text-7xl mb-3 mt-4">🏆</div>
@@ -295,6 +297,7 @@
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
             $(id).classList.add('active');
+            window.scrollTo(0, 0);
         }
         function generatePIN() { return Math.floor(1000 + Math.random() * 9000).toString(); }
         function shuffle(a) {
@@ -349,14 +352,20 @@
         }
 
         // Wake lock keeps the screen on so the P2P link stays alive
+        let wakePending = false;
         async function acquireWake() {
+            if (wakeLock || wakePending || !('wakeLock' in navigator) || document.hidden) return;
+            wakePending = true;
             try {
-                if ('wakeLock' in navigator && !wakeLock) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => { wakeLock = null; });
-                }
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => { wakeLock = null; });
             } catch (e) { /* not supported or denied */ }
+            wakePending = false;
         }
+        // Safari wants the request to come from a tap, so retry on every tap while not in a round
+        ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => {
+            if (phase !== 'result' && phase !== 'setup') acquireWake();
+        }, { passive: true }));
         function releaseWake() {
             try { if (wakeLock) wakeLock.release(); } catch (e) {}
             wakeLock = null;
@@ -633,6 +642,9 @@
 
         function updateSensorStatus() {
             const status = $('sensor-status'), btn = $('btn-request-sensors');
+            $('wake-status').textContent = wakeLock
+                ? '✅ Screen will stay on during the game'
+                : '⚠️ Screen may turn off. Tap anywhere once, or set Auto-Lock to "Never" in your phone settings.';
             if (sensorsOk) {
                 status.textContent = '✅ Motion sensors ready';
                 btn.classList.add('hidden');
