@@ -2779,91 +2779,216 @@ function evaluateGuess(guess) {
 // ============ SPEECH ============
 let micPersistent = false; // stays on for whole word
 
-function initSpeech() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { if (micBtn) micBtn.disabled = true; return; }
-  recognition = new SR();
-  recognition.lang = "el-GR";
-  recognition.continuous = false;
-  recognition.interimResults = false;
-  recognition.onresult = (e) => {
-    let spoken = e.results[0][0].transcript.toUpperCase().replace(/\s/g, "").normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-    // Keep only Greek letters
-    spoken = spoken.replace(/[^ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ]/g, "");
-    if (spoken.length >= wordLen) {
-      currentGuess = spoken.substring(0, wordLen);
-      if (!currentGuess.startsWith(secret[0])) currentGuess = secret[0] + currentGuess.slice(1);
-      inputDisplay.textContent = currentGuess;
-      updatePreview();
-      messageEl.textContent = `Άκουσες: ${currentGuess}`;
-      setTimeout(() => {
-        submitGuess();
-      }, 350);
-    } else if (spoken.length > 0) {
-      currentGuess = spoken;
-      if (currentGuess.length > 0 && !currentGuess.startsWith(secret[0])) {
-        currentGuess = secret[0] + currentGuess.slice(1);
-      }
-      inputDisplay.textContent = currentGuess;
-      updatePreview();
-      messageEl.textContent = `Άκουσες: ${currentGuess} (συνέχισε...)`;
-    }
+function greekifySpeech(raw) {
+  // Καθαρισμός + μετατροπή συνηθισμένων λατινικών/greeklish σε ελληνικά
+  let t = (raw || "").toUpperCase().replace(/\s+/g, "");
+  t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const map = {
+    "A":"Α","B":"Β","G":"Γ","D":"Δ","E":"Ε","Z":"Ζ","H":"Η","U":"Θ","I":"Ι","K":"Κ",
+    "L":"Λ","M":"Μ","N":"Ν","J":"Ξ","O":"Ο","P":"Π","R":"Ρ","S":"Σ","T":"Τ","Y":"Υ",
+    "F":"Φ","X":"Χ","C":"Ψ","V":"Ω","W":"Ω","Q":"Κ"
   };
-  recognition.onend = () => {
+  // Αν έχει ήδη ελληνικά, κράτα τα· αλλιώς χάρτης από λατινικά
+  let out = "";
+  for (const ch of t) {
+    if ("ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ".includes(ch)) out += ch;
+    else if (map[ch]) out += map[ch];
+  }
+  return out;
+}
+
+function createRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const rec = new SR();
+  rec.lang = "el-GR";
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.maxAlternatives = 3;
+
+  rec.onstart = () => {
+    isListening = true;
+    if (micBtn) {
+      micBtn.classList.add("listening");
+      micBtn.textContent = "● Ακούω...";
+    }
+    if (messageEl) messageEl.textContent = "🎤 Μίλα τη λέξη...";
+  };
+
+  rec.onresult = (e) => {
+    let best = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      for (let j = 0; j < res.length; j++) {
+        const spoken = greekifySpeech(res[j].transcript);
+        if (spoken.length > best.length) best = spoken;
+      }
+      // Αν είναι τελικό αποτέλεσμα με αρκετά γράμματα → υποβολή
+      if (res.isFinal) {
+        const spoken = greekifySpeech(res[0].transcript) || best;
+        handleSpokenWord(spoken, true);
+        return;
+      }
+    }
+    if (best) handleSpokenWord(best, false);
+  };
+
+  rec.onend = () => {
     isListening = false;
-    // If persistent mode and still in same word, restart listening
-    if (micPersistent && !gameOver && gameScreen.classList.contains("active")) {
+    if (micPersistent && !gameOver && matchActive && gameScreen && gameScreen.classList.contains("active")) {
       setTimeout(() => {
-        if (micPersistent && !gameOver) {
-          try {
-            recognition.start();
-            isListening = true;
-            if (micBtn) {
-              micBtn.classList.add("listening");
-              micBtn.textContent = "● Ακούω...";
-            }
-          } catch(e) {}
+        if (!micPersistent || gameOver) return;
+        try {
+          // Chrome συχνά θέλει νέο instance μετά το onend
+          recognition = createRecognition() || recognition;
+          recognition.start();
+        } catch (err) {
+          // InvalidStateError: already started — ignore
         }
-      }, 400);
+      }, 350);
     } else {
+      micPersistent = false;
       if (micBtn) {
         micBtn.classList.remove("listening");
         micBtn.textContent = "🎤 Μικρόφωνο";
       }
     }
   };
-  recognition.onerror = (e) => {
-    if (e.error !== "aborted" && e.error !== "no-speech") {
-      console.log("Speech error:", e.error);
+
+  rec.onerror = (e) => {
+    const err = (e && e.error) || "";
+    if (err === "aborted") return;
+    if (err === "no-speech") {
+      if (messageEl) messageEl.textContent = "Δεν άκουσα τίποτα — δοκίμασε ξανά";
+      return;
     }
-    // Restart if persistent
+    if (err === "not-allowed" || err === "service-not-allowed") {
+      micPersistent = false;
+      isListening = false;
+      if (micBtn) {
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "🎤 Μικρόφωνο";
+      }
+      if (messageEl) messageEl.textContent = "Επίτρεψε το μικρόφωνο στις ρυθμίσεις του browser";
+      return;
+    }
+    if (err === "network") {
+      if (messageEl) messageEl.textContent = "Σφάλμα δικτύου αναγνώρισης φωνής";
+      return;
+    }
+    // Restart if still in persistent mode
     if (micPersistent && !gameOver) {
       setTimeout(() => {
-        try { recognition.start(); isListening = true; } catch(err) {}
+        try {
+          recognition = createRecognition() || recognition;
+          recognition.start();
+        } catch (err2) {}
       }, 500);
     }
   };
+
+  return rec;
+}
+
+function handleSpokenWord(spoken, isFinal) {
+  if (gameOver || !spoken) return;
+  // Πάντα ξεκινάει από το γνωστό πρώτο γράμμα
+  if (!spoken.startsWith(secret[0])) {
+    spoken = secret[0] + spoken;
+  }
+  // Κόψε στο μήκος της λέξης
+  if (spoken.length > wordLen) spoken = spoken.substring(0, wordLen);
+
+  currentGuess = spoken;
+  if (inputDisplay) inputDisplay.textContent = currentGuess;
+  updatePreview();
+
+  if (!isFinal) {
+    if (messageEl) messageEl.textContent = `Ακούω: ${currentGuess}`;
+    return;
+  }
+
+  if (spoken.length >= wordLen) {
+    if (messageEl) messageEl.textContent = `Άκουσες: ${currentGuess}`;
+    sfxClick();
+    setTimeout(() => {
+      if (!gameOver && currentGuess.length === wordLen) submitGuess();
+    }, 280);
+  } else {
+    if (messageEl) messageEl.textContent = `Άκουσες: ${currentGuess} (συνέχισε...)`;
+  }
+}
+
+function initSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    if (micBtn) {
+      micBtn.disabled = true;
+      micBtn.title = "Η αναγνώριση φωνής δεν υποστηρίζεται σε αυτόν τον browser";
+      micBtn.textContent = "🎤 Μη διαθέσιμο";
+    }
+    return;
+  }
+  recognition = createRecognition();
 }
 
 function toggleMic() {
-  if (!recognition) return;
+  // Ξυπνά το AudioContext (iOS) με το user gesture
+  try { if (audioCtx && audioCtx.state === "suspended") audioCtx.resume(); } catch (e) {}
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    if (messageEl) messageEl.textContent = "Η αναγνώριση φωνής δεν υποστηρίζεται εδώ (δοκίμασε Chrome)";
+    return;
+  }
+  if (!recognition) recognition = createRecognition();
+  if (!recognition) {
+    if (messageEl) messageEl.textContent = "Αδυναμία εκκίνησης μικροφώνου";
+    return;
+  }
+
   if (micPersistent || isListening) {
-    // Manual off
     stopMic();
-  } else {
-    // Turn on persistent for this word
-    micPersistent = true;
-    isListening = true;
+    return;
+  }
+
+  if (gameOver) {
+    if (messageEl) messageEl.textContent = "Η λέξη τελείωσε — πάτα Επόμενη Λέξη";
+    return;
+  }
+
+  micPersistent = true;
+  isListening = true;
+  if (micBtn) {
     micBtn.classList.add("listening");
     micBtn.textContent = "● Ακούω...";
-    try { recognition.start(); } catch(e) {}
+  }
+  if (messageEl) messageEl.textContent = "🎤 Μίλα τη λέξη...";
+
+  try {
+    recognition.start();
+  } catch (e) {
+    // Συχνά InvalidStateError → νέο instance
+    try {
+      recognition = createRecognition();
+      recognition.start();
+    } catch (e2) {
+      micPersistent = false;
+      isListening = false;
+      if (micBtn) {
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "🎤 Μικρόφωνο";
+      }
+      if (messageEl) messageEl.textContent = "Δεν μπόρεσα να ανοίξω το μικρόφωνο";
+    }
   }
 }
 
 function stopMic() {
   micPersistent = false;
   isListening = false;
-  try { recognition && recognition.stop(); } catch(e) {}
+  try { if (recognition) recognition.stop(); } catch (e) {}
+  try { if (recognition) recognition.abort(); } catch (e) {}
   if (micBtn) {
     micBtn.classList.remove("listening");
     micBtn.textContent = "🎤 Μικρόφωνο";
@@ -2871,11 +2996,7 @@ function stopMic() {
 }
 
 function resumeMicIfNeeded() {
-  // After a failed attempt, if mic was persistent, it will auto-restart via onend
-  // Just ensure flag stays true
-  if (micPersistent && !gameOver) {
-    // onend handler will restart
-  }
+  // onend handler will restart if micPersistent
 }
 
 document.addEventListener("keydown", (e) => {
@@ -2902,9 +3023,10 @@ initSpeech();
   try { pending = localStorage.getItem("frankLingo_ad_pending"); } catch (e) {}
   const snap = loadGameSnapshot();
   if (snap && snap.secret) {
-    // Only apply refill if ad completed (pending flag cleared by .then). If pending still set, ad was aborted.
-    const apply = false;
-    if (restoreGameFromSnapshot(snap, apply)) {
+    // Αν υπήρχε pending διαφήμιση, δώσε την ανανέωση x2 (επιστροφή από rewarded ad)
+    const refillType = pending || snap.pendingRefill || null;
+    if (refillType) snap.pendingRefill = refillType;
+    if (restoreGameFromSnapshot(snap, !!refillType)) {
       matchActive = true;
       ensureGameScreenVisible();
       try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
@@ -2912,8 +3034,7 @@ initSpeech();
     }
   }
   if (pending) {
-    // Snapshot missing but we know an ad was open — try once more from storage
-    tryRestoreFromSnapshot(false);
+    tryRestoreFromSnapshot(true);
     try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
   }
 })();
