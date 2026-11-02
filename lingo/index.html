@@ -293,8 +293,9 @@
   }
   .key.green-key { background: #16a34a !important; color: #fff !important; }
   .key.orange-key { background: #d97706 !important; color: #fff !important; }
-  .boosters { display: flex; justify-content: center; gap: 8px; margin: 6px 0; }
-  .booster { width: 54px; height: 54px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1rem; }
+  .boosters { display: flex; justify-content: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+  .booster { width: 68px; height: 68px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 1.35rem; box-shadow: 0 3px 10px rgba(0,0,0,0.25); }
+  .booster .count { font-size: 0.72rem !important; margin-top: 2px; padding: 2px 7px !important; }
   .booster.green-b { background: #22c55e; }
   .booster.orange-b { background: #f59e0b; }
   .booster.pink-b { background: #ec4899; }
@@ -1416,6 +1417,259 @@ function updateBoosterUI() {
   }
 }
 
+// ===== Persist game so ad close / PWA reload returns to the match =====
+const GAME_SNAP_KEY = "frankLingo_game_snap";
+let adInProgress = false;
+
+function captureGridState() {
+  const rows = [];
+  for (let r = 0; r < maxAttempts; r++) {
+    const row = [];
+    for (let c = 0; c < wordLen; c++) {
+      const t = document.getElementById("t" + r + c);
+      row.push({
+        text: t ? (t.textContent || "") : "",
+        green: !!(t && t.classList.contains("green")),
+        orange: !!(t && t.classList.contains("orange")),
+        absent: !!(t && t.classList.contains("absent")),
+        burned: !!(t && t.classList.contains("burned"))
+      });
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function captureKeyboardState() {
+  const keys = {};
+  document.querySelectorAll("#keyboard .key").forEach(k => {
+    const letter = k.textContent;
+    if (!letter || letter.length !== 1) return;
+    keys[letter] = {
+      green: k.classList.contains("green-key"),
+      orange: k.classList.contains("orange-key"),
+      absent: k.classList.contains("absent")
+    };
+  });
+  return keys;
+}
+
+function saveGameSnapshot(pendingRefillType) {
+  try {
+    // Only while a match is on the game screen
+    if (!gameScreen || !gameScreen.classList.contains("active")) return;
+    if (!secret) return;
+    const snap = {
+      pendingRefill: pendingRefillType || null,
+      mode, isPractice, difficulty,
+      wordLen, maxAttempts, secret,
+      currentRow, currentGuess,
+      gameOver, score, scoreP1, scoreP2, currentPlayer,
+      timeLeft, frozen,
+      wordsSolved, totalWords,
+      playerName1, playerName2,
+      boosters: Object.assign({}, boosters),
+      boosterRevealedPositions: [...boosterRevealedPositions],
+      boosterKnownLetters: [...boosterKnownLetters],
+      grid: captureGridState(),
+      keyboard: captureKeyboardState(),
+      message: messageEl ? messageEl.textContent : "",
+      nextBtnVisible: !!(document.getElementById("nextWordBtn") && document.getElementById("nextWordBtn").style.display === "block"),
+      nextBtnText: document.getElementById("nextWordBtn") ? document.getElementById("nextWordBtn").textContent : "",
+      savedAt: Date.now()
+    };
+    const raw = JSON.stringify(snap);
+    sessionStorage.setItem(GAME_SNAP_KEY, raw);
+    localStorage.setItem(GAME_SNAP_KEY, raw);
+  } catch (e) {}
+}
+
+function clearGameSnapshot() {
+  try { sessionStorage.removeItem(GAME_SNAP_KEY); } catch (e) {}
+  try { localStorage.removeItem(GAME_SNAP_KEY); } catch (e) {}
+}
+
+function loadGameSnapshot() {
+  try {
+    const raw = sessionStorage.getItem(GAME_SNAP_KEY) || localStorage.getItem(GAME_SNAP_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (!snap || !snap.savedAt || Date.now() - snap.savedAt > 30 * 60 * 1000) {
+      clearGameSnapshot();
+      return null;
+    }
+    return snap;
+  } catch (e) {
+    return null;
+  }
+}
+
+function ensureGameScreenVisible() {
+  const homeEl = document.getElementById("home");
+  const modeEl = document.getElementById("mode");
+  const diffEl = document.getElementById("difficulty");
+  const resultEl = document.getElementById("result");
+  if (homeEl) homeEl.classList.remove("active");
+  if (modeEl) modeEl.classList.remove("active");
+  if (diffEl) diffEl.classList.remove("active");
+  if (resultEl) resultEl.classList.remove("active");
+  if (gameScreen) gameScreen.classList.add("active");
+  const boostersEl = document.querySelector(".boosters");
+  if (boostersEl) boostersEl.style.display = "flex";
+}
+
+function restoreGridState(gridData) {
+  if (!gridData) return;
+  for (let r = 0; r < gridData.length; r++) {
+    for (let c = 0; c < (gridData[r] || []).length; c++) {
+      const cell = gridData[r][c];
+      const t = document.getElementById("t" + r + c);
+      if (!t || !cell) continue;
+      t.textContent = cell.text || "";
+      t.classList.remove("green", "orange", "absent", "burned", "flip");
+      if (cell.green) t.classList.add("green");
+      if (cell.orange) t.classList.add("orange");
+      if (cell.absent) t.classList.add("absent");
+      if (cell.burned) t.classList.add("burned");
+    }
+  }
+}
+
+function restoreKeyboardState(keys) {
+  if (!keys) return;
+  document.querySelectorAll("#keyboard .key").forEach(k => {
+    const letter = k.textContent;
+    if (!letter || letter.length !== 1) return;
+    k.classList.remove("green-key", "orange-key", "absent");
+    const st = keys[letter];
+    if (!st) return;
+    if (st.green) k.classList.add("green-key");
+    else if (st.orange) k.classList.add("orange-key");
+    else if (st.absent) k.classList.add("absent");
+  });
+}
+
+function restoreGameFromSnapshot(snap, applyPending) {
+  if (!snap || !snap.secret) return false;
+
+  mode = snap.mode || 1;
+  isPractice = !!snap.isPractice;
+  difficulty = snap.difficulty || "easy";
+  wordLen = snap.wordLen || 5;
+  maxAttempts = snap.maxAttempts || 5;
+  secret = snap.secret;
+  currentRow = snap.currentRow || 0;
+  currentGuess = snap.currentGuess || "";
+  gameOver = !!snap.gameOver;
+  score = snap.score || 0;
+  scoreP1 = snap.scoreP1 || 0;
+  scoreP2 = snap.scoreP2 || 0;
+  currentPlayer = snap.currentPlayer || 1;
+  timeLeft = typeof snap.timeLeft === "number" ? snap.timeLeft : 20;
+  frozen = !!snap.frozen;
+  wordsSolved = snap.wordsSolved || 0;
+  totalWords = snap.totalWords || 8;
+  if (snap.playerName1) playerName1 = snap.playerName1;
+  if (snap.playerName2) playerName2 = snap.playerName2;
+  if (snap.boosters) {
+    boosters = Object.assign({ green: 0, orange: 0, pink: 0, blue: 0 }, snap.boosters);
+    saveBoosters();
+  }
+  boosterRevealedPositions = new Set(snap.boosterRevealedPositions || []);
+  boosterKnownLetters = new Set(snap.boosterKnownLetters || []);
+  adInProgress = false;
+
+  // Hide modals that might be open
+  const nickModal = document.getElementById("nicknameModal");
+  if (nickModal) nickModal.style.display = "none";
+  const instr = document.getElementById("instructionsModal");
+  if (instr) instr.style.display = "none";
+
+  ensureGameScreenVisible();
+  initGrid();
+  buildKeyboard();
+  restoreGridState(snap.grid);
+  restoreKeyboardState(snap.keyboard);
+  if (inputDisplay) inputDisplay.textContent = currentGuess || "";
+  if (messageEl) messageEl.textContent = snap.message || "";
+  updateUI();
+  updateBoosterUI();
+
+  const nextBtn = document.getElementById("nextWordBtn");
+  if (nextBtn) {
+    if (snap.nextBtnVisible) {
+      nextBtn.style.display = "block";
+      nextBtn.textContent = snap.nextBtnText || "Επόμενη Λέξη ▶";
+      if (wordsSolved >= totalWords) {
+        nextBtn.onclick = () => { nextBtn.style.display = "none"; endMatch(); };
+      } else {
+        nextBtn.onclick = () => playerNextWord();
+      }
+    } else {
+      nextBtn.style.display = "none";
+    }
+  }
+
+  // Resume timer if still playing
+  clearInterval(timerInterval);
+  stopTickTock();
+  if (!gameOver && !snap.nextBtnVisible) {
+    timerEl.textContent = Math.max(0, timeLeft);
+    timerEl.classList.toggle("warning", timeLeft <= 5 && timeLeft > 0);
+    timerEl.classList.toggle("frozen", frozen);
+    timerInterval = setInterval(() => {
+      if (frozen || gameOver || adInProgress) return;
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      if (timeLeft <= 5) {
+        timerEl.classList.add("warning");
+        if (!isTicking) startTickTock();
+      }
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        stopTickTock();
+        sfxZonk();
+        handleTimeout();
+      }
+    }, 1000);
+    if (timeLeft <= 5 && timeLeft > 0 && !frozen) startTickTock();
+  } else {
+    timerEl.textContent = Math.max(0, timeLeft);
+    timerEl.classList.remove("warning");
+    if (frozen) timerEl.classList.add("frozen");
+  }
+
+  if (applyPending && snap.pendingRefill) {
+    boosters[snap.pendingRefill] = BOOSTER_MAX;
+    saveBoosters();
+    updateBoosterUI();
+    if (messageEl) messageEl.textContent = "✓ Η βοήθεια ανανεώθηκε σε x2!";
+    sfxCorrect();
+  }
+
+  // Keep a clean snapshot (no pending) so another reload stays on game
+  try {
+    const cleaned = Object.assign({}, snap, { pendingRefill: null, savedAt: Date.now() });
+    // refresh live pieces
+    cleaned.timeLeft = timeLeft;
+    cleaned.boosters = Object.assign({}, boosters);
+    cleaned.grid = captureGridState();
+    cleaned.keyboard = captureKeyboardState();
+    cleaned.message = messageEl ? messageEl.textContent : cleaned.message;
+    const raw = JSON.stringify(cleaned);
+    sessionStorage.setItem(GAME_SNAP_KEY, raw);
+    localStorage.setItem(GAME_SNAP_KEY, raw);
+  } catch (e) {}
+
+  return true;
+}
+
+function tryRestoreFromSnapshot(applyPending) {
+  const snap = loadGameSnapshot();
+  if (!snap || !snap.secret) return false;
+  return restoreGameFromSnapshot(snap, !!applyPending);
+}
+
 function offerBoosterRefill(type) {
   messageEl.textContent = "Δες διαφήμιση για να ανανεώσεις τη βοήθεια (x2)...";
   if (typeof show_11108267 !== "function") {
@@ -1423,6 +1677,12 @@ function offerBoosterRefill(type) {
     sfxWrong();
     return;
   }
+  adInProgress = true;
+  // Pause timer while ad is open
+  clearInterval(timerInterval);
+  stopTickTock();
+  // Persist so PWA / ad close returns to this match (not home)
+  saveGameSnapshot(type);
   show_11108267("pop")
     .then(() => {
       boosters[type] = BOOSTER_MAX;
@@ -1430,10 +1690,40 @@ function offerBoosterRefill(type) {
       updateBoosterUI();
       messageEl.textContent = "✓ Η βοήθεια ανανεώθηκε σε x2!";
       sfxCorrect();
+      saveGameSnapshot(null);
     })
     .catch(() => {
       messageEl.textContent = "Δεν ολοκληρώθηκε η διαφήμιση. Δοκίμασε ξανά.";
       sfxWrong();
+      // ΜΗΝ καθαρίζεις το snapshot — αν γίνει reload πρέπει να μείνουμε στο παιχνίδι
+      saveGameSnapshot(null);
+    })
+    .finally(() => {
+      adInProgress = false;
+      ensureGameScreenVisible();
+      // Resume timer if still in an active attempt
+      if (!gameOver && document.getElementById("nextWordBtn") && document.getElementById("nextWordBtn").style.display !== "block") {
+        clearInterval(timerInterval);
+        timerEl.textContent = Math.max(0, timeLeft);
+        timerEl.classList.toggle("warning", timeLeft <= 5 && timeLeft > 0);
+        timerEl.classList.toggle("frozen", frozen);
+        timerInterval = setInterval(() => {
+          if (frozen || gameOver || adInProgress) return;
+          timeLeft--;
+          timerEl.textContent = timeLeft;
+          if (timeLeft <= 5) {
+            timerEl.classList.add("warning");
+            if (!isTicking) startTickTock();
+          }
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            stopTickTock();
+            sfxZonk();
+            handleTimeout();
+          }
+        }, 1000);
+        if (timeLeft <= 5 && timeLeft > 0 && !frozen) startTickTock();
+      }
     });
 }
 
@@ -1837,7 +2127,7 @@ function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
-function showHome() { showScreen("home"); clearInterval(timerInterval); stopTickTock(); }
+function showHome() { clearGameSnapshot(); showScreen("home"); clearInterval(timerInterval); stopTickTock(); stopMic(); adInProgress = false; }
 function showMode() {
   showScreen("mode");
   const hs = loadHighScores();
@@ -1974,6 +2264,7 @@ function nextWord() {
   updateUI();
   updateBoosterUI();
   startTimer();
+  saveGameSnapshot(null);
 }
 
 function placeFirstLetterGreen(row) {
@@ -2392,6 +2683,7 @@ function endMatch() {
   clearInterval(timerInterval);
   stopTickTock();
   stopMic();
+  clearGameSnapshot();
   showScreen("result");
   if (isPractice) {
     document.getElementById("resultTitle").textContent = "Τέλος Προπόνησης";
@@ -2571,6 +2863,37 @@ document.querySelectorAll("button").forEach(btn => {
   btn.addEventListener("click", () => sfxClick());
 });
 initSpeech();
+
+// Restore match after ad / PWA reload (do not auto-apply pending refill on mere close)
+if (tryRestoreFromSnapshot(false)) {
+  // stay on game
+} else {
+  // normal boot on home
+}
+
+window.addEventListener("pageshow", () => {
+  if (gameScreen && gameScreen.classList.contains("active") && secret) {
+    ensureGameScreenVisible();
+    return;
+  }
+  if (tryRestoreFromSnapshot(false)) ensureGameScreenVisible();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (secret && gameScreen && gameScreen.classList.contains("active")) {
+    ensureGameScreenVisible();
+    if (adInProgress) {
+      adInProgress = false;
+    }
+  } else if ((!secret || !gameScreen.classList.contains("active")) && loadGameSnapshot()) {
+    tryRestoreFromSnapshot(false);
+  }
+});
+window.addEventListener("pagehide", () => {
+  if (secret && gameScreen && gameScreen.classList.contains("active")) {
+    saveGameSnapshot(adInProgress ? (loadGameSnapshot() && loadGameSnapshot().pendingRefill) || null : null);
+  }
+});
 
 // Nickname modal helpers
 ["nickInput1", "nickInputP1", "nickInputP2"].forEach(id => {
