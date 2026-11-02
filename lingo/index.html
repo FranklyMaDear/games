@@ -1368,6 +1368,8 @@ let frozen = false;
 // Inventory: 2 of each, persisted in localStorage (do NOT reset on new match)
 const BOOSTERS_KEY = "frankLingo_boosters";
 const BOOSTER_MAX = 2;
+// Πρώτη φορά: x2 σε κάθε βοήθεια. Μετά παραμένουν όσες έχουν μείνει (localStorage).
+// ΔΕΝ μηδενίζονται / ΔΕΝ ξαναγίνονται x2 όταν ξεκινάει νέο ματς — μόνο με διαφήμιση.
 
 function loadBoosters() {
   try {
@@ -1375,19 +1377,27 @@ function loadBoosters() {
     if (raw) {
       const data = JSON.parse(raw);
       return {
-        green: Math.max(0, Math.min(BOOSTER_MAX, data.green ?? BOOSTER_MAX)),
-        orange: Math.max(0, Math.min(BOOSTER_MAX, data.orange ?? BOOSTER_MAX)),
-        pink: Math.max(0, Math.min(BOOSTER_MAX, data.pink ?? BOOSTER_MAX)),
-        blue: Math.max(0, Math.min(BOOSTER_MAX, data.blue ?? BOOSTER_MAX))
+        green: Math.max(0, Math.min(BOOSTER_MAX, Number(data.green))),
+        orange: Math.max(0, Math.min(BOOSTER_MAX, Number(data.orange))),
+        pink: Math.max(0, Math.min(BOOSTER_MAX, Number(data.pink))),
+        blue: Math.max(0, Math.min(BOOSTER_MAX, Number(data.blue)))
       };
     }
   } catch (e) {}
-  return { green: BOOSTER_MAX, orange: BOOSTER_MAX, pink: BOOSTER_MAX, blue: BOOSTER_MAX };
+  // Πρώτη φορά που παίζει ποτέ σε αυτή τη συσκευή
+  const initial = { green: BOOSTER_MAX, orange: BOOSTER_MAX, pink: BOOSTER_MAX, blue: BOOSTER_MAX };
+  try { localStorage.setItem(BOOSTERS_KEY, JSON.stringify(initial)); } catch (e) {}
+  return initial;
 }
 
 function saveBoosters() {
   try {
-    localStorage.setItem(BOOSTERS_KEY, JSON.stringify(boosters));
+    localStorage.setItem(BOOSTERS_KEY, JSON.stringify({
+      green: Math.max(0, Math.min(BOOSTER_MAX, boosters.green|0)),
+      orange: Math.max(0, Math.min(BOOSTER_MAX, boosters.orange|0)),
+      pink: Math.max(0, Math.min(BOOSTER_MAX, boosters.pink|0)),
+      blue: Math.max(0, Math.min(BOOSTER_MAX, boosters.blue|0))
+    }));
   } catch (e) {}
 }
 
@@ -1396,10 +1406,12 @@ let boosters = loadBoosters();
 let boosterRevealedPositions = new Set(); // positions already green-locked by green booster
 let boosterKnownLetters = new Set();     // letters shown via orange booster
 
-// Only clears per-word tracking — inventory is persistent
+// Only clears per-word tracking — inventory (localStorage) is NEVER reset here
 function resetBoosters() {
   boosterRevealedPositions = new Set();
   boosterKnownLetters = new Set();
+  // Ξαναδιάβασε από storage ώστε νέο ματς να δείχνει τα υπόλοιπα (π.χ. 1 μετά από χρήση)
+  boosters = loadBoosters();
   updateBoosterUI();
 }
 
@@ -1454,11 +1466,13 @@ function captureKeyboardState() {
   return keys;
 }
 
+let matchActive = false; // true while a ranked/practice match is in progress on the board
+
 function saveGameSnapshot(pendingRefillType) {
   try {
-    // Only while a match is on the game screen
-    if (!gameScreen || !gameScreen.classList.contains("active")) return;
+    // Prefer matchActive so we still save even if DOM class was disturbed by the ad SDK
     if (!secret) return;
+    if (!matchActive && !(gameScreen && gameScreen.classList.contains("active"))) return;
     const snap = {
       pendingRefill: pendingRefillType || null,
       mode, isPractice, difficulty,
@@ -1578,6 +1592,7 @@ function restoreGameFromSnapshot(snap, applyPending) {
   boosterRevealedPositions = new Set(snap.boosterRevealedPositions || []);
   boosterKnownLetters = new Set(snap.boosterKnownLetters || []);
   adInProgress = false;
+  matchActive = true;
 
   // Hide modals that might be open
   const nickModal = document.getElementById("nicknameModal");
@@ -1678,11 +1693,15 @@ function offerBoosterRefill(type) {
     return;
   }
   adInProgress = true;
+  matchActive = true;
   // Pause timer while ad is open
   clearInterval(timerInterval);
   stopTickTock();
   // Persist so PWA / ad close returns to this match (not home)
+  try { localStorage.setItem("frankLingo_ad_pending", type); } catch (e) {}
   saveGameSnapshot(type);
+  // Tiny delay so storage is flushed before the ad WebView opens
+  setTimeout(() => {
   show_11108267("pop")
     .then(() => {
       boosters[type] = BOOSTER_MAX;
@@ -1690,16 +1709,23 @@ function offerBoosterRefill(type) {
       updateBoosterUI();
       messageEl.textContent = "✓ Η βοήθεια ανανεώθηκε σε x2!";
       sfxCorrect();
+      try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
+      matchActive = true;
+      ensureGameScreenVisible();
       saveGameSnapshot(null);
     })
     .catch(() => {
       messageEl.textContent = "Δεν ολοκληρώθηκε η διαφήμιση. Δοκίμασε ξανά.";
       sfxWrong();
       // ΜΗΝ καθαρίζεις το snapshot — αν γίνει reload πρέπει να μείνουμε στο παιχνίδι
+      try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
+      matchActive = true;
+      ensureGameScreenVisible();
       saveGameSnapshot(null);
     })
     .finally(() => {
       adInProgress = false;
+      matchActive = true;
       ensureGameScreenVisible();
       // Resume timer if still in an active attempt
       if (!gameOver && document.getElementById("nextWordBtn") && document.getElementById("nextWordBtn").style.display !== "block") {
@@ -1725,6 +1751,7 @@ function offerBoosterRefill(type) {
         if (timeLeft <= 5 && timeLeft > 0 && !frozen) startTickTock();
       }
     });
+  }, 50);
 }
 
 function useBooster(type) {
@@ -2127,7 +2154,7 @@ function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
-function showHome() { clearGameSnapshot(); showScreen("home"); clearInterval(timerInterval); stopTickTock(); stopMic(); adInProgress = false; }
+function showHome() { matchActive = false; clearGameSnapshot(); try { localStorage.removeItem("frankLingo_ad_pending"); } catch(e){} showScreen("home"); clearInterval(timerInterval); stopTickTock(); stopMic(); adInProgress = false; }
 function showMode() {
   showScreen("mode");
   const hs = loadHighScores();
@@ -2171,6 +2198,7 @@ function beginRankedGame(m) {
     scoresBox.style.display = "none";
   }
   resetBoosters();
+  matchActive = true;
   showScreen("game");
   const boostersEl = document.querySelector(".boosters");
   if (boostersEl) boostersEl.style.display = "flex";
@@ -2197,6 +2225,7 @@ function setDifficulty(d) {
   currentPlayer = 1;
   scoresBox.style.display = "none";
   resetBoosters();
+  matchActive = true;
   showScreen("game");
   const boostersEl = document.querySelector(".boosters");
   if (boostersEl) boostersEl.style.display = "flex";
@@ -2680,10 +2709,12 @@ function playerNextWord() {
 
 
 function endMatch() {
+  matchActive = false;
   clearInterval(timerInterval);
   stopTickTock();
   stopMic();
   clearGameSnapshot();
+  try { localStorage.removeItem("frankLingo_ad_pending"); } catch(e){}
   showScreen("result");
   if (isPractice) {
     document.getElementById("resultTitle").textContent = "Τέλος Προπόνησης";
@@ -2864,34 +2895,63 @@ document.querySelectorAll("button").forEach(btn => {
 });
 initSpeech();
 
-// Restore match after ad / PWA reload (do not auto-apply pending refill on mere close)
-if (tryRestoreFromSnapshot(false)) {
-  // stay on game
-} else {
-  // normal boot on home
-}
+// Restore match after ad / PWA reload.
+// If user closed the ad with X we restore the board but do NOT grant the refill.
+(function bootRestore() {
+  let pending = null;
+  try { pending = localStorage.getItem("frankLingo_ad_pending"); } catch (e) {}
+  const snap = loadGameSnapshot();
+  if (snap && snap.secret) {
+    // Only apply refill if ad completed (pending flag cleared by .then). If pending still set, ad was aborted.
+    const apply = false;
+    if (restoreGameFromSnapshot(snap, apply)) {
+      matchActive = true;
+      ensureGameScreenVisible();
+      try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
+      return;
+    }
+  }
+  if (pending) {
+    // Snapshot missing but we know an ad was open — try once more from storage
+    tryRestoreFromSnapshot(false);
+    try { localStorage.removeItem("frankLingo_ad_pending"); } catch (e) {}
+  }
+})();
 
-window.addEventListener("pageshow", () => {
-  if (gameScreen && gameScreen.classList.contains("active") && secret) {
+window.addEventListener("pageshow", (ev) => {
+  if (matchActive && secret) {
     ensureGameScreenVisible();
     return;
   }
-  if (tryRestoreFromSnapshot(false)) ensureGameScreenVisible();
+  if (tryRestoreFromSnapshot(false)) {
+    matchActive = true;
+    ensureGameScreenVisible();
+  }
 });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
-  if (secret && gameScreen && gameScreen.classList.contains("active")) {
+  if (matchActive && secret) {
     ensureGameScreenVisible();
-    if (adInProgress) {
-      adInProgress = false;
+    adInProgress = false;
+  } else if (loadGameSnapshot()) {
+    if (tryRestoreFromSnapshot(false)) {
+      matchActive = true;
+      ensureGameScreenVisible();
     }
-  } else if ((!secret || !gameScreen.classList.contains("active")) && loadGameSnapshot()) {
-    tryRestoreFromSnapshot(false);
   }
 });
 window.addEventListener("pagehide", () => {
-  if (secret && gameScreen && gameScreen.classList.contains("active")) {
-    saveGameSnapshot(adInProgress ? (loadGameSnapshot() && loadGameSnapshot().pendingRefill) || null : null);
+  if (matchActive && secret) {
+    let pending = null;
+    try { pending = localStorage.getItem("frankLingo_ad_pending"); } catch (e) {}
+    saveGameSnapshot(pending || null);
+  }
+});
+window.addEventListener("beforeunload", () => {
+  if (matchActive && secret) {
+    let pending = null;
+    try { pending = localStorage.getItem("frankLingo_ad_pending"); } catch (e) {}
+    saveGameSnapshot(pending || null);
   }
 });
 
