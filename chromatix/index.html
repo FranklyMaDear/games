@@ -234,7 +234,7 @@ body[data-s=stages] #sbg{opacity:1}
  </div>
  <div class="ribbon">Candy Land<div class="pbar"><div id="pb"></div></div><span id="pp" class="sm" style="color:#d6f5cf">0%</span></div>
  <button class="btn gl" id="playBtn" style="font-size:30px;padding:16px 44px" onclick="start(nextLv())">Level 1</button>
- <button class="btn b" style="font-size:18px;padding:12px 22px" onclick="LIVES=5;startFree((S.free||0)+1)">🍭 Chromatix Candy</button>
+ <button class="btn b" style="font-size:18px;padding:12px 22px" onclick="startFree((S.free||0)+1)">🍭 Chromatix Candy</button>
  <div style="display:flex;gap:10px"><button class="btn y" style="font-size:18px;padding:12px 16px" onclick="openDaily()">🎁 Daily Reward <b id="dbadge" style="background:#f22;color:#fff;border-radius:50%;padding:0 7px">1</b></button><button class="btn b" style="font-size:18px;padding:12px 16px" onclick="show('stages');buildGrid()">🪜 All levels</button></div>
  <div class="sm">Connect the same-color dots. Lines must never cross!</div>
  <button class="btn b" id="shareBtn" style="font-size:18px;padding:12px 26px;margin-top:4px" onclick="shareGame()">📤 Share</button>
@@ -257,7 +257,7 @@ body[data-s=stages] #sbg{opacity:1}
  <div class="top"><button class="ib" onclick="show('home');refreshHome()">←</button><div style="text-align:center;font-weight:800">CHROMATIX CANDY · LEVEL <span id="fl">1</span></div><span class="coin"><i></i><span class="cn">110</span></span></div>
  <div class="goalbar"><div id="fgoal"></div><div class="mv">Attempts<b id="fmv">5</b></div></div>
  <canvas id="fcv"></canvas>
- <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center"><button class="btn y" id="fhelp" style="font-size:17px;padding:12px 16px" onclick="freeHelp()">🎬 +5 attempts</button><button class="btn b" id="fskip" style="font-size:17px;padding:12px 16px" onclick="freeSkip()">⏭ Skip 🎬</button></div>
+ <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center"><button class="btn y" id="fhelp" style="font-size:17px;padding:12px 16px" onclick="freeHelp()">🎬 +3 attempts</button><button class="btn b" id="fskip" style="font-size:17px;padding:12px 16px" onclick="freeSkip()">⏭ Next 100</button></div>
 </section>
 
 <section id="game" class="scr">
@@ -269,7 +269,6 @@ body[data-s=stages] #sbg{opacity:1}
  <div id="hint">Connect the same color dots…</div>
  <canvas id="cv"></canvas>
  <div class="tools">
-  <button class="tool" onclick="freeCoins()"><span>🎬</span>FREE +100</button>
   <button class="tool" onclick="useHint()"><span>💡</span>100</button>
   <button class="tool" onclick="useSkip()"><span>⏩</span>200</button>
   <button class="tool" onclick="show('stages');buildGrid()"><span>🏪</span>LEVELS</button>
@@ -437,24 +436,16 @@ function checkWin(){
 }
 function useHint(){
  if(won)return;const i=paths.findIndex((_,k)=>!done(k));if(i<0)return;
- const apply=()=>{
-  const sol=lv.sols[i];paths.forEach((p,j)=>{if(j!==i&&p.some(z=>sol.includes(z)))paths[j]=[]});
-  paths[i]=sol.slice();draw();checkWin();
- };
- if(S.coins>=100){
-  S.coins-=100;save();coins();apply();
- }else{
-  showAd(()=>{apply();toast('Hint unlocked 💡')});
- }
+ if(S.coins<100)return toast('Need 100 coins 💡');
+ S.coins-=100;save();coins();
+ const sol=lv.sols[i];paths.forEach((p,j)=>{if(j!==i&&p.some(z=>sol.includes(z)))paths[j]=[]});
+ paths[i]=sol.slice();draw();checkWin();
 }
 function useSkip(){
  if(won)return;
- const apply=()=>{paths=lv.sols.map(s=>s.slice());draw();checkWin();};
- if(S.coins>=200){
-  S.coins-=200;save();coins();apply();
- }else{
-  showAd(()=>{apply();toast('Level skipped ⏩')});
- }
+ if(S.coins<200)return toast('Need 200 coins ⏩');
+ S.coins-=200;save();coins();
+ paths=lv.sols.map(s=>s.slice());draw();checkWin();
 }
 function pause(){paused=true;$('pause').classList.add('on')}
 function resume(){paused=false;$('pause').classList.remove('on')}
@@ -556,17 +547,17 @@ function renderDaily(){
  $('dmon').textContent=now.toLocaleString('en',{month:'long'}).toUpperCase()+' '+now.getFullYear();
  let h=['SUN','MON','TUE','WED','THU','FRI','SAT'].map(w=>'<div class="dw">'+w+'</div>').join('');
  for(let i=0;i<first;i++)h+='<i></i>';
- for(let k=1;k<=dim;k++){const got=d.got.includes(k);h+='<div class="dc '+(got?'got':k===td?'today':k<td?'miss':'')+'"><em>'+k+'</em>'+(got?'<u class="ck">✔</u>':'<i class="gc"></i>')+'<b>'+DR[k-1]+'</b></div>'}
+ for(let k=1;k<=dim;k++){const got=d.got.includes(k);h+='<div class="dc '+(got?'got':k===td?'today':k<td?'miss':'')+'"><em>'+k+'</em>'+(got?'<u class="ck">✔</u>':'<i class="gc"></i>')+'<b>100</b></div>'}
  $('dcal').innerHTML=h;
  $('dch').innerHTML=CH.map(([n,v],i)=>{const ok=d.got.length>=n,tk=d.ch.includes(n);return '<div class="chest '+(ok&&!tk?'rdy':'')+'" onclick="openChest('+n+','+v+')"><span class="q">?</span><div class="cb '+(tk?'open':'')+'" style="--cc:'+CC[i]+'"></div><u>'+n+' Days</u></div>'}).join('');
  $('c1').disabled=$('c2').disabled=!canClaim();
 }
 function openChest(n,v){const d=dstate();if(d.ch.includes(n))return toast('Already opened');if(d.got.length<n)return toast(n+' days chest: +'+v+' coins ('+d.got.length+'/'+n+')');d.ch.push(n);S.coins+=v;save();SFX.win();celebrate();toast('Chest: +'+v+' coins 🪙');renderDaily()}
-function claim(x){if(!canClaim())return;const td=new Date().getDate(),v=DR[td-1]*x;
+function claim(x){if(!canClaim())return;const td=new Date().getDate(),v=100*x;
  const go=()=>{if(!canClaim())return;dstate().got.push(td);S.coins+=v;save();SFX.coin();celebrate();toast('+'+v+' coins 🪙');renderDaily();refreshHome()};x>1?showAd(go):go()}
 function popClaim(x){$('dpop').classList.remove('on');claim(x)}
 /* daily popup: every day the visitor is offered the reward when opening the game */
-setTimeout(()=>{if(canClaim()&&$('home').classList.contains('on')){$('dpv').textContent=DR[new Date().getDate()-1];$('dpop').classList.add('on')}},700);
+setTimeout(()=>{if(canClaim()&&$('home').classList.contains('on')){$('dpv').textContent=100;$('dpop').classList.add('on')}},700);
 
 /* reset */
 let rs=0;function resetAll(){if(!rs){rs=1;$('rst').textContent='Tap again to confirm';setTimeout(()=>{rs=0;$('rst').textContent='🗑 Reset progress'},3000);return}try{localStorage.removeItem('dk')}catch(e){}location.reload()}
@@ -597,7 +588,10 @@ function genFree(L){
  return{pr:[[[.2,.2],[.8,.2]],[[.2,.8],[.8,.8]]],circ:false,ob:[]}}
 function startFree(L){
  SFX.next();const g=genFree(L),Z=Math.min(innerWidth-24,480,innerHeight-300),d=devicePixelRatio||1;
- F={L,Z,circ:g.circ,R:Z*.045,dots:g.pr.map(s=>s.map(p=>[p[0]*Z,p[1]*Z])),ob:g.ob.map(p=>[p[0]*Z,p[1]*Z]),st:[],done:[],cur:null,mv:LIVES>0?LIVES:5,over:false,dead:false};
+ // Persist attempts: use S.freeLives, default 5 only on first ever
+ if(typeof S.freeLives!=='number'){S.freeLives=5;save()}
+ const lives=Math.max(0,S.freeLives|0);
+ F={L,Z,circ:g.circ,R:Z*.045,dots:g.pr.map(s=>s.map(p=>[p[0]*Z,p[1]*Z])),ob:g.ob.map(p=>[p[0]*Z,p[1]*Z]),st:[],done:[],cur:null,mv:lives,over:false,dead:lives<=0};
  fcv.width=fcv.height=Z*d;fcv.style.width=fcv.style.height=Z+'px';fg.setTransform(d,0,0,d,0,0);
  $('fl').textContent=L;$('fmv').textContent=F.mv;
  $('fgoal').innerHTML=g.pr.map((_,i)=>'<span class="gi" id="gi'+i+'" style="--c:'+PAL[i%8]+'"><i></i><s></s><i></i></span>').join('');
@@ -613,16 +607,24 @@ function drawF(){
 const fpos=e=>{const r=fcv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
 function inS(p){const Z=F.Z,m=F.R*.5;return F.circ?dst(p,[Z/2,Z/2])<=Z/2-m:p[0]>=m&&p[1]>=m&&p[0]<=Z-m&&p[1]<=Z-m}
 function spark2(p,i){const r=fcv.getBoundingClientRect();addP({x:r.left+p[0],y:r.top+p[1],vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,g:.02,life:22,s:2+Math.random()*2,c:PAL[i%8]})}
-function useMv(){F.mv--;LIVES=Math.max(F.mv,0);$('fmv').textContent=LIVES}
+function useMv(){F.mv--;S.freeLives=Math.max(F.mv,0);save();$('fmv').textContent=S.freeLives}
 function checkF(){
  if(F.over)return;
- if(F.done.filter(Boolean).length===F.dots.length){F.over=true;S.free=Math.max(S.free||0,F.L);S.coins+=10;save();coins();SFX.win();celebrate();toast('Level complete! +10 🪙');setTimeout(()=>startFree(F.L+1),1900);return}
- if(F.mv<=0){F.over=true;F.dead=true;SFX.cut();freeBtnUI();drawF();toast('Out of attempts! Press 🎬 Continue')}}
+ if(F.done.filter(Boolean).length===F.dots.length){F.over=true;S.free=Math.max(S.free||0,F.L);S.freeLives=F.mv;save();S.coins+=10;save();coins();SFX.win();celebrate();toast('Level complete! +10 🪙');setTimeout(()=>startFree(F.L+1),1900);return}
+ if(F.mv<=0){F.over=true;F.dead=true;S.freeLives=0;save();SFX.cut();freeBtnUI();drawF();toast('Out of attempts! Press 🎬 +3')}}
 function failF(){F.cur=null;SFX.cut();useMv();toast('Lines can’t cross!');drawF();checkF()}
-let LIVES=5;
-function freeBtnUI(){const h=$('fhelp'),k=$('fskip');if(!F||!h)return;if(F.dead){h.textContent='🎬 Continue · +5';h.classList.add('gl');k.disabled=true}else{h.textContent='🎬 +5 attempts';h.classList.remove('gl');k.disabled=false}}
-function freeHelp(){if(!F)return;showAd(()=>{F.mv=F.dead?5:F.mv+5;LIVES=F.mv;if(F.dead){F.dead=false;F.over=false;F.cur=null}$('fmv').textContent=F.mv;freeBtnUI();drawF();show('free');toast('+5 attempts 🍭')})}
-function freeSkip(){if(!F||F.over)return;showAd(()=>{S.free=Math.max(S.free||0,F.L);save();startFree(F.L+1);show('free')})}
+function freeBtnUI(){const h=$('fhelp'),k=$('fskip');if(!F||!h)return;h.textContent='🎬 +3 attempts';if(F.dead){h.classList.add('gl')}else{h.classList.remove('gl')}k.disabled=false}
+function freeHelp(){if(!F)return;showAd(()=>{
+  F.mv=(F.dead?0:F.mv)+3;S.freeLives=F.mv;save();
+  if(F.dead){F.dead=false;F.over=false;F.cur=null}
+  $('fmv').textContent=F.mv;freeBtnUI();drawF();show('free');toast('+3 attempts 🍭')
+})}
+function freeSkip(){if(!F)return;
+ if(S.coins<100)return toast('Need 100 coins to skip');
+ S.coins-=100;save();coins();
+ S.free=Math.max(S.free||0,F.L);S.freeLives=Math.max(F.mv,0);save();
+ startFree(F.L+1);show('free');
+}
 fcv.addEventListener('pointerdown',e=>{if(!F||F.over)return;SFX.init();const p=fpos(e);fcv.setPointerCapture(e.pointerId);
  for(let i=0;i<F.dots.length;i++)for(let k=0;k<2;k++)if(dst(F.dots[i][k],p)<F.R*1.8){F.st[i]=null;F.done[i]=0;$('gi'+i).classList.remove('ok');F.cur={i,k,pts:[F.dots[i][k]]};SFX.pop();drawF();return}});
 fcv.addEventListener('pointermove',e=>{
