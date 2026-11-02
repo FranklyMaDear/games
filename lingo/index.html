@@ -1594,7 +1594,7 @@ function restoreGameFromSnapshot(snap, applyPending) {
   adInProgress = false;
   matchActive = true;
   // Μετά από reload λόγω ad: φρέσκο mic state (το πάτημα 🎤 ξαναζητά άδεια)
-  try { resetMicFully(); } catch (e) {}
+  try { resetMicAfterAd(); } catch (e) {}
 
   // Hide modals that might be open
   const nickModal = document.getElementById("nicknameModal");
@@ -1696,8 +1696,8 @@ function offerBoosterRefill(type) {
   }
   adInProgress = true;
   matchActive = true;
-  // Κλείσε το μικρόφωνο πριν την ad — αλλιώς χάνει το permission session
-  resetMicFully();
+  // Κλείσε το μικρόφωνο πριν την ad (PWA/iOS χάνουν το session)
+  resetMicAfterAd();
   // Pause timer while ad is open
   clearInterval(timerInterval);
   stopTickTock();
@@ -1730,7 +1730,7 @@ function offerBoosterRefill(type) {
     .finally(() => {
       adInProgress = false;
       matchActive = true;
-      resetMicFully();
+      resetMicAfterAd();
       ensureGameScreenVisible();
       // Resume timer if still in an active attempt
       if (!gameOver && document.getElementById("nextWordBtn") && document.getElementById("nextWordBtn").style.display !== "block") {
@@ -2782,9 +2782,24 @@ function evaluateGuess(guess) {
 }
 
 // ============ SPEECH ============
-let micPersistent = false; // stays on for whole word
-let micStream = null;      // MediaStream από getUserMedia — κρατά ζωντανή την άδεια μετά από ads
+let micPersistent = false;
+let micStream = null;
 let micStarting = false;
+let micPermissionOk = false; // true αφού ο χρήστης έχει δώσει άδεια τουλάχιστον μία φορά σε αυτό το session
+
+function isStandalonePWA() {
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+    if (window.matchMedia && window.matchMedia("(display-mode: fullscreen)").matches) return true;
+    if (typeof navigator.standalone === "boolean" && navigator.standalone) return true; // iOS
+  } catch (e) {}
+  return false;
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
 
 function greekifySpeech(raw) {
   let t = (raw || "").toUpperCase().replace(/\s+/g, "");
@@ -2805,16 +2820,14 @@ function greekifySpeech(raw) {
 function releaseMicStream() {
   try {
     if (micStream) {
-      micStream.getTracks().forEach(t => {
-        try { t.stop(); } catch (e) {}
-      });
+      micStream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
     }
   } catch (e) {}
   micStream = null;
 }
 
-function resetMicFully() {
-  // Καθαρισμός μετά από διαφήμιση / restore — το permission θα ξαναζητηθεί στο επόμενο πάτημα
+/** Σταματά μόνο την αναγνώριση — ΔΕΝ σκοτώνει το MediaStream (κρατά την άδεια ζεστή). */
+function pauseRecognitionOnly() {
   micPersistent = false;
   isListening = false;
   micStarting = false;
@@ -2824,7 +2837,6 @@ function resetMicFully() {
   try { if (recognition) recognition.abort(); } catch (e) {}
   try { if (recognition) recognition.stop(); } catch (e) {}
   recognition = null;
-  releaseMicStream();
   if (micBtn) {
     micBtn.classList.remove("listening");
     micBtn.disabled = false;
@@ -2832,29 +2844,60 @@ function resetMicFully() {
   }
 }
 
-/** Ζητά άδεια μικροφώνου με user gesture (απαραίτητο μετά από rewarded ads). */
+/** Πλήρες reset (π.χ. έξοδος από παιχνίδι). */
+function resetMicFully() {
+  pauseRecognitionOnly();
+  releaseMicStream();
+  // micPermissionOk μένει — ξέρουμε ότι ο χρήστης έχει ήδη επιτρέψει κάποτε
+}
+
+/** Πριν/μετά διαφήμιση: σταμάτα recognition, απελευθέρωσε stream ώστε το επόμενο πάτημα να ξαναζητήσει καθαρά. */
+function resetMicAfterAd() {
+  pauseRecognitionOnly();
+  releaseMicStream();
+  if (micBtn) {
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤 Μικρόφωνο";
+  }
+  if (messageEl && matchActive && !gameOver) {
+    messageEl.textContent = "Πάτα 🎤 για να ξαναενεργοποιήσεις το μικρόφωνο";
+  }
+}
+
 function ensureMicPermission() {
   return new Promise((resolve, reject) => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      // Παλιοί browsers: άσε το SpeechRecognition να δοκιμάσει μόνο του
       resolve(null);
       return;
     }
-    // Αν έχουμε ήδη ζωντανό track, οκ
-    if (micStream && micStream.getAudioTracks().some(t => t.readyState === "live")) {
+    if (micStream && micStream.getAudioTracks().some(t => t.readyState === "live" && t.enabled)) {
+      micPermissionOk = true;
       resolve(micStream);
       return;
     }
     releaseMicStream();
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+
+    const constraints = {
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    };
+
+    const tryGet = (c) => navigator.mediaDevices.getUserMedia(c);
+
+    tryGet(constraints)
+      .catch(() => tryGet({ audio: true, video: false }))
       .then((stream) => {
         micStream = stream;
-        // Κρατάμε το stream ανοιχτό όσο ακούμε, ώστε να μην «ξεχνάει» την άδεια το WebView
+        micPermissionOk = true;
+        // Κράτα τα tracks «ζωντανά» αλλά muted δεν γίνεται για audio input —
+        // τα αφήνουμε live όσο παίζει· κλείνουν στο stopMic / μετά την ad
         resolve(stream);
       })
-      .catch((err) => {
-        reject(err);
-      });
+      .catch((err) => reject(err));
   });
 }
 
@@ -2897,11 +2940,11 @@ function createRecognition() {
   rec.onend = () => {
     isListening = false;
     micStarting = false;
-    if (micPersistent && !gameOver && matchActive && gameScreen && gameScreen.classList.contains("active") && !adInProgress) {
+    if (micPersistent && !gameOver && matchActive && !adInProgress && gameScreen && gameScreen.classList.contains("active")) {
       setTimeout(() => {
         if (!micPersistent || gameOver || adInProgress) return;
         startRecognitionEngine().catch(() => {});
-      }, 350);
+      }, 400);
     } else {
       micPersistent = false;
       if (micBtn) {
@@ -2919,8 +2962,6 @@ function createRecognition() {
       return;
     }
     if (err === "not-allowed" || err === "service-not-allowed") {
-      // Μετά από ad συχνά χάνεται το session — μην στείλεις τον παίκτη στις ρυθμίσεις αμέσως.
-      // Στο επόμενο πάτημα το getUserMedia θα ξαναζητήσει άδεια με user gesture.
       micPersistent = false;
       isListening = false;
       micStarting = false;
@@ -2931,7 +2972,9 @@ function createRecognition() {
         micBtn.textContent = "🎤 Μικρόφωνο";
       }
       if (messageEl) {
-        messageEl.textContent = "Πάτα ξανά το 🎤 — θα ζητηθεί άδεια μικροφώνου";
+        messageEl.textContent = isStandalonePWA()
+          ? "Πάτα ξανά το 🎤 — αν δεν εμφανιστεί άδεια, άνοιξε το παιχνίδι από Safari μία φορά"
+          : "Πάτα ξανά το 🎤 για άδεια μικροφώνου";
       }
       return;
     }
@@ -2940,9 +2983,7 @@ function createRecognition() {
       return;
     }
     if (micPersistent && !gameOver && !adInProgress) {
-      setTimeout(() => {
-        startRecognitionEngine().catch(() => {});
-      }, 500);
+      setTimeout(() => { startRecognitionEngine().catch(() => {}); }, 500);
     }
   };
 
@@ -2962,10 +3003,7 @@ function startRecognitionEngine() {
     } catch (e) {
       try {
         recognition = createRecognition();
-        if (!recognition) {
-          reject(e);
-          return;
-        }
+        if (!recognition) { reject(e); return; }
         recognition.start();
         resolve();
       } catch (e2) {
@@ -2977,9 +3015,7 @@ function startRecognitionEngine() {
 
 function handleSpokenWord(spoken, isFinal) {
   if (gameOver || !spoken) return;
-  if (!spoken.startsWith(secret[0])) {
-    spoken = secret[0] + spoken;
-  }
+  if (!spoken.startsWith(secret[0])) spoken = secret[0] + spoken;
   if (spoken.length > wordLen) spoken = spoken.substring(0, wordLen);
 
   currentGuess = spoken;
@@ -3012,8 +3048,29 @@ function initSpeech() {
     }
     return;
   }
-  // ΔΕΝ δημιουργούμε recognition εδώ — φτιάχνεται στο πάτημα με φρέσκο permission
   recognition = null;
+
+  // Όταν η εφαρμογή επανέρχεται στο προσκήνιο (μετά από ad), ετοίμασε το mic UI
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && matchActive) {
+      // Μην αυτό-ξεκινάς mic χωρίς gesture — απλά καθάρισε κολλημένη κατάσταση
+      if (adInProgress) return;
+      if (isListening || micPersistent) {
+        // αν μείναμε «κολλημένοι» μετά την ad
+        if (!document.hasFocus()) return;
+      }
+    }
+  });
+}
+
+function micPermissionDeniedMessage() {
+  if (isStandalonePWA() && isIOS()) {
+    return "iPhone: Ρυθμίσεις → Safari → Μικρόφωνο → Επίτρεψε, μετά ξαναπάτα 🎤. Ή άνοιξε μία φορά από Safari.";
+  }
+  if (isStandalonePWA()) {
+    return "Πάτα ξανά 🎤. Αν δεν βγει άδεια: Ρυθμίσεις → Εφαρμογές → άδεια Μικροφώνου.";
+  }
+  return "Επίτρεψε το μικρόφωνο στο αναδυόμενο και πάτα ξανά 🎤";
 }
 
 function toggleMic() {
@@ -3021,7 +3078,11 @@ function toggleMic() {
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    if (messageEl) messageEl.textContent = "Η αναγνώριση φωνής δεν υποστηρίζεται εδώ (δοκίμασε Chrome)";
+    if (messageEl) {
+      messageEl.textContent = isIOS()
+        ? "Η φωνητική αναγνώριση δεν υποστηρίζεται στο iPhone/Safari. Χρησιμοποίησε το πληκτρολόγιο."
+        : "Η αναγνώριση φωνής δεν υποστηρίζεται εδώ (δοκίμασε Chrome)";
+    }
     return;
   }
 
@@ -3047,34 +3108,41 @@ function toggleMic() {
   }
   if (messageEl) messageEl.textContent = "🎤 Έλεγχος μικροφώνου...";
 
-  // 1) Ξαναζήτα άδεια με user gesture (κρίσιμο μετά από διαφήμιση)
-  ensureMicPermission()
-    .then(() => {
-      if (!micPersistent) return; // user cancelled meanwhile
-      if (messageEl) messageEl.textContent = "🎤 Μίλα τη λέξη...";
-      return startRecognitionEngine();
-    })
-    .catch((err) => {
-      micPersistent = false;
-      isListening = false;
-      micStarting = false;
-      recognition = null;
-      releaseMicStream();
-      if (micBtn) {
-        micBtn.classList.remove("listening");
-        micBtn.textContent = "🎤 Μικρόφωνο";
-      }
-      const name = (err && (err.name || err.message)) || "";
-      if (/NotAllowed|Permission|Denied/i.test(String(name))) {
-        if (messageEl) {
-          messageEl.textContent = "Επίτρεψε το μικρόφωνο στο αναδυόμενο παράθυρο και πάτα ξανά 🎤";
+  // Μικρή καθυστέρηση μετά από ad/PWA resume βοηθάει το WebView να «ξυπνήσει»
+  const kickoff = () => {
+    ensureMicPermission()
+      .then(() => {
+        if (!micPersistent) return;
+        if (messageEl) messageEl.textContent = "🎤 Μίλα τη λέξη...";
+        return startRecognitionEngine();
+      })
+      .catch((err) => {
+        micPersistent = false;
+        isListening = false;
+        micStarting = false;
+        recognition = null;
+        releaseMicStream();
+        if (micBtn) {
+          micBtn.classList.remove("listening");
+          micBtn.textContent = "🎤 Μικρόφωνο";
         }
-      } else if (/NotFound|DevicesNotFound/i.test(String(name))) {
-        if (messageEl) messageEl.textContent = "Δεν βρέθηκε μικρόφωνο στη συσκευή";
-      } else {
-        if (messageEl) messageEl.textContent = "Δεν μπόρεσα να ανοίξω το μικρόφωνο — πάτα ξανά 🎤";
-      }
-    });
+        const name = (err && (err.name || err.message)) || "";
+        if (/NotAllowed|Permission|Denied/i.test(String(name))) {
+          if (messageEl) messageEl.textContent = micPermissionDeniedMessage();
+        } else if (/NotFound|DevicesNotFound/i.test(String(name))) {
+          if (messageEl) messageEl.textContent = "Δεν βρέθηκε μικρόφωνο στη συσκευή";
+        } else {
+          if (messageEl) messageEl.textContent = "Δεν άνοιξε το μικρόφωνο — πάτα ξανά 🎤";
+        }
+      });
+  };
+
+  // Σε PWA μετά από ad, ένα frame delay αυξάνει την πιθανότητα να εμφανιστεί το prompt
+  if (isStandalonePWA()) {
+    setTimeout(kickoff, 150);
+  } else {
+    kickoff();
+  }
 }
 
 function stopMic() {
@@ -3085,8 +3153,6 @@ function stopMic() {
   try { if (recognition) recognition.abort(); } catch (e) {}
   try { if (recognition) recognition.stop(); } catch (e) {}
   recognition = null;
-  // Κρατάμε το micStream λίγο; αν ο παίκτης ξαναπατήσει αμέσως, το permission μένει
-  // Απελευθερώνουμε για να μην μένει κόκκινο το εικονίδιο μικροφώνου στο browser
   releaseMicStream();
   if (micBtn) {
     micBtn.classList.remove("listening");
