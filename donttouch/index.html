@@ -1,644 +1,1056 @@
 <!DOCTYPE html>
-<html lang="el">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Μη μ' ακουμπάς</title>
-    <!-- Tailwind CSS -->
+    <title>Don't Touch Me</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-    <!-- PeerJS -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Tailwind slate-900 */
-            color: #f8fafc; /* Tailwind slate-50 */
+            background-color: #0f172a;
+            color: #f8fafc;
             touch-action: manipulation;
             overflow: hidden;
             -webkit-user-select: none;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        
-        /* Διαχείριση οθονών */
         .screen {
             display: none;
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
             flex-direction: column;
         }
-        
-        .screen.active {
-            display: flex;
+        .screen.active { display: flex; }
+
+        /* Calm, dim "armed" look: easy on the eyes for long rounds */
+        .run-glow {
+            background: radial-gradient(circle at center, #3b0a0a 0%, #0b0f1a 70%);
+            animation: breathe 4s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% { filter: brightness(0.8); }
+            50% { filter: brightness(1.25); }
         }
 
-        /* Εφέ για την οπλισμένη κατάσταση */
-        .pulse-bg {
-            animation: pulse-red 2s infinite;
+        .chip {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.75rem;
+            border: 2px solid #475569;
+            background: #0f172a;
+            color: #cbd5e1;
+            font-weight: 700;
+            font-size: 0.875rem;
+            transition: all 0.15s;
         }
-
-        @keyframes pulse-red {
-            0% { background-color: #ef4444; } /* red-500 */
-            50% { background-color: #991b1b; } /* red-800 */
-            100% { background-color: #ef4444; }
+        .chip.sel {
+            background: #6366f1;
+            border-color: #818cf8;
+            color: #fff;
         }
+        .locked { pointer-events: none; opacity: 0.85; }
 
-        /* Απόκρυψη scrollbars */
         ::-webkit-scrollbar { display: none; }
         * { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="antialiased text-slate-50">
 
-    <!-- Προσαρμοσμένο Modal για Μηνύματα (Αντί για alert) -->
-    <div id="alert-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 hidden backdrop-blur-sm transition-opacity duration-300">
+    <!-- Toasts (elimination notices) -->
+    <div id="toasts" class="fixed top-3 inset-x-3 z-40 space-y-2 pointer-events-none"></div>
+
+    <!-- Alert modal -->
+    <div id="alert-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 hidden backdrop-blur-sm">
         <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl max-w-sm w-full mx-4 text-center transform scale-95 transition-transform duration-300" id="alert-box">
             <div class="text-5xl mb-4">⚠️</div>
             <p id="alert-message" class="text-lg font-semibold text-white mb-6"></p>
-            <button onclick="closeAlert()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-colors text-lg">
-                Εντάξει
-            </button>
+            <button onclick="closeAlert()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-colors text-lg">OK</button>
         </div>
     </div>
 
-    <!-- ΟΘΟΝΗ 1: Αρχική / Σύνδεση -->
+    <!-- SCREEN 1: Setup -->
     <div id="screen-setup" class="screen active items-center justify-center p-6 bg-slate-900">
         <div class="max-w-md w-full space-y-8 bg-slate-800 p-8 rounded-[2rem] shadow-2xl border border-slate-700">
             <div class="text-center">
-                <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-500 tracking-tight leading-tight">
-                    ΜΗ Μ' ΑΚΟΥΜΠΑΣ
-                </h1>
-                <p class="text-slate-400 mt-2 text-sm">Παιχνίδι απόλυτης ακινησίας!</p>
+                <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-500 tracking-tight leading-tight">DON'T TOUCH ME</h1>
+                <p class="text-slate-400 mt-2 text-sm">Phones down. Last one to touch theirs wins!</p>
             </div>
-            
+
             <div class="space-y-6">
                 <div>
-                    <label class="block text-sm font-bold text-slate-300 mb-2 uppercase tracking-wide">Το όνομά σου</label>
-                    <input type="text" id="input-name" class="w-full bg-slate-900 border-2 border-slate-600 rounded-xl px-4 py-4 text-white text-lg focus:outline-none focus:border-indigo-500 transition-colors" placeholder="π.χ. Μαρία" maxlength="15">
+                    <label class="block text-sm font-bold text-slate-300 mb-2 uppercase tracking-wide">Your name</label>
+                    <input type="text" id="input-name" class="w-full bg-slate-900 border-2 border-slate-600 rounded-xl px-4 py-4 text-white text-lg focus:outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. Maria" maxlength="15">
                 </div>
-                
+
                 <div class="pt-2">
-                    <button id="btn-create-room" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition-all text-lg mb-4">
-                        Δημιουργία Δωματίου
-                    </button>
-                    
+                    <button id="btn-create-room" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition-all text-lg mb-4">Create Room</button>
+
                     <div class="relative flex py-2 items-center">
                         <div class="flex-grow border-t border-slate-600"></div>
-                        <span class="flex-shrink-0 mx-4 text-slate-500 text-sm font-bold uppercase">Ή Σύνδεση</span>
+                        <span class="flex-shrink-0 mx-4 text-slate-500 text-sm font-bold uppercase">Or join</span>
                         <div class="flex-grow border-t border-slate-600"></div>
                     </div>
 
                     <div class="mt-4 flex gap-2">
-                        <input type="text" id="input-pin" class="w-1/2 bg-slate-900 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono text-center text-xl tracking-widest focus:outline-none focus:border-emerald-500 uppercase transition-colors" placeholder="PIN" maxlength="4">
-                        <button id="btn-join-room" class="w-1/2 bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition-all text-lg">
-                            Είσοδος
-                        </button>
+                        <input type="text" id="input-pin" inputmode="numeric" class="w-1/2 bg-slate-900 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono text-center text-xl tracking-widest focus:outline-none focus:border-emerald-500 uppercase transition-colors" placeholder="PIN" maxlength="4">
+                        <button id="btn-join-room" class="w-1/2 bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition-all text-lg">Join</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ΟΘΟΝΗ 2: Αίθουσα Αναμονής (Lobby) -->
-    <div id="screen-lobby" class="screen bg-slate-900 p-6 flex flex-col">
-        <div class="max-w-md w-full mx-auto flex-1 flex flex-col pt-8 pb-4 h-full">
-            <div class="text-center mb-6">
-                <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Κωδικος Δωματιου</p>
+    <!-- SCREEN 2: Lobby -->
+    <div id="screen-lobby" class="screen bg-slate-900">
+        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-10 space-y-5">
+            <div class="text-center">
+                <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Room code</p>
                 <h2 id="display-pin" class="text-5xl font-mono font-black text-white tracking-widest mt-2 bg-slate-800 inline-block px-6 py-2 rounded-2xl border border-slate-700 mb-3">----</h2>
-                <button id="btn-copy-link" class="w-full max-w-[250px] mx-auto bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-semibold py-2 px-4 rounded-xl shadow-md active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
-                    🔗 Αντιγραφή Link Πρόσκλησης
-                </button>
+                <button id="btn-copy-link" class="w-full max-w-[250px] mx-auto bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-semibold py-2 px-4 rounded-xl shadow-md active:scale-95 transition-all text-sm flex items-center justify-center gap-2">🔗 Copy invite link</button>
             </div>
 
-            <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 flex-1 overflow-y-auto shadow-inner mb-6">
-                <h3 class="text-lg font-bold text-slate-200 mb-4 flex items-center justify-between">
-                    <span>Παίκτες</span>
+            <!-- Players -->
+            <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700">
+                <h3 class="text-lg font-bold text-slate-200 mb-3 flex items-center justify-between">
+                    <span>Players</span>
                     <span id="player-count" class="bg-slate-700 px-3 py-1 rounded-full text-sm font-mono">0</span>
                 </h3>
-                <ul id="players-list" class="space-y-3">
-                    <!-- Λίστα παικτών -->
-                </ul>
+                <ul id="players-list" class="space-y-2"></ul>
             </div>
 
-            <div class="space-y-4 mt-auto">
-                <button id="btn-request-sensors" class="w-full bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform text-lg border border-slate-600 flex justify-center items-center gap-2">
-                    <span>📱 Ενεργοποίηση Αισθητήρων</span>
-                </button>
-                <!-- Μόνο ο Host βλέπει αυτό το κουμπί αρχικά, αλλά το ελέγχουμε μέσω JS -->
-                <button id="btn-start-game" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-5 rounded-xl shadow-lg active:scale-95 transition-transform text-xl hidden">
-                    🚀 Ξεκίνα το Παιχνίδι!
-                </button>
-                <p id="guest-waiting-text" class="text-center text-slate-400 font-medium hidden">
-                    Αναμονή για τον δημιουργό...
-                </p>
+            <!-- Settings -->
+            <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700 space-y-4">
+                <h3 class="text-lg font-bold text-slate-200">Game settings <span id="settings-note" class="text-xs font-medium text-slate-500 ml-1"></span></h3>
+                <div>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Round length</p>
+                    <div id="opt-duration" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sensitivity</p>
+                    <div id="opt-sens" class="flex flex-wrap gap-2"></div>
+                    <p class="text-xs text-slate-500 mt-2">Low forgives a wobbly table. High catches the tiniest tilt.</p>
+                </div>
+                <label class="flex items-center justify-between gap-3 bg-slate-900 rounded-xl p-3 border border-slate-700">
+                    <span class="text-sm font-semibold text-slate-300">Include built-in missions</span>
+                    <input type="checkbox" id="opt-defaults" class="w-5 h-5 accent-indigo-500">
+                </label>
             </div>
+
+            <!-- My missions -->
+            <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700">
+                <h3 class="text-lg font-bold text-slate-200 mb-1">Your missions</h3>
+                <p class="text-xs text-slate-500 mb-3">Add up to 2 missions for whoever loses. They're drawn anonymously, and custom ones come first. Keep it fun and friendly!</p>
+                <div class="flex gap-2">
+                    <input type="text" id="mission-input" class="flex-1 min-w-0 bg-slate-900 border-2 border-slate-600 rounded-xl px-3 py-3 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="e.g. Sing happy birthday to the fridge" maxlength="80">
+                    <button id="btn-add-mission" class="bg-indigo-500 text-white font-bold px-4 rounded-xl active:scale-95 transition-transform">Add</button>
+                </div>
+                <ul id="my-missions" class="space-y-2 mt-3"></ul>
+            </div>
+
+            <!-- Sensors -->
+            <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700 space-y-3">
+                <p id="sensor-status" class="text-sm font-semibold text-slate-300">Checking motion sensors…</p>
+                <button id="btn-request-sensors" class="w-full bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform text-lg border border-slate-600 hidden">📱 Enable motion sensors</button>
+            </div>
+
+            <button id="btn-start-game" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-5 rounded-xl shadow-lg active:scale-95 transition-transform text-xl hidden">🚀 Start the game!</button>
+            <p id="guest-waiting-text" class="text-center text-slate-400 font-medium hidden">Waiting for the host to start…</p>
         </div>
     </div>
 
-    <!-- ΟΘΟΝΗ 3: Αντίστροφη Μέτρηση -->
+    <!-- SCREEN 3: Countdown -->
     <div id="screen-countdown" class="screen bg-amber-500 text-amber-950 flex justify-center items-center">
         <div class="text-center px-4">
-            <h1 class="text-4xl md:text-5xl font-black mb-8 leading-tight">Αφήστε τα κινητά κάτω!</h1>
-            <div id="countdown-number" class="text-9xl font-black tracking-tighter tabular-nums drop-shadow-lg">5</div>
-            <p class="mt-8 text-xl font-bold opacity-80">Μην το ακουμπήσετε!</p>
+            <h1 class="text-4xl md:text-5xl font-black mb-3 leading-tight">Phones down, face up!</h1>
+            <p id="countdown-info" class="text-lg font-bold opacity-80 mb-6"></p>
+            <div id="countdown-number" class="text-9xl font-black tracking-tighter tabular-nums drop-shadow-lg">10</div>
+            <p class="mt-8 text-xl font-bold opacity-80">Don't touch it!</p>
         </div>
     </div>
 
-    <!-- ΟΘΟΝΗ 4: Οπλισμένο -->
-    <div id="screen-armed" class="screen pulse-bg text-white flex justify-center items-center select-none touch-none">
+    <!-- SCREEN 4: Running (armed) -->
+    <div id="screen-running" class="screen run-glow text-white flex justify-center items-center select-none touch-none">
         <div class="text-center px-4">
-            <div class="text-7xl mb-6">💣</div>
-            <h1 class="text-5xl font-black tracking-tighter mb-4">ΟΠΛΙΣΜΕΝΟ</h1>
-            <p class="text-2xl font-bold opacity-90 uppercase tracking-widest">ΜΗΝ ΑΚΟΥΜΠΑΣ</p>
+            <div class="text-6xl mb-4">🤫</div>
+            <h1 class="text-3xl font-black tracking-tight mb-6 text-red-300">HANDS OFF</h1>
+            <div id="run-timer" class="text-7xl font-black tabular-nums tracking-tight">--:--</div>
+            <p id="run-label" class="mt-2 text-sm font-bold uppercase tracking-widest text-slate-400">remaining</p>
+            <p id="run-alive" class="mt-10 text-lg font-bold text-slate-300"></p>
         </div>
     </div>
 
-    <!-- ΟΘΟΝΗ 5: Αποτέλεσμα -->
-    <div id="screen-result" class="screen items-center justify-center p-6 bg-slate-900 transition-colors duration-500">
+    <!-- SCREEN 5: Out (spectating) -->
+    <div id="screen-out" class="screen items-center justify-center p-6 bg-red-950">
         <div class="max-w-md w-full bg-slate-800 p-8 rounded-[2rem] shadow-2xl border border-slate-700 text-center relative overflow-hidden">
-            <!-- Διακόσμηση -->
-            <div id="result-deco" class="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-red-500 to-orange-500"></div>
-            
-            <div id="result-icon" class="text-7xl mb-6 mt-4">💥</div>
-            <h2 id="result-title" class="text-3xl font-black text-white mb-2 leading-tight">Κάποιος κουνήθηκε!</h2>
-            
-            <div class="bg-slate-900/50 rounded-2xl p-6 my-8 border border-slate-700/50 shadow-inner">
-                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Ο ΧΑΜΕΝΟΣ</p>
-                <p id="result-loser" class="text-4xl font-black text-red-400 mb-8 break-words">Όνομα</p>
-                
-                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Η ΑΠΟΣΤΟΛΗ ΤΟΥ/ΤΗΣ</p>
-                <p id="result-penalty" class="text-xl font-bold text-amber-400 leading-tight">Καμία</p>
+            <div class="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-red-600 to-orange-500"></div>
+            <div class="text-7xl mb-4 mt-4">😭</div>
+            <h2 class="text-3xl font-black text-white mb-1">YOU'RE OUT!</h2>
+            <p id="out-reason" class="text-slate-400 text-sm mb-6"></p>
+            <div class="bg-slate-900/50 rounded-2xl p-5 border border-slate-700/50 shadow-inner mb-6">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Your mission</p>
+                <p id="out-mission" class="text-xl font-bold text-amber-400 leading-tight">Drawing your mission…</p>
             </div>
-            
-            <button id="btn-play-again" class="w-full bg-indigo-500 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform text-lg hidden">
-                Παίξτε Ξανά
-            </button>
-            <p id="guest-result-text" class="text-center text-slate-400 font-medium hidden mt-4">
-                Αναμονή για νέο γύρο...
-            </p>
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Game still running</p>
+            <p id="out-timer" class="text-3xl font-black tabular-nums text-white">--:--</p>
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4 mb-1">Still in</p>
+            <p id="out-alive" class="text-base font-bold text-emerald-400"></p>
+        </div>
+    </div>
+
+    <!-- SCREEN 6: Result -->
+    <div id="screen-result" class="screen bg-slate-900">
+        <div class="max-w-md w-full mx-auto h-full overflow-y-auto p-5 pb-10">
+            <div class="bg-slate-800 p-6 rounded-[2rem] shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+                <div id="result-deco" class="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+                <div id="result-icon" class="text-7xl mb-3 mt-4">🏆</div>
+                <h2 id="result-title" class="text-3xl font-black text-white mb-1">You won!</h2>
+                <p id="result-sub" class="text-slate-400 text-sm mb-6"></p>
+                <ul id="result-list" class="space-y-2 text-left mb-6"></ul>
+                <button id="btn-play-again" class="w-full bg-indigo-500 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform text-lg hidden">Play again</button>
+                <p id="guest-result-text" class="text-center text-slate-400 font-medium hidden">Waiting for the host to start a new round…</p>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- Ρυθμίσεις & Δεδομένα ---
-        const ROOM_PREFIX = 'dont-touch-room-';
-        const PENALTIES = [
-            "Κερνάς τους επόμενους καφέδες της παρέας!",
-            "Παραγγέλνεις και πληρώνεις τις επόμενες πίτσες/σουβλάκια!",
-            "Αναλαμβάνεις το πλύσιμο των πιάτων (ή το μάζεμα του τραπεζιού)!",
-            "Πέτα τα σκουπίδια και συγύρισε το σαλόνι!",
-            "Κάνε το αγαπημένο σου χορευτικό για 1 λεπτό!",
-            "Τραγούδα το ρεφρέν από ένα γνωστό τραγούδι με κλειστή μύτη!",
-            "Μίλα με αστεία ξενική προφορά για τα επόμενα 5 λεπτά!",
-            "Βγάλε μια αστεία selfie με την παρέα και κάντη story!",
-            "Κάνε παντομίμα μια ταινία. Αν δεν τη βρούμε σε 1 λεπτό, κάνεις 10 καθίσματα!",
-            "Φέρε σε όλους από ένα ποτήρι νερό, σαν σερβιτόρος!"
+        // ================= Config & data =================
+        const ROOM_PREFIX = 'dont-touch-me-';
+        const MAX_PLAYERS = 12;
+        const COUNTDOWN_SECONDS = 10;
+        const CALIBRATION_MS = 800;
+        const HEARTBEAT_MS = 2000;
+        const HEARTBEAT_TIMEOUT_MS = 9000;
+        const HOST_TIMEOUT_MS = 12000;
+
+        const DEFAULT_MISSIONS = [
+            "Buy the next round of coffees for the group!",
+            "Order and pay for the next pizzas or snacks!",
+            "Do the dishes (or clear the table)!",
+            "Take out the trash and tidy up the living room!",
+            "Do your favorite dance for 1 minute!",
+            "Sing the chorus of a famous song while holding your nose!",
+            "Talk in a funny foreign accent for the next 5 minutes!",
+            "Take a funny group selfie and post it as a story!",
+            "Act out a movie. If nobody guesses it in 1 minute, do 10 squats!",
+            "Bring everyone a glass of water, like a waiter!",
+            "Give a 30-second serious speech about why pineapple belongs on pizza!",
+            "Let the group pick your next profile picture!"
         ];
 
-        // --- Κατάσταση Εφαρμογής (State) ---
-        let peer = null;
-        let isHost = false;
-        let myName = "";
-        let roomPin = "";
-        let isArmed = false;
-        let hasLostThisRound = false;
+        const DURATIONS = [
+            { v: '60',      label: '1 min (test)' },
+            { v: '900',     label: '15 min' },
+            { v: '1200',    label: '20 min' },
+            { v: '1800',    label: '30 min' },
+            { v: '2700',    label: '45 min' },
+            { v: '3600',    label: '1 hour' },
+            { v: 'mystery', label: '🎲 Mystery' }
+        ];
 
-        // Για τον Host
-        let guestConnections = []; 
-        let players = []; // { id, name }
+        const SENS_LEVELS = [
+            { v: 'low',  label: 'Low',    angle: 15, accel: 4 },
+            { v: 'med',  label: 'Medium', angle: 8,  accel: 2.5 },
+            { v: 'high', label: 'High',   angle: 4,  accel: 1.5 }
+        ];
 
-        // Για τον Guest
-        let hostConnection = null;
+        const REASON_TEXT = {
+            touch: 'touched the screen',
+            move:  'picked up or moved the phone',
+            left:  'left the game screen',
+            lost:  'lost connection'
+        };
 
-        // --- Βοηθητικές Συναρτήσεις ---
-        function showScreen(screenId) {
+        // ================= State =================
+        let peer = null, isHost = false, myName = '', myId = '', roomPin = '';
+        let phase = 'setup'; // setup | lobby | countdown | running | out | result
+        let players = [];    // host: {id,name,sensors,missions,lastSeen,gone}  guest: {id,name,sensors,mc}
+        let settings = { duration: '1800', sens: 'med', defaults: true };
+        let myMissions = [];
+        let hostConn = null, guestConns = [];
+        let game = null;     // host only
+        let tickTimer = null, countdownTimer = null, guestWatch = null, lastTickAt = 0;
+        let forceStart = false;
+
+        // Detection
+        let sensorsOk = false;
+        let isArmed = false, lostLocal = false;
+        let calibrating = false, baselineSamples = [], baseline = null, grav = null;
+        let curCfg = SENS_LEVELS[1];
+        let overCount = 0;
+        let wakeLock = null;
+
+        // ================= Helpers =================
+        const $ = (id) => document.getElementById(id);
+        function mk(tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text !== undefined) e.textContent = text;
+            return e;
+        }
+        function showScreen(id) {
             document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
+            $(id).classList.add('active');
         }
-
-        function generatePIN() {
-            return Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit PIN
+        function generatePIN() { return Math.floor(1000 + Math.random() * 9000).toString(); }
+        function shuffle(a) {
+            a = a.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
         }
+        function fmt(s) {
+            s = Math.max(0, Math.round(s));
+            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+            return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0');
+        }
+        function cleanName(n) { return String(n || '').trim().slice(0, 15) || 'Player'; }
+        function uniqueName(name) {
+            let n = name, i = 2;
+            while (players.some(p => p.name.toLowerCase() === n.toLowerCase())) n = name.slice(0, 12) + ' ' + i++;
+            return n;
+        }
+        function cleanMissions(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(m => String(m || '').trim().slice(0, 80)).filter(Boolean).slice(0, 2);
+        }
+        function getCfg(v) { return SENS_LEVELS.find(s => s.v === v) || SENS_LEVELS[1]; }
 
-        // --- Προσαρμοσμένο Alert ---
-        window.showAlert = function(msg) {
-            document.getElementById('alert-message').innerText = msg;
-            const modal = document.getElementById('alert-modal');
-            modal.classList.remove('hidden');
+        // Alert modal
+        let alertCb = null;
+        window.showAlert = function (msg, cb) {
+            alertCb = cb || null;
+            $('alert-message').textContent = msg;
+            $('alert-modal').classList.remove('hidden');
             setTimeout(() => {
-                document.getElementById('alert-box').classList.remove('scale-95');
-                document.getElementById('alert-box').classList.add('scale-100');
+                $('alert-box').classList.remove('scale-95');
+                $('alert-box').classList.add('scale-100');
             }, 10);
-        }
-
-        window.closeAlert = function() {
-            document.getElementById('alert-box').classList.remove('scale-100');
-            document.getElementById('alert-box').classList.add('scale-95');
+        };
+        window.closeAlert = function () {
+            $('alert-box').classList.remove('scale-100');
+            $('alert-box').classList.add('scale-95');
             setTimeout(() => {
-                document.getElementById('alert-modal').classList.add('hidden');
-            }, 300);
+                $('alert-modal').classList.add('hidden');
+                if (alertCb) { const c = alertCb; alertCb = null; c(); }
+            }, 250);
+        };
+
+        function toast(text) {
+            const t = mk('div', 'bg-slate-800/95 border border-slate-600 text-white rounded-2xl px-4 py-3 text-sm font-semibold shadow-xl text-center', text);
+            $('toasts').appendChild(t);
+            setTimeout(() => t.remove(), 7000);
         }
 
-        // --- 1. Αρχικοποίηση Host ---
-        document.getElementById('btn-create-room').addEventListener('click', () => {
-            const nameInput = document.getElementById('input-name').value.trim();
-            if (!nameInput) return showAlert("Παρακαλώ βάλε το όνομά σου!");
+        // Wake lock keeps the screen on so the P2P link stays alive
+        async function acquireWake() {
+            try {
+                if ('wakeLock' in navigator && !wakeLock) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                }
+            } catch (e) { /* not supported or denied */ }
+        }
+        function releaseWake() {
+            try { if (wakeLock) wakeLock.release(); } catch (e) {}
+            wakeLock = null;
+        }
 
-            myName = nameInput;
-            isHost = true;
+        // ================= Networking =================
+        function sendToHost(msg) { if (hostConn && hostConn.open) hostConn.send(msg); }
+        function broadcast(msg) { guestConns.forEach(c => { if (c.open) c.send(msg); }); }
+        function publicPlayers() {
+            return players.map(p => ({ id: p.id, name: p.name, sensors: !!p.sensors, mc: p.missions.length }));
+        }
+        function broadcastPlayers() { broadcast({ type: 'PLAYERS', players: publicPlayers() }); }
+
+        // ---- Create room (host) ----
+        function createRoom(attempt) {
             roomPin = generatePIN();
-            const peerId = ROOM_PREFIX + roomPin;
+            const btn = $('btn-create-room');
+            peer = new Peer(ROOM_PREFIX + roomPin);
 
-            const btn = document.getElementById('btn-create-room');
-            btn.innerText = "Δημιουργία...";
-            btn.disabled = true;
-
-            // Δημιουργία Peer με συγκεκριμένο ID
-            peer = new Peer(peerId);
-
-            peer.on('open', (id) => {
-                // Προσθήκη του εαυτού μας στη λίστα
-                players = [{ id: 'host', name: myName }];
-                updateLobbyUI();
-                setupHostUI();
-                showScreen('screen-lobby');
+            peer.on('open', () => {
+                myId = 'host';
+                players = [{ id: 'host', name: myName, sensors: sensorsOk, missions: myMissions.slice(), lastSeen: Date.now() }];
+                enterLobby();
             });
-
             peer.on('connection', (conn) => {
-                // Όταν συνδέεται ένας Guest
-                guestConnections.push(conn);
-
-                conn.on('data', (data) => {
-                    if (data.type === 'JOIN') {
-                        players.push({ id: conn.peer, name: data.name });
-                        broadcastPlayers();
-                        updateLobbyUI();
-                    }
-                    if (data.type === 'LOST') {
-                        handleSomeoneLost(data.name);
-                    }
-                });
-
-                conn.on('close', () => {
-                    players = players.filter(p => p.id !== conn.peer);
-                    guestConnections = guestConnections.filter(c => c.peer !== conn.peer);
-                    broadcastPlayers();
-                    updateLobbyUI();
-                });
+                conn.on('data', (d) => onGuestMessage(conn, d));
+                conn.on('close', () => onGuestGone(conn));
+                conn.on('error', () => onGuestGone(conn));
             });
-
+            peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
             peer.on('error', (err) => {
+                if (err.type === 'unavailable-id' && attempt < 5 && phase === 'setup') {
+                    try { peer.destroy(); } catch (e) {}
+                    return createRoom(attempt + 1);
+                }
                 console.error(err);
-                btn.innerText = "Δημιουργία Δωματίου";
-                btn.disabled = false;
-                if(err.type === 'unavailable-id') {
-                    showAlert("Αυτό το PIN χρησιμοποιείται. Ξαναπροσπάθησε.");
-                } else {
-                    showAlert("Σφάλμα σύνδεσης. Ελέγξτε το ίντερνετ.");
+                if (phase === 'setup') {
+                    btn.textContent = 'Create Room';
+                    btn.disabled = false;
+                    showAlert('Connection error. Check your internet and try again.');
                 }
             });
-        });
+        }
 
-        // --- 2. Αρχικοποίηση Guest ---
-        document.getElementById('btn-join-room').addEventListener('click', () => {
-            const nameInput = document.getElementById('input-name').value.trim();
-            roomPin = document.getElementById('input-pin').value.trim().toUpperCase();
+        function onGuestMessage(conn, d) {
+            if (!d || typeof d !== 'object') return;
 
-            if (!nameInput) return showAlert("Παρακαλώ βάλε το όνομά σου!");
-            if (!roomPin || roomPin.length !== 4) return showAlert("Βάλε ένα έγκυρο 4-ψήφιο PIN!");
+            if (d.type === 'JOIN') {
+                if (phase !== 'lobby') {
+                    conn.send({ type: 'REJECT', reason: 'A game is already in progress.' });
+                    setTimeout(() => conn.close(), 500);
+                    return;
+                }
+                if (players.length >= MAX_PLAYERS) {
+                    conn.send({ type: 'REJECT', reason: 'This room is full.' });
+                    setTimeout(() => conn.close(), 500);
+                    return;
+                }
+                if (players.some(p => p.id === conn.peer)) return;
+                guestConns.push(conn);
+                const name = uniqueName(cleanName(d.name));
+                players.push({ id: conn.peer, name, sensors: false, missions: [], lastSeen: Date.now() });
+                conn.send({ type: 'WELCOME', id: conn.peer, name, settings });
+                broadcastPlayers();
+                renderLobby();
+                return;
+            }
 
-            myName = nameInput;
-            isHost = false;
+            const p = players.find(x => x.id === conn.peer);
+            if (!p) return;
+            p.lastSeen = Date.now();
 
-            const btn = document.getElementById('btn-join-room');
-            btn.innerText = "...";
-            btn.disabled = true;
+            if (d.type === 'HB') {
+                if (p.sensors !== !!d.sensors) {
+                    p.sensors = !!d.sensors;
+                    if (phase === 'lobby') { broadcastPlayers(); renderLobby(); }
+                }
+            } else if (d.type === 'MISSIONS') {
+                p.missions = cleanMissions(d.missions);
+                if (phase === 'lobby') { broadcastPlayers(); renderLobby(); }
+            } else if (d.type === 'LOST') {
+                eliminate(p.id, REASON_TEXT[d.reason] ? d.reason : 'move');
+            }
+        }
 
-            // Δημιουργία τυχαίου Peer
+        function onGuestGone(conn) {
+            guestConns = guestConns.filter(c => c !== conn);
+            const p = players.find(x => x.id === conn.peer);
+            if (!p) return;
+            if (game && !game.ended && game.startedAt) {
+                p.gone = true;
+                eliminate(p.id, 'lost');
+            } else {
+                players = players.filter(x => x.id !== conn.peer);
+                if (phase === 'lobby') { broadcastPlayers(); renderLobby(); }
+            }
+        }
+
+        // ---- Join room (guest) ----
+        function joinRoom() {
+            const btn = $('btn-join-room');
+            const fail = (msg) => {
+                btn.textContent = 'Join';
+                btn.disabled = false;
+                showAlert(msg);
+            };
+            let joined = false;
             peer = new Peer();
 
-            peer.on('open', (id) => {
-                const hostId = ROOM_PREFIX + roomPin;
-                hostConnection = peer.connect(hostId);
-
-                hostConnection.on('open', () => {
-                    // Στέλνουμε το όνομά μας
-                    hostConnection.send({ type: 'JOIN', name: myName });
-                    setupGuestUI();
-                    showScreen('screen-lobby');
-                });
-
-                hostConnection.on('data', (data) => {
-                    if (data.type === 'PLAYERS') {
-                        players = data.players;
-                        updateLobbyUI();
-                    }
-                    if (data.type === 'STATE') {
-                        handleStateChange(data.state, data.payload);
-                    }
-                });
-
-                hostConnection.on('close', () => {
-                    showAlert("Ο Host αποσυνδέθηκε. Επιστροφή στην αρχική.");
-                    setTimeout(() => location.reload(), 2000);
-                });
+            peer.on('open', () => {
+                myId = peer.id;
+                hostConn = peer.connect(ROOM_PREFIX + roomPin, { reliable: true });
+                hostConn.on('open', () => { hostConn.send({ type: 'JOIN', name: myName }); });
+                hostConn.on('data', (d) => { if (d && d.type === 'WELCOME') joined = true; onHostMessage(d); });
+                hostConn.on('close', hostGone);
+                hostConn.on('error', hostGone);
+                setTimeout(() => { if (!joined && phase === 'setup') fail('Could not reach the room. Check the PIN and try again.'); }, 12000);
             });
-
             peer.on('error', (err) => {
                 console.error(err);
-                btn.innerText = "Είσοδος";
-                btn.disabled = false;
-                showAlert("Δεν βρέθηκε δωμάτιο με αυτό το PIN.");
-            });
-        });
-
-        // --- Λειτουργίες Host (Broadcasting) ---
-        function broadcastPlayers() {
-            if (!isHost) return;
-            guestConnections.forEach(conn => {
-                conn.send({ type: 'PLAYERS', players: players });
+                if (phase === 'setup') fail('Room not found. Check the PIN.');
             });
         }
 
-        function broadcastState(stateStr, payload = null) {
-            if (!isHost) return;
-            guestConnections.forEach(conn => {
-                conn.send({ type: 'STATE', state: stateStr, payload: payload });
-            });
-            // Ο Host εφαρμόζει την αλλαγή και στον εαυτό του
-            handleStateChange(stateStr, payload);
+        let hostGoneShown = false;
+        function hostGone() {
+            if (hostGoneShown || phase === 'setup') return;
+            hostGoneShown = true;
+            showAlert('The host disconnected. Going back to the start.', () => location.reload());
         }
 
-        // --- Διαχείριση Καταστάσεων (State Handler) ---
-        function handleStateChange(newState, payload) {
-            isArmed = false; // Προεπιλογή: ασφαλές
-
-            if (newState === 'countdown') {
-                startCountdownPhase();
-            } 
-            else if (newState === 'armed') {
-                armDevice();
-            } 
-            else if (newState === 'result') {
-                showResultPhase(payload.loser, payload.penalty);
-            }
-            else if (newState === 'lobby') {
-                resetToLobby();
+        function onHostMessage(m) {
+            if (!m || typeof m !== 'object') return;
+            switch (m.type) {
+                case 'WELCOME':
+                    myId = m.id;
+                    myName = m.name;
+                    settings = m.settings;
+                    enterLobby();
+                    break;
+                case 'REJECT':
+                    showAlert(m.reason || 'Could not join.', () => location.reload());
+                    break;
+                case 'PLAYERS':
+                    players = m.players;
+                    if (phase === 'lobby') renderLobby();
+                    break;
+                case 'SETTINGS':
+                    settings = m.settings;
+                    renderSettings();
+                    break;
+                case 'STATE':  handleState(m.state, m); break;
+                case 'TICK':   onTick(m); break;
+                case 'ELIM':   onElim(m); break;
+                case 'END':    onEnd(m); break;
+                case 'LOBBY':  toLobby(m.players); break;
             }
         }
 
-        // --- Ενημέρωση UI ---
-        function updateLobbyUI() {
-            document.getElementById('display-pin').innerText = roomPin;
-            document.getElementById('player-count').innerText = players.length;
-            
-            const list = document.getElementById('players-list');
+        // ================= Lobby UI =================
+        function enterLobby() {
+            phase = 'lobby';
+            try { localStorage.setItem('dtm-name', myName); } catch (e) {}
+            if (isHost) {
+                $('btn-start-game').classList.remove('hidden');
+                $('guest-waiting-text').classList.add('hidden');
+                $('btn-play-again').classList.remove('hidden');
+                $('guest-result-text').classList.add('hidden');
+            } else {
+                $('btn-start-game').classList.add('hidden');
+                $('guest-waiting-text').classList.remove('hidden');
+                $('btn-play-again').classList.add('hidden');
+                $('guest-result-text').classList.remove('hidden');
+            }
+            buildChips();
+            renderLobby();
+            renderSettings();
+            renderMyMissions();
+            showScreen('screen-lobby');
+            startHeartbeat();
+            acquireWake();
+        }
+
+        function renderLobby() {
+            $('display-pin').textContent = roomPin;
+            $('player-count').textContent = players.length;
+            const list = $('players-list');
             list.innerHTML = '';
-            
             players.forEach(p => {
-                const li = document.createElement('li');
-                li.className = 'flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-700/50';
-                
-                let badge = '';
-                if (p.id === 'host' || (isHost && p.name === myName)) badge = '<span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded">HOST</span>';
-                
-                li.innerHTML = `
-                    <span class="font-bold text-white text-lg">${p.name}</span>
-                    ${badge}
-                `;
+                const li = mk('li', 'flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-700/50');
+                const left = mk('div', 'flex items-center gap-2 min-w-0');
+                left.appendChild(mk('span', 'font-bold text-white text-base truncate', p.name));
+                if (p.id === 'host') left.appendChild(mk('span', 'text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded', 'HOST'));
+                if (p.id === myId) left.appendChild(mk('span', 'text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded', 'YOU'));
+                const mc = isHost ? (p.missions ? p.missions.length : 0) : (p.mc || 0);
+                const right = mk('div', 'flex items-center gap-2 text-sm flex-shrink-0');
+                if (mc) right.appendChild(mk('span', 'text-slate-400', '✍️ ' + mc));
+                right.appendChild(mk('span', '', p.sensors ? '📱✅' : '📱⚠️'));
+                li.appendChild(left);
+                li.appendChild(right);
                 list.appendChild(li);
             });
         }
 
-        function setupHostUI() {
-            document.getElementById('btn-start-game').classList.remove('hidden');
-            document.getElementById('guest-waiting-text').classList.add('hidden');
-            document.getElementById('btn-play-again').classList.remove('hidden');
-            document.getElementById('guest-result-text').classList.add('hidden');
+        function buildChips() {
+            const dw = $('opt-duration'), sw = $('opt-sens');
+            if (dw.children.length) return;
+            DURATIONS.forEach(d => {
+                const b = mk('button', 'chip', d.label);
+                b.dataset.v = d.v;
+                b.onclick = () => { if (!isHost) return; settings.duration = d.v; pushSettings(); };
+                dw.appendChild(b);
+            });
+            SENS_LEVELS.forEach(s => {
+                const b = mk('button', 'chip', s.label);
+                b.dataset.v = s.v;
+                b.onclick = () => { if (!isHost) return; settings.sens = s.v; pushSettings(); };
+                sw.appendChild(b);
+            });
+            $('opt-defaults').onchange = (e) => { if (!isHost) return; settings.defaults = e.target.checked; pushSettings(); };
         }
 
-        function setupGuestUI() {
-            document.getElementById('btn-start-game').classList.add('hidden');
-            document.getElementById('guest-waiting-text').classList.remove('hidden');
-            document.getElementById('btn-play-again').classList.add('hidden');
-            document.getElementById('guest-result-text').classList.remove('hidden');
+        function pushSettings() {
+            if (isHost) broadcast({ type: 'SETTINGS', settings });
+            renderSettings();
         }
 
-        // --- Ροή Παιχνιδιού ---
-        
-        // Host πατάει "Έναρξη"
-        document.getElementById('btn-start-game').addEventListener('click', () => {
-            if (players.length < 1) return showAlert("Χρειάζεται τουλάχιστον 1 παίκτης!"); // Επιτρέπει και σόλο για δοκιμή
-            broadcastState('countdown');
+        function renderSettings() {
+            [...$('opt-duration').children].forEach(b => b.classList.toggle('sel', b.dataset.v === settings.duration));
+            [...$('opt-sens').children].forEach(b => b.classList.toggle('sel', b.dataset.v === settings.sens));
+            $('opt-defaults').checked = !!settings.defaults;
+            $('opt-defaults').disabled = !isHost;
+            $('opt-duration').classList.toggle('locked', !isHost);
+            $('opt-sens').classList.toggle('locked', !isHost);
+            $('settings-note').textContent = isHost ? '' : '(set by host)';
+        }
+
+        // ---- My missions ----
+        function syncMissions() {
+            if (isHost) {
+                const me = players.find(p => p.id === 'host');
+                if (me) me.missions = myMissions.slice();
+                broadcastPlayers();
+                renderLobby();
+            } else {
+                sendToHost({ type: 'MISSIONS', missions: myMissions });
+            }
+        }
+        function renderMyMissions() {
+            const ul = $('my-missions');
+            ul.innerHTML = '';
+            myMissions.forEach((m, i) => {
+                const li = mk('li', 'flex items-center justify-between gap-2 bg-slate-900 p-3 rounded-xl border border-slate-700/50');
+                li.appendChild(mk('span', 'text-sm text-slate-200 break-words min-w-0', m));
+                const rm = mk('button', 'text-red-400 font-bold px-2', '✕');
+                rm.onclick = () => { myMissions.splice(i, 1); renderMyMissions(); syncMissions(); };
+                li.appendChild(rm);
+                ul.appendChild(li);
+            });
+        }
+        function addMission() {
+            const input = $('mission-input');
+            const text = input.value.trim().slice(0, 80);
+            if (!text) return;
+            if (myMissions.length >= 2) return showAlert('You can add up to 2 missions.');
+            myMissions.push(text);
+            input.value = '';
+            renderMyMissions();
+            syncMissions();
+        }
+
+        // ================= Sensors =================
+        const needsPermission = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+
+        function updateSensorStatus() {
+            const status = $('sensor-status'), btn = $('btn-request-sensors');
+            if (sensorsOk) {
+                status.textContent = '✅ Motion sensors ready';
+                btn.classList.add('hidden');
+            } else if (needsPermission) {
+                status.textContent = '⚠️ Motion sensors are off. Tap below to enable them.';
+                btn.classList.remove('hidden');
+            } else {
+                status.textContent = '⚠️ No motion sensors detected. Only touch and leaving the app will be caught.';
+                btn.classList.add('hidden');
+            }
+        }
+        setInterval(updateSensorStatus, 1000);
+
+        $('btn-request-sensors').addEventListener('click', async () => {
+            acquireWake();
+            if (needsPermission) {
+                try {
+                    const perm = await DeviceMotionEvent.requestPermission();
+                    if (perm !== 'granted') showAlert('Permission denied. Motion detection will not work on this phone.');
+                } catch (e) {
+                    console.error(e);
+                    showAlert('Could not request sensor permission.');
+                }
+            }
         });
 
-        function startCountdownPhase() {
-            showScreen('screen-countdown');
-            hasLostThisRound = false;
-            
-            let count = 5;
-            const countEl = document.getElementById('countdown-number');
-            countEl.innerText = count;
+        function angleBetween(a, b) {
+            const dot = a.x * b.x + a.y * b.y + a.z * b.z;
+            const m = Math.hypot(a.x, a.y, a.z) * Math.hypot(b.x, b.y, b.z);
+            if (!m) return 0;
+            return Math.acos(Math.max(-1, Math.min(1, dot / m))) * 180 / Math.PI;
+        }
 
-            const interval = setInterval(() => {
+        window.addEventListener('devicemotion', (e) => {
+            const g = e.accelerationIncludingGravity;
+            if (!g || g.x == null) return;
+            sensorsOk = true;
+            const v = { x: g.x || 0, y: g.y || 0, z: g.z || 0 };
+            grav = grav ? { x: grav.x * 0.8 + v.x * 0.2, y: grav.y * 0.8 + v.y * 0.2, z: grav.z * 0.8 + v.z * 0.2 } : v;
+
+            if (calibrating) { baselineSamples.push({ x: grav.x, y: grav.y, z: grav.z }); return; }
+            if (!isArmed || !baseline) return;
+
+            // Tilt away from the starting orientation, or a sharp jolt
+            const angle = angleBetween(baseline, grav);
+            const jolt = Math.abs(Math.hypot(v.x, v.y, v.z) - 9.81);
+            if (angle > curCfg.angle || jolt > curCfg.accel) {
+                overCount++;
+                if (overCount >= 2) triggerLoss('move');
+            } else {
+                overCount = 0;
+            }
+        }, true);
+
+        document.addEventListener('touchstart', () => { if (isArmed) triggerLoss('touch'); }, { passive: true });
+        document.addEventListener('mousedown', () => { if (isArmed) triggerLoss('touch'); });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (isArmed) triggerLoss('left');
+            } else if (['countdown', 'running', 'out', 'lobby'].includes(phase)) {
+                acquireWake();
+            }
+        });
+
+        function beginCalibration() {
+            calibrating = true;
+            baselineSamples = [];
+            baseline = null;
+            overCount = 0;
+            isArmed = false;
+            setTimeout(() => {
+                calibrating = false;
+                if (baselineSamples.length >= 3) {
+                    const n = baselineSamples.length;
+                    baseline = {
+                        x: baselineSamples.reduce((s, a) => s + a.x, 0) / n,
+                        y: baselineSamples.reduce((s, a) => s + a.y, 0) / n,
+                        z: baselineSamples.reduce((s, a) => s + a.z, 0) / n
+                    };
+                }
+                isArmed = phase === 'running' && !lostLocal;
+            }, CALIBRATION_MS);
+        }
+
+        function triggerLoss(reason) {
+            if (!isArmed || lostLocal) return;
+            isArmed = false;
+            lostLocal = true;
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            showOut(reason, null);
+            if (isHost) eliminate('host', reason);
+            else sendToHost({ type: 'LOST', reason });
+        }
+
+        // ================= Heartbeat =================
+        let hbTimer = null;
+        function startHeartbeat() {
+            if (hbTimer) return;
+            hbTimer = setInterval(() => {
+                if (isHost) {
+                    const me = players.find(p => p.id === 'host');
+                    if (me) {
+                        me.lastSeen = Date.now();
+                        if (me.sensors !== sensorsOk) {
+                            me.sensors = sensorsOk;
+                            if (phase === 'lobby') { broadcastPlayers(); renderLobby(); }
+                        }
+                    }
+                    if (game && !game.ended && game.startedAt) {
+                        players.forEach(p => {
+                            if (p.id !== 'host' && game.alive.has(p.id) && Date.now() - p.lastSeen > HEARTBEAT_TIMEOUT_MS) {
+                                eliminate(p.id, 'lost');
+                            }
+                        });
+                    }
+                } else {
+                    sendToHost({ type: 'HB', sensors: sensorsOk });
+                }
+            }, HEARTBEAT_MS);
+        }
+
+        // ================= Game flow =================
+        function handleState(state, m) {
+            if (state === 'countdown') startCountdown(m);
+            else if (state === 'running') startRunning(m);
+        }
+
+        // Host presses Start
+        $('btn-start-game').addEventListener('click', () => {
+            if (!isHost || phase !== 'lobby') return;
+            const notReady = players.filter(p => !p.sensors).map(p => p.name);
+            if (notReady.length && !forceStart) {
+                forceStart = true;
+                return showAlert('Motion sensors are not active for: ' + notReady.join(', ') + '. Those players will only be caught by touch or leaving the app. Press Start again to begin anyway.');
+            }
+            forceStart = false;
+
+            const mystery = settings.duration === 'mystery';
+            const durationSec = mystery ? 600 + Math.floor(Math.random() * 3001) : parseInt(settings.duration, 10);
+            game = {
+                durationSec, mystery,
+                alive: new Set(players.map(p => p.id)),
+                total: players.length,
+                eliminated: [],
+                pool: [],
+                startedAt: 0,
+                ended: false
+            };
+            game.pool = buildPool();
+
+            const payload = {
+                type: 'STATE', state: 'countdown',
+                sens: settings.sens,
+                info: mystery ? 'Mystery round 🎲' : 'Round length: ' + fmt(durationSec)
+            };
+            broadcast(payload);
+            handleState('countdown', payload);
+        });
+
+        function startCountdown(m) {
+            phase = 'countdown';
+            lostLocal = false;
+            isArmed = false;
+            curCfg = getCfg(m.sens);
+            $('countdown-info').textContent = m.info || '';
+            showScreen('screen-countdown');
+            acquireWake();
+            clearInterval(countdownTimer);
+            let count = COUNTDOWN_SECONDS;
+            $('countdown-number').textContent = count;
+            countdownTimer = setInterval(() => {
                 count--;
                 if (count > 0) {
-                    countEl.innerText = count;
+                    $('countdown-number').textContent = count;
                 } else {
-                    clearInterval(interval);
-                    if (isHost) {
-                        // Μόνο ο Host αποφασίζει πότε τελειώνει η αντίστροφη μέτρηση
-                        broadcastState('armed');
-                    }
+                    clearInterval(countdownTimer);
+                    $('countdown-number').textContent = '0';
+                    if (isHost) armGame();
                 }
             }, 1000);
         }
 
-        function armDevice() {
-            showScreen('screen-armed');
-            // Δίνουμε 500ms χάρη για να αφήσουν το κινητό ήρεμα αφού μηδενίσει
-            setTimeout(() => {
-                isArmed = true;
-            }, 500);
+        function armGame() {
+            game.startedAt = Date.now();
+            const payload = { type: 'STATE', state: 'running', sens: settings.sens, mystery: game.mystery };
+            broadcast(payload);
+            handleState('running', payload);
+            clearInterval(tickTimer);
+            tickTimer = setInterval(hostTick, 1000);
         }
 
-        function triggerLoss() {
-            if (!isArmed || hasLostThisRound) return;
-            hasLostThisRound = true;
-            isArmed = false;
-
-            // Ανάδραση δόνησης (όπου υποστηρίζεται)
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate([200, 100, 200]);
-            }
-
-            if (isHost) {
-                handleSomeoneLost(myName);
-            } else {
-                if(hostConnection) hostConnection.send({ type: 'LOST', name: myName });
-            }
-        }
-
-        // Εκτελείται ΜΟΝΟ στον Host όταν κάποιος χάσει
-        let roundOver = false;
-        function handleSomeoneLost(loserName) {
-            if (!isHost || roundOver) return; // Ο πρώτος που στέλνει χάνει
-            roundOver = true;
-            
-            const randomPenalty = PENALTIES[Math.floor(Math.random() * PENALTIES.length)];
-            
-            broadcastState('result', {
-                loser: loserName,
-                penalty: randomPenalty
-            });
-        }
-
-        function showResultPhase(loserName, penalty) {
-            showScreen('screen-result');
-            isArmed = false; // Ασφάλεια
-            
-            const screen = document.getElementById('screen-result');
-            const deco = document.getElementById('result-deco');
-            const title = document.getElementById('result-title');
-            const icon = document.getElementById('result-icon');
-            const loserText = document.getElementById('result-loser');
-            
-            loserText.innerText = loserName;
-            document.getElementById('result-penalty').innerText = penalty;
-            
-            // Καθαρισμός προηγούμενων χρωμάτων (ώστε να επαναφέρεται σωστά σε νέο γύρο)
-            screen.classList.remove('bg-slate-900', 'bg-red-900', 'bg-emerald-900');
-            title.classList.remove('text-white', 'text-red-400', 'text-emerald-400');
-            loserText.classList.remove('text-red-400', 'text-emerald-400');
-            
-            if (loserName === myName) {
-                // ΕΓΩ ΕΧΑΣΑ (Κόκκινο θέμα)
-                screen.classList.add('bg-red-900');
-                deco.className = 'absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-red-600 to-orange-500';
-                title.innerText = 'ΕΧΑΣΕΣ!';
-                title.classList.add('text-white');
-                icon.innerText = '😭';
-                loserText.classList.add('text-red-400');
-            } else {
-                // ΚΕΡΔΙΣΑ (Πράσινο θέμα)
-                screen.classList.add('bg-emerald-900');
-                deco.className = 'absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-emerald-500 to-teal-400';
-                title.innerText = 'ΚΕΡΔΙΣΕΣ!';
-                title.classList.add('text-emerald-400');
-                icon.innerText = '🎉';
-                loserText.classList.add('text-emerald-400');
-            }
-        }
-
-        // Host πατάει "Παίξτε ξανά"
-        document.getElementById('btn-play-again').addEventListener('click', () => {
-            roundOver = false;
-            broadcastState('lobby');
-        });
-
-        function resetToLobby() {
-            hasLostThisRound = false;
-            isArmed = false;
-            showScreen('screen-lobby');
-        }
-
-        // --- Αισθητήρες (Sensors & Touch) ---
-        
-        // Ζήτηση άδειας για iOS 13+
-        document.getElementById('btn-request-sensors').addEventListener('click', async () => {
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceMotionEvent.requestPermission();
-                    if (permission === 'granted') {
-                        document.getElementById('btn-request-sensors').classList.add('hidden');
-                    } else {
-                        showAlert("Η άδεια απορρίφθηκε. Το παιχνίδι δεν θα λειτουργεί σωστά.");
+        function startRunning(m) {
+            phase = 'running';
+            lostLocal = false;
+            curCfg = getCfg(m.sens);
+            lastTickAt = Date.now();
+            $('run-timer').textContent = '--:--';
+            $('run-label').textContent = m.mystery ? 'mystery round · elapsed' : 'remaining';
+            $('run-alive').textContent = '';
+            showScreen('screen-running');
+            acquireWake();
+            beginCalibration();
+            if (!isHost) {
+                clearInterval(guestWatch);
+                guestWatch = setInterval(() => {
+                    if (phase !== 'result' && Date.now() - lastTickAt > HOST_TIMEOUT_MS) {
+                        clearInterval(guestWatch);
+                        hostGone();
                     }
-                } catch (e) {
-                    console.error(e);
-                    showAlert("Σφάλμα κατά τη ζήτηση άδειας.");
+                }, 3000);
+            }
+        }
+
+        // ---- Host tick ----
+        function hostTick() {
+            if (!game || game.ended) return;
+            const elapsed = Math.floor((Date.now() - game.startedAt) / 1000);
+            const rem = game.durationSec - elapsed;
+            if (rem <= 0) return endGame(true);
+            const alive = players.filter(p => game.alive.has(p.id)).map(p => p.name);
+            const msg = { type: 'TICK', rem: game.mystery ? null : rem, el: elapsed, mystery: game.mystery, alive };
+            broadcast(msg);
+            onTick(msg);
+        }
+
+        function onTick(m) {
+            lastTickAt = Date.now();
+            const main = m.mystery ? fmt(m.el) : fmt(m.rem);
+            $('run-timer').textContent = main;
+            $('out-timer').textContent = main + (m.mystery ? ' elapsed' : '');
+            $('run-alive').textContent = m.alive.length + (m.alive.length === 1 ? ' player' : ' players') + ' still in';
+            $('out-alive').textContent = m.alive.length ? m.alive.join(', ') : '-';
+        }
+
+        // ---- Missions pool ----
+        function buildPool() {
+            const customs = [];
+            players.forEach(p => p.missions.forEach(m => customs.push(m)));
+            let list = shuffle(customs);
+            if (settings.defaults || !list.length) list = list.concat(shuffle(DEFAULT_MISSIONS));
+            return list;
+        }
+        function drawMission() {
+            if (!game.pool.length) game.pool = buildPool();
+            return game.pool.shift();
+        }
+
+        // ---- Elimination ----
+        function eliminate(id, reason) {
+            if (!game || game.ended || !game.startedAt || !game.alive.has(id)) return;
+            const p = players.find(x => x.id === id);
+            if (!p) return;
+            game.alive.delete(id);
+            const atSec = Math.floor((Date.now() - game.startedAt) / 1000);
+            const mission = drawMission();
+            game.eliminated.push({ id, name: p.name, atSec, reason, mission });
+            const msg = { type: 'ELIM', id, name: p.name, reason, mission, atSec };
+            broadcast(msg);
+            onElim(msg);
+            if (game.alive.size === 0 || (game.total > 1 && game.alive.size <= 1)) endGame(false);
+        }
+
+        function onElim(m) {
+            if (m.id === myId) {
+                lostLocal = true;
+                isArmed = false;
+                showOut(m.reason, m.mission);
+            } else if (phase === 'running' || phase === 'out') {
+                toast('💥 ' + m.name + ' is out! Mission: ' + m.mission);
+            }
+        }
+
+        function showOut(reason, mission) {
+            phase = 'out';
+            $('out-reason').textContent = 'You ' + (REASON_TEXT[reason] || 'moved the phone') + '.';
+            if (mission) $('out-mission').textContent = mission;
+            showScreen('screen-out');
+        }
+
+        // ---- End of game ----
+        function endGame(timeUp) {
+            if (!game || game.ended) return;
+            game.ended = true;
+            clearInterval(tickTimer);
+            const elapsed = Math.floor((Date.now() - game.startedAt) / 1000);
+            const survivors = players.filter(p => game.alive.has(p.id))
+                .map(p => ({ id: p.id, name: p.name, sec: elapsed, survived: true }));
+            const out = game.eliminated.slice().sort((a, b) => b.atSec - a.atSec)
+                .map(e => ({ id: e.id, name: e.name, sec: e.atSec, survived: false, mission: e.mission, reason: e.reason }));
+            const msg = { type: 'END', ranking: survivors.concat(out), elapsed, mystery: game.mystery, timeUp: !!timeUp };
+            broadcast(msg);
+            onEnd(msg);
+        }
+
+        function onEnd(m) {
+            phase = 'result';
+            isArmed = false;
+            clearInterval(tickTimer);
+            clearInterval(guestWatch);
+            clearInterval(countdownTimer);
+            releaseWake();
+
+            const me = m.ranking.find(r => r.id === myId);
+            const won = me && me.survived;
+            $('result-icon').textContent = won ? '🏆' : '😭';
+            $('result-title').textContent = won ? 'YOU WON!' : "YOU'RE OUT!";
+            $('result-deco').className = 'absolute top-0 left-0 w-full h-3 bg-gradient-to-r ' +
+                (won ? 'from-emerald-500 to-teal-400' : 'from-red-600 to-orange-500');
+            const winners = m.ranking.filter(r => r.survived).map(r => r.name);
+            const winnerLine = winners.length ? (winners.length === 1 ? winners[0] + ' wins' : winners.join(', ') + ' win') : 'Nobody survived';
+            $('result-sub').textContent = winnerLine + ' · ' + (m.timeUp ? "time's up" : 'last one standing') +
+                ' · ' + (m.mystery ? 'mystery round was ' : 'round: ') + fmt(m.elapsed);
+
+            const list = $('result-list');
+            list.innerHTML = '';
+            m.ranking.forEach((r, i) => {
+                const li = mk('li', 'rounded-xl p-3 border ' + (r.id === myId ? 'bg-indigo-500/10 border-indigo-400/50' : 'bg-slate-900 border-slate-700/50'));
+                const row = mk('div', 'flex items-center justify-between gap-2');
+                row.appendChild(mk('span', 'font-bold text-white truncate', (r.survived ? '🏆 ' : (i + 1) + '. ') + r.name));
+                row.appendChild(mk('span', 'font-mono text-sm ' + (r.survived ? 'text-emerald-400' : 'text-slate-400'), (r.survived ? 'survived ' : 'out at ') + fmt(r.sec)));
+                li.appendChild(row);
+                if (!r.survived) {
+                    li.appendChild(mk('p', 'text-xs text-slate-500 mt-1', r.name + ' ' + (REASON_TEXT[r.reason] || '') + '.'));
+                    li.appendChild(mk('p', 'text-sm font-semibold text-amber-400 mt-1', '🎯 ' + r.mission));
                 }
-            } else {
-                // Android & Παλαιότερα iOS δεν χρειάζονται ρητή άδεια με κουμπί
-                document.getElementById('btn-request-sensors').classList.add('hidden');
-            }
+                list.appendChild(li);
+            });
+            showScreen('screen-result');
+        }
+
+        // ---- Play again ----
+        $('btn-play-again').addEventListener('click', () => {
+            if (!isHost) return;
+            players = players.filter(p => !p.gone);
+            game = null;
+            const m = { type: 'LOBBY', players: publicPlayers() };
+            broadcast(m);
+            toLobby(m.players);
         });
 
-        // Ανίχνευση Κίνησης (Επιταχυνσιόμετρο)
-        window.addEventListener('devicemotion', (e) => {
-            if (!isArmed) return;
+        function toLobby(list) {
+            if (!isHost) players = list;
+            phase = 'lobby';
+            isArmed = false;
+            lostLocal = false;
+            forceStart = false;
+            clearInterval(tickTimer);
+            clearInterval(guestWatch);
+            clearInterval(countdownTimer);
+            $('out-mission').textContent = 'Drawing your mission…';
+            renderLobby();
+            renderSettings();
+            showScreen('screen-lobby');
+            acquireWake();
+        }
 
-            let ax = e.acceleration?.x || 0;
-            let ay = e.acceleration?.y || 0;
-            let az = e.acceleration?.z || 0;
-
-            // Fallback αν το acceleration είναι null (ορισμένες συσκευές δίνουν μόνο IncludingGravity)
-            if (e.acceleration === null && e.accelerationIncludingGravity) {
-                ax = e.accelerationIncludingGravity.x || 0;
-                ay = e.accelerationIncludingGravity.y || 0;
-                // Αφαιρούμε περίπου τη βαρύτητα. 
-                // Χρησιμοποιούμε τη συνολική διαφορά μεγέθους για ανίχνευση "κουνήματος"
-                az = (e.accelerationIncludingGravity.z || 0) - 9.81; 
-            }
-
-            // Υπολογισμός συνολικού μεγέθους επιτάχυνσης (Magnitude)
-            const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
-
-            // Κατώφλι (Threshold). 1.5 m/s^2 είναι αρκετά ευαίσθητο.
-            if (magnitude > 1.5) {
-                triggerLoss();
-            }
-        }, true);
-
-        // Ανίχνευση Αγγίγματος (Οθόνη)
-        document.addEventListener('touchstart', (e) => {
-            if (!isArmed) return;
-            triggerLoss();
-        }, { passive: false });
-        
-        // Για δοκιμή σε υπολογιστή
-        document.addEventListener('mousedown', (e) => {
-            if (!isArmed) return;
-            triggerLoss();
+        // ================= Setup screen wiring =================
+        $('btn-create-room').addEventListener('click', () => {
+            const name = $('input-name').value.trim();
+            if (!name) return showAlert('Please enter your name!');
+            myName = cleanName(name);
+            isHost = true;
+            const btn = $('btn-create-room');
+            btn.textContent = 'Creating...';
+            btn.disabled = true;
+            createRoom(0);
         });
 
-        // --- ΝΕΟ: Αντιγραφή Link ---
-        document.getElementById('btn-copy-link').addEventListener('click', () => {
-            const baseUrl = window.location.href.split('?')[0];
-            const inviteUrl = `${baseUrl}?room=${roomPin}`;
-            
-            // Χρήση execCommand για μέγιστη συμβατότητα (και σε iFrames)
-            const tempInput = document.createElement("input");
-            tempInput.value = inviteUrl;
-            document.body.appendChild(tempInput);
-            tempInput.select();
+        $('btn-join-room').addEventListener('click', () => {
+            const name = $('input-name').value.trim();
+            roomPin = $('input-pin').value.trim();
+            if (!name) return showAlert('Please enter your name!');
+            if (!/^\d{4}$/.test(roomPin)) return showAlert('Enter a valid 4-digit PIN!');
+            myName = cleanName(name);
+            isHost = false;
+            const btn = $('btn-join-room');
+            btn.textContent = '...';
+            btn.disabled = true;
+            joinRoom();
+        });
+
+        $('btn-add-mission').addEventListener('click', addMission);
+        $('mission-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addMission(); });
+
+        // Invite link
+        $('btn-copy-link').addEventListener('click', async () => {
+            const url = window.location.href.split('?')[0].split('#')[0] + '?room=' + roomPin;
+            let ok = false;
             try {
-                document.execCommand("copy");
-                const btn = document.getElementById('btn-copy-link');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '✅ Αντιγράφηκε!';
-                setTimeout(() => { btn.innerHTML = originalText; }, 2000);
-            } catch (err) {
-                showAlert("Αποτυχία αντιγραφής του link.");
+                if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); ok = true; }
+            } catch (e) {}
+            if (!ok) {
+                const tmp = document.createElement('input');
+                tmp.value = url;
+                document.body.appendChild(tmp);
+                tmp.select();
+                try { ok = document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(tmp);
             }
-            document.body.removeChild(tempInput);
+            if (!ok) return showAlert('Could not copy the link. Share this PIN instead: ' + roomPin);
+            const btn = $('btn-copy-link');
+            const orig = btn.textContent;
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 2000);
         });
 
-        // --- ΝΕΟ: Έλεγχος URL για Πρόσκληση (Όταν φορτώνει η σελίδα) ---
         window.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const roomParam = urlParams.get('room');
-            
+            try {
+                const saved = localStorage.getItem('dtm-name');
+                if (saved) $('input-name').value = saved;
+            } catch (e) {}
+            const roomParam = new URLSearchParams(window.location.search).get('room');
             if (roomParam) {
-                // Συμπλήρωση του PIN αυτόματα
-                document.getElementById('input-pin').value = roomParam;
-                // Εστίαση στο πεδίο του ονόματος για ταχύτητα
-                document.getElementById('input-name').focus();
+                $('input-pin').value = roomParam.replace(/\D/g, '').slice(0, 4);
+                $('input-name').focus();
             }
         });
-
     </script>
 </body>
 </html>
