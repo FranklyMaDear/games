@@ -437,14 +437,24 @@ function checkWin(){
 }
 function useHint(){
  if(won)return;const i=paths.findIndex((_,k)=>!done(k));if(i<0)return;
- if(S.coins<100)return toast('You need 100 coins — watch an ad 🎬');
- S.coins-=100;save();coins();
- const sol=lv.sols[i];paths.forEach((p,j)=>{if(j!==i&&p.some(z=>sol.includes(z)))paths[j]=[]});
- paths[i]=sol.slice();draw();checkWin();
+ const apply=()=>{
+  const sol=lv.sols[i];paths.forEach((p,j)=>{if(j!==i&&p.some(z=>sol.includes(z)))paths[j]=[]});
+  paths[i]=sol.slice();draw();checkWin();
+ };
+ if(S.coins>=100){
+  S.coins-=100;save();coins();apply();
+ }else{
+  showAd(()=>{apply();toast('Hint unlocked 💡')});
+ }
 }
 function useSkip(){
- if(won)return;if(S.coins<200)return toast('You need 200 coins — watch an ad 🎬');
- S.coins-=200;save();coins();paths=lv.sols.map(s=>s.slice());draw();checkWin();
+ if(won)return;
+ const apply=()=>{paths=lv.sols.map(s=>s.slice());draw();checkWin();};
+ if(S.coins>=200){
+  S.coins-=200;save();coins();apply();
+ }else{
+  showAd(()=>{apply();toast('Level skipped ⏩')});
+ }
 }
 function pause(){paused=true;$('pause').classList.add('on')}
 function resume(){paused=false;$('pause').classList.remove('on')}
@@ -611,8 +621,8 @@ function checkF(){
 function failF(){F.cur=null;SFX.cut();useMv();toast('Lines can’t cross!');drawF();checkF()}
 let LIVES=5;
 function freeBtnUI(){const h=$('fhelp'),k=$('fskip');if(!F||!h)return;if(F.dead){h.textContent='🎬 Continue · +5';h.classList.add('gl');k.disabled=true}else{h.textContent='🎬 +5 attempts';h.classList.remove('gl');k.disabled=false}}
-function freeHelp(){if(!F)return;showAd(()=>{F.mv=F.dead?5:F.mv+5;LIVES=F.mv;if(F.dead){F.dead=false;F.over=false;F.cur=null}$('fmv').textContent=F.mv;freeBtnUI();drawF();toast('+5 attempts 🍭')})}
-function freeSkip(){if(!F||F.over)return;showAd(()=>{S.free=Math.max(S.free||0,F.L);save();startFree(F.L+1)})}
+function freeHelp(){if(!F)return;showAd(()=>{F.mv=F.dead?5:F.mv+5;LIVES=F.mv;if(F.dead){F.dead=false;F.over=false;F.cur=null}$('fmv').textContent=F.mv;freeBtnUI();drawF();show('free');toast('+5 attempts 🍭')})}
+function freeSkip(){if(!F||F.over)return;showAd(()=>{S.free=Math.max(S.free||0,F.L);save();startFree(F.L+1);show('free')})}
 fcv.addEventListener('pointerdown',e=>{if(!F||F.over)return;SFX.init();const p=fpos(e);fcv.setPointerCapture(e.pointerId);
  for(let i=0;i<F.dots.length;i++)for(let k=0;k<2;k++)if(dst(F.dots[i][k],p)<F.R*1.8){F.st[i]=null;F.done[i]=0;$('gi'+i).classList.remove('ok');F.cur={i,k,pts:[F.dots[i][k]]};SFX.pop();drawF();return}});
 fcv.addEventListener('pointermove',e=>{
