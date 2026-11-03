@@ -250,12 +250,11 @@
                 <ul id="players-list" class="space-y-2"></ul>
             </div>
 
-            <!-- Sensors & notifications (moved above settings) -->
+            <!-- Sensors (above settings) -->
             <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700 space-y-3">
                 <p id="sensor-status" class="text-sm font-semibold text-slate-300">Checking motion sensors…</p>
-                <p id="notif-status" class="text-xs text-slate-400"></p>
                 <p id="wake-status" class="text-xs text-slate-400"></p>
-                <button id="btn-request-sensors" class="w-full bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform text-lg border border-slate-600 hidden">📱 Enable motion sensors &amp; notifications</button>
+                <button id="btn-request-sensors" class="w-full bg-slate-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform text-lg border border-slate-600 hidden">📱 Enable motion sensors</button>
             </div>
 
             <!-- Settings -->
@@ -445,7 +444,6 @@
         let phase = 'intro'; // intro | setup | lobby | countdown | running | out | result
         let players = [];    // host: {id,name,sensors,missions,lastSeen,gone}  guest: {id,name,sensors,mc}
         let settings = { duration: '1800', sens: 'med', defaults: true, mystery: false };
-        let notifOk = false;
         let myMissions = [];
         let hostConn = null, guestConns = [];
         let game = null;     // host only
@@ -661,7 +659,6 @@
             flashScreen('red', 1);
             setTimeout(() => flashScreen('red', 0.9), 260);
             setTimeout(() => flashScreen('red', 0.8), 520);
-            notify("You're out!", 'Check the screen for your mission.');
         }
 
         // Alert modal
@@ -1018,56 +1015,21 @@
 
         function updateSensorStatus() {
             const status = $('sensor-status'), btn = $('btn-request-sensors');
-            const notifEl = $('notif-status');
             $('wake-status').textContent = wakeLock
                 ? '✅ Screen will stay on during the game'
                 : '⚠️ Screen may turn off. Tap anywhere once, or set Auto-Lock to "Never" in your phone settings.';
-            if (notifEl) {
-                if (!('Notification' in window)) {
-                    notifEl.textContent = '⚠️ Notifications not supported on this browser.';
-                } else if (Notification.permission === 'granted' || notifOk) {
-                    notifEl.textContent = '✅ Notifications enabled — you will be told if you win or lose.';
-                } else if (Notification.permission === 'denied') {
-                    notifEl.textContent = '⚠️ Notifications blocked. Enable them in browser settings to get win/lose alerts.';
-                } else {
-                    notifEl.textContent = '🔔 Tap below to also enable notifications for win / lose alerts.';
-                }
-            }
-            const needSensors = needsPermission && !sensorsOk;
-            const needNotif = ('Notification' in window) && Notification.permission === 'default';
-            if (sensorsOk && !needNotif) {
+            if (sensorsOk) {
                 status.textContent = '✅ Motion sensors ready';
                 btn.classList.add('hidden');
-            } else if (needSensors || needNotif) {
-                status.textContent = needSensors
-                    ? '⚠️ Motion sensors are off. Tap below to enable them (and notifications).'
-                    : '✅ Motion sensors ready — enable notifications for alerts.';
+            } else if (needsPermission) {
+                status.textContent = '⚠️ Motion sensors are off. Tap below to enable them.';
                 btn.classList.remove('hidden');
             } else {
                 status.textContent = '⚠️ No motion sensors detected. Only touch and leaving the app will be caught.';
-                if (!needNotif) btn.classList.add('hidden');
-                else btn.classList.remove('hidden');
+                btn.classList.add('hidden');
             }
         }
         setInterval(updateSensorStatus, 1000);
-
-        function requestNotifications() {
-            if (!('Notification' in window)) return Promise.resolve(false);
-            if (Notification.permission === 'granted') { notifOk = true; return Promise.resolve(true); }
-            if (Notification.permission === 'denied') return Promise.resolve(false);
-            return Notification.requestPermission().then(p => {
-                notifOk = p === 'granted';
-                return notifOk;
-            }).catch(() => false);
-        }
-
-        function notify(title, body) {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            try {
-                const n = new Notification(title, { body, icon: undefined, tag: 'dont-touch', requireInteraction: false });
-                setTimeout(() => { try { n.close(); } catch (e) {} }, 8000);
-            } catch (e) {}
-        }
 
         $('btn-request-sensors').addEventListener('click', async () => {
             acquireWake();
@@ -1080,8 +1042,6 @@
                     showAlert('Could not request sensor permission.');
                 }
             }
-            await requestNotifications();
-            updateSensorStatus();
         });
 
         function angleBetween(a, b) {
@@ -1300,17 +1260,19 @@
             $('run-alive').textContent = m.alive.length + (m.alive.length === 1 ? ' player' : ' players') + ' still in';
             $('out-alive').textContent = m.alive.length ? m.alive.join(', ') : '-';
 
-            // Last 5 seconds: intense red frame + tick-tock; last 3 also heartbeat
-            if ((phase === 'running' || phase === 'out') && !m.mystery && m.rem != null && m.rem >= 1 && m.rem <= 5) {
+            // Last 10 seconds: red frame blinks like a heartbeat; heartbeat sound from 10s
+            if ((phase === 'running' || phase === 'out') && !m.mystery && m.rem != null && m.rem >= 1 && m.rem <= 10) {
                 if (!dangerOn) setDanger(true);
                 if (lastDangerRem !== m.rem) {
                     lastDangerRem = m.rem;
-                    Sfx.tickTock(m.rem % 2 === 0);
-                    // Stronger flash + frame pulse as time runs out
-                    const peak = 0.55 + (5 - m.rem) * 0.12;
-                    flashScreen('red', peak);
+                    // Frame pulse every second (heartbeat visual)
                     retrigger($('frame-flash'), 'beat');
-                    if (m.rem <= 3) Sfx.heartbeat();
+                    // Stronger full-screen flash as time runs out
+                    const peak = 0.4 + (10 - m.rem) * 0.06;
+                    flashScreen('red', Math.min(1, peak));
+                    // Heartbeat sound from 10 seconds; tick-tock still on the last 5
+                    Sfx.heartbeat();
+                    if (m.rem <= 5) Sfx.tickTock(m.rem % 2 === 0);
                 }
             }
         }
@@ -1392,10 +1354,8 @@
                 Sfx.win();
                 flashScreen('gold', 1);
                 setTimeout(() => flashScreen('gold', 0.8), 380);
-                notify('You won! 🏆', 'Congratulations — last one standing.');
             } else {
                 Sfx.endChime();
-                if (me && !me.survived) notify("You're out!", 'The round is over. Check results.');
             }
             $('result-icon').textContent = won ? '🏆' : '😭';
             $('result-title').textContent = won ? 'YOU WON!' : "YOU'RE OUT!";
