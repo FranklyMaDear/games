@@ -39,7 +39,16 @@ h1,h2,h3{margin:0}
 .btn.d{background:var(--d);border-color:var(--d)}
 .btn.s{background:var(--s);border-color:var(--s)}
 .btn.g{background:#7c3aed;border-color:#7c3aed}
+.btn.big{height:64px;font-size:1.15rem;border-radius:16px}
 .ibtn{width:48px;height:48px;flex:none;padding:0;font-size:1.2rem}
+.loc-help{
+  background:#1e293b;border:1px solid #f59e0b;border-radius:var(--radius);
+  padding:14px;font-size:.85rem;line-height:1.45;display:none;margin-top:8px
+}
+.loc-help.on{display:block}
+.loc-help b{color:#fbbf24}
+.loc-help ol{margin:8px 0 0;padding-left:18px}
+.loc-help li{margin-bottom:6px}
 
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 input[type=text],input[type=tel],input[type=number],select{
@@ -167,8 +176,8 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <p class="mut">Οικογένεια · Φίλοι · Ασφάλεια</p>
   </div>
   <div id="home-rooms" style="display:flex;flex-direction:column;gap:10px"></div>
-  <button class="btn p" onclick="openForm('create')">Δημιούργησε δωμάτιο</button>
-  <button class="btn" onclick="openForm('join')">Μπες σε δωμάτιο</button>
+  <button class="btn p big" onclick="openForm('create')">➕ Δημιούργησε δωμάτιο</button>
+  <button class="btn big" onclick="openForm('join')">🔑 Μπες σε δωμάτιο</button>
 </div>
 
 <!-- FORM -->
@@ -202,6 +211,23 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   <div class="card" id="pc-loc">
     <div><b>📍 Τοποθεσία</b><div class="mut" id="ps-loc">Για κοινή θέση στον χάρτη</div></div>
     <button class="btn" style="width:auto;min-width:100px" onclick="askLoc()">Αποδοχή</button>
+  </div>
+  <div class="loc-help" id="loc-help">
+    <b>📍 Πώς ενεργοποιείς την τοποθεσία</b>
+    <p style="margin:6px 0 0"><b>iPhone / iOS (Safari):</b></p>
+    <ol>
+      <li>Άνοιξε την εφαρμογή <b>Ρυθμίσεις</b></li>
+      <li>Κάτω → <b>Safari</b> → <b>Τοποθεσία</b> → επίλεξε <b>Ερώτηση</b> ή <b>Επιτρέπεται</b></li>
+      <li>Ή: Safari → <b>aA</b> (αριστερά στη γραμμή διεύθυνσης) → <b>Ρυθμίσεις ιστότοπου</b> → Τοποθεσία → <b>Επιτρέπεται</b></li>
+      <li>Επίσης: Ρυθμίσεις → <b>Απόρρητο & Ασφάλεια</b> → <b>Υπηρεσίες τοποθεσίας</b> → ενεργό, και Safari → Ενώ χρησιμοποιείται</li>
+    </ol>
+    <p style="margin:10px 0 0"><b>Android (Chrome):</b></p>
+    <ol>
+      <li>Πάτα το εικονίδιο <b>κλειδαριάς</b> ή <b>ℹ️</b> δίπλα στη διεύθυνση</li>
+      <li><b>Άδειες</b> / Permissions → <b>Τοποθεσία</b> → <b>Επιτρέπεται</b></li>
+      <li>Ή: Ρυθμίσεις τηλεφώνου → Εφαρμογές → Chrome → Άδειες → Τοποθεσία → Επιτρέπεται</li>
+    </ol>
+    <p style="margin:10px 0 0;color:var(--m)">Αν άνοιξες τον σύνδεσμο μέσα από Messenger / Viber / Instagram, πάτα «Άνοιγμα στο Chrome / Safari» πρώτα.</p>
   </div>
   <div class="card" id="pc-mic">
     <div><b>🎤 Μικρόφωνο</b><div class="mut" id="ps-mic">Για φωνητικά μηνύματα & ακρόαση</div></div>
@@ -375,9 +401,27 @@ function toast(t, sos) {
   } catch(e) {}
 }
 
+let audioCtx = null;
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // dummy buffer για να «ξεκλειδώσει» ο browser στο πρώτο user gesture
+    if (!window._audioUnlocked) {
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+      window._audioUnlocked = true;
+    }
+  } catch (e) {}
+}
+
 function playTone(freq = 440, dur = 200, type = 'sine') {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    unlockAudio();
+    const ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
@@ -385,7 +429,7 @@ function playTone(freq = 440, dur = 200, type = 'sine') {
     g.gain.value = 0.1;
     o.connect(g); g.connect(ctx.destination);
     o.start();
-    setTimeout(() => { try { o.stop(); ctx.close(); } catch(e){} }, dur);
+    setTimeout(() => { try { o.stop(); } catch(e){} }, dur);
   } catch(e) {}
 }
 
@@ -709,10 +753,21 @@ function enter(r) {
   show('s-room');
   initMap();
   switchRoom(r.pin);
+  askNotif();
+  unlockAudio();
+  // Ενεργοποίηση θέσης αμέσως ώστε να εμφανιστεί στον χάρτη
   if (!window._s) {
     window._s = 1;
-    if (perm.loc || LS('fm-share') === '1') setSharing(true);
+    setSharing(true);
     if (batteryShare) startBatteryWatch();
+  } else if (LS('fm-share') !== '0') {
+    // Αν ήδη μπήκαμε κάποτε, ξαναενεργοποίησε sharing
+    const shareEl = $('share');
+    if (shareEl && !shareEl.checked) {
+      setSharing(true);
+    } else if (watchId == null) {
+      setSharing(true);
+    }
   }
 }
 
@@ -927,11 +982,12 @@ function setSharing(on) {
         }
       },
       () => {
-        toast('Σφάλμα τοποθεσίας – έλεγξε τις άδειες');
+        toast('Σφάλμα τοποθεσίας – άνοιξε τις ρυθμίσεις');
         if (shareEl) shareEl.checked = false;
         watchId = null;
+        showLocHelpInMembers();
       },
-      {enableHighAccuracy: true, maximumAge: 5000, timeout: 20000}
+      {enableHighAccuracy: true, maximumAge: 3000, timeout: 15000}
     );
   } else {
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
@@ -943,6 +999,19 @@ function setSharing(on) {
       r.admin ? broadcast(r) : send(r, {type: 'LOC_OFF'});
     });
   }
+}
+
+function showLocHelpInMembers() {
+  const l = $('mlist');
+  if (!l || l.querySelector('.loc-help-inline')) return;
+  const div = document.createElement('div');
+  div.className = 'loc-help on loc-help-inline';
+  div.innerHTML = `
+    <b>📍 Δεν εμφανίζεται η θέση σου;</b>
+    <p style="margin:6px 0 0"><b>iPhone:</b> Ρυθμίσεις → Safari → Τοποθεσία → Επιτρέπεται. Ή aA στη γραμμή διεύθυνσης → Ρυθμίσεις ιστότοπου → Τοποθεσία.</p>
+    <p style="margin:6px 0 0"><b>Android:</b> Κλειδαριά δίπλα στη διεύθυνση → Άδειες → Τοποθεσία → Επιτρέπεται.</p>
+    <p style="margin:6px 0 0;color:var(--m)">Άνοιξε την εφαρμογή σε Chrome ή Safari (όχι μέσα από Messenger/Viber).</p>`;
+  l.prepend(div);
 }
 
 function setBatteryShare(on) {
@@ -1152,6 +1221,52 @@ function addMsg(r, d) {
   if (r.chat.length > 100) r.chat.shift();
   if (r.pin === active) drawMsg(d);
   if (d.ttl) setTimeout(() => delMsg(r, d.msgId), 10000);
+  // Ειδοποίηση αν το μήνυμα δεν είναι δικό μας
+  if (d.from !== r.myId) {
+    notifyIncoming(d);
+  }
+}
+
+function notifyIncoming(d) {
+  try {
+    const title = d.name || 'Find me';
+    let body = 'Νέο μήνυμα';
+    if (d.type === 'CHAT') body = d.text || body;
+    else if (d.type === 'VOICE') body = '🎤 Φωνητικό μήνυμα';
+    else if (d.type === 'FILE') body = '📷 Φωτογραφία';
+    else if (d.type === 'LOC_PIN') body = '📍 Θέση';
+    else if (d.type === 'SOS') body = '🆘 SOS – χρειάζεται βοήθεια!';
+    else if (d.type === 'CHECKIN') body = '✅ Είναι εντάξει';
+
+    // Toast + ήχος πάντα όταν η εφαρμογή είναι ανοιχτή
+    if (document.visibilityState === 'visible') {
+      toast((d.type === 'VOICE' ? '🎤 ' : '') + title + ': ' + (body.length > 40 ? body.slice(0, 40) + '…' : body));
+      playTone(d.type === 'SOS' ? 880 : 660, 180);
+      if (navigator.vibrate) navigator.vibrate(d.type === 'SOS' ? [200, 80, 200] : 80);
+    }
+
+    // System notification όταν η καρτέλα είναι στο παρασκήνιο
+    if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+      const n = new Notification(title + ' · Find me', {
+        body,
+        tag: 'fm-' + (d.msgId || Date.now()),
+        renotify: true,
+        silent: false
+      });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+        if (d.type !== 'CHECKIN' && d.type !== 'SOS') openChat();
+      };
+    }
+  } catch (e) {}
+}
+
+function askNotif() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
 }
 
 function delMsg(r, id) {
@@ -1172,10 +1287,43 @@ function drawMsg(d) {
   el.className = 'msg ' + (mine ? 'me' : 'ot');
   el.innerHTML = `<div class="meta"><span>${esc(d.name)} · ${fmt(d.ts)}${d.ttl ? ' ⏱️' : ''}</span>${(mine || r.admin) ? '<button class="x">🗑️</button>' : ''}</div>`;
   if (d.type === 'VOICE') {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px';
     const a = document.createElement('audio');
     a.controls = true;
+    a.playsInline = true;
+    a.setAttribute('playsinline', '');
+    a.setAttribute('webkit-playsinline', '');
+    a.preload = 'auto';
     a.src = d.data;
-    el.appendChild(a);
+    // Ξεκλείδωμα ήχου με το πρώτο πάτημα (λύση για iOS/Android που απαιτούν 2ο πάτημα)
+    a.addEventListener('play', function onFirstPlay() {
+      unlockAudio();
+      a.removeEventListener('play', onFirstPlay);
+    }, {once: true});
+    // Μεγάλο κουμπί play για πιο εύκολο πρώτο πάτημα
+    const playBtn = document.createElement('button');
+    playBtn.className = 'btn ibtn';
+    playBtn.textContent = '▶️';
+    playBtn.title = 'Αναπαραγωγή';
+    playBtn.onclick = async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      unlockAudio();
+      try {
+        a.currentTime = 0;
+        await a.play();
+        playBtn.textContent = '⏸️';
+      } catch (err) {
+        try { await a.play(); } catch (e2) { toast('Πάτα Play στο ηχητικό'); }
+      }
+    };
+    a.addEventListener('ended', () => { playBtn.textContent = '▶️'; });
+    a.addEventListener('pause', () => { if (a.currentTime > 0 && !a.ended) playBtn.textContent = '▶️'; });
+    a.addEventListener('playing', () => { playBtn.textContent = '⏸️'; });
+    wrap.appendChild(playBtn);
+    wrap.appendChild(a);
+    el.appendChild(wrap);
   } else if (d.type === 'FILE') {
     const i = document.createElement('img');
     i.src = d.data;
@@ -1462,14 +1610,31 @@ function permUI() {
   if (perm.mic && psMic) psMic.textContent = 'Ενεργοποιημένο ✓';
 }
 
+function showLocHelp() {
+  const h = $('loc-help');
+  if (h) h.classList.add('on');
+}
+
 function askLoc() {
-  if (!navigator.geolocation) return toast('Άνοιξε σε Chrome ή Safari');
+  if (!navigator.geolocation) {
+    toast('Άνοιξε σε Chrome ή Safari');
+    showLocHelp();
+    return;
+  }
   navigator.geolocation.getCurrentPosition(
-    () => { perm.loc = 1; permUI(); },
+    () => {
+      perm.loc = 1;
+      permUI();
+      const h = $('loc-help');
+      if (h) h.classList.remove('on');
+    },
     e => {
       const psLoc = $('ps-loc');
-      if (psLoc) psLoc.textContent = e.code === 1 ? 'Άρνηση – άλλαξε τις ρυθμίσεις του browser' : 'Σφάλμα τοποθεσίας';
+      if (psLoc) psLoc.textContent = e.code === 1
+        ? 'Άρνηση – δες τις οδηγίες παρακάτω'
+        : 'Σφάλμα τοποθεσίας – δες τις οδηγίες';
       toast('Δεν δόθηκε άδεια τοποθεσίας');
+      showLocHelp();
     },
     {enableHighAccuracy: true, timeout: 20000}
   );
@@ -1491,6 +1656,8 @@ function go() {
   if (!pending) return;
   const p = pending;
   pending = null;
+  unlockAudio();
+  askNotif();
   if (p.mode === 'create') {
     const r = newRoom(genPin(), true, p.roomName, p.name, p.avatar);
     r.focus = true;
@@ -1525,6 +1692,15 @@ window.addEventListener('pagehide', () => {
 /* ---------- Boot ---------- */
 window.addEventListener('DOMContentLoaded', () => {
   try {
+    // Ξεκλείδωμα ήχου με το πρώτο άγγιγμα (για φωνητικά με 1 πάτημα)
+    const unlockOnce = () => {
+      unlockAudio();
+      document.removeEventListener('pointerdown', unlockOnce);
+      document.removeEventListener('touchstart', unlockOnce);
+    };
+    document.addEventListener('pointerdown', unlockOnce, {passive: true});
+    document.addEventListener('touchstart', unlockOnce, {passive: true});
+
     const n = LS('fm-name');
     const nameEl = $('f-name');
     if (n && nameEl) nameEl.value = n;
