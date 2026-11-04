@@ -153,6 +153,26 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 .tip{background:#78350f;border:1px solid #d97706;border-radius:var(--radius);padding:12px;font-size:.85rem;display:none}
 .p2p-note{font-size:.7rem;color:var(--m);text-align:center;padding:4px}
 .hist-item{font-size:.8rem;padding:6px 0;border-bottom:1px solid var(--bd)}
+#call-ui{
+  position:fixed;inset:0;z-index:4000;background:#0f172a;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px
+}
+#call-ui.on{display:flex}
+#call-ui video{
+  width:100%;max-width:420px;border-radius:16px;background:#000;object-fit:cover
+}
+#call-remote{max-height:55vh}
+#call-local{
+  position:absolute;right:16px;top:16px;width:110px;height:150px;
+  border-radius:12px;border:2px solid var(--bd);z-index:1;object-fit:cover
+}
+#call-actions{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+#call-actions .btn{width:auto;min-width:120px;height:56px}
+#call-incoming{
+  position:fixed;inset:0;z-index:4100;background:rgba(15,23,42,.96);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center
+}
+#call-incoming.on{display:flex}
 </style>
 </head>
 <body>
@@ -167,6 +187,31 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 
 <div id="lbar" class="bn">🎧 <span id="lname">Ακρόαση</span> <span id="ltimer"></span><button onclick="stopListen()">Διακοπή</button></div>
 <div id="mbar" class="bn">🎤 Ο διαχειριστής ακούει το περιβάλλον σου <span id="mtimer"></span><button onclick="stopMic()">Διακοπή</button></div>
+
+<!-- Incoming call -->
+<div id="call-incoming">
+  <div style="font-size:3rem" id="ci-icon">📞</div>
+  <h2 id="ci-title">Εισερχόμενη κλήση</h2>
+  <p class="mut" id="ci-name">—</p>
+  <div style="display:flex;gap:16px;width:100%;max-width:320px">
+    <button class="btn s" style="flex:1" onclick="answerCall()">✅ Απάντηση</button>
+    <button class="btn d" style="flex:1" onclick="rejectCall()">✕ Απόρριψη</button>
+  </div>
+</div>
+
+<!-- Active call UI -->
+<div id="call-ui">
+  <video id="call-local" autoplay playsinline muted></video>
+  <video id="call-remote" autoplay playsinline></video>
+  <div id="call-audio-only" style="display:none;text-align:center">
+    <div style="font-size:4rem;margin-bottom:8px">📞</div>
+    <h2 id="call-peer-name">Κλήση</h2>
+    <p class="mut" id="call-status">Σε σύνδεση…</p>
+  </div>
+  <div id="call-actions">
+    <button class="btn d" onclick="hangupCall()">📵 Τερματισμός</button>
+  </div>
+</div>
 
 <!-- HOME -->
 <div id="s-home" class="screen on" style="justify-content:center">
@@ -388,6 +433,11 @@ let autoCheckinInterval = null;
 let batteryShare = true;
 let myBattery = null;
 let listenTarget = null;
+// AV calls
+let mediaCall = null;
+let localStream = null;
+let pendingCall = null; // incoming MediaConnection waiting for answer
+let callVideo = false;
 
 const R = () => rooms[active];
 
@@ -919,16 +969,39 @@ function renderMembers() {
         r.markers[m.id] && r.markers[m.id].openPopup();
       };
     }
-    if (r.admin && m.id !== r.myId) {
-      const b = document.createElement('button');
-      b.className = 'btn ibtn';
-      b.textContent = '🎧';
-      b.title = 'Ακρόαση περιβάλλοντος';
-      b.onclick = ev => {
+    if (m.id !== r.myId) {
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:6px;flex:none';
+      const audioBtn = document.createElement('button');
+      audioBtn.className = 'btn ibtn';
+      audioBtn.textContent = '📞';
+      audioBtn.title = 'Ηχητική κλήση';
+      audioBtn.onclick = ev => {
         ev.stopPropagation();
-        openListen(r, m);
+        startAVCall(m, false);
       };
-      row.appendChild(b);
+      actions.appendChild(audioBtn);
+      const videoBtn = document.createElement('button');
+      videoBtn.className = 'btn ibtn';
+      videoBtn.textContent = '📹';
+      videoBtn.title = 'Βιντεοκλήση';
+      videoBtn.onclick = ev => {
+        ev.stopPropagation();
+        startAVCall(m, true);
+      };
+      actions.appendChild(videoBtn);
+      if (r.admin) {
+        const listenBtn = document.createElement('button');
+        listenBtn.className = 'btn ibtn';
+        listenBtn.textContent = '🎧';
+        listenBtn.title = 'Ακρόαση περιβάλλοντος';
+        listenBtn.onclick = ev => {
+          ev.stopPropagation();
+          openListen(r, m);
+        };
+        actions.appendChild(listenBtn);
+      }
+      row.appendChild(actions);
     }
     l.appendChild(row);
   });
@@ -1110,34 +1183,205 @@ function stopListen() {
 
 function incoming(c) {
   try {
-    c.answer();
-    c.on('stream', s => {
-      call = c;
-      if (lAudio) {
-        try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
-      }
-      lAudio = new Audio();
-      lAudio.srcObject = s;
-      lAudio.play().catch(() => {
-        // Autoplay blocked – user interaction already happened via button
-        toast('Πάτα οπουδήποτε για να ακούσεις τον ήχο');
+    const meta = c.metadata || {};
+    // Ambient listen (μονοδρομική ακρόαση από admin)
+    if (meta.type === 'ambient') {
+      c.answer();
+      c.on('stream', s => {
+        call = c;
+        if (lAudio) {
+          try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
+        }
+        lAudio = new Audio();
+        lAudio.srcObject = s;
+        lAudio.play().catch(() => toast('Πάτα οπουδήποτε για να ακούσεις τον ήχο'));
+        const lname = $('lname');
+        if (lname) lname.textContent = '🎧 Ακρόαση ενεργή';
       });
-      const lname = $('lname');
-      if (lname) lname.textContent = '🎧 Ακρόαση ενεργή';
-    });
-    c.on('close', () => {
-      const lbar = $('lbar');
-      if (lbar) lbar.classList.remove('on');
-      if (lAudio) {
-        try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
-        lAudio = null;
-      }
-      call = null;
-    });
-    c.on('error', () => stopListen());
+      c.on('close', () => {
+        const lbar = $('lbar');
+        if (lbar) lbar.classList.remove('on');
+        if (lAudio) {
+          try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
+          lAudio = null;
+        }
+        call = null;
+      });
+      c.on('error', () => stopListen());
+      return;
+    }
+
+    // Ηχητική / βιντεοκλήση
+    if (mediaCall || pendingCall) {
+      try { c.close(); } catch (e) {}
+      return;
+    }
+    pendingCall = c;
+    callVideo = !!meta.video;
+    const ci = $('call-incoming');
+    const ciName = $('ci-name');
+    const ciTitle = $('ci-title');
+    const ciIcon = $('ci-icon');
+    if (ciName) ciName.textContent = meta.name || 'Μέλος';
+    if (ciTitle) ciTitle.textContent = callVideo ? 'Εισερχόμενη βιντεοκλήση' : 'Εισερχόμενη κλήση';
+    if (ciIcon) ciIcon.textContent = callVideo ? '📹' : '📞';
+    if (ci) ci.classList.add('on');
+    playTone(880, 250, 'square');
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+    // Auto-reject after 40s
+    setTimeout(() => {
+      if (pendingCall === c) rejectCall();
+    }, 40000);
   } catch (e) {
-    toast('Σφάλμα στη σύνδεση ήχου');
+    toast('Σφάλμα εισερχόμενης κλήσης');
   }
+}
+
+function peerIdForMember(r, m) {
+  if (!m) return null;
+  if (m.id === 'admin' || m.id === r.myId && r.admin) return PFX + r.pin;
+  return m.id;
+}
+
+async function startAVCall(m, withVideo) {
+  const r = R();
+  if (!r || !r.peer || !r.ready) return toast('Δεν υπάρχει σύνδεση');
+  if (m.id === r.myId) return;
+  if (mediaCall || pendingCall) return toast('Υπάρχει ήδη ενεργή κλήση');
+
+  const targetId = peerIdForMember(r, m);
+  if (!targetId) return toast('Άγνωστο μέλος');
+
+  try {
+    unlockAudio();
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: withVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+    });
+    callVideo = withVideo;
+    mediaCall = r.peer.call(targetId, localStream, {
+      metadata: { type: 'avcall', video: withVideo, name: r.myName, from: r.myId }
+    });
+    if (!mediaCall) {
+      stopLocalStream();
+      return toast('Αποτυχία κλήσης');
+    }
+    setupActiveCall(mediaCall, m.name || 'Μέλος');
+    panel('p-members', 0);
+    panel('p-chat', 0);
+  } catch (e) {
+    stopLocalStream();
+    toast(withVideo ? 'Χρειάζεται κάμερα & μικρόφωνο' : 'Χρειάζεται άδεια μικροφώνου');
+  }
+}
+
+async function answerCall() {
+  if (!pendingCall) return;
+  const c = pendingCall;
+  pendingCall = null;
+  const ci = $('call-incoming');
+  if (ci) ci.classList.remove('on');
+
+  try {
+    unlockAudio();
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: callVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+    });
+    c.answer(localStream);
+    const meta = c.metadata || {};
+    setupActiveCall(c, meta.name || 'Μέλος');
+  } catch (e) {
+    try { c.close(); } catch (_) {}
+    stopLocalStream();
+    toast('Δεν δόθηκε άδεια μικροφώνου/κάμερας');
+  }
+}
+
+function rejectCall() {
+  if (pendingCall) {
+    try { pendingCall.close(); } catch (e) {}
+    pendingCall = null;
+  }
+  const ci = $('call-incoming');
+  if (ci) ci.classList.remove('on');
+}
+
+function setupActiveCall(c, peerName) {
+  mediaCall = c;
+  const ui = $('call-ui');
+  const remote = $('call-remote');
+  const local = $('call-local');
+  const audioOnly = $('call-audio-only');
+  const peerEl = $('call-peer-name');
+  const statusEl = $('call-status');
+
+  if (ui) ui.classList.add('on');
+  if (peerEl) peerEl.textContent = peerName;
+  if (statusEl) statusEl.textContent = 'Σε σύνδεση…';
+
+  if (callVideo) {
+    if (remote) remote.style.display = '';
+    if (local) {
+      local.style.display = '';
+      local.srcObject = localStream;
+      local.muted = true;
+      local.play().catch(() => {});
+    }
+    if (audioOnly) audioOnly.style.display = 'none';
+  } else {
+    if (remote) remote.style.display = 'none';
+    if (local) local.style.display = 'none';
+    if (audioOnly) audioOnly.style.display = 'block';
+  }
+
+  c.on('stream', s => {
+    if (callVideo && remote) {
+      remote.srcObject = s;
+      remote.play().catch(() => {});
+    } else {
+      // audio-only: play remote via Audio element or remote video without display
+      if (remote) {
+        remote.srcObject = s;
+        remote.play().catch(() => {});
+      }
+    }
+    if (statusEl) statusEl.textContent = 'Συνδεδεμένοι';
+  });
+
+  c.on('close', () => hangupCall(true));
+  c.on('error', () => {
+    toast('Η κλήση διακόπηκε');
+    hangupCall(true);
+  });
+}
+
+function stopLocalStream() {
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+}
+
+function hangupCall(remoteClosed) {
+  if (mediaCall) {
+    try { mediaCall.close(); } catch (e) {}
+  }
+  mediaCall = null;
+  pendingCall = null;
+  stopLocalStream();
+
+  const remote = $('call-remote');
+  const local = $('call-local');
+  if (remote) { remote.srcObject = null; remote.style.display = 'none'; }
+  if (local) { local.srcObject = null; local.style.display = 'none'; }
+
+  const ui = $('call-ui');
+  if (ui) ui.classList.remove('on');
+  const ci = $('call-incoming');
+  if (ci) ci.classList.remove('on');
+
+  if (!remoteClosed) toast('Η κλήση τερματίστηκε');
 }
 
 async function startMic(r, duration = 15) {
