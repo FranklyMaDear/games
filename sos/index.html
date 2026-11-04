@@ -67,6 +67,11 @@
     .bar-btn span { font-size: 0.65rem; font-weight: 600; margin-top: 2px; }
     .bar-btn.sos { background: var(--danger); border-color: #fca5a5; width: 76px; height: 76px; font-size: 1.7rem; }
     .bar-btn.active-listen { background: #7c3aed; border-color: #c4b5fd; }
+    .preset-elderly .bar-btn { width: 72px; height: 72px; font-size: 1.6rem; }
+    .preset-elderly .bar-btn.sos { width: 88px; height: 88px; font-size: 2rem; }
+    .preset-child .bar-btn:not(.sos) { display: none; }
+    .preset-child .bar-btn.sos { width: 96px; height: 96px; font-size: 2.2rem; }
+    .preset-child #btn-checkin { display: flex !important; width: 80px; height: 80px; }
 
     .panel {
       position: absolute; inset: 0; z-index: 1100;
@@ -83,13 +88,16 @@
     .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
     .msg {
       max-width: 85%; padding: 0.65rem 0.9rem; border-radius: 1rem; font-size: 0.95rem; line-height: 1.35;
+      position: relative;
     }
     .msg.me { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 0.3rem; }
     .msg.other { align-self: flex-start; background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 0.3rem; }
-    .msg .meta { font-size: 0.7rem; opacity: 0.75; margin-bottom: 0.15rem; }
+    .msg .meta { font-size: 0.7rem; opacity: 0.75; margin-bottom: 0.15rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
     .msg.voice { display: flex; flex-direction: column; gap: 0.35rem; }
     .msg.file img { max-width: 220px; border-radius: 0.6rem; margin-top: 0.3rem; }
     .msg.file a { color: #93c5fd; text-decoration: underline; font-size: 0.9rem; }
+    .msg-del { background: transparent; border: none; color: inherit; opacity: 0.55; font-size: 0.85rem; cursor: pointer; padding: 0 2px; }
+    .msg-del:hover { opacity: 1; }
 
     .quick-row { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.5rem 1rem; }
     .quick-chip {
@@ -128,6 +136,8 @@
       display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem;
     }
     #sos-overlay.show { display: flex; }
+    #sos-overlay.silent { background: rgba(15,23,42,0.97); }
+    #sos-overlay.silent .text-6xl, #sos-overlay.silent h2 { display: none; }
 
     .zone-label { background: rgba(59,130,246,0.9); color: white; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
 
@@ -159,10 +169,27 @@
     }
     .listen-indicator.show { display: flex; align-items: center; gap: 0.5rem; }
 
-    .med-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.75rem; background: var(--card); border-radius: 0.9rem; border: 1px solid var(--border);
+    /* Panic / Mask screen (fake weather) */
+    #mask-screen {
+      position: fixed; inset: 0; z-index: 5000; background: linear-gradient(180deg, #0ea5e9 0%, #38bdf8 40%, #f0f9ff 100%);
+      display: none; flex-direction: column; color: #0f172a; font-family: system-ui, sans-serif;
     }
+    #mask-screen.show { display: flex; }
+    .mask-header { padding: 2.5rem 1.5rem 1rem; text-align: center; }
+    .mask-temp { font-size: 5rem; font-weight: 200; line-height: 1; }
+    .mask-desc { font-size: 1.25rem; opacity: 0.85; margin-top: 0.25rem; }
+    .mask-details { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; font-size: 0.9rem; }
+    .mask-forecast { flex: 1; background: rgba(255,255,255,0.35); margin: 1.5rem; border-radius: 1.25rem; padding: 1rem; }
+    .mask-day { display: flex; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    .mask-exit-hint { position: absolute; bottom: 1.5rem; left: 0; right: 0; text-align: center; font-size: 0.7rem; opacity: 0.4; }
+
+    .inactivity-banner {
+      position: fixed; bottom: 6.5rem; left: 1rem; right: 1rem; z-index: 1100;
+      background: #7c2d12; border: 1px solid #f97316; color: white;
+      padding: 0.85rem 1rem; border-radius: 1rem; font-weight: 600; text-align: center;
+      display: none;
+    }
+    .inactivity-banner.show { display: block; }
   </style>
 </head>
 <body>
@@ -171,13 +198,38 @@
   <div id="sos-overlay">
     <div class="text-6xl">🆘</div>
     <h2 class="text-2xl font-extrabold text-white text-center px-6">Σήμα βοήθειας στάλθηκε</h2>
-    <p class="text-red-200 text-center px-8">Οι επιλεγμένοι επαφές ειδοποιήθηκαν με τη θέση σου.</p>
+    <p class="text-red-200 text-center px-8" id="sos-overlay-text">Οι επιλεγμένοι επαφές ειδοποιήθηκαν με τη θέση σου.</p>
     <button id="sos-close" class="btn btn-ghost btn-lg mt-4">Κλείσιμο</button>
   </div>
 
   <div id="listen-indicator" class="listen-indicator">
     <span>🎧</span> <span id="listen-label">Ακρόαση…</span>
     <button id="stop-listen" class="ml-2 text-xs underline">Διακοπή</button>
+  </div>
+
+  <div id="inactivity-banner" class="inactivity-banner">
+    Δεν εντοπίστηκε δραστηριότητα. Πάτα «Είμαι εντάξει» ή θα ειδοποιηθούν οι επαφές.
+  </div>
+
+  <!-- Fake Weather Mask Screen -->
+  <div id="mask-screen">
+    <div class="mask-header">
+      <div style="font-size:1.1rem;opacity:0.8">Αθήνα</div>
+      <div class="mask-temp">24°</div>
+      <div class="mask-desc">Ηλιοφάνεια</div>
+      <div class="mask-details">
+        <span>↑ 27°</span>
+        <span>↓ 18°</span>
+        <span>💧 45%</span>
+      </div>
+    </div>
+    <div class="mask-forecast">
+      <div class="mask-day"><span>Σήμερα</span><span>☀️ 27° / 18°</span></div>
+      <div class="mask-day"><span>Αύριο</span><span>⛅ 25° / 17°</span></div>
+      <div class="mask-day"><span>Πέμπτη</span><span>🌧️ 22° / 16°</span></div>
+      <div class="mask-day"><span>Παρασκευή</span><span>☀️ 26° / 19°</span></div>
+    </div>
+    <div class="mask-exit-hint">Τριπλό πάτημα για έξοδο</div>
   </div>
 
   <!-- SCREEN: Welcome -->
@@ -193,7 +245,7 @@
         <button id="go-join" class="btn btn-ghost btn-xl w-full">Μπες σε δωμάτιο</button>
       </div>
       <div id="recent-rooms" class="hidden text-left space-y-2">
-        <p class="text-xs text-slate-500 font-semibold uppercase">Πρόσφατα δωμάτια (admin)</p>
+        <p class="text-xs text-slate-500 font-semibold uppercase">Πρόσφατα δωμάτια</p>
         <div id="recent-list" class="space-y-2"></div>
       </div>
       <p class="text-xs text-slate-500 leading-relaxed">
@@ -216,16 +268,22 @@
         <input id="create-room-name" placeholder="π.χ. Οικογένεια" maxlength="30">
       </div>
       <div>
-        <label>Διάρκεια δωματίου</label>
-        <select id="create-duration">
-          <option value="3600">1 ώρα</option>
-          <option value="14400">4 ώρες</option>
-          <option value="43200">12 ώρες</option>
-          <option value="86400" selected>24 ώρες</option>
-          <option value="0">Μέχρι να το κλείσω</option>
+        <label>Προφίλ Δωματίου</label>
+        <select id="create-preset">
+          <option value="couple" selected>👩‍❤️‍👨 Σύντροφος / Οικογένεια</option>
+          <option value="danger">🛡️ Γυναίκα σε Κίνδυνο (αθόρυβο SOS + μάσκα)</option>
+          <option value="child">👶 Παιδί / Φροντίδα (ζώνες + ακρόαση)</option>
+          <option value="elderly">👵 Ηλικιωμένος (μεγάλα κουμπιά + αδράνεια)</option>
         </select>
       </div>
-      <button id="btn-create" class="btn btn-primary btn-xl w-full mt-4">Δημιουργία</button>
+      <div class="flex items-center gap-3 pt-1">
+        <input type="checkbox" id="create-auto-ttl" class="w-5 h-5 accent-blue-500">
+        <label for="create-auto-ttl" class="normal-case text-sm text-slate-300 font-normal mb-0" style="text-transform:none;letter-spacing:0">
+          Αυτόματη εξαφάνιση μηνυμάτων σε 10 δευτερόλεπτα
+        </label>
+      </div>
+      <p class="text-xs text-slate-500">Το δωμάτιο μένει ανοιχτό μέχρι να το κλείσει ο διαχειριστής.</p>
+      <button id="btn-create" class="btn btn-primary btn-xl w-full mt-2">Δημιουργία</button>
     </div>
   </div>
 
@@ -243,7 +301,7 @@
         <input id="join-pin" inputmode="numeric" placeholder="1234" maxlength="4" class="text-center text-2xl tracking-[0.4em] font-mono">
       </div>
       <div>
-        <label>Κατηγορία (προαιρετικό)</label>
+        <label>Κατηγορία</label>
         <select id="join-category">
           <option value="adult">Ενήλικας</option>
           <option value="child">Παιδί</option>
@@ -255,21 +313,20 @@
     </div>
   </div>
 
-  <!-- SCREEN: Room (Main) -->
+  <!-- SCREEN: Room -->
   <div id="screen-room" class="screen relative">
-    <!-- Multi-room tabs (admin) -->
     <div id="room-tabs" class="absolute top-0 left-0 right-0 z-[1001] p-2 flex gap-2 overflow-x-auto pointer-events-none hidden">
       <div class="flex gap-2 pointer-events-auto" id="room-tabs-inner"></div>
       <button id="btn-new-room" class="room-tab pointer-events-auto" title="Νέο δωμάτιο">＋</button>
     </div>
 
-    <!-- Top bar -->
-    <div class="absolute top-0 left-0 right-0 z-[1000] p-3 flex items-start justify-between gap-2 pointer-events-none" id="top-bar" style="margin-top:0">
+    <div class="absolute top-0 left-0 right-0 z-[1000] p-3 flex items-start justify-between gap-2 pointer-events-none" id="top-bar">
       <div class="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-2xl px-3 py-2 pointer-events-auto max-w-[70%]">
         <div class="font-bold text-sm truncate" id="room-title">Δωμάτιο</div>
         <div class="text-xs text-slate-400" id="room-meta">—</div>
       </div>
       <div class="flex gap-2 pointer-events-auto">
+        <button id="btn-mask" class="bar-btn hidden" style="width:48px;height:48px;font-size:1.1rem" title="Μάσκα">🌤️</button>
         <button id="btn-members" class="bar-btn" style="width:48px;height:48px;font-size:1.1rem" title="Μέλη">👥</button>
         <button id="btn-settings" class="bar-btn hidden" style="width:48px;height:48px;font-size:1.1rem" title="Ρυθμίσεις">⚙️</button>
       </div>
@@ -305,11 +362,6 @@
         <input type="checkbox" id="toggle-share" class="w-6 h-6 accent-blue-500">
       </label>
       <p class="text-xs text-slate-500" id="share-status">Απενεργοποιημένο</p>
-      <div id="med-section" class="hidden">
-        <h4 class="font-bold text-sm mb-2">Φάρμακα / Χάπια</h4>
-        <p class="text-xs text-slate-400 mb-2">Μόνο για κατηγορίες που επιτρέπουν (όχι Παιδί).</p>
-        <button id="btn-med-taken" class="btn btn-ghost btn-lg w-full">💊 Έπιασα τα χάπια μου</button>
-      </div>
     </div>
   </div>
 
@@ -356,19 +408,10 @@
         <button id="btn-add-zone" class="btn btn-ghost btn-lg w-full">＋ Προσθήκη ζώνης</button>
       </div>
       <div>
-        <h4 class="font-bold mb-2">Κατηγορίες & Φάρμακα</h4>
-        <p class="text-xs text-slate-400 mb-2">Οι κατηγορίες «Παιδί» δεν εμφανίζουν επιλογές φαρμάκων.</p>
-        <div id="category-settings" class="space-y-2 text-sm text-slate-300">
-          <label class="flex items-center gap-2"><input type="checkbox" id="med-adult" checked class="accent-blue-500"> Ενήλικας → φάρμακα</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="med-elderly" checked class="accent-blue-500"> Ηλικιωμένος → φάρμακα</label>
-          <label class="flex items-center gap-2"><input type="checkbox" id="med-other" class="accent-blue-500"> Άλλο → φάρμακα</label>
-          <label class="flex items-center gap-2 opacity-60"><input type="checkbox" disabled> Παιδί → χωρίς φάρμακα</label>
-        </div>
-      </div>
-      <div>
         <h4 class="font-bold mb-2">Δωμάτιο</h4>
         <p class="text-sm text-slate-300">PIN: <span id="settings-pin" class="font-mono font-bold text-white"></span></p>
-        <p class="text-sm text-slate-300 mt-1">Λήξη: <span id="settings-expires"></span></p>
+        <p class="text-sm text-slate-300 mt-1">Προφίλ: <span id="settings-preset"></span></p>
+        <p class="text-sm text-slate-300 mt-1">Αυτόματη διαγραφή chat: <span id="settings-ttl"></span></p>
         <button id="btn-copy-pin" class="btn btn-ghost btn-lg w-full mt-3">Αντιγραφή PIN / συνδέσμου</button>
         <button id="btn-close-room" class="btn btn-danger btn-lg w-full mt-3">Κλείσιμο αυτού του δωματίου</button>
       </div>
@@ -407,26 +450,34 @@
     const COLORS = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#f97316'];
     const CATEGORY_LABELS = { child: 'Παιδί', adult: 'Ενήλικας', elderly: 'Ηλικιωμένος', other: 'Άλλο' };
     const CATEGORY_CLASS = { child: 'cat-child', adult: 'cat-adult', elderly: 'cat-elderly', other: 'cat-other' };
+    const PRESET_LABELS = {
+      couple: 'Σύντροφος / Οικογένεια',
+      danger: 'Γυναίκα σε Κίνδυνο',
+      child: 'Παιδί / Φροντίδα',
+      elderly: 'Ηλικιωμένος'
+    };
 
-    // ===================== Global / Multi-room state =====================
-    // rooms[pin] = { peer, isAdmin, myId, myName, roomName, roomExpiresAt, members, connections, hostConn, zones, sosRecipients, chat, markers, zoneLayers, sharing related is global }
+    // ===================== State =====================
     let rooms = {};
     let activePin = null;
     let isAdminGlobal = false;
-
-    // Device-level state (shared across rooms)
     let myName = '';
     let sharing = false;
     let watchId = null;
     let myLat = null, myLng = null, myAccuracy = null;
+    let lastKnownLat = null, lastKnownLng = null, lastKnownTs = null;
     let batteryLevel = null;
     let map = null;
     let mediaRecorder = null;
     let audioChunks = [];
     let recording = false;
-    let currentAudioCall = null; // { call, remoteId, stream }
+    let currentAudioCall = null;
     let localAudioStream = null;
-    let medAllowed = { adult: true, elderly: true, other: false, child: false };
+    let lastActivityTs = Date.now();
+    let inactivityTimer = null;
+    let shakeLast = 0;
+    let maskTapCount = 0;
+    let maskTapTimer = null;
 
     // ===================== Helpers =====================
     const $ = id => document.getElementById(id);
@@ -453,12 +504,6 @@
       if (!ts) return '—';
       return new Date(ts).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
     }
-    function fmtDuration(sec) {
-      if (sec <= 0) return 'Χωρίς λήξη';
-      if (sec < 3600) return Math.round(sec / 60) + ' λεπτά';
-      if (sec < 86400) return Math.round(sec / 3600) + ' ώρες';
-      return Math.round(sec / 86400) + ' ημέρες';
-    }
     function distanceMeters(lat1, lng1, lat2, lng2) {
       const R = 6371000;
       const toRad = x => x * Math.PI / 180;
@@ -474,17 +519,19 @@
     function escapeHtml(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
-    function getActiveRoom() {
-      return activePin ? rooms[activePin] : null;
-    }
+    function getActiveRoom() { return activePin ? rooms[activePin] : null; }
     function saveRecentPins() {
       try {
         const pins = Object.keys(rooms).filter(p => rooms[p].isAdmin);
         localStorage.setItem('sr-recent-pins', JSON.stringify(pins.slice(-8)));
       } catch(e) {}
     }
+    function touchActivity() {
+      lastActivityTs = Date.now();
+      $('inactivity-banner').classList.remove('show');
+    }
 
-    // ===================== Networking helpers (per room) =====================
+    // ===================== Networking =====================
     function sendToAll(room, msg) {
       if (!room) return;
       if (room.isAdmin) {
@@ -511,9 +558,9 @@
         members: publicMembers(room),
         zones: room.zones,
         roomName: room.roomName,
-        roomExpiresAt: room.roomExpiresAt,
-        sosRecipients: [...room.sosRecipients],
-        medAllowed
+        preset: room.preset,
+        autoTTL: room.autoTTL,
+        sosRecipients: [...room.sosRecipients]
       });
     }
 
@@ -521,8 +568,8 @@
     function createRoom() {
       myName = cleanName($('create-name').value);
       const roomName = ($('create-room-name').value || '').trim() || 'Δωμάτιο';
-      const dur = parseInt($('create-duration').value, 10);
-      const roomExpiresAt = dur === 0 ? 0 : Date.now() + dur * 1000;
+      const preset = $('create-preset').value || 'couple';
+      const autoTTL = $('create-auto-ttl').checked || preset === 'danger';
       const roomPin = generatePIN();
 
       const btn = $('btn-create');
@@ -533,16 +580,18 @@
       peer.on('open', () => {
         const room = {
           peer, isAdmin: true, myId: 'admin', myName,
-          roomPin, roomName, roomExpiresAt,
+          roomPin, roomName, preset, autoTTL,
+          roomExpiresAt: 0,
           members: [{
             id: 'admin', name: myName, role: 'admin', color: COLORS[0],
-            category: 'adult', lastSeen: Date.now(),
+            category: preset === 'child' ? 'child' : (preset === 'elderly' ? 'elderly' : 'adult'),
+            lastSeen: Date.now(),
             lat: null, lng: null, accuracy: null, battery: null, sharing: false
           }],
           connections: [], hostConn: null,
           zones: [], sosRecipients: new Set(['admin']),
           chat: [], markers: {}, zoneLayers: {},
-          memberZoneState: {}
+          memberZoneState: {}, silentSOS: preset === 'danger'
         };
         rooms[roomPin] = room;
         isAdminGlobal = true;
@@ -587,11 +636,12 @@
         const hostConn = peer.connect(ROOM_PREFIX + roomPin, { reliable: true });
         const room = {
           peer, isAdmin: false, myId: peer.id, myName,
-          roomPin, roomName: 'Δωμάτιο', roomExpiresAt: 0,
+          roomPin, roomName: 'Δωμάτιο', preset: 'couple', autoTTL: false,
+          roomExpiresAt: 0,
           members: [], connections: [], hostConn,
           zones: [], sosRecipients: new Set(),
           chat: [], markers: {}, zoneLayers: {},
-          memberZoneState: {}, category
+          memberZoneState: {}, category, silentSOS: false
         };
         rooms[roomPin] = room;
         activePin = roomPin;
@@ -631,9 +681,10 @@
         });
         room.sosRecipients.add(d.id);
         conn.send({
-          type: 'WELCOME', id: d.id, roomName: room.roomName, roomExpiresAt: room.roomExpiresAt,
+          type: 'WELCOME', id: d.id, roomName: room.roomName,
+          preset: room.preset, autoTTL: room.autoTTL,
           members: publicMembers(room), zones: room.zones,
-          sosRecipients: [...room.sosRecipients], medAllowed
+          sosRecipients: [...room.sosRecipients]
         });
         broadcastState(room);
         if (activePin === room.roomPin) { renderMembers(); updateRoomMeta(); }
@@ -656,17 +707,17 @@
       } else if (d.type === 'CHAT' || d.type === 'VOICE' || d.type === 'FILE') {
         addChatMessage(room, d);
         sendToAll(room, d);
+      } else if (d.type === 'DELETE_MSG') {
+        deleteSingleMessage(room, d.msgId);
+        sendToAll(room, d);
       } else if (d.type === 'CHECKIN') {
         toast('✅ ' + d.name + ' είναι εντάξει');
         sendToAll(room, d);
-      } else if (d.type === 'MED') {
-        toast('💊 ' + d.name + ' έπιασε τα χάπια');
-        sendToAll(room, d);
+        touchActivity();
       } else if (d.type === 'SOS') {
         handleIncomingSOS(room, d);
         relaySOS(room, d);
       } else if (d.type === 'REQUEST_AUDIO') {
-        // member requests? or admin requests from us
         startLocalAudioAndCall(room, d.fromId);
       } else if (d.type === 'STOP_AUDIO') {
         stopLocalAudio();
@@ -674,6 +725,9 @@
         if (m) m.category = d.category || 'adult';
         if (activePin === room.roomPin) renderMembers();
         broadcastState(room);
+      } else if (d.type === 'INACTIVITY_ALERT') {
+        toast('⚠️ ' + d.name + ' δεν ανταποκρίνεται (αδράνεια)', true);
+        sendToAll(room, d);
       }
     }
 
@@ -696,11 +750,12 @@
         case 'WELCOME':
           room.myId = d.id;
           room.roomName = d.roomName || 'Δωμάτιο';
-          room.roomExpiresAt = d.roomExpiresAt || 0;
+          room.preset = d.preset || 'couple';
+          room.autoTTL = !!d.autoTTL;
+          room.silentSOS = room.preset === 'danger';
           room.members = d.members || [];
           room.zones = d.zones || [];
           room.sosRecipients = new Set(d.sosRecipients || []);
-          if (d.medAllowed) medAllowed = d.medAllowed;
           try { localStorage.setItem('sr-name', myName); } catch(e) {}
           enterRoom(room);
           break;
@@ -708,21 +763,22 @@
           room.members = d.members || room.members;
           room.zones = d.zones || room.zones;
           room.roomName = d.roomName || room.roomName;
-          room.roomExpiresAt = d.roomExpiresAt ?? room.roomExpiresAt;
+          if (d.preset) room.preset = d.preset;
+          if (typeof d.autoTTL === 'boolean') room.autoTTL = d.autoTTL;
           if (d.sosRecipients) room.sosRecipients = new Set(d.sosRecipients);
-          if (d.medAllowed) medAllowed = d.medAllowed;
           if (activePin === room.roomPin) {
-            renderMembers(); updateMarkers(); drawZones(); updateRoomMeta(); updateMedSection();
+            renderMembers(); updateMarkers(); drawZones(); updateRoomMeta(); applyPresetUI(room);
           }
           break;
         case 'CHAT': case 'VOICE': case 'FILE':
           addChatMessage(room, d);
           break;
+        case 'DELETE_MSG':
+          deleteSingleMessage(room, d.msgId);
+          break;
         case 'CHECKIN':
           toast('✅ ' + d.name + ' είναι εντάξει');
-          break;
-        case 'MED':
-          toast('💊 ' + d.name + ' έπιασε τα χάπια');
+          touchActivity();
           break;
         case 'SOS':
           handleIncomingSOS(room, d);
@@ -740,6 +796,9 @@
         case 'STOP_AUDIO':
           stopLocalAudio();
           break;
+        case 'INACTIVITY_ALERT':
+          toast('⚠️ ' + d.name + ' δεν ανταποκρίνεται (αδράνεια)', true);
+          break;
       }
     }
 
@@ -756,6 +815,7 @@
       activePin = room.roomPin;
       isAdminGlobal = room.isAdmin;
       $('btn-settings').classList.toggle('hidden', !room.isAdmin);
+      $('btn-mask').classList.toggle('hidden', room.preset !== 'danger');
       updateRoomTabs();
       updateRoomMeta();
       initMap();
@@ -763,10 +823,11 @@
       drawZones();
       updateMarkers();
       startBatteryWatch();
-      updateMedSection();
       renderChat(room);
+      applyPresetUI(room);
+      startInactivityWatch(room);
+      setupShakeSOS();
 
-      // adjust top bar for tabs
       if (room.isAdmin && Object.keys(rooms).filter(p => rooms[p].isAdmin).length > 0) {
         $('room-tabs').classList.remove('hidden');
         $('top-bar').style.marginTop = '3rem';
@@ -774,25 +835,18 @@
         $('room-tabs').classList.add('hidden');
         $('top-bar').style.marginTop = '0';
       }
+      touchActivity();
+    }
 
-      if (room.roomExpiresAt > 0) {
-        const left = room.roomExpiresAt - Date.now();
-        if (left <= 0) {
-          toast('Το δωμάτιο έχει λήξει');
-          setTimeout(() => closeRoom(room), 1500);
-        } else {
-          setTimeout(() => {
-            toast('Το δωμάτιο έληξε');
-            if (room.isAdmin) closeRoom(room);
-            else location.reload();
-          }, left);
-        }
-      }
+    function applyPresetUI(room) {
+      document.body.classList.remove('preset-elderly', 'preset-child', 'preset-danger');
+      if (room.preset === 'elderly') document.body.classList.add('preset-elderly');
+      if (room.preset === 'child') document.body.classList.add('preset-child');
+      if (room.preset === 'danger') document.body.classList.add('preset-danger');
     }
 
     function switchRoom(pin) {
       if (!rooms[pin] || pin === activePin) return;
-      // clear markers of previous
       const prev = getActiveRoom();
       if (prev && map) {
         Object.values(prev.markers).forEach(m => map.removeLayer(m));
@@ -805,9 +859,11 @@
       renderMembers();
       drawZones();
       updateMarkers();
-      updateMedSection();
       renderChat(room);
+      applyPresetUI(room);
       $('btn-settings').classList.toggle('hidden', !room.isAdmin);
+      $('btn-mask').classList.toggle('hidden', room.preset !== 'danger');
+      startInactivityWatch(room);
     }
 
     function updateRoomTabs() {
@@ -832,16 +888,14 @@
       const room = getActiveRoom();
       if (!room) return;
       $('room-title').textContent = room.roomName || 'Δωμάτιο';
-      let meta = 'PIN ' + room.roomPin;
-      if (room.roomExpiresAt > 0) {
-        const left = Math.max(0, room.roomExpiresAt - Date.now());
-        meta += ' · ' + fmtDuration(left / 1000);
-      } else meta += ' · Χωρίς λήξη';
+      let meta = 'PIN ' + room.roomPin + ' · ' + (PRESET_LABELS[room.preset] || room.preset);
       meta += ' · ' + room.members.length + ' μέλη';
+      if (room.autoTTL) meta += ' · ⏱️10s';
       $('room-meta').textContent = meta;
       if (room.isAdmin) {
         $('settings-pin').textContent = room.roomPin;
-        $('settings-expires').textContent = room.roomExpiresAt ? new Date(room.roomExpiresAt).toLocaleString('el-GR') : 'Χειροκίνητο κλείσιμο';
+        $('settings-preset').textContent = PRESET_LABELS[room.preset] || room.preset;
+        $('settings-ttl').textContent = room.autoTTL ? 'Ναι (10s)' : 'Όχι';
       }
     }
 
@@ -922,7 +976,7 @@
       });
     }
 
-    // ===================== Location =====================
+    // ===================== Location + Offline cache =====================
     function setSharing(on) {
       sharing = !!on;
       $('toggle-share').checked = sharing;
@@ -950,6 +1004,10 @@
         myLat = pos.coords.latitude;
         myLng = pos.coords.longitude;
         myAccuracy = pos.coords.accuracy;
+        lastKnownLat = myLat; lastKnownLng = myLng; lastKnownTs = Date.now();
+        try {
+          localStorage.setItem('sr-last-loc', JSON.stringify({ lat: myLat, lng: myLng, ts: lastKnownTs }));
+        } catch(e) {}
         const room = getActiveRoom();
         if (!room) return;
         const me = room.members.find(m => m.id === room.myId);
@@ -972,10 +1030,24 @@
           map.setView([myLat, myLng], 15);
           window._centered = true;
         }
+        touchActivity();
       }, err => {
         console.warn(err);
         $('share-status').textContent = 'Σφάλμα τοποθεσίας – έλεγξε τις άδειες';
         if (err.code === 1) toast('Δεν δόθηκε άδεια τοποθεσίας');
+        // try send last known if available
+        if (lastKnownLat != null) {
+          const room = getActiveRoom();
+          if (room) {
+            const msg = {
+              type: 'LOC', id: room.myId, name: room.myName,
+              lat: lastKnownLat, lng: lastKnownLng, accuracy: null,
+              battery: batteryLevel, ts: lastKnownTs || Date.now(), cached: true
+            };
+            if (room.isAdmin) broadcastState(room);
+            else sendToHost(room, msg);
+          }
+        }
       }, { enableHighAccuracy: false, maximumAge: 4000, timeout: 12000 });
     }
 
@@ -986,6 +1058,14 @@
       }
     }
 
+    // restore last known on load
+    try {
+      const saved = JSON.parse(localStorage.getItem('sr-last-loc') || 'null');
+      if (saved && saved.lat) {
+        lastKnownLat = saved.lat; lastKnownLng = saved.lng; lastKnownTs = saved.ts;
+      }
+    } catch(e) {}
+
     // ===================== Battery =====================
     async function startBatteryWatch() {
       try {
@@ -993,7 +1073,13 @@
         const bat = await navigator.getBattery();
         const update = () => {
           batteryLevel = Math.round(bat.level * 100);
-          if (batteryLevel <= 15 && !bat.charging) toast('🔋 Η μπαταρία σου είναι στο ' + batteryLevel + '%');
+          if (batteryLevel <= 15 && !bat.charging) {
+            toast('🔋 Η μπαταρία σου είναι στο ' + batteryLevel + '%');
+            const room = getActiveRoom();
+            if (room && (room.preset === 'elderly' || room.isAdmin)) {
+              sendToAll(room, { type: 'CHAT', id: room.myId, name: room.myName, text: '🔋 Χαμηλή μπαταρία: ' + batteryLevel + '%', ts: Date.now() });
+            }
+          }
         };
         update();
         bat.addEventListener('levelchange', update);
@@ -1001,7 +1087,7 @@
       } catch(e) {}
     }
 
-    // ===================== Members + Categories + Listen =====================
+    // ===================== Members =====================
     function renderMembers() {
       const room = getActiveRoom();
       if (!room) return;
@@ -1024,8 +1110,9 @@
             <option value="elderly" ${cat==='elderly'?'selected':''}>Ηλικιωμένος</option>
             <option value="other" ${cat==='other'?'selected':''}>Άλλο</option>
           </select>`;
-          // Listen button especially useful for children
-          actions += `<button data-listen="${m.id}" class="text-xs bg-violet-700 hover:bg-violet-600 px-2 py-1 rounded-lg ml-1 font-semibold">🎧 Ακρόαση</button>`;
+          if (room.preset === 'child' || cat === 'child') {
+            actions += `<button data-listen="${m.id}" class="text-xs bg-violet-700 hover:bg-violet-600 px-2 py-1 rounded-lg ml-1 font-semibold">🎧 Ακρόαση</button>`;
+          }
         }
 
         row.innerHTML = `
@@ -1049,7 +1136,6 @@
             sendToAll(room, { type: 'SET_CATEGORY', id: m.id, category: m.category });
             broadcastState(room);
             renderMembers();
-            updateMedSection();
           };
         }
         const listenBtn = row.querySelector('button[data-listen]');
@@ -1058,7 +1144,6 @@
         }
       });
 
-      // SOS recipients
       if (room.isAdmin) {
         const box = $('sos-recipients');
         box.innerHTML = '';
@@ -1079,7 +1164,6 @@
           box.appendChild(label);
         });
 
-        // zones
         const zl = $('zones-list');
         zl.innerHTML = '';
         if (!room.zones.length) {
@@ -1104,26 +1188,15 @@
       }
     }
 
-    function updateMedSection() {
-      const room = getActiveRoom();
-      if (!room) return;
-      const me = room.members.find(m => m.id === room.myId);
-      const cat = (me && me.category) || 'adult';
-      const show = !!medAllowed[cat];
-      $('med-section').classList.toggle('hidden', !show);
-    }
-
-    // ===================== Ambient Audio (listen to child) =====================
+    // ===================== Ambient Audio =====================
     function requestAmbientAudio(room, targetId, targetName) {
       if (currentAudioCall) {
         toast('Ήδη ακούς κάποιον. Σταμάτα πρώτα.');
         return;
       }
       toast('Αίτημα ακρόασης σε ' + targetName + '…');
-      // Tell the target to start their mic and call us
       const msg = { type: 'REQUEST_AUDIO', fromId: room.myId, targetId };
       if (room.isAdmin) {
-        // find connection of target
         const conn = room.connections.find(c => c.peer === targetId);
         if (conn && conn.open) conn.send(msg);
         else toast('Το μέλος δεν είναι συνδεδεμένο');
@@ -1136,22 +1209,14 @@
 
     async function startLocalAudioAndCall(room, toId) {
       try {
-        if (localAudioStream) {
-          localAudioStream.getTracks().forEach(t => t.stop());
-        }
+        if (localAudioStream) localAudioStream.getTracks().forEach(t => t.stop());
         localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         const call = room.peer.call(toId, localAudioStream);
-        if (!call) {
-          toast('Αποτυχία έναρξης κλήσης ήχου');
-          return;
-        }
+        if (!call) { toast('Αποτυχία έναρξης κλήσης ήχου'); return; }
         currentAudioCall = { call, remoteId: toId, isSender: true };
-        call.on('close', () => {
-          stopLocalAudio();
-        });
+        call.on('close', () => stopLocalAudio());
         toast('Το μικρόφωνό σου είναι ανοιχτό για ακρόαση');
       } catch (e) {
-        console.error(e);
         toast('Δεν δόθηκε άδεια μικροφώνου για ακρόαση');
       }
     }
@@ -1159,8 +1224,7 @@
     function handleIncomingCall(pin, call) {
       const room = rooms[pin];
       if (!room) return;
-      // We are receiving the remote's audio stream (admin listening)
-      call.answer(); // no local stream needed for pure listen
+      call.answer();
       call.on('stream', remoteStream => {
         if (currentAudioCall && currentAudioCall.audioEl) {
           currentAudioCall.audioEl.srcObject = null;
@@ -1174,9 +1238,7 @@
         $('listen-label').textContent = 'Ακρόαση ενεργή';
         toast('🎧 Ακρόαση περιβάλλοντος ενεργή');
       });
-      call.on('close', () => {
-        stopListeningUI();
-      });
+      call.on('close', () => stopListeningUI());
     }
 
     function stopLocalAudio() {
@@ -1197,7 +1259,6 @@
           currentAudioCall.audioEl.srcObject = null;
         }
         if (currentAudioCall.call) currentAudioCall.call.close();
-        // notify remote to stop
         const room = getActiveRoom();
         if (room && currentAudioCall.remoteId) {
           const msg = { type: 'STOP_AUDIO' };
@@ -1211,26 +1272,53 @@
       stopLocalAudio();
       $('listen-indicator').classList.remove('show');
     }
-
     $('stop-listen').onclick = stopListeningUI;
 
-    // ===================== Chat + Voice + Files =====================
-    function renderChat(room) {
-      const box = $('chat-messages');
-      box.innerHTML = '';
-      (room.chat || []).forEach(d => appendChatEl(d));
-      box.scrollTop = box.scrollHeight;
+    // ===================== Chat + Delete + TTL =====================
+    function addChatMessage(room, d) {
+      if (!room.chat) room.chat = [];
+      if (!d.msgId) d.msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+      room.chat.push(d);
+      if (room.chat.length > 200) room.chat.shift();
+      if (activePin === room.roomPin) appendChatEl(d);
+      if (d.ttl10) {
+        setTimeout(() => deleteSingleMessage(room, d.msgId), 10000);
+      }
     }
+
+    function deleteSingleMessage(room, msgId) {
+      if (!room || !room.chat) return;
+      room.chat = room.chat.filter(m => m.msgId !== msgId);
+      const el = document.getElementById('msg-' + msgId);
+      if (el) el.remove();
+    }
+
+    function requestDeleteMessage(msgId) {
+      const room = getActiveRoom();
+      if (!room) return;
+      deleteSingleMessage(room, msgId);
+      sendToAll(room, { type: 'DELETE_MSG', msgId });
+    }
+    // expose for inline onclick
+    window.requestDeleteMessage = requestDeleteMessage;
 
     function appendChatEl(d) {
       const room = getActiveRoom();
       if (!room) return;
       const box = $('chat-messages');
       const el = document.createElement('div');
+      el.id = 'msg-' + d.msgId;
       el.className = 'msg ' + (d.id === room.myId ? 'me' : 'other');
+
+      const canDelete = (d.id === room.myId || room.isAdmin);
+      const deleteBtnHtml = canDelete
+        ? `<button class="msg-del" onclick="requestDeleteMessage('${d.msgId}')" title="Διαγραφή">🗑️</button>`
+        : '';
+      const ttlBadge = d.ttl10 ? `<span class="text-xs text-amber-300">⏱️10s</span>` : '';
+
       if (d.type === 'VOICE' && d.audio) {
         el.classList.add('voice');
-        el.innerHTML = `<div class="meta">${escapeHtml(d.name)} · ${fmtTime(d.ts)}</div>`;
+        el.innerHTML = `<div class="meta"><span>${escapeHtml(d.name)} · ${fmtTime(d.ts)} ${ttlBadge}</span>${deleteBtnHtml}</div>`;
         const audio = document.createElement('audio');
         audio.controls = true;
         audio.src = d.audio;
@@ -1238,7 +1326,7 @@
         el.appendChild(audio);
       } else if (d.type === 'FILE' && d.data) {
         el.classList.add('file');
-        el.innerHTML = `<div class="meta">${escapeHtml(d.name)} · ${fmtTime(d.ts)}</div>`;
+        el.innerHTML = `<div class="meta"><span>${escapeHtml(d.name)} · ${fmtTime(d.ts)} ${ttlBadge}</span>${deleteBtnHtml}</div>`;
         if (d.mime && d.mime.startsWith('image/')) {
           const img = document.createElement('img');
           img.src = d.data;
@@ -1252,17 +1340,23 @@
           el.appendChild(a);
         }
       } else {
-        el.innerHTML = `<div class="meta">${escapeHtml(d.name)} · ${fmtTime(d.ts)}</div>${escapeHtml(d.text || '')}`;
+        el.innerHTML = `
+          <div class="meta">
+            <span>${escapeHtml(d.name)} · ${fmtTime(d.ts)} ${ttlBadge}</span>
+            ${deleteBtnHtml}
+          </div>
+          <div>${escapeHtml(d.text || '')}</div>
+        `;
       }
       box.appendChild(el);
       box.scrollTop = box.scrollHeight;
     }
 
-    function addChatMessage(room, d) {
-      if (!room.chat) room.chat = [];
-      room.chat.push(d);
-      if (room.chat.length > 200) room.chat.shift();
-      if (activePin === room.roomPin) appendChatEl(d);
+    function renderChat(room) {
+      const box = $('chat-messages');
+      box.innerHTML = '';
+      (room.chat || []).forEach(d => appendChatEl(d));
+      box.scrollTop = box.scrollHeight;
     }
 
     function sendChat(text) {
@@ -1270,21 +1364,24 @@
       if (!room) return;
       text = (text || '').trim();
       if (!text) return;
-      const msg = { type: 'CHAT', id: room.myId, name: room.myName, text, ts: Date.now() };
+      const msg = {
+        type: 'CHAT', id: room.myId, name: room.myName, text, ts: Date.now(),
+        ttl10: !!room.autoTTL
+      };
       addChatMessage(room, msg);
       sendToAll(room, msg);
       $('chat-input').value = '';
+      touchActivity();
     }
 
-    // Improved Voice recording
+    // Voice
     async function startRecording() {
       if (recording) return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioChunks = [];
-        const options = { mimeType: 'audio/webm;codecs=opus' };
         try {
-          mediaRecorder = new MediaRecorder(stream, options);
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
         } catch {
           mediaRecorder = new MediaRecorder(stream);
         }
@@ -1292,17 +1389,14 @@
         mediaRecorder.onstop = () => {
           stream.getTracks().forEach(t => t.stop());
           const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-          if (blob.size < 800) {
-            toast('Πολύ σύντομο μήνυμα');
-            return;
-          }
+          if (blob.size < 800) { toast('Πολύ σύντομο μήνυμα'); return; }
           const reader = new FileReader();
           reader.onloadend = () => {
             const room = getActiveRoom();
             if (!room) return;
             const msg = {
               type: 'VOICE', id: room.myId, name: room.myName,
-              audio: reader.result, ts: Date.now()
+              audio: reader.result, ts: Date.now(), ttl10: !!room.autoTTL
             };
             addChatMessage(room, msg);
             sendToAll(room, msg);
@@ -1313,7 +1407,6 @@
         recording = true;
         $('btn-voice').classList.add('recording');
       } catch (e) {
-        console.error(e);
         toast('Δεν δόθηκε άδεια μικροφώνου');
       }
     }
@@ -1324,7 +1417,7 @@
       $('btn-voice').classList.remove('recording');
     }
 
-    // Files / Photos
+    // Files
     $('file-input').onchange = async e => {
       const file = e.target.files && e.target.files[0];
       e.target.value = '';
@@ -1339,7 +1432,8 @@
       reader.onloadend = () => {
         const msg = {
           type: 'FILE', id: room.myId, name: room.myName,
-          data: reader.result, mime: file.type, filename: file.name, ts: Date.now()
+          data: reader.result, mime: file.type, filename: file.name, ts: Date.now(),
+          ttl10: !!room.autoTTL
         };
         addChatMessage(room, msg);
         sendToAll(room, msg);
@@ -1348,18 +1442,30 @@
       reader.readAsDataURL(file);
     };
 
-    // ===================== SOS / Check-in / Med =====================
-    function sendSOS() {
+    // ===================== SOS =====================
+    function sendSOS(silent) {
       const room = getActiveRoom();
       if (!room) return;
+      const useSilent = silent || room.silentSOS || room.preset === 'danger';
       const msg = {
         type: 'SOS', id: room.myId, name: room.myName,
-        lat: myLat, lng: myLng, accuracy: myAccuracy, ts: Date.now()
+        lat: myLat || lastKnownLat, lng: myLng || lastKnownLng,
+        accuracy: myAccuracy, ts: Date.now()
       };
       if (room.isAdmin) relaySOS(room, msg);
       else sendToHost(room, msg);
-      if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
+
+      if (!useSilent && navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
+
+      if (useSilent) {
+        $('sos-overlay').classList.add('silent');
+        $('sos-overlay-text').textContent = 'Στάλθηκε αθόρυβα.';
+      } else {
+        $('sos-overlay').classList.remove('silent');
+        $('sos-overlay-text').textContent = 'Οι επιλεγμένοι επαφές ειδοποιήθηκαν με τη θέση σου.';
+      }
       $('sos-overlay').classList.add('show');
+      touchActivity();
     }
 
     function handleIncomingSOS(room, d) {
@@ -1379,22 +1485,71 @@
       toast('✅ Έστειλες «Είμαι εντάξει»');
       sendToAll(room, msg);
       if (navigator.vibrate) navigator.vibrate(80);
+      touchActivity();
     }
 
-    function sendMedTaken() {
-      const room = getActiveRoom();
-      if (!room) return;
-      const me = room.members.find(m => m.id === room.myId);
-      const cat = (me && me.category) || 'adult';
-      if (!medAllowed[cat]) {
-        toast('Η κατηγορία σου δεν χρησιμοποιεί αυτή τη λειτουργία');
-        return;
-      }
-      const msg = { type: 'MED', id: room.myId, name: room.myName, ts: Date.now() };
-      toast('💊 Καταγράφηκε');
-      sendToAll(room, msg);
-      if (navigator.vibrate) navigator.vibrate(60);
+    // ===================== Inactivity (elderly) =====================
+    function startInactivityWatch(room) {
+      if (inactivityTimer) clearInterval(inactivityTimer);
+      if (!room || room.preset !== 'elderly') return;
+      inactivityTimer = setInterval(() => {
+        const idleMs = Date.now() - lastActivityTs;
+        if (idleMs > 45 * 60 * 1000) { // 45 min
+          $('inactivity-banner').classList.add('show');
+          // after 3 more minutes without check-in → alert
+          if (idleMs > 48 * 60 * 1000) {
+            const msg = { type: 'INACTIVITY_ALERT', id: room.myId, name: room.myName, ts: Date.now() };
+            sendToAll(room, msg);
+            toast('Στάλθηκε ειδοποίηση αδράνειας', true);
+            lastActivityTs = Date.now(); // prevent spam
+            $('inactivity-banner').classList.remove('show');
+          }
+        }
+      }, 30000);
     }
+
+    // ===================== Shake SOS =====================
+    function setupShakeSOS() {
+      if (!window.DeviceMotionEvent) return;
+      let lastX = null, lastY = null, lastZ = null;
+      window.addEventListener('devicemotion', e => {
+        const acc = e.accelerationIncludingGravity;
+        if (!acc) return;
+        if (lastX !== null) {
+          const delta = Math.abs(acc.x - lastX) + Math.abs(acc.y - lastY) + Math.abs(acc.z - lastZ);
+          if (delta > 35) {
+            const now = Date.now();
+            if (now - shakeLast > 2500) {
+              shakeLast = now;
+              const room = getActiveRoom();
+              if (room) {
+                toast('Κούνημα → SOS');
+                sendSOS(room.preset === 'danger');
+              }
+            }
+          }
+        }
+        lastX = acc.x; lastY = acc.y; lastZ = acc.z;
+      }, { passive: true });
+    }
+
+    // ===================== Panic / Mask Screen =====================
+    function showMask() {
+      $('mask-screen').classList.add('show');
+      maskTapCount = 0;
+    }
+    function hideMask() {
+      $('mask-screen').classList.remove('show');
+    }
+    $('mask-screen').addEventListener('click', () => {
+      maskTapCount++;
+      if (maskTapTimer) clearTimeout(maskTapTimer);
+      maskTapTimer = setTimeout(() => { maskTapCount = 0; }, 800);
+      if (maskTapCount >= 3) {
+        hideMask();
+        maskTapCount = 0;
+      }
+    });
 
     // ===================== Zones =====================
     function saveZone() {
@@ -1403,8 +1558,13 @@
       const name = ($('zone-name').value || '').trim();
       const radius = parseInt($('zone-radius').value, 10);
       if (!name) return toast('Βάλε όνομα ζώνης');
-      if (myLat == null) return toast('Ενεργοποίησε πρώτα την κοινή χρήση θέσης');
-      const z = { id: 'z' + Date.now(), name, lat: myLat, lng: myLng, radius, createdBy: room.myId };
+      if (myLat == null && lastKnownLat == null) return toast('Ενεργοποίησε πρώτα την κοινή χρήση θέσης');
+      const z = {
+        id: 'z' + Date.now(), name,
+        lat: myLat != null ? myLat : lastKnownLat,
+        lng: myLng != null ? myLng : lastKnownLng,
+        radius, createdBy: room.myId
+      };
       room.zones.push(z);
       drawZones();
       broadcastState(room);
@@ -1437,9 +1597,11 @@
     $('back-from-join').onclick = () => showScreen('screen-welcome');
     $('btn-create').onclick = createRoom;
     $('btn-join').onclick = joinRoom;
+    $('btn-new-room').onclick = () => showScreen('screen-create');
 
-    $('btn-new-room').onclick = () => {
-      showScreen('screen-create');
+    // Auto-check TTL for danger preset
+    $('create-preset').onchange = () => {
+      if ($('create-preset').value === 'danger') $('create-auto-ttl').checked = true;
     };
 
     $('btn-members').onclick = () => { renderMembers(); openPanel('panel-members'); };
@@ -1451,26 +1613,12 @@
     $('btn-add-zone').onclick = () => openPanel('panel-zone');
     $('close-zone').onclick = () => closePanel('panel-zone');
     $('btn-save-zone').onclick = saveZone;
+    $('btn-mask').onclick = showMask;
 
     $('toggle-share').onchange = e => setSharing(e.target.checked);
     $('btn-checkin').onclick = sendCheckin;
-    $('btn-sos').onclick = sendSOS;
+    $('btn-sos').onclick = () => sendSOS(false);
     $('sos-close').onclick = () => $('sos-overlay').classList.remove('show');
-    $('btn-med-taken').onclick = sendMedTaken;
-
-    // Med settings
-    ['adult','elderly','other'].forEach(c => {
-      const el = $('med-' + c);
-      if (el) {
-        el.checked = !!medAllowed[c];
-        el.onchange = () => {
-          medAllowed[c] = el.checked;
-          const room = getActiveRoom();
-          if (room && room.isAdmin) broadcastState(room);
-          updateMedSection();
-        };
-      }
-    });
 
     $('btn-send').onclick = () => sendChat($('chat-input').value);
     $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat($('chat-input').value); });
@@ -1478,7 +1626,6 @@
       b.onclick = () => sendChat(b.dataset.text);
     });
 
-    // Voice hold-to-record
     const voiceBtn = $('btn-voice');
     voiceBtn.addEventListener('touchstart', e => { e.preventDefault(); startRecording(); }, { passive: false });
     voiceBtn.addEventListener('touchend', e => { e.preventDefault(); stopRecording(); });
@@ -1502,7 +1649,11 @@
       if (room && confirm('Σίγουρα θέλεις να κλείσεις αυτό το δωμάτιο για όλους;')) closeRoom(room);
     };
 
-    // Restore name + deep link + recent
+    // Activity tracking
+    ['click','touchstart','keydown'].forEach(ev => {
+      document.addEventListener(ev, touchActivity, { passive: true });
+    });
+
     window.addEventListener('DOMContentLoaded', () => {
       try {
         const n = localStorage.getItem('sr-name');
