@@ -273,7 +273,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <input type="checkbox" id="ttl" style="width:24px;height:24px" onchange="if(R()) R().ttl=this.checked">
   </label>
   <div class="row" style="padding:12px;gap:8px">
-    <button class="btn ibtn" id="rec" title="Κράτα πατημένο για φωνητικό">🎤</button>
+    <button class="btn ibtn" id="rec" title="Πάτα για ηχογράφηση / ξανά για αποστολή">🎤</button>
     <label class="btn ibtn" style="cursor:pointer" title="Φωτογραφία">📷
       <input type="file" id="file" accept="image/*" hidden>
     </label>
@@ -356,7 +356,6 @@ let micStream = null;
 let micCall = null;
 let rec = null;
 let chunks = [];
-let holding = false;
 let listenTimer = null;
 let micTimer = null;
 let autoCheckinInterval = null;
@@ -1021,11 +1020,15 @@ function doListen(r, m, duration) {
 function stopListen() {
   try { lConn && lConn.send({type: 'STOP_AUDIO'}); } catch (e) {}
   lConn = null;
-  if (call) call.close();
+  if (call) {
+    try { call.close(); } catch (e) {}
+  }
   call = null;
   if (lAudio) {
-    lAudio.pause();
-    lAudio.srcObject = null;
+    try {
+      lAudio.pause();
+      lAudio.srcObject = null;
+    } catch (e) {}
   }
   lAudio = null;
   const lbar = $('lbar');
@@ -1037,27 +1040,59 @@ function stopListen() {
 }
 
 function incoming(c) {
-  c.answer();
-  c.on('stream', s => {
-    call = c;
-    lAudio = new Audio();
-    lAudio.srcObject = s;
-    lAudio.play().catch(() => {});
-    const lname = $('lname');
-    if (lname) lname.textContent = '🎧 Ακρόαση ενεργή';
-  });
-  c.on('close', () => {
-    const lbar = $('lbar');
-    if (lbar) lbar.classList.remove('on');
-  });
+  try {
+    c.answer();
+    c.on('stream', s => {
+      call = c;
+      if (lAudio) {
+        try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
+      }
+      lAudio = new Audio();
+      lAudio.srcObject = s;
+      lAudio.play().catch(() => {
+        // Autoplay blocked – user interaction already happened via button
+        toast('Πάτα οπουδήποτε για να ακούσεις τον ήχο');
+      });
+      const lname = $('lname');
+      if (lname) lname.textContent = '🎧 Ακρόαση ενεργή';
+    });
+    c.on('close', () => {
+      const lbar = $('lbar');
+      if (lbar) lbar.classList.remove('on');
+      if (lAudio) {
+        try { lAudio.pause(); lAudio.srcObject = null; } catch (e) {}
+        lAudio = null;
+      }
+      call = null;
+    });
+    c.on('error', () => stopListen());
+  } catch (e) {
+    toast('Σφάλμα στη σύνδεση ήχου');
+  }
 }
 
 async function startMic(r, duration = 15) {
   try {
     stopMic();
-    micStream = await navigator.mediaDevices.getUserMedia({audio: true});
-    micCall = r.peer.call(PFX + r.pin, micStream);
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+    // Κλήση προς τον admin (σταθερό peer ID)
+    micCall = r.peer.call(PFX + r.pin, micStream, {metadata: {type: 'ambient'}});
+    if (!micCall) {
+      toast('Αποτυχία σύνδεσης ήχου');
+      stopMic();
+      return;
+    }
     micCall.on('close', stopMic);
+    micCall.on('error', () => {
+      toast('Σφάλμα μετάδοσης ήχου');
+      stopMic();
+    });
     const mbar = $('mbar');
     const mtimer = $('mtimer');
     if (mbar) mbar.classList.add('on');
@@ -1072,6 +1107,7 @@ async function startMic(r, duration = 15) {
     }, 1000);
   } catch (e) {
     toast('Δεν δόθηκε άδεια μικροφώνου');
+    stopMic();
   }
 }
 
@@ -1222,47 +1258,67 @@ if (fileInput) fileInput.onchange = e => {
 
 async function recStart() {
   if (rec) return;
-  holding = true;
   try {
     const s = await navigator.mediaDevices.getUserMedia({audio: true});
-    if (!holding) {
-      s.getTracks().forEach(t => t.stop());
-      return;
-    }
     chunks = [];
-    const options = MediaRecorder.isTypeSupported('audio/webm') ? {mimeType: 'audio/webm'} : {};
+    const options = MediaRecorder.isTypeSupported('audio/webm')
+      ? {mimeType: 'audio/webm'}
+      : (MediaRecorder.isTypeSupported('audio/mp4') ? {mimeType: 'audio/mp4'} : {});
     const mr = rec = new MediaRecorder(s, options);
     mr.ondataavailable = e => e.data.size && chunks.push(e.data);
     mr.onstop = () => {
       s.getTracks().forEach(t => t.stop());
       rec = null;
       const b = new Blob(chunks, {type: mr.mimeType || 'audio/webm'});
-      if (b.size < 800) return toast('Πολύ σύντομο μήνυμα');
+      if (b.size < 800) {
+        toast('Πολύ σύντομο μήνυμα');
+        const recBtn = $('rec');
+        if (recBtn) recBtn.classList.remove('rc');
+        return;
+      }
       const f = new FileReader();
-      f.onloadend = () => post(msg('VOICE', {data: f.result}));
+      f.onloadend = () => {
+        post(msg('VOICE', {data: f.result}));
+        toast('🎤 Φωνητικό στάλθηκε');
+      };
       f.readAsDataURL(b);
+      const recBtn = $('rec');
+      if (recBtn) recBtn.classList.remove('rc');
     };
-    mr.start();
+    mr.start(250); // timeslice για πιο αξιόπιστα chunks
     const recBtn = $('rec');
-    if (recBtn) recBtn.classList.add('rc');
+    if (recBtn) {
+      recBtn.classList.add('rc');
+      recBtn.title = 'Πάτα ξανά για να σταματήσεις και να στείλεις';
+    }
+    toast('🎤 Ηχογράφηση… πάτα ξανά για αποστολή');
   } catch (e) {
     toast('Δεν δόθηκε άδεια μικροφώνου');
-  }
-}
-
-function recStop() {
-  holding = false;
-  if (rec && rec.state === 'recording') {
-    rec.stop();
     const recBtn = $('rec');
     if (recBtn) recBtn.classList.remove('rc');
   }
 }
 
+function recStop() {
+  if (rec && rec.state === 'recording') {
+    rec.stop();
+  }
+}
+
+function toggleRec() {
+  if (rec && rec.state === 'recording') {
+    recStop();
+  } else {
+    recStart();
+  }
+}
+
 const rb = $('rec');
 if (rb) {
-  rb.onpointerdown = e => { e.preventDefault(); recStart(); };
-  ['pointerup', 'pointercancel', 'pointerleave', 'pointerout'].forEach(n => rb.addEventListener(n, recStop));
+  rb.onclick = e => {
+    e.preventDefault();
+    toggleRec();
+  };
   rb.oncontextmenu = e => e.preventDefault();
 }
 
