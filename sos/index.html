@@ -281,8 +281,10 @@
   <div id="screen-perms" class="screen p-5 overflow-y-auto">
     <div class="max-w-md mx-auto w-full space-y-5 pb-10">
       <h2 class="text-2xl font-extrabold">Άδειες συσκευής</h2>
-      <div id="inapp-tip" class="hidden bg-amber-900/40 border border-amber-600 rounded-xl p-3 text-sm text-amber-100">
-        ⚠️ Ανοίγεις από Facebook/Instagram browser. Πάτα ⋮ ή «Άνοιγμα σε browser» → Chrome/Safari για να μπεις κανονικά.
+      <div id="inapp-tip" class="hidden bg-amber-900/40 border border-amber-600 rounded-xl p-3 text-sm text-amber-100 space-y-2">
+        <p>⚠️ Ανοίγεις από Messenger/Facebook/Instagram. Η σύνδεση συχνά αποτυγχάνει εδώ.</p>
+        <p>Πάτα ⋮ πάνω δεξιά → <strong>«Άνοιγμα στο Chrome/Safari»</strong> και ξαναμπές με τον ίδιο σύνδεσμο.</p>
+        <button type="button" id="btn-copy-invite-again" class="btn btn-ghost btn-lg w-full text-sm" style="height:2.75rem">Αντιγραφή συνδέσμου</button>
       </div>
       <p class="text-slate-400 text-sm">Για να μπεις στο δωμάτιο χρειάζονται οι παρακάτω άδειες. Πάτα κάθε κουμπί.</p>
       <div class="perm-card" id="perm-loc-card">
@@ -566,11 +568,16 @@
       peer.on('connection', conn => {
         const room = rooms[roomPin];
         if (!room) return;
-        conn.on('open', () => {});
-        conn.on('data', d => onMemberMessage(room, conn, d));
+        console.log('incoming connection from', conn.peer);
+        if (!room.connections.includes(conn)) room.connections.push(conn);
+        conn.on('open', () => {
+          console.log('connection open', conn.peer);
+        });
+        conn.on('data', d => {
+          try { onMemberMessage(room, conn, d); } catch (e) { console.error(e); }
+        });
         conn.on('close', () => onMemberLeft(room, conn));
         conn.on('error', () => onMemberLeft(room, conn));
-        room.connections.push(conn);
       });
       peer.on('call', call => handleIncomingCall(roomPin, call));
       peer.on('error', err => {
@@ -603,60 +610,133 @@
       }
     }
 
-    function doJoin() {
+    function doJoin(retryCount) {
       if (!pendingJoin) return;
+      retryCount = retryCount || 0;
       const { pin: roomPin, name, category } = pendingJoin;
       myName = name;
       const btn = $('btn-perms-continue');
-      btn.disabled = true; btn.textContent = 'Σύνδεση…';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = retryCount ? ('Επανασύνδεση… (' + (retryCount + 1) + ')') : 'Σύνδεση…';
+      }
+
+      // Clean previous failed peer for this pin
+      if (rooms[roomPin] && !rooms[roomPin].isAdmin) {
+        try { rooms[roomPin].peer && rooms[roomPin].peer.destroy(); } catch (e) {}
+        delete rooms[roomPin];
+      }
 
       const peerOpts = {
-        debug: 0,
+        debug: 1,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' }
           ]
         }
       };
+
+      let settled = false;
+      let joinTimer = null;
+
+      const fail = (msg, canRetry) => {
+        if (settled) return;
+        settled = true;
+        if (joinTimer) clearTimeout(joinTimer);
+        console.warn('join fail', msg);
+        if (canRetry && retryCount < 3) {
+          toast((msg || 'Αποτυχία') + ' — ξαναδοκιμή…');
+          setTimeout(() => doJoin(retryCount + 1), 1200 + retryCount * 800);
+          return;
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Είσοδος στο δωμάτιο';
+        }
+        toast(msg || 'Δεν βρέθηκε το δωμάτιο. Ο διαχειριστής πρέπει να έχει ανοιχτή την εφαρμογή.');
+        if (rooms[roomPin]) {
+          try { rooms[roomPin].peer && rooms[roomPin].peer.destroy(); } catch (e) {}
+          delete rooms[roomPin];
+        }
+      };
+
       const peer = new Peer(peerOpts);
-      peer.on('open', () => {
-        const hostConn = peer.connect(ROOM_PREFIX + roomPin, { reliable: true });
+
+      peer.on('error', err => {
+        console.error('guest peer error', err);
+        const t = (err && err.type) || '';
+        if (t === 'peer-unavailable' || t === 'network' || t === 'server-error' || t === 'socket-error') {
+          fail('Πρόβλημα δικτύου ή το δωμάτιο δεν είναι ανοιχτό', true);
+        } else if (t === 'webrtc') {
+          fail('Ο browser μπλοκάρει τη σύνδεση. Άνοιξε σε Chrome ή Safari.', false);
+        } else {
+          fail('Σφάλμα σύνδεσης: ' + (t || 'άγνωστο'), true);
+        }
+      });
+
+      peer.on('open', myPeerId => {
+        console.log('guest peer open', myPeerId);
+        const hostId = ROOM_PREFIX + roomPin;
+        const hostConn = peer.connect(hostId, { reliable: true, serialization: 'json' });
+
         const room = {
-          peer, isAdmin: false, myId: peer.id, myName, roomPin, roomName: 'Δωμάτιο', preset: 'family',
+          peer, isAdmin: false, myId: myPeerId, myName, roomPin, roomName: 'Δωμάτιο', preset: 'family',
           autoTTL: false, roomExpiresAt: 0, members: [], connections: [], hostConn,
           zones: [], sosRecipients: new Set(), chat: [], markers: {}, zoneLayers: {},
           memberZoneState: {}, category, silentSOS: false
         };
         rooms[roomPin] = room;
         activePin = roomPin;
+
         let joined = false;
-        const fail = (msg) => {
-          if (joined) return;
-          btn.disabled = false; btn.textContent = 'Είσοδος στο δωμάτιο';
-          toast(msg || 'Δεν βρέθηκε το δωμάτιο');
-          delete rooms[roomPin];
+
+        const markJoined = () => {
+          joined = true;
+          settled = true;
+          if (joinTimer) clearTimeout(joinTimer);
         };
-        hostConn.on('open', () => hostConn.send({ type: 'JOIN', name: myName, id: peer.id, category }));
+
+        hostConn.on('open', () => {
+          console.log('hostConn open, sending JOIN');
+          try {
+            hostConn.send({ type: 'JOIN', name: myName, id: myPeerId, category: category || 'adult' });
+          } catch (e) {
+            fail('Αποτυχία αποστολής JOIN', true);
+          }
+        });
+
         hostConn.on('data', d => {
-          if (d && d.type === 'WELCOME') joined = true;
+          if (!d || !d.type) return;
+          if (d.type === 'WELCOME') markJoined();
           onHostMessage(room, d);
         });
+
         hostConn.on('close', () => {
-          if (!joined) fail('Η σύνδεση χάθηκε');
-          else { toast('Η σύνδεση χάθηκε'); setTimeout(() => { delete rooms[roomPin]; if (activePin === roomPin) location.reload(); }, 1500); }
+          if (!joined) fail('Η σύνδεση έκλεισε πριν την είσοδο', true);
+          else {
+            toast('Η σύνδεση χάθηκε');
+            setTimeout(() => {
+              delete rooms[roomPin];
+              if (activePin === roomPin) location.reload();
+            }, 1500);
+          }
         });
-        hostConn.on('error', () => fail('Δεν βρέθηκε το δωμάτιο'));
-        peer.on('call', call => handleIncomingCall(roomPin, call));
-        setTimeout(() => {
-          if (!joined) fail('Το δωμάτιο δεν απάντησε. Βεβαιώσου ότι ο διαχειριστής έχει ανοιχτή την εφαρμογή και δοκίμασε σε Chrome/Safari.');
-        }, 15000);
+
+        hostConn.on('error', err => {
+          console.error('hostConn error', err);
+          if (!joined) fail('Δεν βρέθηκε το δωμάτιο (PIN ή admin κλειστός)', true);
+        });
+
+        // If connect never opens
+        joinTimer = setTimeout(() => {
+          if (!joined) fail('Το δωμάτιο δεν απάντησε. Βεβαιώσου ότι ο διαχειριστής έχει ανοιχτό το δωμάτιο.', true);
+        }, 14000);
       });
-      peer.on('error', () => {
-        btn.disabled = false; btn.textContent = 'Είσοδος στο δωμάτιο';
-        toast('Σφάλμα σύνδεσης');
-      });
+
+      peer.on('call', call => handleIncomingCall(roomPin, call));
     }
 
     function onMemberMessage(room, conn, d) {
@@ -1003,9 +1083,8 @@
             <option value="elderly" ${cat==='elderly'?'selected':''}>Ηλικιωμένος</option>
             <option value="other" ${cat==='other'?'selected':''}>Άλλο</option>
           </select>`;
-          if (room.preset === 'child' || cat === 'child') {
-            actions += `<button data-listen="${m.id}" class="text-xs bg-violet-700 hover:bg-violet-600 px-2 py-1 rounded-lg ml-1 font-semibold">🎧 Ακρόαση</button>`;
-          }
+          // Admin can request ambient listen from any member
+          actions += `<button data-listen="${m.id}" class="text-xs bg-violet-700 hover:bg-violet-600 px-2 py-1 rounded-lg ml-1 font-semibold">🎧 Ακρόαση</button>`;
         }
         row.innerHTML = `
           <div class="avatar" style="background:${m.color || '#64748b'}">${(m.name || '?')[0].toUpperCase()}</div>
@@ -1369,7 +1448,14 @@
         permMicOk = false; $('perm-mic-status').textContent = 'Άρνηση άδειας'; updatePermUI();
       }
     };
-    $('btn-perms-continue').onclick = () => doJoin();
+    $('btn-perms-continue').onclick = () => doJoin(0);
+    document.addEventListener('click', e => {
+      if (e.target && e.target.id === 'btn-copy-invite-again' && pendingJoin) {
+        const url = location.href.split('?')[0].split('#')[0] + '?room=' + pendingJoin.pin;
+        if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Αντιγράφηκε')).catch(() => toast(url));
+        else toast(url);
+      }
+    });
     $('btn-perms-back').onclick = () => { pendingJoin = null; showScreen('screen-join'); };
 
     $('go-create').onclick = () => showScreen('screen-create');
@@ -1413,9 +1499,22 @@
     voiceBtn.addEventListener('mouseleave', stopRecording);
     $('btn-copy-pin').onclick = async () => {
       const room = getActiveRoom(); if (!room) return;
-      const url = location.href.split('?')[0].split('#')[0] + '?room=' + room.roomPin;
-      try { await navigator.clipboard.writeText(url); toast('Ο σύνδεσμος αντιγράφηκε'); }
-      catch { toast('PIN: ' + room.roomPin); }
+      const base = location.href.split('?')[0].split('#')[0];
+      const url = base + '?room=' + room.roomPin;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Σύνδεσμος αντιγράφηκε. Ο άλλος πρέπει να τον ανοίξει σε Chrome/Safari (όχι μέσα στο Messenger).');
+      } catch {
+        // fallback
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = url; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta);
+          toast('Σύνδεσμος αντιγράφηκε · PIN ' + room.roomPin);
+        } catch {
+          toast('PIN: ' + room.roomPin + ' — στείλε το χειροκίνητα');
+        }
+      }
     };
     $('btn-close-room').onclick = () => {
       const room = getActiveRoom();
@@ -1437,12 +1536,18 @@
       }
       const pin = new URLSearchParams(location.search).get('room');
       if (pin) {
-        const cleanPin = pin.replace(/\D/g, '').slice(0, 4);
+        const cleanPin = String(pin).replace(/\D/g, '').slice(0, 4);
         if (cleanPin.length === 4) {
           $('join-pin').value = cleanPin;
+          showScreen('screen-join');
           const n = ($('join-name').value || '').trim();
-          if (n) prepareJoin(cleanPin, n, $('join-category').value, true);
-          else { showScreen('screen-join'); toast('Βάλε το όνομά σου και πάτα Συνέχεια'); }
+          if (n) {
+            // slight delay so UI paints, then auto go to permissions
+            setTimeout(() => prepareJoin(cleanPin, n, $('join-category').value || 'adult', true), 300);
+          } else {
+            toast('Γράψε το όνομά σου και πάτα «Συνέχεια → Άδειες»');
+            setTimeout(() => { try { $('join-name').focus(); } catch(e) {} }, 400);
+          }
         }
       }
     });
