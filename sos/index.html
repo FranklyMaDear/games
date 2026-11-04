@@ -274,7 +274,7 @@
           <option value="other">Άλλο</option>
         </select>
       </div>
-      <button id="btn-join" class="btn btn-primary btn-xl w-full mt-4">Συνέχεια → Άδειες</button>
+      <button id="btn-join" class="btn btn-primary btn-xl w-full mt-4">Είσοδος στο δωμάτιο</button>
     </div>
   </div>
 
@@ -522,26 +522,20 @@
       }, HEARTBEAT_MS);
     }
 
-    function createRoom(existing) {
+    function createRoom(existing, attempt) {
+      attempt = attempt || 0;
       myName = cleanName(existing ? existing.myName : $('create-name').value);
       const roomName = existing ? existing.roomName : (($('create-room-name').value || '').trim() || 'Δωμάτιο');
       const preset = existing ? existing.preset : ($('create-preset').value || 'family');
       const autoTTL = existing ? !!existing.autoTTL : ($('create-auto-ttl').checked || preset === 'panic');
       const roomPin = existing ? existing.pin : generatePIN();
+
       const btn = $('btn-create');
       if (btn) { btn.disabled = true; btn.textContent = 'Δημιουργία…'; }
 
-      const peerOpts = {
-        debug: 0,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
-      };
-      const peer = new Peer(ROOM_PREFIX + roomPin, peerOpts);
+      // Don't Touch style: Peer ID = prefix + PIN
+      const peer = new Peer(ROOM_PREFIX + roomPin);
+
       peer.on('open', () => {
         const room = {
           peer, isAdmin: true, myId: 'admin', myName, roomPin, roomName, preset, autoTTL, roomExpiresAt: 0,
@@ -565,30 +559,36 @@
         if (btn) { btn.disabled = false; btn.textContent = 'Δημιουργία'; }
         toast(existing ? 'Δωμάτιο επαναφέρθηκε' : 'Δωμάτιο δημιουργήθηκε · PIN ' + roomPin);
       });
-      peer.on('connection', conn => {
+
+      // Don't Touch style connection handling
+      peer.on('connection', (conn) => {
         const room = rooms[roomPin];
         if (!room) return;
-        console.log('incoming connection from', conn.peer);
-        if (!room.connections.includes(conn)) room.connections.push(conn);
-        conn.on('open', () => {
-          console.log('connection open', conn.peer);
-        });
-        conn.on('data', d => {
+        conn.on('data', (d) => {
           try { onMemberMessage(room, conn, d); } catch (e) { console.error(e); }
         });
         conn.on('close', () => onMemberLeft(room, conn));
         conn.on('error', () => onMemberLeft(room, conn));
       });
-      peer.on('call', call => handleIncomingCall(roomPin, call));
-      peer.on('error', err => {
+
+      peer.on('call', (call) => handleIncomingCall(roomPin, call));
+
+      peer.on('disconnected', () => {
+        try { peer.reconnect(); } catch (e) {}
+      });
+
+      peer.on('error', (err) => {
         console.error(err);
+        if (err.type === 'unavailable-id' && attempt < 5) {
+          try { peer.destroy(); } catch (e) {}
+          return createRoom(existing, attempt + 1);
+        }
         if (btn) { btn.disabled = false; btn.textContent = 'Δημιουργία'; }
-        if (err.type === 'unavailable-id') setTimeout(() => createRoom(existing), 600);
-        else toast('Σφάλμα σύνδεσης. Δοκίμασε ξανά.');
+        toast('Σφάλμα σύνδεσης. Έλεγξε το internet και δοκίμασε ξανά.');
       });
     }
 
-    
+
     function isInAppBrowser() {
       const ua = navigator.userAgent || '';
       return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Twitter/i.test(ua);
@@ -610,148 +610,95 @@
       }
     }
 
-    function doJoin(retryCount) {
+    function doJoin() {
       if (!pendingJoin) return;
-      retryCount = retryCount || 0;
-      const { pin: roomPin, name, category } = pendingJoin;
+      const roomPin = pendingJoin.pin;
+      const name = pendingJoin.name;
+      const category = pendingJoin.category || 'adult';
       myName = name;
-      const btn = $('btn-perms-continue');
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = retryCount ? ('Επανασύνδεση… (' + (retryCount + 1) + ')') : 'Σύνδεση…';
-      }
 
-      // Clean previous failed peer for this pin
-      if (rooms[roomPin] && !rooms[roomPin].isAdmin) {
-        try { rooms[roomPin].peer && rooms[roomPin].peer.destroy(); } catch (e) {}
+      const btn = $('btn-perms-continue') || $('btn-join');
+      if (btn) { btn.disabled = true; btn.textContent = 'Σύνδεση…'; }
+
+      // Don't Touch style: simple Peer, connect to host id
+      if (rooms[roomPin] && rooms[roomPin].peer) {
+        try { rooms[roomPin].peer.destroy(); } catch (e) {}
         delete rooms[roomPin];
       }
 
-      const peerOpts = {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
+      let joined = false;
+      const fail = (msg) => {
+        if (joined) return;
+        if (btn) { btn.disabled = false; btn.textContent = 'Είσοδος στο δωμάτιο'; }
+        toast(msg || 'Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN.');
+        try { if (rooms[roomPin]) rooms[roomPin].peer.destroy(); } catch (e) {}
+        delete rooms[roomPin];
       };
 
-      let settled = false;
-      let joinTimer = null;
+      const peer = new Peer(); // same as Don't Touch – default cloud
 
-      const fail = (msg, canRetry) => {
-        if (settled) return;
-        settled = true;
-        if (joinTimer) clearTimeout(joinTimer);
-        console.warn('join fail', msg);
-        if (canRetry && retryCount < 3) {
-          toast((msg || 'Αποτυχία') + ' — ξαναδοκιμή…');
-          setTimeout(() => doJoin(retryCount + 1), 1200 + retryCount * 800);
-          return;
-        }
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = 'Είσοδος στο δωμάτιο';
-        }
-        toast(msg || 'Δεν βρέθηκε το δωμάτιο. Ο διαχειριστής πρέπει να έχει ανοιχτή την εφαρμογή.');
-        if (rooms[roomPin]) {
-          try { rooms[roomPin].peer && rooms[roomPin].peer.destroy(); } catch (e) {}
-          delete rooms[roomPin];
-        }
-      };
-
-      const peer = new Peer(peerOpts);
-
-      peer.on('error', err => {
-        console.error('guest peer error', err);
-        const t = (err && err.type) || '';
-        if (t === 'peer-unavailable' || t === 'network' || t === 'server-error' || t === 'socket-error') {
-          fail('Πρόβλημα δικτύου ή το δωμάτιο δεν είναι ανοιχτό', true);
-        } else if (t === 'webrtc') {
-          fail('Ο browser μπλοκάρει τη σύνδεση. Άνοιξε σε Chrome ή Safari.', false);
-        } else {
-          fail('Σφάλμα σύνδεσης: ' + (t || 'άγνωστο'), true);
-        }
-      });
-
-      peer.on('open', myPeerId => {
-        console.log('guest peer open', myPeerId);
-        const hostId = ROOM_PREFIX + roomPin;
-        const hostConn = peer.connect(hostId, { reliable: true, serialization: 'json' });
+      peer.on('open', () => {
+        const myPeerId = peer.id;
+        const hostConn = peer.connect(ROOM_PREFIX + roomPin, { reliable: true });
 
         const room = {
-          peer, isAdmin: false, myId: myPeerId, myName, roomPin, roomName: 'Δωμάτιο', preset: 'family',
-          autoTTL: false, roomExpiresAt: 0, members: [], connections: [], hostConn,
+          peer, isAdmin: false, myId: myPeerId, myName, roomPin,
+          roomName: 'Δωμάτιο', preset: 'family', autoTTL: false, roomExpiresAt: 0,
+          members: [], connections: [], hostConn,
           zones: [], sosRecipients: new Set(), chat: [], markers: {}, zoneLayers: {},
           memberZoneState: {}, category, silentSOS: false
         };
         rooms[roomPin] = room;
         activePin = roomPin;
 
-        let joined = false;
-
-        const markJoined = () => {
-          joined = true;
-          settled = true;
-          if (joinTimer) clearTimeout(joinTimer);
-        };
-
         hostConn.on('open', () => {
-          console.log('hostConn open, sending JOIN');
-          try {
-            hostConn.send({ type: 'JOIN', name: myName, id: myPeerId, category: category || 'adult' });
-          } catch (e) {
-            fail('Αποτυχία αποστολής JOIN', true);
-          }
+          hostConn.send({ type: 'JOIN', name: myName, id: myPeerId, category: category });
         });
-
-        hostConn.on('data', d => {
-          if (!d || !d.type) return;
-          if (d.type === 'WELCOME') markJoined();
+        hostConn.on('data', (d) => {
+          if (d && d.type === 'WELCOME') joined = true;
           onHostMessage(room, d);
         });
-
         hostConn.on('close', () => {
-          if (!joined) fail('Η σύνδεση έκλεισε πριν την είσοδο', true);
+          if (!joined) fail('Η σύνδεση έκλεισε. Είναι ανοιχτό το δωμάτιο του διαχειριστή;');
           else {
             toast('Η σύνδεση χάθηκε');
-            setTimeout(() => {
-              delete rooms[roomPin];
-              if (activePin === roomPin) location.reload();
-            }, 1500);
+            setTimeout(() => location.reload(), 1500);
           }
         });
-
-        hostConn.on('error', err => {
-          console.error('hostConn error', err);
-          if (!joined) fail('Δεν βρέθηκε το δωμάτιο (PIN ή admin κλειστός)', true);
+        hostConn.on('error', () => {
+          if (!joined) fail('Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN.');
         });
 
-        // If connect never opens
-        joinTimer = setTimeout(() => {
-          if (!joined) fail('Το δωμάτιο δεν απάντησε. Βεβαιώσου ότι ο διαχειριστής έχει ανοιχτό το δωμάτιο.', true);
-        }, 14000);
+        setTimeout(() => {
+          if (!joined) fail('Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN και ότι ο διαχειριστής είναι μέσα.');
+        }, 12000);
       });
 
-      peer.on('call', call => handleIncomingCall(roomPin, call));
+      peer.on('error', (err) => {
+        console.error(err);
+        fail('Το δωμάτιο δεν βρέθηκε. Έλεγξε το PIN.');
+      });
+
+      peer.on('call', (call) => handleIncomingCall(roomPin, call));
     }
+
 
     function onMemberMessage(room, conn, d) {
       if (!d || !d.type) return;
       if (d.type === 'JOIN') {
-        if (room.members.some(m => m.id === d.id)) return;
+        // Don't Touch style: member id = conn.peer
+        const memberId = conn.peer || d.id;
+        if (room.members.some(m => m.id === memberId)) return;
+        if (!room.connections.includes(conn)) room.connections.push(conn);
         const color = COLORS[room.members.length % COLORS.length];
         room.members.push({
-          id: d.id, name: cleanName(d.name), role: 'member', color,
+          id: memberId, name: cleanName(d.name), role: 'member', color,
           category: d.category || 'adult', lastSeen: Date.now(),
           lat: null, lng: null, accuracy: null, battery: null, sharing: false
         });
-        room.sosRecipients.add(d.id);
+        room.sosRecipients.add(memberId);
         conn.send({
-          type: 'WELCOME', id: d.id, roomName: room.roomName, preset: room.preset, autoTTL: room.autoTTL,
+          type: 'WELCOME', id: memberId, roomName: room.roomName, preset: room.preset, autoTTL: room.autoTTL,
           members: publicMembers(room), zones: room.zones, sosRecipients: [...room.sosRecipients]
         });
         broadcastState(room);
@@ -1468,7 +1415,9 @@
       const pin = ($('join-pin').value || '').replace(/\D/g, '').slice(0, 4);
       if (pin.length !== 4) return toast('Βάλε έγκυρο 4ψήφιο PIN');
       if (!name || name === 'Χρήστης') return toast('Βάλε το όνομά σου');
-      prepareJoin(pin, name, $('join-category').value, false);
+      // Don't Touch style: connect immediately (permissions optional later in-room)
+      pendingJoin = { pin, name, category: $('join-category').value || 'adult', fromLink: false };
+      doJoin();
     };
     $('btn-new-room').onclick = () => showScreen('screen-create');
     $('create-preset').onchange = () => { if ($('create-preset').value === 'panic') $('create-auto-ttl').checked = true; };
@@ -1540,13 +1489,16 @@
         if (cleanPin.length === 4) {
           $('join-pin').value = cleanPin;
           showScreen('screen-join');
+          // Same as Don't Touch: prefill PIN, user enters name and presses join
           const n = ($('join-name').value || '').trim();
           if (n) {
-            // slight delay so UI paints, then auto go to permissions
-            setTimeout(() => prepareJoin(cleanPin, n, $('join-category').value || 'adult', true), 300);
+            pendingJoin = { pin: cleanPin, name: cleanName(n), category: $('join-category').value || 'adult', fromLink: true };
+            setTimeout(() => doJoin(), 400);
           } else {
-            toast('Γράψε το όνομά σου και πάτα «Συνέχεια → Άδειες»');
-            setTimeout(() => { try { $('join-name').focus(); } catch(e) {} }, 400);
+            toast('Γράψε το όνομά σου και πάτα Είσοδο');
+            // rename button label for clarity
+            try { $('btn-join').textContent = 'Είσοδος στο δωμάτιο'; } catch(e) {}
+            setTimeout(() => { try { $('join-name').focus(); } catch(e) {} }, 300);
           }
         }
       }
