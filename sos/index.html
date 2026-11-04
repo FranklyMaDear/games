@@ -22,6 +22,7 @@
     }
     .screen { display: none !important; height: 100dvh; flex-direction: column; width: 100%; }
     .screen.active { display: flex !important; }
+    #screen-room.active { flex-direction: column; }
     .btn {
       display: flex; align-items: center; justify-content: center; gap: 0.5rem;
       font-weight: 700; border-radius: 1rem; transition: transform 0.12s, opacity 0.12s;
@@ -36,6 +37,27 @@
     .btn-lg { height: 3.5rem; font-size: 1.1rem; padding: 0 1.5rem; }
     .btn-xl { height: 4.25rem; font-size: 1.25rem; padding: 0 1.5rem; }
     #map { width: 100%; height: 100%; background: #0f172a; }
+    #map-wrap { flex: 1; min-height: 0; position: relative; }
+    #room-controls {
+      flex-shrink: 0; background: var(--card); border-top: 1px solid var(--border);
+      padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; gap: 0.6rem; z-index: 1000;
+    }
+    .ctrl-row { display: flex; gap: 0.6rem; align-items: center; justify-content: center; }
+    .btn-checkin-wide {
+      flex: 1; height: 3.25rem; border-radius: 1rem; font-weight: 800; font-size: 1.05rem;
+      background: linear-gradient(135deg, #16a34a, #22c55e); color: white; border: none;
+      box-shadow: 0 4px 14px rgba(34,197,94,0.35);
+    }
+    .btn-sos-round {
+      width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--danger);
+      border: 2px solid #fca5a5; color: white; font-size: 1.5rem; flex-shrink: 0;
+      box-shadow: 0 4px 16px rgba(239,68,68,0.4);
+    }
+    .btn-chat-round {
+      width: 3.25rem; height: 3.25rem; border-radius: 50%; background: var(--bg);
+      border: 2px solid var(--border); color: white; font-size: 1.25rem; flex-shrink: 0;
+    }
     .leaflet-container { font-family: Inter, sans-serif; background: #0f172a; }
     .bottom-bar {
       position: absolute; bottom: 0; left: 0; right: 0;
@@ -223,7 +245,7 @@
         <label>Προφίλ Δωματίου</label>
         <select id="create-preset">
           <option value="family" selected>👨‍👩‍👧 Οικογένεια (πλήρης λειτουργικότητα)</option>
-          <option value="danger">🛡️ Γυναίκα σε Κίνδυνο (αθόρυβο SOS + μάσκα)</option>
+          <option value="panic">🚨 Panic Button (αθόρυβο SOS + μάσκα)</option>
           <option value="child">👶 Παιδί / Φροντίδα (ζώνες + ακρόαση)</option>
           <option value="elderly">👵 Ηλικιωμένος (μεγάλα κουμπιά + αδράνεια)</option>
         </select>
@@ -259,6 +281,9 @@
   <div id="screen-perms" class="screen p-5 overflow-y-auto">
     <div class="max-w-md mx-auto w-full space-y-5 pb-10">
       <h2 class="text-2xl font-extrabold">Άδειες συσκευής</h2>
+      <div id="inapp-tip" class="hidden bg-amber-900/40 border border-amber-600 rounded-xl p-3 text-sm text-amber-100">
+        ⚠️ Ανοίγεις από Facebook/Instagram browser. Πάτα ⋮ ή «Άνοιγμα σε browser» → Chrome/Safari για να μπεις κανονικά.
+      </div>
       <p class="text-slate-400 text-sm">Για να μπεις στο δωμάτιο χρειάζονται οι παρακάτω άδειες. Πάτα κάθε κουμπί.</p>
       <div class="perm-card" id="perm-loc-card">
         <div class="flex items-center justify-between gap-3">
@@ -290,21 +315,23 @@
       <button id="btn-new-room" class="room-tab pointer-events-auto" title="Νέο δωμάτιο">＋</button>
     </div>
     <div class="absolute top-0 left-0 right-0 z-[1000] p-3 flex items-start justify-between gap-2 pointer-events-none" id="top-bar">
-      <div class="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-2xl px-3 py-2 pointer-events-auto max-w-[70%]">
+      <div class="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-2xl px-3 py-2 pointer-events-auto max-w-[65%]">
         <div class="font-bold text-sm truncate" id="room-title">Δωμάτιο</div>
         <div class="text-xs text-slate-400" id="room-meta">—</div>
       </div>
       <div class="flex gap-2 pointer-events-auto">
-        <button id="btn-mask" class="bar-btn hidden" style="width:48px;height:48px;font-size:1.1rem" title="Μάσκα">🌤️</button>
-        <button id="btn-members" class="bar-btn" style="width:48px;height:48px;font-size:1.1rem" title="Μέλη">👥</button>
-        <button id="btn-settings" class="bar-btn hidden" style="width:48px;height:48px;font-size:1.1rem" title="Ρυθμίσεις">⚙️</button>
+        <button id="btn-mask" class="bar-btn hidden" style="width:44px;height:44px;font-size:1rem" title="Μάσκα">🌤️</button>
+        <button id="btn-members" class="bar-btn" style="width:44px;height:44px;font-size:1rem" title="Μέλη">👥</button>
+        <button id="btn-settings" class="bar-btn hidden" style="width:44px;height:44px;font-size:1rem" title="Ρυθμίσεις">⚙️</button>
       </div>
     </div>
-    <div id="map"></div>
-    <div class="bottom-bar">
-      <button class="bar-btn" id="btn-checkin" title="Είμαι εντάξει">✅<span>Εντάξει</span></button>
-      <button class="bar-btn sos" id="btn-sos" title="Βοήθεια">🆘</button>
-      <button class="bar-btn" id="btn-chat" title="Chat">💬<span>Chat</span></button>
+    <div id="map-wrap"><div id="map"></div></div>
+    <div id="room-controls">
+      <div class="ctrl-row">
+        <button class="btn-checkin-wide" id="btn-checkin" title="Είμαι εντάξει">✅ Είμαι εντάξει</button>
+        <button class="btn-sos-round" id="btn-sos" title="SOS">🆘</button>
+        <button class="btn-chat-round" id="btn-chat" title="Chat">💬</button>
+      </div>
     </div>
   </div>
 
@@ -386,7 +413,7 @@
     const COLORS = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#f97316'];
     const CATEGORY_LABELS = { child: 'Παιδί', adult: 'Ενήλικας', elderly: 'Ηλικιωμένος', other: 'Άλλο' };
     const CATEGORY_CLASS = { child: 'cat-child', adult: 'cat-adult', elderly: 'cat-elderly', other: 'cat-other' };
-    const PRESET_LABELS = { family: 'Οικογένεια', danger: 'Γυναίκα σε Κίνδυνο', child: 'Παιδί / Φροντίδα', elderly: 'Ηλικιωμένος' };
+    const PRESET_LABELS = { family: 'Οικογένεια', panic: 'Panic Button', child: 'Παιδί / Φροντίδα', elderly: 'Ηλικιωμένος' };
     const HEARTBEAT_MS = 8000;
     const HOST_TIMEOUT_MS = 25000;
 
@@ -497,12 +524,22 @@
       myName = cleanName(existing ? existing.myName : $('create-name').value);
       const roomName = existing ? existing.roomName : (($('create-room-name').value || '').trim() || 'Δωμάτιο');
       const preset = existing ? existing.preset : ($('create-preset').value || 'family');
-      const autoTTL = existing ? !!existing.autoTTL : ($('create-auto-ttl').checked || preset === 'danger');
+      const autoTTL = existing ? !!existing.autoTTL : ($('create-auto-ttl').checked || preset === 'panic');
       const roomPin = existing ? existing.pin : generatePIN();
       const btn = $('btn-create');
       if (btn) { btn.disabled = true; btn.textContent = 'Δημιουργία…'; }
 
-      const peer = new Peer(ROOM_PREFIX + roomPin, { debug: 0 });
+      const peerOpts = {
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      };
+      const peer = new Peer(ROOM_PREFIX + roomPin, peerOpts);
       peer.on('open', () => {
         const room = {
           peer, isAdmin: true, myId: 'admin', myName, roomPin, roomName, preset, autoTTL, roomExpiresAt: 0,
@@ -514,7 +551,7 @@
           connections: [], hostConn: null,
           zones: existing && existing.zones ? existing.zones : [],
           sosRecipients: new Set(existing && existing.sosRecipients ? existing.sosRecipients : ['admin']),
-          chat: [], markers: {}, zoneLayers: {}, memberZoneState: {}, silentSOS: preset === 'danger'
+          chat: [], markers: {}, zoneLayers: {}, memberZoneState: {}, silentSOS: preset === 'panic'
         };
         rooms[roomPin] = room;
         isAdminGlobal = true;
@@ -544,11 +581,26 @@
       });
     }
 
+    
+    function isInAppBrowser() {
+      const ua = navigator.userAgent || '';
+      return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Twitter/i.test(ua);
+    }
+
     function prepareJoin(pin, name, category, fromLink) {
       pendingJoin = { pin, name: cleanName(name), category: category || 'adult', fromLink: !!fromLink };
       permLocOk = false; permMicOk = false;
       updatePermUI();
       showScreen('screen-perms');
+      if (isInAppBrowser()) {
+        toast('Άνοιξε τον σύνδεσμο σε Chrome ή Safari – το Facebook browser συχνά μπλοκάρει σύνδεση/τοποθεσία');
+        const tip = document.getElementById('inapp-tip');
+        if (tip) tip.classList.remove('hidden');
+      }
+      // Secure context check
+      if (!window.isSecureContext && location.hostname !== 'localhost') {
+        toast('Χρειάζεται HTTPS για τοποθεσία και μικρόφωνο');
+      }
     }
 
     function doJoin() {
@@ -558,7 +610,17 @@
       const btn = $('btn-perms-continue');
       btn.disabled = true; btn.textContent = 'Σύνδεση…';
 
-      const peer = new Peer({ debug: 0 });
+      const peerOpts = {
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      };
+      const peer = new Peer(peerOpts);
       peer.on('open', () => {
         const hostConn = peer.connect(ROOM_PREFIX + roomPin, { reliable: true });
         const room = {
@@ -587,7 +649,9 @@
         });
         hostConn.on('error', () => fail('Δεν βρέθηκε το δωμάτιο'));
         peer.on('call', call => handleIncomingCall(roomPin, call));
-        setTimeout(() => { if (!joined) fail('Το δωμάτιο δεν απάντησε. Είναι ανοιχτό ο διαχειριστής;'); }, 12000);
+        setTimeout(() => {
+          if (!joined) fail('Το δωμάτιο δεν απάντησε. Βεβαιώσου ότι ο διαχειριστής έχει ανοιχτή την εφαρμογή και δοκίμασε σε Chrome/Safari.');
+        }, 15000);
       });
       peer.on('error', () => {
         btn.disabled = false; btn.textContent = 'Είσοδος στο δωμάτιο';
@@ -669,7 +733,7 @@
         case 'WELCOME':
           room.myId = d.id; room.roomName = d.roomName || 'Δωμάτιο';
           room.preset = d.preset || 'family'; room.autoTTL = !!d.autoTTL;
-          room.silentSOS = room.preset === 'danger';
+          room.silentSOS = room.preset === 'panic';
           room.members = d.members || []; room.zones = d.zones || [];
           room.sosRecipients = new Set(d.sosRecipients || []);
           try { localStorage.setItem('sr-name', myName); } catch(e) {}
@@ -712,7 +776,7 @@
       showScreen('screen-room');
       activePin = room.roomPin; isAdminGlobal = room.isAdmin;
       $('btn-settings').classList.toggle('hidden', !room.isAdmin);
-      $('btn-mask').classList.toggle('hidden', room.preset !== 'danger');
+      $('btn-mask').classList.toggle('hidden', room.preset !== 'panic');
       updateRoomTabs(); updateRoomMeta(); initMap(); renderMembers(); drawZones();
       updateMarkers(); startBatteryWatch(); renderChat(room); applyPresetUI(room);
       startInactivityWatch(room); setupShakeSOS();
@@ -725,10 +789,10 @@
     }
 
     function applyPresetUI(room) {
-      document.body.classList.remove('preset-elderly', 'preset-child', 'preset-danger');
+      document.body.classList.remove('preset-elderly', 'preset-child', 'preset-panic');
       if (room.preset === 'elderly') document.body.classList.add('preset-elderly');
       if (room.preset === 'child') document.body.classList.add('preset-child');
-      if (room.preset === 'danger') document.body.classList.add('preset-danger');
+      if (room.preset === 'panic') document.body.classList.add('preset-panic');
     }
 
     function switchRoom(pin) {
@@ -743,7 +807,7 @@
       updateRoomTabs(); updateRoomMeta(); renderMembers(); drawZones(); updateMarkers();
       renderChat(room); applyPresetUI(room);
       $('btn-settings').classList.toggle('hidden', !room.isAdmin);
-      $('btn-mask').classList.toggle('hidden', room.preset !== 'danger');
+      $('btn-mask').classList.toggle('hidden', room.preset !== 'panic');
       startInactivityWatch(room);
     }
 
@@ -777,11 +841,15 @@
     }
 
     function initMap() {
-      if (map) return;
+      if (map) {
+        setTimeout(() => map.invalidateSize(), 200);
+        return;
+      }
       map = L.map('map', { zoomControl: false }).setView([37.9838, 23.7275], 13);
       L.control.zoom({ position: 'topright' }).addTo(map);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }).addTo(map);
       setTimeout(() => map.invalidateSize(), 300);
+      setTimeout(() => map.invalidateSize(), 800);
     }
 
     function updateMarkers() {
@@ -1154,7 +1222,7 @@
 
     function sendSOS(silent) {
       const room = getActiveRoom(); if (!room) return;
-      const useSilent = silent || room.silentSOS || room.preset === 'danger';
+      const useSilent = silent || room.silentSOS || room.preset === 'panic';
       const msg = { type: 'SOS', id: room.myId, name: room.myName, lat: myLat || lastKnownLat, lng: myLng || lastKnownLng, accuracy: myAccuracy, ts: Date.now() };
       if (room.isAdmin) relaySOS(room, msg); else sendToHost(room, msg);
       if (!useSilent && navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
@@ -1212,7 +1280,7 @@
             if (now - shakeLast > 2500) {
               shakeLast = now;
               const room = getActiveRoom();
-              if (room) { toast('Κούνημα → SOS'); sendSOS(room.preset === 'danger'); }
+              if (room) { toast('Κούνημα → SOS'); sendSOS(room.preset === 'panic'); }
             }
           }
         }
@@ -1258,16 +1326,39 @@
       $('btn-perms-continue').textContent = (permLocOk && permMicOk) ? 'Είσοδος στο δωμάτιο' : 'Συνέχεια ούτως ή άλλως';
     }
     $('btn-perm-loc').onclick = () => {
-      if (!navigator.geolocation) { $('perm-loc-status').textContent = 'Δεν υποστηρίζεται'; return; }
+      if (!navigator.geolocation) {
+        $('perm-loc-status').textContent = 'Δεν υποστηρίζεται σε αυτόν τον browser';
+        toast('Άνοιξε σε Chrome ή Safari');
+        return;
+      }
+      $('perm-loc-status').textContent = 'Ζητείται άδεια…';
+      $('btn-perm-loc').disabled = true;
       navigator.geolocation.getCurrentPosition(pos => {
         myLat = pos.coords.latitude; myLng = pos.coords.longitude; myAccuracy = pos.coords.accuracy;
         lastKnownLat = myLat; lastKnownLng = myLng; lastKnownTs = Date.now();
-        permLocOk = true; updatePermUI(); toast('Τοποθεσία ενεργοποιήθηκε');
+        try { localStorage.setItem('sr-last-loc', JSON.stringify({ lat: myLat, lng: myLng, ts: lastKnownTs })); } catch(e) {}
+        permLocOk = true;
+        $('btn-perm-loc').disabled = false;
+        updatePermUI();
+        toast('Τοποθεσία ενεργοποιήθηκε');
+        // start continuous watch so button stays "live"
+        if (!watchId) {
+          watchId = navigator.geolocation.watchPosition(p => {
+            myLat = p.coords.latitude; myLng = p.coords.longitude; myAccuracy = p.coords.accuracy;
+            lastKnownLat = myLat; lastKnownLng = myLng; lastKnownTs = Date.now();
+          }, () => {}, { enableHighAccuracy: false, maximumAge: 5000, timeout: 15000 });
+        }
       }, err => {
         permLocOk = false;
-        $('perm-loc-status').textContent = err.code === 1 ? 'Άρνηση άδειας' : 'Σφάλμα τοποθεσίας';
+        $('btn-perm-loc').disabled = false;
+        let msg = 'Σφάλμα τοποθεσίας';
+        if (err.code === 1) msg = 'Άρνηση άδειας – έλεγξε Ρυθμίσεις browser';
+        else if (err.code === 2) msg = 'Θέση μη διαθέσιμη';
+        else if (err.code === 3) msg = 'Timeout – δοκίμασε ξανά';
+        $('perm-loc-status').textContent = msg;
         updatePermUI();
-      }, { enableHighAccuracy: false, timeout: 10000 });
+        toast(msg);
+      }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
     };
     $('btn-perm-mic').onclick = async () => {
       try {
@@ -1294,7 +1385,7 @@
       prepareJoin(pin, name, $('join-category').value, false);
     };
     $('btn-new-room').onclick = () => showScreen('screen-create');
-    $('create-preset').onchange = () => { if ($('create-preset').value === 'danger') $('create-auto-ttl').checked = true; };
+    $('create-preset').onchange = () => { if ($('create-preset').value === 'panic') $('create-auto-ttl').checked = true; };
     $('btn-resume').onclick = () => { const saved = loadAdminRoom(); if (saved) createRoom(saved); };
     $('btn-discard-resume').onclick = () => { clearAdminRoom(); $('resume-box').classList.add('hidden'); toast('Το αποθηκευμένο δωμάτιο διαγράφηκε'); };
     $('btn-members').onclick = () => { renderMembers(); openPanel('panel-members'); };
