@@ -359,7 +359,10 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 <!-- CHAT PANEL -->
 <div id="p-chat" class="panel">
   <div class="ph">
-    <h3>Chat</h3>
+    <div style="min-width:0;flex:1">
+      <h3 id="chat-title">Chat</h3>
+      <div class="mut" id="chat-room" style="font-size:.75rem;margin-top:2px"></div>
+    </div>
     <button class="btn ibtn" onclick="panel('p-chat',0)">✕</button>
   </div>
   <div class="p2p-note">🔒 Μηνύματα peer-to-peer (δεν περνούν από server)</div>
@@ -1773,6 +1776,16 @@ function renderChat() {
 }
 
 function openChat() {
+  const r = R();
+  const title = $('chat-title');
+  const sub = $('chat-room');
+  if (r) {
+    if (title) title.textContent = r.roomName || 'Chat';
+    if (sub) sub.textContent = 'PIN ' + r.pin + ' · Chat δωματίου';
+  } else {
+    if (title) title.textContent = 'Chat';
+    if (sub) sub.textContent = '';
+  }
   renderChat();
   panel('p-chat');
 }
@@ -1987,11 +2000,19 @@ function renderHome() {
 function openForm(m) {
   mode = m;
   const titleEl = $('f-title');
-  if (titleEl) titleEl.textContent = m === 'create' ? 'Νέο δωμάτιο' : 'Είσοδος σε δωμάτιο';
+  if (titleEl) titleEl.textContent = m === 'create' ? 'Νέο δωμάτιο' : 'Μπες σε δωμάτιο';
   const rn = $('f-rn');
   const pn = $('f-pn');
   if (rn) rn.style.display = m === 'create' ? '' : 'none';
   if (pn) pn.style.display = m === 'join' ? '' : 'none';
+  // Αν δεν έρχεται από πρόσκληση, PIN επεξεργάσιμο
+  if (m === 'join') {
+    const pinEl = $('f-pin');
+    if (pinEl && !new URLSearchParams(location.search).get('room')) {
+      pinEl.readOnly = false;
+      pinEl.style.opacity = '1';
+    }
+  }
   show('s-form');
 }
 
@@ -2199,10 +2220,26 @@ window.addEventListener('DOMContentLoaded', () => {
     const q = new URLSearchParams(location.search).get('room');
     if (q) {
       const pin = q.replace(/\D/g, '').slice(0, 4);
-      if (pin.length === 4 && !rooms[pin]) {
-        openForm('join');
-        const pinEl = $('f-pin');
-        if (pinEl) pinEl.value = pin;
+      if (pin.length === 4) {
+        // Αν είναι ήδη μέσα στο ίδιο δωμάτιο, άνοιξέ το
+        if (rooms[pin] && rooms[pin].ready) {
+          show('s-room');
+          switchRoom(pin);
+          if (!rooms[pin].admin) setTimeout(() => openChat(), 200);
+        } else {
+          // Απευθείας στη φόρμα «Μπες σε δωμάτιο» με PIN συμπληρωμένο
+          openForm('join');
+          const pinEl = $('f-pin');
+          if (pinEl) {
+            pinEl.value = pin;
+            pinEl.readOnly = true;
+            pinEl.style.opacity = '0.9';
+          }
+          // Αν υπάρχει αποθηκευμένο όνομα, συμπλήρωσέ το
+          const nameEl = $('f-name');
+          if (nameEl && !nameEl.value && n) nameEl.value = n;
+          toast('PIN έτοιμο – βάλε όνομα και πάτα Συνέχεια');
+        }
       }
     }
     renderHome();
