@@ -86,13 +86,13 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 .tab.a{background:var(--p);border-color:var(--p)}
 
 #bar{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
-  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  display:grid;grid-template-columns:repeat(5,1fr);gap:8px;
+  padding:10px 10px calc(10px + env(safe-area-inset-bottom));
   background:var(--card);border-top:1px solid var(--bd)
 }
 .tile{
-  height:60px;border-radius:var(--radius);border:1px solid var(--bd);
-  background:var(--bg);color:#fff;font-weight:700;font-size:.72rem;
+  height:58px;border-radius:var(--radius);border:1px solid var(--bd);
+  background:var(--bg);color:#fff;font-weight:700;font-size:.68rem;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer
 }
 .tile b{font-size:1.35rem;font-weight:400}
@@ -324,6 +324,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <button class="tile s" onclick="checkin()"><b>✅</b>Εντάξει</button>
     <button class="tile d" onclick="sos()"><b>🆘</b>SOS</button>
     <button class="tile" onclick="openChat()"><b>💬</b>Chat</button>
+    <button class="tile" onclick="showMap()"><b>🗺️</b>Χάρτης</button>
     <button class="tile" onclick="openMembers()"><b>👥</b>Μέλη</button>
   </div>
 </div>
@@ -634,24 +635,37 @@ function host(r) {
       c.on('error', () => left(r, c));
     });
     p.on('call', c => incoming(c));
-    p.on('disconnected', () => { try { p.reconnect(); } catch (e) {} });
+    p.on('disconnected', () => {
+      // iOS Safari κόβει τη σύνδεση στο παρασκήνιο – σιωπηλή επανασύνδεση
+      try { p.reconnect(); } catch (e) {}
+    });
     p.on('error', e => {
       if (e.type === 'unavailable-id') {
         try { p.destroy(); } catch (_) {}
-        if (!r.restored) {
+        if (!r.restored && !r.wasReady) {
           delete rooms[r.pin];
           r.pin = genPin();
           rooms[r.pin] = r;
           host(r);
-        } else if (r.tries++ < 8) {
+        } else if ((r.tries || 0) < 8) {
+          r.tries = (r.tries || 0) + 1;
           setTimeout(() => host(r), 3000);
         } else {
           toast('Το δωμάτιο ' + r.pin + ' δεν επανήλθε');
           delete rooms[r.pin];
           save();
         }
+      } else if (e.type === 'network' || e.type === 'disconnected' || e.type === 'socket-closed' || e.type === 'server-error') {
+        // Μην ενοχλείς όταν η καρτέλα είναι στο παρασκήνιο
+        if (document.visibilityState === 'visible') {
+          // σιωπηλή προσπάθεια επανασύνδεσης
+          try { p.reconnect(); } catch (err) {}
+        }
       } else {
-        toast('Σφάλμα σύνδεσης. Έλεγξε το internet.');
+        // Άλλα σφάλματα μόνο αν η σελίδα είναι ορατή
+        if (document.visibilityState === 'visible') {
+          toast('Σφάλμα σύνδεσης. Έλεγξε το internet.');
+        }
       }
     });
   } catch(e) {
@@ -870,7 +884,6 @@ function enter(r) {
     setSharing(true);
     if (batteryShare) startBatteryWatch();
   } else if (LS('fm-share') !== '0') {
-    // Αν ήδη μπήκαμε κάποτε, ξαναενεργοποίησε sharing
     const shareEl = $('share');
     if (shareEl && !shareEl.checked) {
       setSharing(true);
@@ -878,6 +891,18 @@ function enter(r) {
       setSharing(true);
     }
   }
+  // Επισκέπτης: πρώτο πράγμα το Chat · Διαχειριστής: χάρτης
+  if (!r.admin) {
+    setTimeout(() => openChat(), 250);
+  }
+}
+
+function showMap() {
+  panel('p-chat', 0);
+  panel('p-members', 0);
+  panel('p-share', 0);
+  panel('p-listen', 0);
+  if (map) setTimeout(() => map.invalidateSize(), 150);
 }
 
 function switchRoom(pin) {
@@ -976,8 +1001,7 @@ function updateMarkers() {
         className: '',
         iconSize: [0, 0],
         html: `<div style="transform:translate(-50%,-50%);text-align:center">
-          <div style="width:28px;height:28px;margin:auto;border-radius:50%;background:${m.color};border:3px solid #fff;box-shadow:0 1px 6px #0006;display:flex;align-items:center;justify-content:center;font-size:14px">${m.avatar||'?'}</div>
-          <div style="font:700 11px sans-serif;background:#0f172ae6;color:#fff;border-radius:6px;padding:1px 6px;margin-top:2px;white-space:nowrap">${esc(m.name)}</div>
+          <div style="width:32px;height:32px;margin:auto;border-radius:50%;background:${m.color};border:3px solid #fff;box-shadow:0 1px 6px #0006;display:flex;align-items:center;justify-content:center;font-size:16px">${m.avatar||'?'}</div>
         </div>`
       });
       r.markers[m.id] = L.marker([m.lat, m.lng], {icon: ic}).addTo(r.layer);
@@ -2089,17 +2113,53 @@ function go() {
 /* ---------- Persistence / Visibility ---------- */
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    // Επανασύνδεση όλων των δωματίων όταν επιστρέφεις στην εφαρμογή
     Object.values(rooms).forEach(r => {
-      if (r.restored && !r.ready) {
-        if (r.admin) host(r);
-        else join(r);
-      }
+      try {
+        if (r.peer && !r.peer.destroyed && r.peer.disconnected) {
+          try { r.peer.reconnect(); } catch (e) {}
+        }
+        if (!r.ready || !r.peer || r.peer.destroyed) {
+          r.tries = 0;
+          if (r.admin) host(r);
+          else join(r);
+        } else if (!r.admin && r.hostConn && !r.hostConn.open) {
+          // Η data σύνδεση με τον admin έπεσε
+          r.ready = false;
+          join(r);
+        }
+      } catch (e) {}
     });
+    // Ξαναστείλε θέση μόλις επανέλθει
+    if (watchId == null && LS('fm-share') !== '0') {
+      setSharing(true);
+    }
   }
 });
 
+// Keep-alive: περιοδικός έλεγχος σύνδεσης (βοηθάει σε iOS)
+setInterval(() => {
+  if (document.visibilityState !== 'visible') return;
+  Object.values(rooms).forEach(r => {
+    if (!r.peer || r.peer.destroyed) return;
+    if (r.peer.disconnected) {
+      try { r.peer.reconnect(); } catch (e) {}
+    }
+  });
+}, 15000);
+
 window.addEventListener('pagehide', () => {
   save();
+});
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    // bfcache σε iOS – ξανασύνδεσε
+    Object.values(rooms).forEach(r => {
+      r.tries = 0;
+      if (r.admin) host(r);
+      else join(r);
+    });
+  }
 });
 
 /* ---------- Boot ---------- */
