@@ -398,11 +398,47 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   </div>
   <div id="map-wrap"><div id="map"></div></div>
   <div id="bar">
-    <button class="tile s" onclick="checkin()"><b>✅</b>Εντάξει</button>
+    <button class="tile s" onclick="openActions()"><b>⚡</b>Button</button>
     <button class="tile d" onclick="sos()"><b>🆘</b>SOS</button>
     <button class="tile" onclick="openChat()"><b>💬</b>Chat</button>
     <button class="tile" onclick="showMap()"><b>🗺️</b>Χάρτης</button>
     <button class="tile" onclick="openMembers()"><b>👥</b>Μέλη</button>
+  </div>
+</div>
+
+<!-- ACTIONS (Button) PANEL -->
+<div id="p-actions" class="panel">
+  <div class="ph">
+    <h3>Button</h3>
+    <button class="btn ibtn" onclick="panel('p-actions',0)">✕</button>
+  </div>
+  <div class="pb">
+    <button class="btn s" onclick="checkin(); panel('p-actions',0)">✅ Είμαι εντάξει</button>
+    <h3 style="margin-top:8px">🎧 Ακρόαση περιβάλλοντος</h3>
+    <p class="mut">Άκουσε τον χώρο επιλεγμένων μελών. Διάρκεια και παραλήπτες ρυθμίζονται παρακάτω.</p>
+    <label class="l">Διάρκεια (δευτερόλεπτα)</label>
+    <select id="act-listen-dur">
+      <option value="10">10</option>
+      <option value="15" selected>15</option>
+      <option value="30">30</option>
+      <option value="60">60</option>
+    </select>
+    <label class="l">Σε ποιους / από ποιους</label>
+    <div id="act-listen-members" style="display:flex;flex-direction:column;gap:8px"></div>
+    <label class="card" style="cursor:pointer;margin-top:6px">
+      <b>Όλη η ομάδα</b>
+      <input type="checkbox" id="act-listen-all" style="width:24px;height:24px">
+    </label>
+    <button class="btn g" onclick="startGroupListen()">🎧 Ξεκίνα ακρόαση</button>
+    <div id="map-edit-block">
+      <h3 style="margin-top:12px">🗺️ Επεξεργασία χάρτη (διαχειριστής)</h3>
+      <p class="mut">Πάτα στον χάρτη για πινέζα ή σημείο διαδρομής.</p>
+      <button class="btn" id="btn-pin-mode" onclick="setMapMode('pin')">📌 Κατάσταση: Πινέζα + ακτίνα (km)</button>
+      <button class="btn" id="btn-route-mode" onclick="setMapMode('route')">🛣️ Κατάσταση: Διαδρομή</button>
+      <button class="btn" onclick="finishRoute()">✔️ Ολοκλήρωση διαδρομής</button>
+      <button class="btn" onclick="setMapMode(null)">✋ Χωρίς επεξεργασία</button>
+      <div id="map-edit-status" class="mut"></div>
+    </div>
   </div>
 </div>
 
@@ -549,6 +585,10 @@ let callVideo = false;
 let chatTarget = null; // null = ομαδικό chat, αλλιώς id μέλους για ιδιωτικό
 let lowBatWarned = {};
 let zoneState = {}; // id -> inside boolean
+let mapMode = null; // null | 'pin' | 'route'
+let routeDraft = []; // [[lat,lng], ...]
+let routeDraftLine = null;
+let activeListens = []; // multiple ambient connections
 
 const R = () => rooms[active];
 
@@ -672,7 +712,7 @@ function relay(r, m, ex) {
 }
 
 function broadcast(r) {
-  send(r, {type: 'STATE', roomName: r.roomName, members: r.members, history: r.history, zones: r.zones || []});
+  send(r, {type: 'STATE', roomName: r.roomName, members: r.members, history: r.history, zones: r.zones || [], routes: r.routes || []});
   if (r.pin === active) refresh();
 }
 
@@ -829,6 +869,21 @@ function hostMsg(r, c, d) {
     relay(r, d, c);
   } else if (d.type === 'STOP_AUDIO') {
     stopMic();
+  } else if (d.type === 'REQUEST_AUDIO') {
+    // Κάποιος ζητά τον ήχο μας (admin ως στόχος) ή προώθηση
+    startMic(r, d.duration || 15, d.replyTo);
+  } else if (d.type === 'REQUEST_AUDIO_FOR') {
+    // Μέλος ζητά ακρόαση άλλου μέλους → προώθηση
+    const target = d.target;
+    const replyTo = d.replyTo;
+    const duration = d.duration || 15;
+    if (target === 'admin' || target === r.myId) {
+      startMic(r, duration, replyTo);
+    } else {
+      const tc = r.conns.find(x => x.peer === target && x.open);
+      if (tc) tc.send({type: 'REQUEST_AUDIO', duration, replyTo});
+      else toast('Το μέλος δεν είναι συνδεδεμένο');
+    }
   } else if (d.type === 'ZONE_ALERT') {
     toast(d.text || 'Ειδοποίηση ζώνης');
     playTone(700, 200);
@@ -935,6 +990,7 @@ function memberMsg(r, d) {
     r.roomName = d.roomName;
     r.history = d.history || {};
     r.zones = d.zones || [];
+    r.routes = d.routes || [];
     if (r.pin === active) {
       refresh();
       drawZoneCircles(r);
@@ -953,7 +1009,8 @@ function memberMsg(r, d) {
   } else if (d.type === 'SOS') {
     sosIn(r, d);
   } else if (d.type === 'REQUEST_AUDIO') {
-    startMic(r, d.duration || 15);
+    // replyTo = peer id του ακροατή
+    startMic(r, d.duration || 15, d.replyTo);
   } else if (d.type === 'STOP_AUDIO') {
     stopMic();
   } else if (d.type === 'ZONE_ALERT') {
@@ -1036,6 +1093,8 @@ function showMap() {
   panel('p-members', 0);
   panel('p-share', 0);
   panel('p-listen', 0);
+  panel('p-actions', 0);
+  panel('p-child', 0);
   if (map) setTimeout(() => map.invalidateSize(), 150);
 }
 
@@ -1100,6 +1159,22 @@ function initMap() {
       maxZoom: 19,
       attribution: '© OSM'
     }).addTo(map);
+    map.on('click', e => {
+      const r = R();
+      if (!r || !r.admin || !mapMode) return;
+      const {lat, lng} = e.latlng;
+      if (mapMode === 'pin') {
+        addChildPlace(lat, lng);
+      } else if (mapMode === 'route') {
+        routeDraft.push([lat, lng]);
+        if (routeDraftLine) {
+          try { map.removeLayer(routeDraftLine); } catch (err) {}
+        }
+        routeDraftLine = L.polyline(routeDraft, {color: '#eab308', weight: 4, dashArray: '6 8'}).addTo(map);
+        L.circleMarker([lat, lng], {radius: 6, color: '#eab308'}).addTo(map);
+        toast('Σημείο ' + routeDraft.length + ' · Ολοκλήρωσε από Button');
+      }
+    });
   } catch(e) {
     toast('Σφάλμα χάρτη');
   }
@@ -1110,7 +1185,7 @@ function popup(r, m) {
   let html = `<b>${esc(m.name)}</b> ${m.avatar || ''}`;
   if (m.battery != null) html += `<div style="font-size:.8rem">🔋 ${Math.round(m.battery*100)}%</div>`;
   e.innerHTML = html;
-  if (r.admin && m.id !== r.myId) {
+  if (m.id !== r.myId) {
     const b = document.createElement('button');
     b.textContent = '🎧 Ακρόαση περιβάλλοντος';
     b.style.cssText = 'margin-top:8px;display:block;width:100%;padding:10px;border:0;border-radius:10px;background:#7c3aed;color:#fff;font-weight:700;cursor:pointer';
@@ -1212,17 +1287,15 @@ function renderMembers() {
         startAVCall(m, true);
       };
       actions.appendChild(videoBtn);
-      if (r.admin) {
-        const listenBtn = document.createElement('button');
-        listenBtn.className = 'btn ibtn';
-        listenBtn.textContent = '🎧';
-        listenBtn.title = 'Ακρόαση περιβάλλοντος';
-        listenBtn.onclick = ev => {
-          ev.stopPropagation();
-          openListen(r, m);
-        };
-        actions.appendChild(listenBtn);
-      }
+      const listenBtn = document.createElement('button');
+      listenBtn.className = 'btn ibtn';
+      listenBtn.textContent = '🎧';
+      listenBtn.title = 'Ακρόαση περιβάλλοντος';
+      listenBtn.onclick = ev => {
+        ev.stopPropagation();
+        openListen(r, m);
+      };
+      actions.appendChild(listenBtn);
       row.appendChild(actions);
     }
     l.appendChild(row);
@@ -1408,29 +1481,34 @@ function checkZones(r, m) {
       }
     }
   });
+  checkRoutes(r, m);
 }
 
 function addZoneHere() {
   addChildPlace();
 }
 
-function addChildPlace() {
+function addChildPlace(lat, lng) {
   const r = R();
   if (!r || !r.admin) return toast('Μόνο ο διαχειριστής ορίζει σημεία');
   const me = r.members.find(x => x.id === r.myId);
-  if (!me || me.lat == null) return toast('Ενεργοποίησε πρώτα τη θέση σου στον χάρτη');
-  const presets = ['Σχολείο', 'Φροντιστήριο', 'Σχολή χορού', 'Σχολή μουσικής', 'Σπίτι', 'Άλλο'];
+  const useLat = lat != null ? lat : (me && me.lat);
+  const useLng = lng != null ? lng : (me && me.lng);
+  if (useLat == null) return toast('Πάτα στον χάρτη ή ενεργοποίησε τη θέση σου');
+  const presets = ['Σχολείο', 'Φροντιστήριο', 'Σχολή χορού', 'Σχολή μουσικής', 'Σπίτι', 'Χωριό', 'Άλλο'];
   const name = prompt('Όνομα σημείου:\n' + presets.join(' / '), 'Σχολείο');
   if (!name) return;
-  const radius = parseInt(prompt('Ακτίνα σε μέτρα (ειδοποίηση/SOS αν βγει)', '150'), 10) || 150;
-  const sosExit = confirm('Να ενεργοποιείται αυτόματο SOS όταν το παιδί βγει από την ακτίνα;');
+  const km = parseFloat(prompt('Ακτίνα σε χιλιόμετρα (π.χ. 0.2 για 200μ, 3 για χωριό)', '0.5'));
+  const radius = Math.round((isNaN(km) ? 0.5 : km) * 1000);
+  const sosExit = confirm('Αυτόματο SOS όταν βγει από την ακτίνα;');
   if (!r.zones) r.zones = [];
   const zone = {
     id: 'z' + Date.now(),
     name: String(name).slice(0, 40),
-    lat: me.lat,
-    lng: me.lng,
+    lat: useLat,
+    lng: useLng,
     radius,
+    radiusKm: radius / 1000,
     sosOnExit: !!sosExit,
     kind: 'child'
   };
@@ -1438,7 +1516,7 @@ function addChildPlace() {
   drawZoneCircles(r);
   broadcast(r);
   renderChildPlaces();
-  toast('Σημείο «' + zone.name + '» (' + radius + 'μ)' + (sosExit ? ' · SOS έξοδος' : ''));
+  toast('Πινέζα «' + zone.name + '» · ' + (radius / 1000) + ' km' + (sosExit ? ' · SOS' : ''));
 }
 
 function drawZoneCircles(r) {
@@ -1463,8 +1541,19 @@ function drawZoneCircles(r) {
         html: `<div style="transform:translate(-50%,-100%);font-size:22px">📌</div>`
       })
     }).addTo(map);
-    marker.bindPopup(`<b>${esc(z.name)}</b><br>${z.radius}μ${z.sosOnExit ? '<br>🆘 SOS στην έξοδο' : ''}`);
+    const kmLabel = ((z.radius || 0) / 1000).toFixed(2);
+    marker.bindPopup(`<b>${esc(z.name)}</b><br>Ακτίνα ${kmLabel} km${z.sosOnExit ? '<br>🆘 SOS στην έξοδο' : ''}`);
     r._zoneLayers.push(circle, marker);
+  });
+  (r.routes || []).forEach(rt => {
+    if (!rt.points || rt.points.length < 2) return;
+    const line = L.polyline(rt.points, {
+      color: rt.sosOnExit ? '#ef4444' : '#22c55e',
+      weight: 5,
+      opacity: 0.85
+    }).addTo(map);
+    line.bindPopup(`<b>🛣️ ${esc(rt.name)}</b><br>Διάδρομος ${rt.radiusKm || 2} km${rt.sosOnExit ? '<br>🆘 SOS εκτός διαδρομής' : ''}`);
+    r._zoneLayers.push(line);
   });
 }
 
@@ -1605,18 +1694,32 @@ function openListen(r, m) {
   panel('p-listen');
 }
 
+function myPeerId(r) {
+  return r.admin ? (PFX + r.pin) : r.myId;
+}
+
 function doListen(r, m, duration) {
-  if (lConn) stopListen();
-  const c = r.conns.find(x => x.peer === m.id);
-  if (!c || !c.open) return toast('Το μέλος δεν είναι συνδεδεμένο');
-  c.send({type: 'REQUEST_AUDIO', duration});
-  lConn = c;
+  const replyTo = myPeerId(r);
+  if (r.admin) {
+    const c = r.conns.find(x => x.peer === m.id);
+    if (!c || !c.open) return toast('Το μέλος δεν είναι συνδεδεμένο');
+    c.send({type: 'REQUEST_AUDIO', duration, replyTo});
+    lConn = c;
+  } else {
+    // μέσω admin
+    if (m.id === 'admin') {
+      send(r, {type: 'REQUEST_AUDIO', duration, replyTo});
+    } else {
+      send(r, {type: 'REQUEST_AUDIO_FOR', target: m.id, duration, replyTo});
+    }
+  }
   const lname = $('lname');
   const lbar = $('lbar');
   const ltimer = $('ltimer');
   if (lname) lname.textContent = 'Ακρόαση: ' + m.name + '…';
   if (lbar) lbar.classList.add('on');
   panel('p-members', 0);
+  panel('p-actions', 0);
   let left = duration;
   if (ltimer) ltimer.textContent = left + 's';
   if (listenTimer) clearInterval(listenTimer);
@@ -1625,6 +1728,143 @@ function doListen(r, m, duration) {
     if (ltimer) ltimer.textContent = left + 's';
     if (left <= 0) stopListen();
   }, 1000);
+}
+
+function openActions() {
+  const r = R();
+  const box = $('act-listen-members');
+  if (box && r) {
+    box.innerHTML = '';
+    r.members.filter(m => m.id !== r.myId).forEach(m => {
+      const lab = document.createElement('label');
+      lab.className = 'card';
+      lab.style.cursor = 'pointer';
+      lab.innerHTML = `<b>${esc(m.avatar || '')} ${esc(m.name)}</b>`;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = m.id;
+      cb.className = 'act-lm';
+      cb.style.width = '24px';
+      cb.style.height = '24px';
+      lab.appendChild(cb);
+      box.appendChild(lab);
+    });
+  }
+  const editBlock = $('map-edit-block');
+  if (editBlock) editBlock.style.display = (r && r.admin) ? '' : 'none';
+  panel('p-actions');
+}
+
+function startGroupListen() {
+  const r = R();
+  if (!r) return;
+  const dur = parseInt(($('act-listen-dur') && $('act-listen-dur').value) || '15', 10);
+  const all = $('act-listen-all') && $('act-listen-all').checked;
+  let targets = [];
+  if (all) {
+    targets = r.members.filter(m => m.id !== r.myId);
+  } else {
+    document.querySelectorAll('.act-lm:checked').forEach(cb => {
+      const m = r.members.find(x => x.id === cb.value);
+      if (m) targets.push(m);
+    });
+  }
+  if (!targets.length) return toast('Διάλεξε τουλάχιστον ένα μέλος');
+  targets.forEach((m, i) => {
+    setTimeout(() => doListen(r, m, dur), i * 400);
+  });
+  toast('Ακρόαση από ' + targets.length + ' μέλος/μέλη');
+}
+
+function setMapMode(mode) {
+  mapMode = mode;
+  routeDraft = [];
+  if (routeDraftLine && map) {
+    try { map.removeLayer(routeDraftLine); } catch (e) {}
+    routeDraftLine = null;
+  }
+  const st = $('map-edit-status');
+  if (!st) return;
+  if (mode === 'pin') st.textContent = 'Πάτα στον χάρτη για πινέζα (ακτίνα σε km + SOS).';
+  else if (mode === 'route') st.textContent = 'Πάτα σημεία διαδρομής. Μετά «Ολοκλήρωση διαδρομής».';
+  else st.textContent = 'Επεξεργασία ανενεργή.';
+  panel('p-actions', 0);
+  showMap();
+  toast(mode === 'pin' ? 'Κατάσταση πινέζας' : mode === 'route' ? 'Κατάσταση διαδρομής' : 'Τέλος επεξεργασίας');
+}
+
+function finishRoute() {
+  const r = R();
+  if (!r || !r.admin) return;
+  if (routeDraft.length < 2) return toast('Χρειάζονται τουλάχιστον 2 σημεία');
+  const name = prompt('Όνομα διαδρομής (π.χ. Σπίτι → Σχολείο)', 'Διαδρομή');
+  if (!name) return;
+  const km = parseFloat(prompt('Ακτίνα διαδρόμου σε km (π.χ. 2 ή 3)', '2')) || 2;
+  const sosExit = confirm('SOS αν το παιδί βγει εκτός διαδρομής;');
+  if (!r.routes) r.routes = [];
+  r.routes.push({
+    id: 'rt' + Date.now(),
+    name: String(name).slice(0, 40),
+    points: routeDraft.slice(),
+    radiusKm: km,
+    sosOnExit: !!sosExit
+  });
+  routeDraft = [];
+  if (routeDraftLine && map) {
+    try { map.removeLayer(routeDraftLine); } catch (e) {}
+    routeDraftLine = null;
+  }
+  mapMode = null;
+  drawZoneCircles(r);
+  broadcast(r);
+  toast('Διαδρομή αποθηκεύτηκε (' + km + ' km)');
+}
+
+function distToSegment(lat, lng, a, b) {
+  // προσεγγιστική απόσταση σημείου από ευθύγραμμο τμήμα (μέτρα)
+  const toXY = (la, ln) => {
+    const x = (ln * Math.PI / 180) * 6371000 * Math.cos(lat * Math.PI / 180);
+    const y = la * Math.PI / 180 * 6371000;
+    return [x, y];
+  };
+  const p = toXY(lat, lng), a2 = toXY(a[0], a[1]), b2 = toXY(b[0], b[1]);
+  const dx = b2[0] - a2[0], dy = b2[1] - a2[1];
+  const len2 = dx * dx + dy * dy || 1;
+  let t = ((p[0] - a2[0]) * dx + (p[1] - a2[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const proj = [a2[0] + t * dx, a2[1] + t * dy];
+  const ddx = p[0] - proj[0], ddy = p[1] - proj[1];
+  return Math.sqrt(ddx * ddx + ddy * ddy);
+}
+
+function checkRoutes(r, m) {
+  if (!r.routes || !r.routes.length || !m || m.lat == null) return;
+  r.routes.forEach(rt => {
+    let minD = Infinity;
+    for (let i = 0; i < rt.points.length - 1; i++) {
+      const d = distToSegment(m.lat, m.lng, rt.points[i], rt.points[i + 1]);
+      if (d < minD) minD = d;
+    }
+    const limit = (rt.radiusKm || 2) * 1000;
+    const inside = minD <= limit;
+    const key = 'rt:' + rt.id + ':' + m.id;
+    const prev = zoneState[key];
+    if (prev === undefined) { zoneState[key] = inside; return; }
+    if (prev !== inside) {
+      zoneState[key] = inside;
+      const text = inside
+        ? '🛣️ ' + m.name + ' επέστρεψε στη διαδρομή «' + rt.name + '»'
+        : '⚠️ ' + m.name + ' βγήκε από τη διαδρομή «' + rt.name + '»';
+      toast(text);
+      if (!inside && rt.sosOnExit) {
+        if (m.id === r.myId) sos(true);
+        else if (r.admin) {
+          sosIn(r, {name: m.name, id: m.id, lat: m.lat, lng: m.lng, auto: true});
+          relay(r, {type: 'SOS', name: m.name, id: m.id, lat: m.lat, lng: m.lng, auto: true});
+        }
+      }
+    }
+  });
 }
 
 function stopListen() {
@@ -1944,7 +2184,7 @@ function hangupCall(remoteClosed) {
   }
 }
 
-async function startMic(r, duration = 15) {
+async function startMic(r, duration = 15, replyTo) {
   try {
     stopMic();
     micStream = await navigator.mediaDevices.getUserMedia({
@@ -1954,8 +2194,8 @@ async function startMic(r, duration = 15) {
         autoGainControl: true
       }
     });
-    // Κλήση προς τον admin (σταθερό peer ID)
-    micCall = r.peer.call(PFX + r.pin, micStream, {metadata: {type: 'ambient'}});
+    const target = replyTo || (PFX + r.pin);
+    micCall = r.peer.call(target, micStream, {metadata: {type: 'ambient'}});
     if (!micCall) {
       toast('Αποτυχία σύνδεσης ήχου');
       stopMic();
@@ -2113,8 +2353,6 @@ function drawMsg(d) {
   const priv = d.to ? ' 🔒' : '';
   el.innerHTML = `<div class="meta"><span>${esc(d.name)} · ${fmt(d.ts)}${priv}${d.ttl ? ' ⏱️' : ''}</span>${(mine || r.admin) ? '<button class="x">🗑️</button>' : ''}</div>`;
   if (d.type === 'VOICE') {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px';
     const a = document.createElement('audio');
     a.controls = true;
     a.playsInline = true;
@@ -2122,34 +2360,9 @@ function drawMsg(d) {
     a.setAttribute('webkit-playsinline', '');
     a.preload = 'auto';
     a.src = d.data;
-    // Ξεκλείδωμα ήχου με το πρώτο πάτημα (λύση για iOS/Android που απαιτούν 2ο πάτημα)
-    a.addEventListener('play', function onFirstPlay() {
-      unlockAudio();
-      a.removeEventListener('play', onFirstPlay);
-    }, {once: true});
-    // Μεγάλο κουμπί play για πιο εύκολο πρώτο πάτημα
-    const playBtn = document.createElement('button');
-    playBtn.className = 'btn ibtn';
-    playBtn.textContent = '▶️';
-    playBtn.title = 'Αναπαραγωγή';
-    playBtn.onclick = async e => {
-      e.preventDefault();
-      e.stopPropagation();
-      unlockAudio();
-      try {
-        a.currentTime = 0;
-        await a.play();
-        playBtn.textContent = '⏸️';
-      } catch (err) {
-        try { await a.play(); } catch (e2) { toast('Πάτα Play στο ηχητικό'); }
-      }
-    };
-    a.addEventListener('ended', () => { playBtn.textContent = '▶️'; });
-    a.addEventListener('pause', () => { if (a.currentTime > 0 && !a.ended) playBtn.textContent = '▶️'; });
-    a.addEventListener('playing', () => { playBtn.textContent = '⏸️'; });
-    wrap.appendChild(playBtn);
-    wrap.appendChild(a);
-    el.appendChild(wrap);
+    a.style.cssText = 'width:100%;max-width:240px;margin-top:4px';
+    a.addEventListener('play', () => unlockAudio(), {once: true});
+    el.appendChild(a);
   } else if (d.type === 'FILE') {
     const i = document.createElement('img');
     i.src = d.data;
