@@ -242,6 +242,35 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   background:linear-gradient(rgba(0,0,0,.65),transparent);pointer-events:none
 }
 #call-topbar span{color:#fff;font-weight:700;font-size:.95rem;text-shadow:0 1px 4px #000}
+#map-sat-btn{
+  position:absolute;right:12px;top:12px;z-index:900;
+  width:44px;height:44px;border-radius:12px;border:1px solid var(--bd);
+  background:rgba(15,23,42,.9);color:#fff;font-size:1.25rem;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)
+}
+#map-search-box{
+  position:absolute;left:12px;right:60px;top:12px;z-index:900;
+  display:flex;gap:6px;align-items:center
+}
+#map-search-box input{
+  flex:1;height:44px;border-radius:12px;border:1px solid var(--bd);
+  background:rgba(15,23,42,.92);color:#fff;padding:0 12px;font-size:.9rem
+}
+#map-search-box button{
+  width:44px;height:44px;border-radius:12px;border:1px solid var(--bd);
+  background:rgba(15,23,42,.92);color:#fff;font-size:1.1rem;cursor:pointer
+}
+#map-search-drop{
+  position:absolute;left:12px;right:60px;top:60px;z-index:901;
+  max-height:220px;overflow-y:auto;display:none;
+  background:rgba(15,23,42,.96);border:1px solid var(--bd);border-radius:12px
+}
+#map-search-drop.on{display:block}
+#map-search-drop button{
+  width:100%;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--bd);
+  background:transparent;color:#fff;font-size:.82rem;cursor:pointer
+}
 </style>
 </head>
 <body>
@@ -396,7 +425,15 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     </div>
     <div id="tabs"></div>
   </div>
-  <div id="map-wrap"><div id="map"></div></div>
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="map-search-box">
+      <input type="text" id="map-live-search" placeholder="Αναζήτηση τόπου…" enterkeyhint="search">
+      <button type="button" onclick="searchMapPlaces(($('map-live-search')||{}).value, true)" title="Αναζήτηση">🔍</button>
+    </div>
+    <div id="map-search-drop"></div>
+    <button type="button" id="map-sat-btn" onclick="toggleSatellite()" title="Δορυφόρος">🛰️</button>
+  </div>
   <div id="bar">
     <button class="tile s" onclick="openActions()"><b>⚡</b>Button</button>
     <button class="tile d" onclick="sos()"><b>🆘</b>SOS</button>
@@ -458,8 +495,33 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
       </div>
       <input type="checkbox" id="auto-ci" style="width:24px;height:24px" onchange="toggleAutoCheckin(this.checked)">
     </div>
-    <button class="btn g" id="btn-child" onclick="openChildPanel()">👶 Παιδί & SOS επαφές</button>
     <button class="btn d" id="leave" onclick="leaveRoom()"></button>
+  </div>
+</div>
+
+<!-- MAP EDIT MODAL -->
+<div id="p-map-edit" class="panel">
+  <div class="ph">
+    <h3>🗺️ Επεξεργασία χάρτη</h3>
+    <button class="btn ibtn" onclick="panel('p-map-edit',0)">✕</button>
+  </div>
+  <div class="pb" style="gap:12px">
+    <p class="mut" style="margin:0">Πινέζες με ακτίνα, πολλές διαδρομές σε δρόμους, αναζήτηση τοποθεσιών.</p>
+    <button class="btn g big" onclick="setMapMode('pin'); panel('p-map-edit',0); showMap();">📌 Νέα πινέζα (πάτα στον χάρτη)</button>
+    <button class="btn big" onclick="setMapMode('route'); panel('p-map-edit',0); showMap();">🛣️ Νέα διαδρομή (πάτα σημεία στον χάρτη)</button>
+    <button class="btn" onclick="finishRoute()">✔️ Ολοκλήρωση τρέχουσας διαδρομής</button>
+    <button class="btn" onclick="setMapMode(null)">✋ Τέλος επεξεργασίας</button>
+    <div id="map-edit-status" class="mut"></div>
+    <label class="l">Αναζήτηση τοποθεσίας</label>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="map-search-q" placeholder="σχολείο, φροντιστήριο, καφέ…" style="flex:1">
+      <button class="btn p ibtn" onclick="searchMapPlaces(($('map-search-q')||{}).value)">🔍</button>
+    </div>
+    <div id="map-search-res"></div>
+    <h3>Αποθηκευμένα σημεία</h3>
+    <div id="map-edit-zones"></div>
+    <h3>Αποθηκευμένες διαδρομές</h3>
+    <div id="map-edit-routes"></div>
   </div>
 </div>
 
@@ -650,11 +712,33 @@ function save() {
       avatar: r.avatar
     }));
     LS('fm-rooms', JSON.stringify(list));
+    Object.values(rooms).forEach(saveMapData);
   } catch(e) {}
 }
 
+function saveMapData(r) {
+  if (!r || !r.pin) return;
+  try {
+    LS('fm-map-' + r.pin, JSON.stringify({
+      zones: r.zones || [],
+      routes: r.routes || []
+    }));
+  } catch (e) {}
+}
+
+function loadMapData(r) {
+  if (!r || !r.pin) return;
+  try {
+    const raw = LS('fm-map-' + r.pin);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.zones && data.zones.length) r.zones = data.zones;
+    if (data.routes && data.routes.length) r.routes = data.routes;
+  } catch (e) {}
+}
+
 function newRoom(pin, admin, roomName, myName, avatar) {
-  return rooms[pin] = {
+  const r = rooms[pin] = {
     pin, admin, roomName, myName, avatar: avatar || '😊',
     myId: admin ? 'admin' : null,
     members: [],
@@ -671,8 +755,11 @@ function newRoom(pin, admin, roomName, myName, avatar) {
     focus: false,
     rt: 0,
     history: {},
-    zones: []
+    zones: [],
+    routes: []
   };
+  loadMapData(r);
+  return r;
 }
 
 function genPin() {
@@ -1088,6 +1175,9 @@ function showMap() {
   panel('p-listen', 0);
   panel('p-actions', 0);
   panel('p-child', 0);
+  panel('p-map-edit', 0);
+  const drop = $('map-search-drop');
+  if (drop) drop.classList.remove('on');
   if (map) setTimeout(() => map.invalidateSize(), 150);
 }
 
@@ -1166,7 +1256,6 @@ function initMap() {
       const {lat, lng} = e.latlng;
       if (mapMode === 'pin') {
         addChildPlace(lat, lng);
-        renderMembers();
       } else if (mapMode === 'route') {
         routeDraft.push([lat, lng]);
         if (routeDraftLine) {
@@ -1174,12 +1263,7 @@ function initMap() {
         }
         routeDraftLine = L.polyline(routeDraft, {color: '#eab308', weight: 4, dashArray: '6 8'}).addTo(map);
         L.circleMarker([lat, lng], {radius: 6, color: '#eab308'}).addTo(map);
-        if (routeDraft.length >= 2) {
-          toast('Υπολογισμός διαδρομής…');
-          finishRoute();
-        } else {
-          toast('Πάτα το σημείο προορισμού');
-        }
+        toast('Σημείο ' + routeDraft.length + ' · Πάτα κι άλλα ή «Ολοκλήρωση διαδρομής»');
       }
     });
   } catch(e) {
@@ -1189,60 +1273,69 @@ function initMap() {
 
 function toggleSatellite() {
   if (!map || !osmLayer || !satLayer) return;
+  const btn = $('map-sat-btn');
   if (usingSat) {
     map.removeLayer(satLayer);
     osmLayer.addTo(map);
     usingSat = false;
+    if (btn) btn.textContent = '🛰️';
     toast('Χάρτης οδών');
   } else {
     map.removeLayer(osmLayer);
     satLayer.addTo(map);
     usingSat = true;
+    if (btn) btn.textContent = '🗺️';
     toast('Δορυφορική προβολή');
   }
 }
 
-async function searchMapPlaces(q) {
+async function searchMapPlaces(q, onMap) {
   q = (q || '').trim();
   if (!q) return toast('Γράψε κάτι για αναζήτηση');
-  const box = $('map-search-res');
-  if (box) box.innerHTML = '<p class="mut">Αναζήτηση…</p>';
+  const box = onMap ? $('map-search-drop') : ($('map-search-res') || $('map-search-drop'));
+  const drop = $('map-search-drop');
+  if (box) box.innerHTML = '<p class="mut" style="padding:10px">Αναζήτηση…</p>';
+  if (drop) drop.classList.add('on');
   try {
-    // Κέντρο χάρτη για τοπικά αποτελέσματα
     const c = map ? map.getCenter() : {lat: 37.98, lng: 23.73};
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&q=' +
-      encodeURIComponent(q) +
-      '&viewbox=' + (c.lng - 0.15) + ',' + (c.lat + 0.15) + ',' + (c.lng + 0.15) + ',' + (c.lat - 0.15) +
-      '&bounded=0';
+    const b = map ? map.getBounds() : null;
+    let url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=12&q=' +
+      encodeURIComponent(q) + '&accept-language=el';
+    if (b) {
+      url += '&viewbox=' + b.getWest() + ',' + b.getNorth() + ',' + b.getEast() + ',' + b.getSouth() + '&bounded=0';
+    } else {
+      url += '&viewbox=' + (c.lng - 0.2) + ',' + (c.lat + 0.2) + ',' + (c.lng + 0.2) + ',' + (c.lat - 0.2);
+    }
     const res = await fetch(url, {headers: {'Accept-Language': 'el'}});
     const data = await res.json();
     if (!box) return;
     box.innerHTML = '';
     if (!data.length) {
-      box.innerHTML = '<p class="mut">Κανένα αποτέλεσμα</p>';
+      box.innerHTML = '<p class="mut" style="padding:10px">Κανένα αποτέλεσμα στην περιοχή</p>';
       return;
     }
     data.forEach(item => {
       const btn = document.createElement('button');
-      btn.className = 'btn';
-      btn.style.cssText = 'height:auto;min-height:48px;padding:10px;text-align:left;font-size:.85rem';
-      btn.textContent = item.display_name.split(',').slice(0, 3).join(',');
+      btn.type = 'button';
+      const short = item.display_name.split(',').slice(0, 4).join(',');
+      btn.textContent = short;
       btn.onclick = () => {
         const lat = parseFloat(item.lat), lng = parseFloat(item.lon);
+        panel('p-map-edit', 0);
         panel('p-members', 0);
         showMap();
+        if (drop) drop.classList.remove('on');
         if (map) {
           map.setView([lat, lng], 17);
-          L.marker([lat, lng]).addTo(map).bindPopup(item.display_name).openPopup();
-        }
-        if (confirm('Να οριστεί ως πινέζα παρακολούθησης;')) {
-          addChildPlace(lat, lng);
+          L.marker([lat, lng]).addTo(map)
+            .bindPopup('<b>' + esc(item.display_name) + '</b><br><button class="btn s" style="margin-top:8px;height:40px" onclick="addChildPlace(' + lat + ',' + lng + ')">📌 Πινέζα εδώ</button>')
+            .openPopup();
         }
       };
       box.appendChild(btn);
     });
   } catch (e) {
-    if (box) box.innerHTML = '<p class="mut">Σφάλμα αναζήτησης</p>';
+    if (box) box.innerHTML = '<p class="mut" style="padding:10px">Σφάλμα αναζήτησης</p>';
     toast('Σφάλμα αναζήτησης');
   }
 }
@@ -1366,98 +1459,82 @@ function renderMembers() {
       row.appendChild(actions);
     }
     l.appendChild(row);
-
-    // Εργαλεία χάρτη κάτω από «Εγώ» (διαχειριστής)
-    if (m.id === r.myId && r.admin) {
-      const tools = document.createElement('div');
-      tools.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin:4px 0 10px;padding:10px;background:var(--card);border:1px solid var(--bd);border-radius:var(--radius)';
-      tools.innerHTML = `<b>🗺️ Επεξεργασία χάρτη</b>
-        <p class="mut" style="margin:0">Πινέζες, διαδρομές σε δρόμους, αναζήτηση, δορυφόρος.</p>`;
-      const b1 = document.createElement('button');
-      b1.className = 'btn g';
-      b1.textContent = '📌 Πινέζα + ακτίνα (πάτα στον χάρτη)';
-      b1.onclick = () => { setMapMode('pin'); panel('p-members', 0); };
-      tools.appendChild(b1);
-      const b2 = document.createElement('button');
-      b2.className = 'btn';
-      b2.textContent = '🛣️ Διαδρομή σε δρόμο (2 σημεία)';
-      b2.onclick = () => { setMapMode('route'); panel('p-members', 0); };
-      tools.appendChild(b2);
-      const b3 = document.createElement('button');
-      b3.className = 'btn';
-      b3.textContent = '🛰️ Δορυφόρος / Χάρτης';
-      b3.onclick = () => { toggleSatellite(); };
-      tools.appendChild(b3);
-      const searchRow = document.createElement('div');
-      searchRow.style.cssText = 'display:flex;gap:8px';
-      const sIn = document.createElement('input');
-      sIn.type = 'text';
-      sIn.placeholder = 'Αναζήτηση: σχολείο, φροντιστήριο…';
-      sIn.id = 'map-search-q';
-      sIn.style.flex = '1';
-      const sBtn = document.createElement('button');
-      sBtn.className = 'btn p ibtn';
-      sBtn.textContent = '🔍';
-      sBtn.onclick = () => searchMapPlaces(sIn.value);
-      searchRow.appendChild(sIn);
-      searchRow.appendChild(sBtn);
-      tools.appendChild(searchRow);
-      const searchRes = document.createElement('div');
-      searchRes.id = 'map-search-res';
-      tools.appendChild(searchRes);
-      // Λίστα σημείων με επεξεργασία/διαγραφή
-      (r.zones || []).forEach(z => {
-        const zr = document.createElement('div');
-        zr.className = 'card';
-        zr.innerHTML = `<div style="flex:1"><b>📌 ${esc(z.name)}</b><div class="mut">${((z.radius||0)/1000).toFixed(2)} km${z.sosOnExit?' · SOS':''}</div></div>`;
-        const ed = document.createElement('button');
-        ed.className = 'btn ibtn';
-        ed.textContent = '✏️';
-        ed.onclick = ev => { ev.stopPropagation(); editZone(z); };
-        const del = document.createElement('button');
-        del.className = 'btn ibtn';
-        del.textContent = '🗑️';
-        del.onclick = ev => {
-          ev.stopPropagation();
-          r.zones = r.zones.filter(x => x.id !== z.id);
-          drawZoneCircles(r);
-          broadcast(r);
-          renderMembers();
-        };
-        zr.appendChild(ed);
-        zr.appendChild(del);
-        tools.appendChild(zr);
-      });
-      (r.routes || []).forEach(rt => {
-        const rr = document.createElement('div');
-        rr.className = 'card';
-        rr.innerHTML = `<div style="flex:1"><b>🛣️ ${esc(rt.name)}</b><div class="mut">${rt.radiusKm||2} km διάδρομος</div></div>`;
-        const del = document.createElement('button');
-        del.className = 'btn ibtn';
-        del.textContent = '🗑️';
-        del.onclick = () => {
-          r.routes = r.routes.filter(x => x.id !== rt.id);
-          drawZoneCircles(r);
-          broadcast(r);
-          renderMembers();
-        };
-        rr.appendChild(del);
-        tools.appendChild(rr);
-      });
-      l.appendChild(tools);
-    }
   });
-  const fitBtn = document.createElement('button');
-  fitBtn.className = 'btn';
-  fitBtn.textContent = '🗺️ Κέντρο σε όλα τα μέλη';
-  fitBtn.onclick = () => { panel('p-members', 0); fitAllMembers(); };
-  l.appendChild(fitBtn);
+
+  if (r.admin) {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn g big';
+    editBtn.textContent = '🗺️ Επεξεργασία χάρτη';
+    editBtn.onclick = () => openMapEdit();
+    l.appendChild(editBtn);
+  }
 
   const histBtn = document.createElement('button');
   histBtn.className = 'btn';
   histBtn.textContent = '📜 Ιστορικό θέσεων';
   histBtn.onclick = () => showHistory(r);
   l.appendChild(histBtn);
+}
+
+function openMapEdit() {
+  const r = R();
+  if (!r || !r.admin) return toast('Μόνο ο διαχειριστής');
+  renderMapEditLists();
+  panel('p-map-edit');
+}
+
+function renderMapEditLists() {
+  const r = R();
+  const zEl = $('map-edit-zones');
+  const rtEl = $('map-edit-routes');
+  if (!r) return;
+  if (zEl) {
+    zEl.innerHTML = '';
+    (r.zones || []).forEach(z => {
+      const zr = document.createElement('div');
+      zr.className = 'card';
+      zr.innerHTML = `<div style="flex:1"><b>📌 ${esc(z.name)}</b><div class="mut">${((z.radius||0)/1000).toFixed(2)} km${z.sosOnExit?' · SOS':''}</div></div>`;
+      const ed = document.createElement('button');
+      ed.className = 'btn ibtn';
+      ed.textContent = '✏️';
+      ed.onclick = () => editZone(z);
+      const del = document.createElement('button');
+      del.className = 'btn ibtn';
+      del.textContent = '🗑️';
+      del.onclick = () => {
+        r.zones = r.zones.filter(x => x.id !== z.id);
+        drawZoneCircles(r);
+        broadcast(r);
+        saveMapData(r);
+        renderMapEditLists();
+      };
+      zr.appendChild(ed);
+      zr.appendChild(del);
+      zEl.appendChild(zr);
+    });
+    if (!(r.zones || []).length) zEl.innerHTML = '<p class="mut">Καμία πινέζα ακόμα</p>';
+  }
+  if (rtEl) {
+    rtEl.innerHTML = '';
+    (r.routes || []).forEach(rt => {
+      const row = document.createElement('div');
+      row.className = 'card';
+      row.innerHTML = `<div style="flex:1"><b>🛣️ ${esc(rt.name)}</b><div class="mut">${rt.radiusKm||2} km διάδρομος</div></div>`;
+      const del = document.createElement('button');
+      del.className = 'btn ibtn';
+      del.textContent = '🗑️';
+      del.onclick = () => {
+        r.routes = r.routes.filter(x => x.id !== rt.id);
+        drawZoneCircles(r);
+        broadcast(r);
+        saveMapData(r);
+        renderMapEditLists();
+      };
+      row.appendChild(del);
+      rtEl.appendChild(row);
+    });
+    if (!(r.routes || []).length) rtEl.innerHTML = '<p class="mut">Καμία διαδρομή ακόμα</p>';
+  }
 }
 
 function editZone(z) {
@@ -1474,7 +1551,8 @@ function editZone(z) {
   z.sosOnExit = confirm('Αυτόματο SOS όταν βγει από την ακτίνα;');
   drawZoneCircles(r);
   broadcast(r);
-  renderMembers();
+  saveMapData(r);
+  renderMapEditLists();
   toast('Ενημερώθηκε «' + z.name + '»');
 }
 
@@ -1665,7 +1743,8 @@ function addChildPlace(lat, lng) {
   r.zones.push(zone);
   drawZoneCircles(r);
   broadcast(r);
-  renderChildPlaces();
+  saveMapData(r);
+  renderMapEditLists();
   toast('Πινέζα «' + zone.name + '» · ' + (radius / 1000) + ' km' + (sosExit ? ' · SOS' : ''));
 }
 
@@ -1947,8 +2026,14 @@ function setMapMode(mode) {
   }
   const st = $('map-edit-status');
   if (!st) return;
+  const st = $('map-edit-status');
+  if (st) {
+    if (mode === 'pin') st.textContent = 'Πάτα στον χάρτη για νέα πινέζα.';
+    else if (mode === 'route') st.textContent = 'Πάτα όσα σημεία θέλεις, μετά «Ολοκλήρωση διαδρομής».';
+    else st.textContent = '';
+  }
   showMap();
-  toast(mode === 'pin' ? 'Πάτα στον χάρτη για πινέζα' : mode === 'route' ? 'Πάτα αρχή και μετά τέλος διαδρομής' : 'Τέλος επεξεργασίας');
+  toast(mode === 'pin' ? 'Πάτα στον χάρτη για πινέζα' : mode === 'route' ? 'Πάτα σημεία διαδρομής στον χάρτη' : 'Τέλος επεξεργασίας');
 }
 
 async function finishRoute() {
@@ -1989,7 +2074,8 @@ async function finishRoute() {
   mapMode = null;
   drawZoneCircles(r);
   broadcast(r);
-  renderMembers();
+  saveMapData(r);
+  renderMapEditLists();
   toast('Διαδρομή αποθηκεύτηκε (' + km + ' km διάδρομος)');
 }
 
@@ -3140,6 +3226,16 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     document.addEventListener('pointerdown', unlockOnce, {passive: true});
     document.addEventListener('touchstart', unlockOnce, {passive: true});
+
+    const liveSearch = $('map-live-search');
+    if (liveSearch) {
+      liveSearch.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          searchMapPlaces(liveSearch.value, true);
+        }
+      });
+    }
 
     const n = LS('fm-name');
     const nameEl = $('f-name');
