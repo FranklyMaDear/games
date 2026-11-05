@@ -121,6 +121,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   flex:none;height:40px;padding:0 14px;border-radius:20px;
   background:var(--card);border:1px solid var(--bd);color:#fff;font-weight:600;cursor:pointer
 }
+.chip.a{background:var(--p);border-color:var(--p)}
 
 .av{
   width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
@@ -366,6 +367,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <button class="btn ibtn" onclick="panel('p-chat',0)">✕</button>
   </div>
   <div class="p2p-note">🔒 Μηνύματα peer-to-peer (δεν περνούν από server)</div>
+  <div id="chat-targets" class="chips" style="border-bottom:1px solid var(--bd)"></div>
   <div id="msgs"></div>
   <div class="chips" id="chips"></div>
   <label class="card" style="margin:0 12px;cursor:pointer">
@@ -467,6 +469,9 @@ let mediaCall = null;
 let localStream = null;
 let pendingCall = null; // incoming MediaConnection waiting for answer
 let callVideo = false;
+let chatTarget = null; // null = ομαδικό chat, αλλιώς id μέλους για ιδιωτικό
+let lowBatWarned = {};
+let zoneState = {}; // id -> inside boolean
 
 const R = () => rooms[active];
 
@@ -569,8 +574,17 @@ function genPin() {
 
 function send(r, m) {
   try {
-    if (r.admin) r.conns.forEach(c => c.open && c.send(m));
-    else if (r.hostConn && r.hostConn.open) r.hostConn.send(m);
+    if (r.admin) {
+      if (m && m.to) {
+        // Ιδιωτικό από admin → μόνο στον παραλήπτη
+        const tc = r.conns.find(c => c.peer === m.to && c.open);
+        if (tc) tc.send(m);
+      } else {
+        r.conns.forEach(c => c.open && c.send(m));
+      }
+    } else if (r.hostConn && r.hostConn.open) {
+      r.hostConn.send(m);
+    }
   } catch(e) {}
 }
 
@@ -581,7 +595,7 @@ function relay(r, m, ex) {
 }
 
 function broadcast(r) {
-  send(r, {type: 'STATE', roomName: r.roomName, members: r.members, history: r.history});
+  send(r, {type: 'STATE', roomName: r.roomName, members: r.members, history: r.history, zones: r.zones || []});
   if (r.pin === active) refresh();
 }
 
@@ -704,6 +718,7 @@ function hostMsg(r, c, d) {
     m.lng = d.lng;
     m.sharing = true;
     addHistory(r, m.id, d.lat, d.lng);
+    checkZones(r, m);
     broadcast(r);
   } else if (d.type === 'LOC_OFF' && m) {
     m.sharing = false;
@@ -712,12 +727,22 @@ function hostMsg(r, c, d) {
   } else if (d.type === 'BATTERY' && m) {
     m.battery = d.level;
     if (r.pin === active) renderMembers();
+    checkLowBattery(r, m);
   } else if (['CHAT', 'VOICE', 'FILE', 'LOC_PIN'].includes(d.type)) {
-    addMsg(r, d);
-    relay(r, d, c);
+    if (d.to) {
+      // Ιδιωτικό μήνυμα: μόνο προς συγκεκριμένο μέλος
+      deliverPrivate(r, d, c);
+    } else {
+      addMsg(r, d);
+      relay(r, d, c);
+    }
   } else if (d.type === 'DEL') {
-    delMsg(r, d.msgId);
-    relay(r, d, c);
+    if (d.to) {
+      deliverPrivate(r, d, c);
+    } else {
+      delMsg(r, d.msgId);
+      relay(r, d, c);
+    }
   } else if (d.type === 'CHECKIN') {
     toast('✅ ' + d.name + ' είναι εντάξει');
     playTone(523, 150);
@@ -727,6 +752,10 @@ function hostMsg(r, c, d) {
     relay(r, d, c);
   } else if (d.type === 'STOP_AUDIO') {
     stopMic();
+  } else if (d.type === 'ZONE_ALERT') {
+    toast(d.text || 'Ειδοποίηση ζώνης');
+    playTone(700, 200);
+    relay(r, d, c);
   }
 }
 
@@ -828,11 +857,15 @@ function memberMsg(r, d) {
     r.members = d.members;
     r.roomName = d.roomName;
     r.history = d.history || {};
+    r.zones = d.zones || [];
     if (r.pin === active) refresh();
     tabs();
   } else if (['CHAT', 'VOICE', 'FILE', 'LOC_PIN'].includes(d.type)) {
+    // Ιδιωτικό: μόνο αν είναι για εμένα ή από εμένα
+    if (d.to && d.to !== r.myId && d.from !== r.myId) return;
     addMsg(r, d);
   } else if (d.type === 'DEL') {
+    if (d.to && d.to !== r.myId && d.from !== r.myId) return;
     delMsg(r, d.msgId);
   } else if (d.type === 'CHECKIN') {
     toast('✅ ' + d.name + ' είναι εντάξει');
@@ -843,9 +876,27 @@ function memberMsg(r, d) {
     startMic(r, d.duration || 15);
   } else if (d.type === 'STOP_AUDIO') {
     stopMic();
+  } else if (d.type === 'ZONE_ALERT') {
+    toast(d.text || 'Ειδοποίηση ζώνης', d.sos ? 1 : 0);
+    playTone(700, 200);
   } else if (d.type === 'CLOSED') {
     toast('Το δωμάτιο έκλεισε από τον διαχειριστή');
     dropRoom(r);
+  }
+}
+
+function deliverPrivate(r, d, fromConn) {
+  // Admin βλέπει ιδιωτικό μόνο αν είναι αποστολέας ή παραλήπτης
+  if (d.to === r.myId || d.from === r.myId) {
+    if (d.type === 'DEL') delMsg(r, d.msgId);
+    else addMsg(r, d);
+  }
+  // Προώθηση στον παραλήπτη (αν δεν είναι ο admin)
+  const targetId = d.to;
+  if (targetId === 'admin' || targetId === r.myId) return;
+  const tc = r.conns.find(x => x.peer === targetId && x.open);
+  if (tc) {
+    try { tc.send(d); } catch (e) {}
   }
 }
 
@@ -1091,6 +1142,27 @@ function renderMembers() {
     }
     l.appendChild(row);
   });
+  const fitBtn = document.createElement('button');
+  fitBtn.className = 'btn';
+  fitBtn.textContent = '🗺️ Κέντρο σε όλα τα μέλη';
+  fitBtn.onclick = () => { panel('p-members', 0); fitAllMembers(); };
+  l.appendChild(fitBtn);
+
+  if (r.admin) {
+    const zoneBtn = document.createElement('button');
+    zoneBtn.className = 'btn g';
+    zoneBtn.textContent = '📍 Ορισμός ζώνης εδώ';
+    zoneBtn.onclick = () => addZoneHere();
+    l.appendChild(zoneBtn);
+    if (r.zones && r.zones.length) {
+      const zInfo = document.createElement('div');
+      zInfo.className = 'mut';
+      zInfo.style.padding = '6px 0';
+      zInfo.textContent = 'Ζώνες: ' + r.zones.map(z => z.name + ' (' + z.radius + 'μ)').join(', ');
+      l.appendChild(zInfo);
+    }
+  }
+
   const histBtn = document.createElement('button');
   histBtn.className = 'btn';
   histBtn.textContent = '📜 Ιστορικό θέσεων';
@@ -1132,7 +1204,11 @@ function setSharing(on) {
         Object.values(rooms).forEach(r => {
           if (!r.ready) return;
           const m = r.members.find(x => x.id === r.myId);
-          if (m) { m.lat = la; m.lng = ln; m.sharing = true; addHistory(r, r.myId, la, ln); }
+          if (m) {
+            m.lat = la; m.lng = ln; m.sharing = true;
+            addHistory(r, r.myId, la, ln);
+            checkZones(r, m);
+          }
           r.admin ? broadcast(r) : send(r, {type: 'LOC', lat: la, lng: ln});
         });
         if (map && !window._c) {
@@ -1186,8 +1262,12 @@ async function startBatteryWatch() {
       Object.values(rooms).forEach(r => {
         if (!r.ready) return;
         const m = r.members.find(x => x.id === r.myId);
-        if (m) m.battery = myBattery.level;
+        if (m) {
+          m.battery = myBattery.level;
+          checkLowBattery(r, m);
+        }
         if (!r.admin) send(r, {type: 'BATTERY', level: myBattery.level});
+        else broadcast(r); // admin μοιράζει μπαταρία μέσω STATE
       });
       if (active) renderMembers();
     };
@@ -1195,6 +1275,79 @@ async function startBatteryWatch() {
     myBattery.addEventListener('levelchange', update);
     myBattery.addEventListener('chargingchange', update);
   } catch(e) {}
+}
+
+function checkLowBattery(r, m) {
+  if (!m || m.battery == null) return;
+  const pct = Math.round(m.battery * 100);
+  const key = r.pin + ':' + m.id;
+  if (pct <= 15 && !lowBatWarned[key]) {
+    lowBatWarned[key] = true;
+    toast('🔋 Χαμηλή μπαταρία: ' + m.name + ' (' + pct + '%)');
+    playTone(400, 250);
+  } else if (pct > 20) {
+    lowBatWarned[key] = false;
+  }
+}
+
+function checkZones(r, m) {
+  if (!r.zones || !r.zones.length || !m || m.lat == null) return;
+  r.zones.forEach(z => {
+    const dist = haversine(m.lat, m.lng, z.lat, z.lng);
+    const inside = dist <= (z.radius || 200);
+    const key = z.id + ':' + m.id;
+    const prev = zoneState[key];
+    if (prev === undefined) {
+      zoneState[key] = inside;
+      return;
+    }
+    if (prev !== inside) {
+      zoneState[key] = inside;
+      const text = inside
+        ? '📍 ' + m.name + ' μπήκε στη ζώνη «' + z.name + '»'
+        : '🚶 ' + m.name + ' έφυγε από τη ζώνη «' + z.name + '»';
+      toast(text);
+      playTone(inside ? 600 : 450, 200);
+      // Ενημέρωσε τα άλλα μέλη
+      const payload = {type: 'ZONE_ALERT', text, name: m.name};
+      if (r.admin) relay(r, payload);
+      else send(r, payload);
+    }
+  });
+}
+
+function addZoneHere() {
+  const r = R();
+  if (!r || !r.admin) return toast('Μόνο ο διαχειριστής ορίζει ζώνες');
+  const me = r.members.find(x => x.id === r.myId);
+  if (!me || me.lat == null) return toast('Ενεργοποίησε πρώτα τη θέση σου');
+  const name = prompt('Όνομα ζώνης (π.χ. Σπίτι, Σχολείο)', 'Σπίτι');
+  if (!name) return;
+  const radius = parseInt(prompt('Ακτίνα σε μέτρα', '200'), 10) || 200;
+  if (!r.zones) r.zones = [];
+  r.zones.push({
+    id: 'z' + Date.now(),
+    name: String(name).slice(0, 30),
+    lat: me.lat,
+    lng: me.lng,
+    radius
+  });
+  broadcast(r);
+  toast('Ζώνη «' + name + '» ορίστηκε (' + radius + 'μ)');
+}
+
+function fitAllMembers() {
+  const r = R();
+  if (!r || !map) return;
+  const pts = r.members.filter(m => m.sharing && m.lat != null);
+  if (!pts.length) return toast('Κανένα μέλος δεν μοιράζεται θέση');
+  showMap();
+  if (pts.length === 1) {
+    map.setView([pts[0].lat, pts[0].lng], 16);
+  } else {
+    const bounds = L.latLngBounds(pts.map(m => [m.lat, m.lng]));
+    map.fitBounds(bounds.pad(0.25));
+  }
 }
 
 function toggleAutoCheckin(on) {
@@ -1633,6 +1786,7 @@ function post(m) {
   if (!m) return;
   const r = R();
   if (!r) return;
+  if (chatTarget) m.to = chatTarget;
   addMsg(r, m);
   send(r, m);
 }
@@ -1640,18 +1794,31 @@ function post(m) {
 function addMsg(r, d) {
   if (!r || r.chat.some(x => x.msgId === d.msgId)) return;
   r.chat.push(d);
-  if (r.chat.length > 100) r.chat.shift();
-  if (r.pin === active) drawMsg(d);
+  if (r.chat.length > 150) r.chat.shift();
+  // Εμφάνισε μόνο αν ταιριάζει με το τρέχον tab chat
+  if (r.pin === active && msgMatchesTab(d)) drawMsg(d);
   if (d.ttl) setTimeout(() => delMsg(r, d.msgId), 10000);
-  // Ειδοποίηση αν το μήνυμα δεν είναι δικό μας
   if (d.from !== r.myId) {
     notifyIncoming(d);
   }
 }
 
+function msgMatchesTab(d) {
+  if (chatTarget) {
+    // Ιδιωτικό tab: μηνύματα μεταξύ εμένα και του target
+    const r = R();
+    if (!r) return false;
+    if (!d.to) return false; // ομαδικά δεν φαίνονται στο ιδιωτικό
+    return (d.from === chatTarget && d.to === r.myId) ||
+           (d.from === r.myId && d.to === chatTarget);
+  }
+  // Ομαδικό tab: μόνο χωρίς to
+  return !d.to;
+}
+
 function notifyIncoming(d) {
   try {
-    const title = d.name || 'Find me';
+    const title = (d.to ? '🔒 ' : '') + (d.name || 'Find me');
     let body = 'Νέο μήνυμα';
     if (d.type === 'CHAT') body = d.text || body;
     else if (d.type === 'VOICE') body = '🎤 Φωνητικό μήνυμα';
@@ -1707,7 +1874,8 @@ function drawMsg(d) {
   const mine = d.from === r.myId;
   el.id = 'm-' + d.msgId;
   el.className = 'msg ' + (mine ? 'me' : 'ot');
-  el.innerHTML = `<div class="meta"><span>${esc(d.name)} · ${fmt(d.ts)}${d.ttl ? ' ⏱️' : ''}</span>${(mine || r.admin) ? '<button class="x">🗑️</button>' : ''}</div>`;
+  const priv = d.to ? ' 🔒' : '';
+  el.innerHTML = `<div class="meta"><span>${esc(d.name)} · ${fmt(d.ts)}${priv}${d.ttl ? ' ⏱️' : ''}</span>${(mine || r.admin) ? '<button class="x">🗑️</button>' : ''}</div>`;
   if (d.type === 'VOICE') {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px';
@@ -1762,7 +1930,9 @@ function drawMsg(d) {
   const x = el.querySelector('.x');
   if (x) x.onclick = () => {
     delMsg(r, d.msgId);
-    send(r, {type: 'DEL', msgId: d.msgId});
+    const payload = {type: 'DEL', msgId: d.msgId};
+    if (d.to) payload.to = d.to;
+    send(r, payload);
   };
   b.appendChild(el);
   b.scrollTop = b.scrollHeight;
@@ -1772,20 +1942,54 @@ function renderChat() {
   const msgs = $('msgs');
   if (msgs) msgs.innerHTML = '';
   const r = R();
-  if (r) r.chat.forEach(drawMsg);
+  if (r) r.chat.filter(msgMatchesTab).forEach(drawMsg);
 }
 
-function openChat() {
+function renderChatTargets() {
+  const wrap = $('chat-targets');
+  const r = R();
+  if (!wrap || !r) return;
+  wrap.innerHTML = '';
+  const all = document.createElement('button');
+  all.className = 'chip' + (!chatTarget ? ' a' : '');
+  all.textContent = '👥 Όλοι';
+  all.onclick = () => { chatTarget = null; updateChatHeader(); renderChatTargets(); renderChat(); };
+  wrap.appendChild(all);
+  r.members.filter(m => m.id !== r.myId).forEach(m => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (chatTarget === m.id ? ' a' : '');
+    b.textContent = (m.avatar || '') + ' ' + m.name;
+    b.onclick = () => {
+      chatTarget = m.id;
+      updateChatHeader();
+      renderChatTargets();
+      renderChat();
+    };
+    wrap.appendChild(b);
+  });
+}
+
+function updateChatHeader() {
   const r = R();
   const title = $('chat-title');
   const sub = $('chat-room');
-  if (r) {
-    if (title) title.textContent = r.roomName || 'Chat';
-    if (sub) sub.textContent = 'PIN ' + r.pin + ' · Chat δωματίου';
+  const ci = $('ci');
+  if (!r) return;
+  if (chatTarget) {
+    const m = r.members.find(x => x.id === chatTarget);
+    if (title) title.textContent = '🔒 ' + (m ? m.name : 'Ιδιωτικό');
+    if (sub) sub.textContent = 'Ιδιωτικό μήνυμα · ' + (r.roomName || '');
+    if (ci) ci.placeholder = 'Ιδιωτικό μήνυμα…';
   } else {
-    if (title) title.textContent = 'Chat';
-    if (sub) sub.textContent = '';
+    if (title) title.textContent = r.roomName || 'Chat';
+    if (sub) sub.textContent = 'PIN ' + r.pin + ' · Ομαδικό chat';
+    if (ci) ci.placeholder = 'Μήνυμα προς όλους…';
   }
+}
+
+function openChat() {
+  updateChatHeader();
+  renderChatTargets();
   renderChat();
   panel('p-chat');
 }
@@ -1957,7 +2161,9 @@ function openShare() {
   if (!r) return;
   const base = location.href.split(/[?#]/)[0];
   const url = base + '?room=' + r.pin;
-  const t = `Μπες στο δωμάτιο «${r.roomName}» στην εφαρμογή Find me.\nPIN: ${r.pin}\n${url}`;
+  // Κείμενο χωρίς URL (το URL μπαίνει μία φορά μέσω του πεδίου url / ή στο τέλος για apps)
+  const textOnly = `Μπες στο δωμάτιο «${r.roomName}» στο Find me.\nPIN: ${r.pin}`;
+  const t = textOnly + '\n' + url;
   const e = encodeURIComponent;
   const shPin = $('sh-pin');
   const shLinks = $('sh-links');
@@ -1970,7 +2176,10 @@ function openShare() {
   const shNative = $('sh-native');
   if (shNative) shNative.onclick = () => {
     if (navigator.share) {
-      navigator.share({title: 'Find me', text: t, url}).catch(() => {});
+      // Μην βάζεις το URL και στο text και στο url → διπλασιάζεται σε iMessage/WhatsApp
+      navigator.share({ title: 'Find me', text: textOnly, url }).catch(() => {
+        copy(t);
+      });
     } else {
       copy(t);
     }
