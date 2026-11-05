@@ -412,32 +412,25 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <h3>Button</h3>
     <button class="btn ibtn" onclick="panel('p-actions',0)">✕</button>
   </div>
-  <div class="pb">
-    <button class="btn s" onclick="checkin(); panel('p-actions',0)">✅ Είμαι εντάξει</button>
-    <h3 style="margin-top:8px">🎧 Ακρόαση περιβάλλοντος</h3>
-    <p class="mut">Άκουσε τον χώρο επιλεγμένων μελών. Διάρκεια και παραλήπτες ρυθμίζονται παρακάτω.</p>
-    <label class="l">Διάρκεια (δευτερόλεπτα)</label>
-    <select id="act-listen-dur">
-      <option value="10">10</option>
-      <option value="15" selected>15</option>
-      <option value="30">30</option>
-      <option value="60">60</option>
-    </select>
-    <label class="l">Σε ποιους / από ποιους</label>
-    <div id="act-listen-members" style="display:flex;flex-direction:column;gap:8px"></div>
-    <label class="card" style="cursor:pointer;margin-top:6px">
-      <b>Όλη η ομάδα</b>
-      <input type="checkbox" id="act-listen-all" style="width:24px;height:24px">
-    </label>
-    <button class="btn g" onclick="startGroupListen()">🎧 Ξεκίνα ακρόαση</button>
-    <div id="map-edit-block">
-      <h3 style="margin-top:12px">🗺️ Επεξεργασία χάρτη (διαχειριστής)</h3>
-      <p class="mut">Πάτα στον χάρτη για πινέζα ή σημείο διαδρομής.</p>
-      <button class="btn" id="btn-pin-mode" onclick="setMapMode('pin')">📌 Κατάσταση: Πινέζα + ακτίνα (km)</button>
-      <button class="btn" id="btn-route-mode" onclick="setMapMode('route')">🛣️ Κατάσταση: Διαδρομή</button>
-      <button class="btn" onclick="finishRoute()">✔️ Ολοκλήρωση διαδρομής</button>
-      <button class="btn" onclick="setMapMode(null)">✋ Χωρίς επεξεργασία</button>
-      <div id="map-edit-status" class="mut"></div>
+  <div class="pb" style="gap:16px">
+    <button class="btn s big" style="height:72px;font-size:1.2rem" onclick="checkinEnhanced()">✅ Είμαι εντάξει</button>
+    <div class="card" style="flex-direction:column;align-items:stretch;gap:12px">
+      <b style="font-size:1.05rem">🎧 Ξεκίνα ακρόαση</b>
+      <p class="mut" style="margin:0">Άκουσε τον χώρο επιλεγμένων μελών.</p>
+      <label class="l">Διάρκεια</label>
+      <select id="act-listen-dur">
+        <option value="10">10 δευτερόλεπτα</option>
+        <option value="15" selected>15 δευτερόλεπτα</option>
+        <option value="30">30 δευτερόλεπτα</option>
+        <option value="60">60 δευτερόλεπτα</option>
+      </select>
+      <label class="l">Μέλη</label>
+      <div id="act-listen-members" style="display:flex;flex-direction:column;gap:8px"></div>
+      <label class="card" style="cursor:pointer">
+        <b>Όλη η ομάδα</b>
+        <input type="checkbox" id="act-listen-all" style="width:24px;height:24px">
+      </label>
+      <button class="btn g big" onclick="startGroupListen()">🎧 Ξεκίνα ακρόαση</button>
     </div>
   </div>
 </div>
@@ -1150,21 +1143,30 @@ function meta() {
   if (rm) rm.textContent = 'PIN ' + r.pin + ' · ' + r.members.length + ' μέλη';
 }
 
+let osmLayer = null;
+let satLayer = null;
+let usingSat = false;
+
 function initMap() {
   if (map || typeof L === 'undefined') return;
   try {
     map = L.map('map', {zoomControl: false}).setView([37.98, 23.73], 13);
     L.control.zoom({position: 'bottomright'}).addTo(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OSM'
     }).addTo(map);
+    satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '© Esri'
+    });
     map.on('click', e => {
       const r = R();
       if (!r || !r.admin || !mapMode) return;
       const {lat, lng} = e.latlng;
       if (mapMode === 'pin') {
         addChildPlace(lat, lng);
+        renderMembers();
       } else if (mapMode === 'route') {
         routeDraft.push([lat, lng]);
         if (routeDraftLine) {
@@ -1172,11 +1174,76 @@ function initMap() {
         }
         routeDraftLine = L.polyline(routeDraft, {color: '#eab308', weight: 4, dashArray: '6 8'}).addTo(map);
         L.circleMarker([lat, lng], {radius: 6, color: '#eab308'}).addTo(map);
-        toast('Σημείο ' + routeDraft.length + ' · Ολοκλήρωσε από Button');
+        if (routeDraft.length >= 2) {
+          toast('Υπολογισμός διαδρομής…');
+          finishRoute();
+        } else {
+          toast('Πάτα το σημείο προορισμού');
+        }
       }
     });
   } catch(e) {
     toast('Σφάλμα χάρτη');
+  }
+}
+
+function toggleSatellite() {
+  if (!map || !osmLayer || !satLayer) return;
+  if (usingSat) {
+    map.removeLayer(satLayer);
+    osmLayer.addTo(map);
+    usingSat = false;
+    toast('Χάρτης οδών');
+  } else {
+    map.removeLayer(osmLayer);
+    satLayer.addTo(map);
+    usingSat = true;
+    toast('Δορυφορική προβολή');
+  }
+}
+
+async function searchMapPlaces(q) {
+  q = (q || '').trim();
+  if (!q) return toast('Γράψε κάτι για αναζήτηση');
+  const box = $('map-search-res');
+  if (box) box.innerHTML = '<p class="mut">Αναζήτηση…</p>';
+  try {
+    // Κέντρο χάρτη για τοπικά αποτελέσματα
+    const c = map ? map.getCenter() : {lat: 37.98, lng: 23.73};
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=8&q=' +
+      encodeURIComponent(q) +
+      '&viewbox=' + (c.lng - 0.15) + ',' + (c.lat + 0.15) + ',' + (c.lng + 0.15) + ',' + (c.lat - 0.15) +
+      '&bounded=0';
+    const res = await fetch(url, {headers: {'Accept-Language': 'el'}});
+    const data = await res.json();
+    if (!box) return;
+    box.innerHTML = '';
+    if (!data.length) {
+      box.innerHTML = '<p class="mut">Κανένα αποτέλεσμα</p>';
+      return;
+    }
+    data.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.cssText = 'height:auto;min-height:48px;padding:10px;text-align:left;font-size:.85rem';
+      btn.textContent = item.display_name.split(',').slice(0, 3).join(',');
+      btn.onclick = () => {
+        const lat = parseFloat(item.lat), lng = parseFloat(item.lon);
+        panel('p-members', 0);
+        showMap();
+        if (map) {
+          map.setView([lat, lng], 17);
+          L.marker([lat, lng]).addTo(map).bindPopup(item.display_name).openPopup();
+        }
+        if (confirm('Να οριστεί ως πινέζα παρακολούθησης;')) {
+          addChildPlace(lat, lng);
+        }
+      };
+      box.appendChild(btn);
+    });
+  } catch (e) {
+    if (box) box.innerHTML = '<p class="mut">Σφάλμα αναζήτησης</p>';
+    toast('Σφάλμα αναζήτησης');
   }
 }
 
@@ -1299,6 +1366,86 @@ function renderMembers() {
       row.appendChild(actions);
     }
     l.appendChild(row);
+
+    // Εργαλεία χάρτη κάτω από «Εγώ» (διαχειριστής)
+    if (m.id === r.myId && r.admin) {
+      const tools = document.createElement('div');
+      tools.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin:4px 0 10px;padding:10px;background:var(--card);border:1px solid var(--bd);border-radius:var(--radius)';
+      tools.innerHTML = `<b>🗺️ Επεξεργασία χάρτη</b>
+        <p class="mut" style="margin:0">Πινέζες, διαδρομές σε δρόμους, αναζήτηση, δορυφόρος.</p>`;
+      const b1 = document.createElement('button');
+      b1.className = 'btn g';
+      b1.textContent = '📌 Πινέζα + ακτίνα (πάτα στον χάρτη)';
+      b1.onclick = () => { setMapMode('pin'); panel('p-members', 0); };
+      tools.appendChild(b1);
+      const b2 = document.createElement('button');
+      b2.className = 'btn';
+      b2.textContent = '🛣️ Διαδρομή σε δρόμο (2 σημεία)';
+      b2.onclick = () => { setMapMode('route'); panel('p-members', 0); };
+      tools.appendChild(b2);
+      const b3 = document.createElement('button');
+      b3.className = 'btn';
+      b3.textContent = '🛰️ Δορυφόρος / Χάρτης';
+      b3.onclick = () => { toggleSatellite(); };
+      tools.appendChild(b3);
+      const searchRow = document.createElement('div');
+      searchRow.style.cssText = 'display:flex;gap:8px';
+      const sIn = document.createElement('input');
+      sIn.type = 'text';
+      sIn.placeholder = 'Αναζήτηση: σχολείο, φροντιστήριο…';
+      sIn.id = 'map-search-q';
+      sIn.style.flex = '1';
+      const sBtn = document.createElement('button');
+      sBtn.className = 'btn p ibtn';
+      sBtn.textContent = '🔍';
+      sBtn.onclick = () => searchMapPlaces(sIn.value);
+      searchRow.appendChild(sIn);
+      searchRow.appendChild(sBtn);
+      tools.appendChild(searchRow);
+      const searchRes = document.createElement('div');
+      searchRes.id = 'map-search-res';
+      tools.appendChild(searchRes);
+      // Λίστα σημείων με επεξεργασία/διαγραφή
+      (r.zones || []).forEach(z => {
+        const zr = document.createElement('div');
+        zr.className = 'card';
+        zr.innerHTML = `<div style="flex:1"><b>📌 ${esc(z.name)}</b><div class="mut">${((z.radius||0)/1000).toFixed(2)} km${z.sosOnExit?' · SOS':''}</div></div>`;
+        const ed = document.createElement('button');
+        ed.className = 'btn ibtn';
+        ed.textContent = '✏️';
+        ed.onclick = ev => { ev.stopPropagation(); editZone(z); };
+        const del = document.createElement('button');
+        del.className = 'btn ibtn';
+        del.textContent = '🗑️';
+        del.onclick = ev => {
+          ev.stopPropagation();
+          r.zones = r.zones.filter(x => x.id !== z.id);
+          drawZoneCircles(r);
+          broadcast(r);
+          renderMembers();
+        };
+        zr.appendChild(ed);
+        zr.appendChild(del);
+        tools.appendChild(zr);
+      });
+      (r.routes || []).forEach(rt => {
+        const rr = document.createElement('div');
+        rr.className = 'card';
+        rr.innerHTML = `<div style="flex:1"><b>🛣️ ${esc(rt.name)}</b><div class="mut">${rt.radiusKm||2} km διάδρομος</div></div>`;
+        const del = document.createElement('button');
+        del.className = 'btn ibtn';
+        del.textContent = '🗑️';
+        del.onclick = () => {
+          r.routes = r.routes.filter(x => x.id !== rt.id);
+          drawZoneCircles(r);
+          broadcast(r);
+          renderMembers();
+        };
+        rr.appendChild(del);
+        tools.appendChild(rr);
+      });
+      l.appendChild(tools);
+    }
   });
   const fitBtn = document.createElement('button');
   fitBtn.className = 'btn';
@@ -1306,26 +1453,29 @@ function renderMembers() {
   fitBtn.onclick = () => { panel('p-members', 0); fitAllMembers(); };
   l.appendChild(fitBtn);
 
-  if (r.admin) {
-    const zoneBtn = document.createElement('button');
-    zoneBtn.className = 'btn g';
-    zoneBtn.textContent = '📍 Ορισμός ζώνης εδώ';
-    zoneBtn.onclick = () => addZoneHere();
-    l.appendChild(zoneBtn);
-    if (r.zones && r.zones.length) {
-      const zInfo = document.createElement('div');
-      zInfo.className = 'mut';
-      zInfo.style.padding = '6px 0';
-      zInfo.textContent = 'Ζώνες: ' + r.zones.map(z => z.name + ' (' + z.radius + 'μ)').join(', ');
-      l.appendChild(zInfo);
-    }
-  }
-
   const histBtn = document.createElement('button');
   histBtn.className = 'btn';
   histBtn.textContent = '📜 Ιστορικό θέσεων';
   histBtn.onclick = () => showHistory(r);
   l.appendChild(histBtn);
+}
+
+function editZone(z) {
+  const r = R();
+  if (!r || !z) return;
+  const name = prompt('Όνομα σημείου', z.name);
+  if (name == null) return;
+  const km = parseFloat(prompt('Ακτίνα σε km', String((z.radius || 500) / 1000)));
+  if (!isNaN(km) && km > 0) {
+    z.radius = Math.round(km * 1000);
+    z.radiusKm = km;
+  }
+  z.name = String(name).slice(0, 40);
+  z.sosOnExit = confirm('Αυτόματο SOS όταν βγει από την ακτίνα;');
+  drawZoneCircles(r);
+  broadcast(r);
+  renderMembers();
+  toast('Ενημερώθηκε «' + z.name + '»');
 }
 
 function showHistory(r) {
@@ -1750,9 +1900,21 @@ function openActions() {
       box.appendChild(lab);
     });
   }
-  const editBlock = $('map-edit-block');
-  if (editBlock) editBlock.style.display = (r && r.admin) ? '' : 'none';
   panel('p-actions');
+}
+
+function checkinEnhanced() {
+  checkin(true); // στέλνει CHECKIN στα μέλη χωρίς διπλό toast
+  playTone(523, 160, 'sine');
+  setTimeout(() => playTone(659, 180, 'sine'), 160);
+  setTimeout(() => playTone(784, 220, 'sine'), 320);
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 100]);
+  flashTorch(true);
+  setTimeout(() => stopTorch(), 500);
+  const r = R();
+  if (r) post(msg('CHAT', {text: '✅ Είμαι εντάξει', ok: true}));
+  panel('p-actions', 0);
+  toast('✅ Είμαι εντάξει – ειδοποιήθηκαν τα μέλη');
 }
 
 function startGroupListen() {
@@ -1785,27 +1947,37 @@ function setMapMode(mode) {
   }
   const st = $('map-edit-status');
   if (!st) return;
-  if (mode === 'pin') st.textContent = 'Πάτα στον χάρτη για πινέζα (ακτίνα σε km + SOS).';
-  else if (mode === 'route') st.textContent = 'Πάτα σημεία διαδρομής. Μετά «Ολοκλήρωση διαδρομής».';
-  else st.textContent = 'Επεξεργασία ανενεργή.';
-  panel('p-actions', 0);
   showMap();
-  toast(mode === 'pin' ? 'Κατάσταση πινέζας' : mode === 'route' ? 'Κατάσταση διαδρομής' : 'Τέλος επεξεργασίας');
+  toast(mode === 'pin' ? 'Πάτα στον χάρτη για πινέζα' : mode === 'route' ? 'Πάτα αρχή και μετά τέλος διαδρομής' : 'Τέλος επεξεργασίας');
 }
 
-function finishRoute() {
+async function finishRoute() {
   const r = R();
   if (!r || !r.admin) return;
-  if (routeDraft.length < 2) return toast('Χρειάζονται τουλάχιστον 2 σημεία');
+  if (routeDraft.length < 2) return toast('Χρειάζονται 2 σημεία (αρχή και τέλος)');
   const name = prompt('Όνομα διαδρομής (π.χ. Σπίτι → Σχολείο)', 'Διαδρομή');
   if (!name) return;
   const km = parseFloat(prompt('Ακτίνα διαδρόμου σε km (π.χ. 2 ή 3)', '2')) || 2;
   const sosExit = confirm('SOS αν το παιδί βγει εκτός διαδρομής;');
+  toast('Υπολογισμός διαδρομής στον δρόμο…');
+  let points = routeDraft.slice();
+  try {
+    // OSRM: δρομολόγηση πάνω σε πραγματικούς δρόμους
+    const coords = routeDraft.map(p => p[1] + ',' + p[0]).join(';');
+    const url = 'https://router.project-osrm.org/route/v1/driving/' + coords + '?overview=full&geometries=geojson';
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.routes && data.routes[0] && data.routes[0].geometry) {
+      points = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
+  } catch (e) {
+    toast('Δεν βρέθηκε δρόμος – αποθήκευση ευθείας γραμμής');
+  }
   if (!r.routes) r.routes = [];
   r.routes.push({
     id: 'rt' + Date.now(),
     name: String(name).slice(0, 40),
-    points: routeDraft.slice(),
+    points,
     radiusKm: km,
     sosOnExit: !!sosExit
   });
@@ -1817,7 +1989,8 @@ function finishRoute() {
   mapMode = null;
   drawZoneCircles(r);
   broadcast(r);
-  toast('Διαδρομή αποθηκεύτηκε (' + km + ' km)');
+  renderMembers();
+  toast('Διαδρομή αποθηκεύτηκε (' + km + ' km διάδρομος)');
 }
 
 function distToSegment(lat, lng, a, b) {
@@ -2374,6 +2547,11 @@ function drawMsg(d) {
   } else {
     const t = document.createElement('div');
     t.textContent = d.text;
+    if (d.ok || (d.text && d.text.indexOf('Είμαι εντάξει') !== -1)) {
+      t.style.cssText = 'background:#166534;color:#fff;padding:8px 12px;border-radius:12px;font-weight:700';
+      el.style.background = '#14532d';
+      el.style.border = '1px solid #22c55e';
+    }
     el.appendChild(t);
   }
   const x = el.querySelector('.x');
