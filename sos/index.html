@@ -549,6 +549,9 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
       <h3 id="chat-title">Chat</h3>
       <div class="mut" id="chat-room" style="font-size:.75rem;margin-top:2px"></div>
     </div>
+    <button class="btn ibtn" onclick="openCallPicker(false)" title="Ηχητική κλήση">📞</button>
+    <button class="btn ibtn" onclick="openCallPicker(true)" title="Βιντεοκλήση">📹</button>
+    <button class="btn ibtn" onclick="openCallPicker('group')" title="Ομαδική κλήση">👥</button>
     <button class="btn ibtn" onclick="panel('p-chat',0)">✕</button>
   </div>
   <div class="p2p-note">🔒 Μηνύματα peer-to-peer (δεν περνούν από server)</div>
@@ -567,6 +570,19 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <button class="btn ibtn" title="Στείλε θέση" onclick="sendLocationPin()">📍</button>
     <input type="text" id="ci" placeholder="Μήνυμα…" maxlength="300" style="flex:1;min-width:0;height:48px">
     <button class="btn p ibtn" onclick="sendText()">➤</button>
+  </div>
+</div>
+
+<!-- CALL PICKER -->
+<div id="p-call-pick" class="panel">
+  <div class="ph">
+    <h3 id="call-pick-title">Κλήση</h3>
+    <button class="btn ibtn" onclick="panel('p-call-pick',0)">✕</button>
+  </div>
+  <div class="pb" style="gap:10px">
+    <p class="mut" id="call-pick-hint">Διάλεξε με ποιο μέλος θα μιλήσεις.</p>
+    <div id="call-pick-list"></div>
+    <button class="btn p big" id="call-pick-go" onclick="confirmCallPick()">Έναρξη κλήσης</button>
   </div>
 </div>
 
@@ -1521,7 +1537,7 @@ function renderMapEditLists() {
     (r.zones || []).forEach(z => {
       const zr = document.createElement('div');
       zr.className = 'card';
-      zr.innerHTML = `<div style="flex:1"><b>📌 ${esc(z.name)}</b><div class="mut">${((z.radius||0)/1000).toFixed(2)} km${z.sosOnExit?' · SOS':''}</div></div>`;
+      zr.innerHTML = `<div style="flex:1"><b>📌 ${esc(z.name)}</b><div class="mut">${((z.radius||0)/1000).toFixed(2)} km · ${esc(memberNamesForIds(r, z.memberIds))}${z.sosOnExit?' · SOS':''}</div></div>`;
       const ed = document.createElement('button');
       ed.className = 'btn ibtn';
       ed.textContent = '✏️';
@@ -1547,7 +1563,7 @@ function renderMapEditLists() {
     (r.routes || []).forEach(rt => {
       const row = document.createElement('div');
       row.className = 'card';
-      row.innerHTML = `<div style="flex:1"><b>🛣️ ${esc(rt.name)}</b><div class="mut">${rt.radiusKm||2} km διάδρομος</div></div>`;
+      row.innerHTML = `<div style="flex:1"><b>🛣️ ${esc(rt.name)}</b><div class="mut">${rt.radiusKm||2} km · ${esc(memberNamesForIds(r, rt.memberIds))}</div></div>`;
       const del = document.createElement('button');
       del.className = 'btn ibtn';
       del.textContent = '🗑️';
@@ -1576,12 +1592,14 @@ function editZone(z) {
     z.radiusKm = km;
   }
   z.name = String(name).slice(0, 40);
+  const memberIds = pickMembersForMap(r, 'Για ποια μέλη ισχύει η πινέζα;');
+  if (memberIds !== null) z.memberIds = memberIds;
   z.sosOnExit = confirm('Αυτόματο SOS όταν βγει από την ακτίνα;');
   drawZoneCircles(r);
   broadcast(r);
   saveMapData(r);
   renderMapEditLists();
-  toast('Ενημερώθηκε «' + z.name + '»');
+  toast('Ενημερώθηκε «' + z.name + '» · ' + memberNamesForIds(r, z.memberIds));
 }
 
 function showHistory(r) {
@@ -1704,9 +1722,42 @@ function checkLowBattery(r, m) {
   }
 }
 
+function zoneAppliesTo(z, memberId) {
+  if (!z.memberIds || !z.memberIds.length) return true; // όλα τα μέλη
+  return z.memberIds.indexOf(memberId) !== -1;
+}
+
+function pickMembersForMap(r, title) {
+  const others = (r.members || []).filter(m => m.id !== 'admin' || true);
+  if (!others.length) return [];
+  const lines = others.map((m, i) => (i + 1) + ') ' + m.name + (m.id === r.myId ? ' (εσύ)' : '')).join('\n');
+  const ans = prompt(
+    (title || 'Για ποια μέλη ισχύει;') +
+    '\n\nΓράψε αριθμούς χωρισμένους με κόμμα (π.χ. 1,3)\nή ALL για όλους\n\n' + lines,
+    'ALL'
+  );
+  if (ans == null) return null; // ακύρωση
+  if (!String(ans).trim() || /^all$/i.test(String(ans).trim())) return [];
+  const ids = [];
+  String(ans).split(/[,;\s]+/).forEach(part => {
+    const n = parseInt(part, 10);
+    if (n >= 1 && n <= others.length) ids.push(others[n - 1].id);
+  });
+  return ids;
+}
+
+function memberNamesForIds(r, ids) {
+  if (!ids || !ids.length) return 'Όλα τα μέλη';
+  return ids.map(id => {
+    const m = r.members.find(x => x.id === id);
+    return m ? m.name : id;
+  }).join(', ');
+}
+
 function checkZones(r, m) {
   if (!r.zones || !r.zones.length || !m || m.lat == null) return;
   r.zones.forEach(z => {
+    if (!zoneAppliesTo(z, m.id)) return;
     const dist = haversine(m.lat, m.lng, z.lat, z.lng);
     const inside = dist <= (z.radius || 200);
     const key = z.id + ':' + m.id;
@@ -1725,11 +1776,10 @@ function checkZones(r, m) {
       const payload = {type: 'ZONE_ALERT', text, name: m.name};
       if (r.admin) relay(r, payload);
       else send(r, payload);
-      // SOS όταν απομακρύνεται από σημείο δραστηριότητας παιδιού
       if (!inside && z.sosOnExit) {
         toast('🆘 Απομάκρυνση από «' + z.name + '» – SOS');
         if (m.id === r.myId) {
-          sos(true); // auto SOS
+          sos(true);
         } else if (r.admin) {
           sosIn(r, {name: m.name, id: m.id, lat: m.lat, lng: m.lng, auto: true});
           relay(r, {type: 'SOS', name: m.name, id: m.id, lat: m.lat, lng: m.lng, auto: true});
@@ -1756,6 +1806,8 @@ function addChildPlace(lat, lng) {
   if (!name) return;
   const km = parseFloat(prompt('Ακτίνα σε χιλιόμετρα (π.χ. 0.2 για 200μ, 3 για χωριό)', '0.5'));
   const radius = Math.round((isNaN(km) ? 0.5 : km) * 1000);
+  const memberIds = pickMembersForMap(r, 'Η πινέζα «' + name + '» για ποια μέλη/παιδιά;');
+  if (memberIds === null) return;
   const sosExit = confirm('Αυτόματο SOS όταν βγει από την ακτίνα;');
   if (!r.zones) r.zones = [];
   const zone = {
@@ -1766,6 +1818,7 @@ function addChildPlace(lat, lng) {
     radius,
     radiusKm: radius / 1000,
     sosOnExit: !!sosExit,
+    memberIds: memberIds || [],
     kind: 'child'
   };
   r.zones.push(zone);
@@ -1773,7 +1826,7 @@ function addChildPlace(lat, lng) {
   broadcast(r);
   saveMapData(r);
   renderMapEditLists();
-  toast('Πινέζα «' + zone.name + '» · ' + (radius / 1000) + ' km' + (sosExit ? ' · SOS' : ''));
+  toast('Πινέζα «' + zone.name + '» · ' + memberNamesForIds(r, zone.memberIds));
 }
 
 function drawZoneCircles(r) {
@@ -1799,7 +1852,8 @@ function drawZoneCircles(r) {
       })
     }).addTo(map);
     const kmLabel = ((z.radius || 0) / 1000).toFixed(2);
-    marker.bindPopup(`<b>${esc(z.name)}</b><br>Ακτίνα ${kmLabel} km${z.sosOnExit ? '<br>🆘 SOS στην έξοδο' : ''}`);
+    const who = memberNamesForIds(r, z.memberIds);
+    marker.bindPopup(`<b>${esc(z.name)}</b><br>Ακτίνα ${kmLabel} km<br>👤 ${esc(who)}${z.sosOnExit ? '<br>🆘 SOS στην έξοδο' : ''}`);
     r._zoneLayers.push(circle, marker);
   });
   (r.routes || []).forEach(rt => {
@@ -1809,7 +1863,8 @@ function drawZoneCircles(r) {
       weight: 5,
       opacity: 0.85
     }).addTo(map);
-    line.bindPopup(`<b>🛣️ ${esc(rt.name)}</b><br>Διάδρομος ${rt.radiusKm || 2} km${rt.sosOnExit ? '<br>🆘 SOS εκτός διαδρομής' : ''}`);
+    const who = memberNamesForIds(r, rt.memberIds);
+    line.bindPopup(`<b>🛣️ ${esc(rt.name)}</b><br>Διάδρομος ${rt.radiusKm || 2} km<br>👤 ${esc(who)}${rt.sosOnExit ? '<br>🆘 SOS εκτός διαδρομής' : ''}`);
     r._zoneLayers.push(line);
   });
 }
@@ -2079,11 +2134,12 @@ async function finishRoute() {
   const name = prompt('Όνομα διαδρομής (π.χ. Σπίτι → Σχολείο)', 'Διαδρομή');
   if (!name) return;
   const km = parseFloat(prompt('Ακτίνα διαδρόμου σε km (π.χ. 2 ή 3)', '2')) || 2;
-  const sosExit = confirm('SOS αν το παιδί βγει εκτός διαδρομής;');
+  const memberIds = pickMembersForMap(r, 'Η διαδρομή «' + name + '» για ποια μέλη/παιδιά;');
+  if (memberIds === null) return;
+  const sosExit = confirm('SOS αν το μέλος βγει εκτός διαδρομής;');
   toast('Υπολογισμός διαδρομής στον δρόμο…');
   let points = routeDraft.slice();
   try {
-    // OSRM: δρομολόγηση πάνω σε πραγματικούς δρόμους
     const coords = routeDraft.map(p => p[1] + ',' + p[0]).join(';');
     const url = 'https://router.project-osrm.org/route/v1/driving/' + coords + '?overview=full&geometries=geojson';
     const res = await fetch(url);
@@ -2100,7 +2156,8 @@ async function finishRoute() {
     name: String(name).slice(0, 40),
     points,
     radiusKm: km,
-    sosOnExit: !!sosExit
+    sosOnExit: !!sosExit,
+    memberIds: memberIds || []
   });
   routeDraft = [];
   if (routeDraftLine && map) {
@@ -2112,7 +2169,7 @@ async function finishRoute() {
   broadcast(r);
   saveMapData(r);
   renderMapEditLists();
-  toast('Διαδρομή αποθηκεύτηκε (' + km + ' km διάδρομος)');
+  toast('Διαδρομή «' + name + '» · ' + memberNamesForIds(r, memberIds));
 }
 
 function distToSegment(lat, lng, a, b) {
@@ -2135,6 +2192,7 @@ function distToSegment(lat, lng, a, b) {
 function checkRoutes(r, m) {
   if (!r.routes || !r.routes.length || !m || m.lat == null) return;
   r.routes.forEach(rt => {
+    if (!zoneAppliesTo(rt, m.id)) return;
     let minD = Infinity;
     for (let i = 0; i < rt.points.length - 1; i++) {
       const d = distToSegment(m.lat, m.lng, rt.points[i], rt.points[i + 1]);
@@ -2247,6 +2305,79 @@ function peerIdForMember(r, m) {
   return m.id;
 }
 
+let callPickMode = false; // false=audio, true=video, 'group'
+
+function openCallPicker(mode) {
+  const r = R();
+  if (!r || !r.ready) return toast('Δεν υπάρχει σύνδεση');
+  callPickMode = mode;
+  const title = $('call-pick-title');
+  const hint = $('call-pick-hint');
+  const list = $('call-pick-list');
+  if (title) {
+    title.textContent = mode === 'group' ? 'Ομαδική κλήση' : mode ? 'Βιντεοκλήση' : 'Ηχητική κλήση';
+  }
+  if (hint) {
+    hint.textContent = mode === 'group'
+      ? 'Επίλεξε μέλη για ομαδική κλήση (θα καλούνται ένα-ένα).'
+      : 'Διάλεξε με ποιο μέλος θα μιλήσεις.';
+  }
+  if (list) {
+    list.innerHTML = '';
+    const others = r.members.filter(m => m.id !== r.myId);
+    if (!others.length) {
+      list.innerHTML = '<p class="mut">Δεν υπάρχουν άλλα μέλη στο δωμάτιο.</p>';
+    } else {
+      others.forEach(m => {
+        const lab = document.createElement('label');
+        lab.className = 'card';
+        lab.style.cursor = 'pointer';
+        const input = document.createElement('input');
+        input.type = mode === 'group' ? 'checkbox' : 'radio';
+        input.name = 'call-pick';
+        input.value = m.id;
+        input.style.width = '24px';
+        input.style.height = '24px';
+        lab.innerHTML = `<div class="av" style="background:${m.color}">${m.avatar || '?'}</div><b style="flex:1">${esc(m.name)}</b>`;
+        lab.appendChild(input);
+        list.appendChild(lab);
+      });
+    }
+  }
+  panel('p-call-pick');
+}
+
+function confirmCallPick() {
+  const r = R();
+  if (!r) return;
+  const mode = callPickMode;
+  let ids = [];
+  if (mode === 'group') {
+    document.querySelectorAll('#call-pick-list input:checked').forEach(cb => ids.push(cb.value));
+  } else {
+    const sel = document.querySelector('#call-pick-list input:checked');
+    if (sel) ids = [sel.value];
+  }
+  if (!ids.length) return toast('Διάλεξε τουλάχιστον ένα μέλος');
+  panel('p-call-pick', 0);
+  panel('p-chat', 0);
+  if (mode === 'group') {
+    // Ομαδική: καλεί το πρώτο, ενημερώνει τα υπόλοιπα με μήνυμα
+    const first = r.members.find(m => m.id === ids[0]);
+    if (first) startAVCall(first, true);
+    ids.slice(1).forEach((id, i) => {
+      setTimeout(() => {
+        const m = r.members.find(x => x.id === id);
+        if (m) toast('Κάλεσε και το: ' + m.name + ' από Μέλη ή Chat');
+      }, 800 * (i + 1));
+    });
+    toast('Ομαδική: ξεκίνησε κλήση – για πλήρη ομαδική κάλεσε και τα υπόλοιπα μέλη');
+  } else {
+    const m = r.members.find(x => x.id === ids[0]);
+    if (m) startAVCall(m, !!mode);
+  }
+}
+
 async function startAVCall(m, withVideo) {
   const r = R();
   if (!r || !r.peer || !r.ready) return toast('Δεν υπάρχει σύνδεση στο δωμάτιο');
@@ -2284,7 +2415,7 @@ async function startAVCall(m, withVideo) {
 
     // Αν δεν έρθει stream σε 20s, τερμάτισε
     const watchdog = setTimeout(() => {
-      if (mediaCall === mediaCall && $('call-status') && $('call-status').textContent.indexOf('Συνδεδεμένοι') === -1) {
+      if (mediaCall && $('call-status') && $('call-status').textContent.indexOf('Συνδεδεμένοι') === -1) {
         toast('Δεν απάντησε η άλλη πλευρά');
         hangupCall(true);
       }
