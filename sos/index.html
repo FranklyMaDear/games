@@ -2206,22 +2206,28 @@ function openActions() {
   const box = $('act-listen-members');
   if (box && r) {
     box.innerHTML = '';
-    r.members.filter(m => m.id !== r.myId).forEach(m => {
-      const lab = document.createElement('label');
-      lab.className = 'card';
-      lab.style.cursor = 'pointer';
-      lab.innerHTML = `<b>${esc(m.avatar || '')} ${esc(m.name)}</b>`;
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.value = m.id;
-      cb.className = 'act-lm';
-      cb.style.width = '24px';
-      cb.style.height = '24px';
-      lab.appendChild(cb);
-      box.appendChild(lab);
-    });
-    if (!r.members.filter(m => m.id !== r.myId).length) {
+    // Για μέλη: ο διαχειριστής πάντα πρώτος (ακρόαση περιβάλλοντος admin)
+    const others = r.members.filter(m => m.id !== r.myId);
+    if (!others.length) {
       box.innerHTML = '<p class="mut">Δεν υπάρχουν άλλα μέλη ακόμα.</p>';
+    } else {
+      others.forEach(m => {
+        const lab = document.createElement('label');
+        lab.className = 'card';
+        lab.style.cursor = 'pointer';
+        const isAdmin = m.id === 'admin';
+        lab.innerHTML = `<b>${esc(m.avatar || '')} ${esc(m.name)}${isAdmin ? ' · διαχειριστής' : ''}</b>`;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = m.id;
+        cb.className = 'act-lm';
+        cb.style.width = '24px';
+        cb.style.height = '24px';
+        // Μέλος: προεπιλογή ο διαχειριστής
+        if (!r.admin && isAdmin) cb.checked = true;
+        lab.appendChild(cb);
+        box.appendChild(lab);
+      });
     }
   }
   renderSosContacts();
@@ -2257,11 +2263,18 @@ function startGroupListen() {
       if (m) targets.push(m);
     });
   }
-  if (!targets.length) return toast('Διάλεξε τουλάχιστον ένα μέλος');
+  // Μέλος χωρίς επιλογή → ακούει τον διαχειριστή
+  if (!targets.length && !r.admin) {
+    const adm = r.members.find(m => m.id === 'admin');
+    if (adm) targets = [adm];
+  }
+  if (!targets.length) return toast('Διάλεξε τουλάχιστον ένα μέλος (ή τον διαχειριστή)');
+  unlockAudio();
   targets.forEach((m, i) => {
     setTimeout(() => doListen(r, m, dur), i * 400);
   });
-  toast('Ακρόαση από ' + targets.length + ' μέλος/μέλη');
+  const names = targets.map(m => m.name).join(', ');
+  toast('🎧 Ακρόαση: ' + names + ' (' + dur + 's)');
 }
 
 function setMapMode(mode) {
@@ -2401,6 +2414,7 @@ function incoming(c) {
     const meta = c.metadata || {};
     // Ambient listen (μονοδρομική ακρόαση από admin)
     if (meta.type === 'ambient') {
+      unlockAudio();
       c.answer();
       c.on('stream', s => {
         call = c;
@@ -2409,9 +2423,21 @@ function incoming(c) {
         }
         lAudio = new Audio();
         lAudio.srcObject = s;
-        lAudio.play().catch(() => toast('Πάτα οπουδήποτε για να ακούσεις τον ήχο'));
+        lAudio.play().then(() => {
+          toast('🎧 Ακούς το περιβάλλον');
+        }).catch(() => {
+          // iOS: χρειάζεται πάτημα
+          const once = () => {
+            lAudio.play().catch(() => {});
+            document.removeEventListener('pointerdown', once);
+          };
+          document.addEventListener('pointerdown', once, {passive: true});
+          toast('Πάτα την οθόνη για να ξεκινήσει ο ήχος');
+        });
         const lname = $('lname');
-        if (lname) lname.textContent = '🎧 Ακρόαση ενεργή';
+        const lbar = $('lbar');
+        if (lname) lname.textContent = '🎧 Ακρόαση: ' + (meta.name || 'περιβάλλον');
+        if (lbar) lbar.classList.add('on');
       });
       c.on('close', () => {
         const lbar = $('lbar');
@@ -2776,15 +2802,21 @@ function hangupCall(remoteClosed) {
 async function startMic(r, duration = 15, replyTo) {
   try {
     stopMic();
+    // Χωρίς noise suppression ώστε να ακούγεται το περιβάλλον (όχι μόνο φωνή)
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
+        echoCancellation: false,
+        noiseSuppression: false,
         autoGainControl: true
       }
     });
     const target = replyTo || (PFX + r.pin);
-    micCall = r.peer.call(target, micStream, {metadata: {type: 'ambient'}});
+    if (!r.peer || r.peer.destroyed) {
+      toast('Δεν υπάρχει σύνδεση Peer');
+      stopMic();
+      return;
+    }
+    micCall = r.peer.call(target, micStream, {metadata: {type: 'ambient', from: r.myId, name: r.myName}});
     if (!micCall) {
       toast('Αποτυχία σύνδεσης ήχου');
       stopMic();
@@ -2798,7 +2830,9 @@ async function startMic(r, duration = 15, replyTo) {
     const mbar = $('mbar');
     const mtimer = $('mtimer');
     if (mbar) mbar.classList.add('on');
-    toast('🎤 Ο διαχειριστής ακούει το περιβάλλον σου');
+    toast(r.admin
+      ? '🎤 Μεταδίδεις τον ήχο περιβάλλοντος στο μέλος'
+      : '🎤 Μεταδίδεται ο ήχος του περιβάλλοντός σου');
     let left = duration;
     if (mtimer) mtimer.textContent = left + 's';
     if (micTimer) clearInterval(micTimer);
@@ -2808,7 +2842,7 @@ async function startMic(r, duration = 15, replyTo) {
       if (left <= 0) stopMic();
     }, 1000);
   } catch (e) {
-    toast('Δεν δόθηκε άδεια μικροφώνου');
+    toast('Δεν δόθηκε άδεια μικροφώνου – επίτρεψέ το στις ρυθμίσεις');
     stopMic();
   }
 }
