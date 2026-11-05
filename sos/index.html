@@ -434,6 +434,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <button class="btn ibtn" onclick="panel('p-actions',0)">✕</button>
   </div>
   <div class="pb" style="gap:16px">
+    <button class="btn" onclick="changeMyName()">✏️ Αλλαγή ονόματος</button>
     <button class="btn s big" style="height:72px;font-size:1.2rem" onclick="checkinEnhanced()">✅ Είμαι εντάξει</button>
     <div class="card" style="flex-direction:column;align-items:stretch;gap:12px">
       <b style="font-size:1.05rem">🎧 Ξεκίνα ακρόαση</b>
@@ -1008,6 +1009,10 @@ function hostMsg(r, c, d) {
     r.sosContacts = d.contacts || [];
     try { LS('fm-sos-contacts-' + r.pin, JSON.stringify(r.sosContacts)); } catch (e) {}
     broadcast(r);
+  } else if (d.type === 'RENAME' && m) {
+    m.name = String(d.name || m.name).slice(0, 20);
+    broadcast(r);
+    if (r.pin === active) renderMembers();
   }
 }
 
@@ -1141,6 +1146,10 @@ function memberMsg(r, d) {
   } else if (d.type === 'ZONE_ALERT') {
     toast(d.text || 'Ειδοποίηση ζώνης', d.sos ? 1 : 0);
     playTone(700, 200);
+  } else if (d.type === 'RENAME') {
+    const mem = r.members.find(x => x.id === d.id);
+    if (mem) mem.name = String(d.name || mem.name).slice(0, 20);
+    if (r.pin === active) renderMembers();
   } else if (d.type === 'CLOSED') {
     toast('Το δωμάτιο έκλεισε από τον διαχειριστή');
     dropRoom(r);
@@ -1516,6 +1525,12 @@ function renderMembers() {
     }
     l.appendChild(row);
   });
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'btn';
+  renameBtn.textContent = '✏️ Αλλαγή ονόματος (τώρα: ' + (r.myName || '') + ')';
+  renameBtn.onclick = () => changeMyName();
+  l.appendChild(renameBtn);
 
   if (r.admin) {
     const editBtn = document.createElement('button');
@@ -2042,25 +2057,54 @@ function renderSosAllowed() {
 }
 function sosContactLinks(lat, lng, who) {
   const list = loadSosContacts();
+  const r = R();
+  const person = (who && String(who).trim()) || (r && r.myName) || 'Μέλος';
   const maps = (lat != null && lng != null)
     ? `https://maps.google.com/?q=${lat},${lng}`
     : '';
-  const msg = `🆘 SOS από ${who || 'Find me'}! Χρειάζομαι βοήθεια.` +
-    (maps ? ` Θέση: ${maps}` : '') +
-    ` (Find me)`;
+  const msg =
+    '🆘 SOS – Χρειάζομαι βοήθεια!\n' +
+    'Από: ' + person + '\n' +
+    (maps ? 'Θέση: ' + maps + '\n' : '') +
+    'Εφαρμογή: Find me';
   return list.map(c => {
     const phone = String(c.phone || '').replace(/\D/g, '');
     let href = '#';
+    let hrefAlt = null;
     if (c.app === 'whatsapp') {
       href = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
     } else if (c.app === 'viber') {
-      // Άνοιγμα chat με προγεμισμένο κείμενο όπου υποστηρίζεται
-      href = 'viber://chat?number=%2B' + phone;
+      // Το Viber δεν δέχεται προγεμισμένο κείμενο σε chat με αριθμό.
+      // 1) forward = κοινοποίηση κειμένου (επιλέγεις επαφή)
+      // 2) chat = άνοιγμα συνομιλίας με τον αριθμό
+      href = 'viber://forward?text=' + encodeURIComponent(msg);
+      hrefAlt = phone ? ('viber://chat?number=%2B' + phone) : null;
     } else {
-      href = 'sms:' + phone + '?&body=' + encodeURIComponent(msg);
+      href = 'sms:' + phone + '?body=' + encodeURIComponent(msg);
     }
-    return {name: c.name, app: c.app, href, phone, msg};
+    return {name: c.name, app: c.app, href, hrefAlt, phone, msg};
   });
+}
+
+function changeMyName() {
+  const r = R();
+  if (!r) return;
+  const cur = r.myName || '';
+  const n = prompt('Το όνομά σου (θα φαίνεται στα μέλη και στο SOS)', cur);
+  if (n == null) return;
+  const name = String(n).trim().slice(0, 20);
+  if (!name) return toast('Το όνομα δεν μπορεί να είναι κενό');
+  r.myName = name;
+  LS('fm-name', name);
+  const me = r.members.find(x => x.id === r.myId);
+  if (me) me.name = name;
+  if (r.admin) broadcast(r);
+  else send(r, {type: 'RENAME', name, id: r.myId});
+  save();
+  tabs();
+  renderMembers();
+  updateChatHeader();
+  toast('Το όνομά σου είναι τώρα: ' + name);
 }
 
 function fitAllMembers() {
@@ -3161,18 +3205,49 @@ function startSosAlarm(title, desc, lat, lng, who) {
     if (!links.length) {
       list.innerHTML = '<p class="mut">Δεν έχεις ορίσει επαφές SOS. Άνοιξε Button → Επαφές SOS.</p>';
     } else {
+      // Εμφάνισε το κείμενο μηνύματος
+      const preview = document.createElement('p');
+      preview.className = 'mut';
+      preview.style.whiteSpace = 'pre-wrap';
+      preview.textContent = links[0].msg;
+      list.appendChild(preview);
       links.forEach(l => {
         const a = document.createElement('a');
         a.className = 'btn p';
         a.href = l.href;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.textContent = (l.app === 'whatsapp' ? '💚 WhatsApp · ' : l.app === 'viber' ? '💜 Viber · ' : '✉️ SMS · ') + l.name;
+        if (l.app === 'viber') {
+          a.textContent = '💜 Viber · κοινοποίηση μηνύματος · ' + l.name;
+          a.onclick = e => {
+            // Αντιγραφή μηνύματος (χρήσιμο αν ανοίξει μόνο το chat)
+            try { navigator.clipboard && navigator.clipboard.writeText(l.msg); } catch (err) {}
+          };
+        } else if (l.app === 'whatsapp') {
+          a.textContent = '💚 WhatsApp · ' + l.name;
+        } else {
+          a.textContent = '✉️ SMS · ' + l.name;
+        }
         list.appendChild(a);
+        if (l.app === 'viber' && l.hrefAlt) {
+          const a2 = document.createElement('a');
+          a2.className = 'btn';
+          a2.href = l.hrefAlt;
+          a2.textContent = '💜 Viber chat · ' + l.name + ' (+' + l.phone + ')';
+          a2.onclick = () => {
+            try { navigator.clipboard && navigator.clipboard.writeText(l.msg); toast('Το μήνυμα αντιγράφηκε – επικόλλησέ το στο Viber'); } catch (err) {}
+          };
+          list.appendChild(a2);
+        }
       });
-      // Άνοιξε αυτόματα την πρώτη επαφή (ο χρήστης επιβεβαιώνει την αποστολή)
+      // Άνοιξε την πρώτη διαθέσιμη επαφή
       try {
-        setTimeout(() => { window.location.href = links[0].href; }, 600);
+        setTimeout(() => {
+          if (links[0].app === 'viber') {
+            try { navigator.clipboard && navigator.clipboard.writeText(links[0].msg); } catch (err) {}
+          }
+          window.location.href = links[0].href;
+        }, 500);
       } catch (e) {}
     }
   }
