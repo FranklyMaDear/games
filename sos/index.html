@@ -243,14 +243,15 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 }
 #call-topbar span{color:#fff;font-weight:700;font-size:.95rem;text-shadow:0 1px 4px #000}
 #map-sat-btn{
-  position:absolute;right:12px;top:12px;z-index:900;
-  width:44px;height:44px;border-radius:12px;border:1px solid var(--bd);
-  background:rgba(15,23,42,.9);color:#fff;font-size:1.25rem;
+  position:absolute;left:12px;bottom:12px;z-index:1100;
+  width:48px;height:48px;border-radius:14px;border:2px solid #38bdf8;
+  background:rgba(15,23,42,.95);color:#fff;font-size:1.35rem;
   display:flex;align-items:center;justify-content:center;cursor:pointer;
-  box-shadow:0 2px 10px rgba(0,0,0,.35)
+  box-shadow:0 4px 14px rgba(0,0,0,.45)
 }
+#map-sat-btn.on{border-color:#22c55e;background:#14532d}
 #map-search-box{
-  position:absolute;left:12px;right:60px;top:12px;z-index:900;
+  position:absolute;left:12px;right:12px;top:12px;z-index:1100;
   display:flex;gap:6px;align-items:center
 }
 #map-search-box input{
@@ -454,7 +455,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <div class="card" style="flex-direction:column;align-items:stretch;gap:12px">
       <b style="font-size:1.05rem">🎧 Ξεκίνα ακρόαση</b>
       <p class="mut" style="margin:0">Άκουσε τον χώρο επιλεγμένων μελών.</p>
-      <label class="l">Διάρκεια</label>
+      <label class="l">Διάρκεια (δευτερόλεπτα)</label>
       <select id="act-listen-dur">
         <option value="10">10 δευτερόλεπτα</option>
         <option value="15" selected>15 δευτερόλεπτα</option>
@@ -468,6 +469,22 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
         <input type="checkbox" id="act-listen-all" style="width:24px;height:24px">
       </label>
       <button class="btn g big" onclick="startGroupListen()">🎧 Ξεκίνα ακρόαση</button>
+    </div>
+    <div class="card" style="flex-direction:column;align-items:stretch;gap:12px">
+      <b style="font-size:1.05rem">🆘 Επαφές SOS</b>
+      <p class="mut" style="margin:0">Όταν πατηθεί SOS, θα ανοίξουν WhatsApp / Viber / SMS προς αυτούς τους αριθμούς με μήνυμα και θέση.</p>
+      <label class="l">Όνομα</label>
+      <input type="text" id="sos-c-name" placeholder="π.χ. Μαμά" maxlength="30">
+      <label class="l">Τηλέφωνο (με κωδικό χώρας, π.χ. 3069…)</label>
+      <input type="tel" id="sos-c-phone" placeholder="306912345678" inputmode="tel">
+      <label class="l">Εφαρμογή</label>
+      <select id="sos-c-app">
+        <option value="whatsapp">WhatsApp</option>
+        <option value="viber">Viber</option>
+        <option value="sms">SMS</option>
+      </select>
+      <button class="btn p" onclick="addSosContact()">➕ Προσθήκη επαφής</button>
+      <div id="sos-c-list"></div>
     </div>
   </div>
 </div>
@@ -1272,19 +1289,30 @@ function initMap() {
 }
 
 function toggleSatellite() {
-  if (!map || !osmLayer || !satLayer) return;
+  if (!map || !osmLayer || !satLayer) {
+    toast('Ο χάρτης δεν είναι έτοιμος ακόμα');
+    return;
+  }
   const btn = $('map-sat-btn');
   if (usingSat) {
     map.removeLayer(satLayer);
-    osmLayer.addTo(map);
+    if (!map.hasLayer(osmLayer)) osmLayer.addTo(map);
     usingSat = false;
-    if (btn) btn.textContent = '🛰️';
+    if (btn) {
+      btn.textContent = '🛰️';
+      btn.classList.remove('on');
+      btn.title = 'Δορυφόρος';
+    }
     toast('Χάρτης οδών');
   } else {
     map.removeLayer(osmLayer);
     satLayer.addTo(map);
     usingSat = true;
-    if (btn) btn.textContent = '🗺️';
+    if (btn) {
+      btn.textContent = '🗺️';
+      btn.classList.add('on');
+      btn.title = 'Χάρτης οδών';
+    }
     toast('Δορυφορική προβολή');
   }
 }
@@ -1875,11 +1903,17 @@ function sosContactLinks(lat, lng, who) {
     (maps ? ` Θέση: ${maps}` : '') +
     ` (Find me)`;
   return list.map(c => {
+    const phone = String(c.phone || '').replace(/\D/g, '');
     let href = '#';
-    if (c.app === 'whatsapp') href = 'https://wa.me/' + c.phone + '?text=' + encodeURIComponent(msg);
-    else if (c.app === 'viber') href = 'viber://forward?text=' + encodeURIComponent(msg);
-    else href = 'sms:' + c.phone + '?&body=' + encodeURIComponent(msg);
-    return {name: c.name, app: c.app, href};
+    if (c.app === 'whatsapp') {
+      href = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
+    } else if (c.app === 'viber') {
+      // Άνοιγμα chat με προγεμισμένο κείμενο όπου υποστηρίζεται
+      href = 'viber://chat?number=%2B' + phone;
+    } else {
+      href = 'sms:' + phone + '?&body=' + encodeURIComponent(msg);
+    }
+    return {name: c.name, app: c.app, href, phone, msg};
   });
 }
 
@@ -1978,7 +2012,11 @@ function openActions() {
       lab.appendChild(cb);
       box.appendChild(lab);
     });
+    if (!r.members.filter(m => m.id !== r.myId).length) {
+      box.innerHTML = '<p class="mut">Δεν υπάρχουν άλλα μέλη ακόμα.</p>';
+    }
   }
+  renderSosContacts();
   panel('p-actions');
 }
 
@@ -2889,7 +2927,7 @@ function startSosAlarm(title, desc, lat, lng, who) {
     list.innerHTML = '';
     const links = sosContactLinks(lat, lng, who);
     if (!links.length) {
-      list.innerHTML = '<p class="mut">Δεν έχεις ορίσει επαφές SOS (Μέλη → Παιδί & SOS).</p>';
+      list.innerHTML = '<p class="mut">Δεν έχεις ορίσει επαφές SOS. Άνοιξε Button → Επαφές SOS.</p>';
     } else {
       links.forEach(l => {
         const a = document.createElement('a');
@@ -2897,11 +2935,13 @@ function startSosAlarm(title, desc, lat, lng, who) {
         a.href = l.href;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.textContent = (l.app === 'whatsapp' ? '💚 ' : l.app === 'viber' ? '💜 ' : '✉️ ') + l.name;
+        a.textContent = (l.app === 'whatsapp' ? '💚 WhatsApp · ' : l.app === 'viber' ? '💜 Viber · ' : '✉️ SMS · ') + l.name;
         list.appendChild(a);
       });
-      // Άνοιξε αυτόματα την πρώτη επαφή (ο χρήστης μπορεί να στείλει)
-      try { window.open(links[0].href, '_blank'); } catch (e) {}
+      // Άνοιξε αυτόματα την πρώτη επαφή (ο χρήστης επιβεβαιώνει την αποστολή)
+      try {
+        setTimeout(() => { window.location.href = links[0].href; }, 600);
+      } catch (e) {}
     }
   }
 }
