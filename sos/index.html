@@ -407,7 +407,6 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
         <b id="rt" style="font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</b>
         <span class="mut" id="rm" style="font-size:.7rem"></span>
       </div>
-      <button class="btn ibtn" onclick="openShare()" title="Κοινοποίηση">📤</button>
     </div>
     <div id="tabs"></div>
   </div>
@@ -1543,6 +1542,13 @@ function renderMembers() {
   renameBtn.textContent = '✏️ Αλλαγή ονόματος (τώρα: ' + (r.myName || '') + ')';
   renameBtn.onclick = () => changeMyName();
   l.appendChild(renameBtn);
+
+  // Κοινοποίηση δωματίου (σύνδεσμος + social)
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'btn p big';
+  shareBtn.textContent = '📤 Κοινοποίηση δωματίου';
+  shareBtn.onclick = () => openShare();
+  l.appendChild(shareBtn);
 
   if (r.admin) {
     const editBtn = document.createElement('button');
@@ -3466,7 +3472,7 @@ function renderHome() {
   });
 }
 
-function openForm(m) {
+function openForm(m, prefillPin) {
   mode = m;
   const titleEl = $('f-title');
   if (titleEl) titleEl.textContent = m === 'create' ? 'Νέο δωμάτιο' : 'Μπες σε δωμάτιο';
@@ -3474,12 +3480,18 @@ function openForm(m) {
   const pn = $('f-pn');
   if (rn) rn.style.display = m === 'create' ? '' : 'none';
   if (pn) pn.style.display = m === 'join' ? '' : 'none';
-  // Αν δεν έρχεται από πρόσκληση, PIN επεξεργάσιμο
   if (m === 'join') {
     const pinEl = $('f-pin');
-    if (pinEl && !new URLSearchParams(location.search).get('room')) {
-      pinEl.readOnly = false;
-      pinEl.style.opacity = '1';
+    const fromUrl = (prefillPin || new URLSearchParams(location.search).get('room') || '').replace(/\D/g, '').slice(0, 4);
+    if (pinEl) {
+      if (fromUrl.length === 4) {
+        pinEl.value = fromUrl;
+        pinEl.readOnly = true;
+        pinEl.style.opacity = '0.95';
+      } else {
+        pinEl.readOnly = false;
+        pinEl.style.opacity = '1';
+      }
     }
   }
   show('s-form');
@@ -3700,24 +3712,16 @@ window.addEventListener('DOMContentLoaded', () => {
     if (q) {
       const pin = q.replace(/\D/g, '').slice(0, 4);
       if (pin.length === 4) {
-        // Αν είναι ήδη μέσα στο ίδιο δωμάτιο, άνοιξέ το
         if (rooms[pin] && rooms[pin].ready) {
           show('s-room');
           switchRoom(pin);
           if (!rooms[pin].admin) setTimeout(() => openChat(), 200);
         } else {
-          // Απευθείας στη φόρμα «Μπες σε δωμάτιο» με PIN συμπληρωμένο
-          openForm('join');
-          const pinEl = $('f-pin');
-          if (pinEl) {
-            pinEl.value = pin;
-            pinEl.readOnly = true;
-            pinEl.style.opacity = '0.9';
-          }
-          // Αν υπάρχει αποθηκευμένο όνομα, συμπλήρωσέ το
+          // Κατευθείαν στη σελίδα «Μπες σε δωμάτιο» με PIN έτοιμο
+          openForm('join', pin);
           const nameEl = $('f-name');
           if (nameEl && !nameEl.value && n) nameEl.value = n;
-          toast('PIN έτοιμο – βάλε όνομα και πάτα Συνέχεια');
+          toast('PIN ' + pin + ' έτοιμο – βάλε όνομα και πάτα Συνέχεια');
         }
       }
     }
