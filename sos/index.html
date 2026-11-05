@@ -154,25 +154,46 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 .p2p-note{font-size:.7rem;color:var(--m);text-align:center;padding:4px}
 .hist-item{font-size:.8rem;padding:6px 0;border-bottom:1px solid var(--bd)}
 #call-ui{
-  position:fixed;inset:0;z-index:4000;background:#0f172a;display:none;
-  flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px
+  position:fixed;inset:0;z-index:4000;background:#000;display:none;
+  flex-direction:column
 }
 #call-ui.on{display:flex}
-#call-ui video{
-  width:100%;max-width:420px;border-radius:16px;background:#000;object-fit:cover
+#call-remote{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;background:#000;z-index:0
 }
-#call-remote{max-height:55vh}
 #call-local{
-  position:absolute;right:16px;top:16px;width:110px;height:150px;
-  border-radius:12px;border:2px solid var(--bd);z-index:1;object-fit:cover
+  position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top,0px));
+  width:100px;height:140px;border-radius:14px;border:2px solid #fff;
+  object-fit:cover;z-index:2;background:#1e293b;
+  box-shadow:0 4px 20px rgba(0,0,0,.5);touch-action:none;cursor:grab
 }
-#call-actions{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
-#call-actions .btn{width:auto;min-width:120px;height:56px}
+#call-local.dragging{cursor:grabbing;opacity:.95}
+#call-actions{
+  position:absolute;left:0;right:0;bottom:0;z-index:3;
+  display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
+  padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(transparent,rgba(0,0,0,.75))
+}
+#call-actions .btn{width:auto;min-width:130px;height:54px}
+#call-audio-only{
+  position:absolute;inset:0;z-index:1;display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;background:var(--bg);text-align:center;padding:24px
+}
+#call-audio-only.on{display:flex}
 #call-incoming{
   position:fixed;inset:0;z-index:4100;background:rgba(15,23,42,.96);display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center
 }
 #call-incoming.on{display:flex}
+#call-topbar{
+  position:absolute;left:0;right:0;top:0;z-index:3;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;
+  display:flex;justify-content:space-between;align-items:center;
+  background:linear-gradient(rgba(0,0,0,.65),transparent);pointer-events:none
+}
+#call-topbar span{color:#fff;font-weight:700;font-size:.95rem;text-shadow:0 1px 4px #000}
 </style>
 </head>
 <body>
@@ -201,12 +222,16 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 
 <!-- Active call UI -->
 <div id="call-ui">
-  <video id="call-local" autoplay playsinline muted></video>
   <video id="call-remote" autoplay playsinline></video>
-  <div id="call-audio-only" style="display:none;text-align:center">
+  <video id="call-local" autoplay playsinline muted></video>
+  <div id="call-topbar">
+    <span id="call-peer-name">Κλήση</span>
+    <span id="call-status">Σε σύνδεση…</span>
+  </div>
+  <div id="call-audio-only">
     <div style="font-size:4rem;margin-bottom:8px">📞</div>
-    <h2 id="call-peer-name">Κλήση</h2>
-    <p class="mut" id="call-status">Σε σύνδεση…</p>
+    <h2 id="call-audio-name">Κλήση</h2>
+    <p class="mut" id="call-audio-status">Σε σύνδεση…</p>
   </div>
   <div id="call-actions">
     <button class="btn d" onclick="hangupCall()">📵 Τερματισμός</button>
@@ -585,6 +610,7 @@ function host(r) {
     const p = r.peer = new Peer(PFX + r.pin);
     p.on('open', () => {
       r.ready = true;
+      r.wasReady = true;
       r.myId = 'admin';
       if (!r.members.length) {
         r.members = [{
@@ -700,25 +726,50 @@ function left(r, c) {
 /* ---------- Member ---------- */
 function join(r) {
   try {
+    // Μην καταστρέψεις peer αν ήδη συνδέεται με επιτυχία
+    if (r.peer && !r.peer.destroyed && r.ready) return;
     try { r.peer && r.peer.destroy(); } catch (e) {}
+    r.ready = false;
     const p = r.peer = new Peer();
     p.on('open', id => {
       r.myId = id;
       const c = r.hostConn = p.connect(PFX + r.pin, {reliable: true});
-      setTimeout(() => {
-        if (!r.ready && r.hostConn === c) fail(r, 'Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN και ότι ο διαχειριστής είναι μέσα.');
-      }, 12000);
-      c.on('open', () => c.send({type: 'JOIN', name: r.myName, avatar: r.avatar}));
+      const joinTimeout = setTimeout(() => {
+        if (!r.ready && r.hostConn === c && rooms[r.pin]) {
+          // Μια επανάληψη πριν αποτύχει οριστικά
+          if ((r.tries || 0) < 2) {
+            r.tries = (r.tries || 0) + 1;
+            toast('Επανάληψη σύνδεσης…');
+            join(r);
+          } else {
+            fail(r, 'Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN και ότι ο διαχειριστής είναι μέσα.');
+          }
+        }
+      }, 15000);
+      c.on('open', () => {
+        clearTimeout(joinTimeout);
+        c.send({type: 'JOIN', name: r.myName, avatar: r.avatar});
+      });
       c.on('data', d => memberMsg(r, d));
       c.on('close', () => {
         if (!rooms[r.pin]) return;
-        if (!r.ready) return fail(r, 'Η σύνδεση έκλεισε.');
+        if (!r.ready) return; // το timeout/fail θα το χειριστεί
         r.ready = false;
         toast('Η σύνδεση χάθηκε – επανασύνδεση…');
-        setTimeout(() => rooms[r.pin] && join(r), 4000);
+        setTimeout(() => rooms[r.pin] && join(r), 3000);
       });
     });
-    p.on('error', () => { if (!r.ready) fail(r, 'Το δωμάτιο δεν βρέθηκε.'); });
+    p.on('error', err => {
+      // Μην διαγράφεις αμέσως – συχνά είναι προσωρινό
+      if (!r.ready && rooms[r.pin]) {
+        if ((r.tries || 0) < 2) {
+          r.tries = (r.tries || 0) + 1;
+          setTimeout(() => rooms[r.pin] && join(r), 2500);
+        } else {
+          fail(r, 'Το δωμάτιο δεν βρέθηκε ή ο διαχειριστής είναι offline.');
+        }
+      }
+    });
     p.on('call', c => incoming(c));
   } catch(e) {
     toast('Σφάλμα σύνδεσης');
@@ -726,13 +777,19 @@ function join(r) {
 }
 
 function fail(r, msg) {
-  if (r.rt || !rooms[r.pin]) return;
+  if (!rooms[r.pin]) return;
+  if (r.rt) return;
   toast(msg);
-  if (r.restored) {
-    r.rt = setTimeout(() => { r.rt = 0; rooms[r.pin] && join(r); }, 6000);
+  // Αν είναι restored ή έχει ήδη μπει πριν, προσπάθησε ξανά χωρίς διαγραφή
+  if (r.restored || r.wasReady) {
+    r.rt = setTimeout(() => {
+      r.rt = 0;
+      r.tries = 0;
+      if (rooms[r.pin]) join(r);
+    }, 5000);
     return;
   }
-  try { r.peer.destroy(); } catch (e) {}
+  try { r.peer && r.peer.destroy(); } catch (e) {}
   delete rooms[r.pin];
   save();
   show('s-home');
@@ -742,6 +799,8 @@ function memberMsg(r, d) {
   if (!d || !d.type) return;
   if (d.type === 'WELCOME') {
     r.ready = true;
+    r.wasReady = true;
+    r.tries = 0;
     r.myId = d.id;
     r.roomName = d.roomName;
     r.members = d.members;
@@ -1238,37 +1297,56 @@ function incoming(c) {
 }
 
 function peerIdForMember(r, m) {
-  if (!m) return null;
-  if (m.id === 'admin' || m.id === r.myId && r.admin) return PFX + r.pin;
+  if (!m || !r) return null;
+  // Ο admin έχει peer ID = findme-{PIN}
+  if (m.id === 'admin') return PFX + r.pin;
   return m.id;
 }
 
 async function startAVCall(m, withVideo) {
   const r = R();
-  if (!r || !r.peer || !r.ready) return toast('Δεν υπάρχει σύνδεση');
+  if (!r || !r.peer || !r.ready) return toast('Δεν υπάρχει σύνδεση στο δωμάτιο');
   if (m.id === r.myId) return;
   if (mediaCall || pendingCall) return toast('Υπάρχει ήδη ενεργή κλήση');
 
   const targetId = peerIdForMember(r, m);
   if (!targetId) return toast('Άγνωστο μέλος');
 
+  // Έλεγχος αν το μέλος φαίνεται online στη λίστα
+  const stillThere = r.members.some(x => x.id === m.id);
+  if (!stillThere) return toast('Το μέλος δεν είναι πλέον στο δωμάτιο');
+
   try {
     unlockAudio();
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
-      video: withVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+      video: withVideo ? {
+        facingMode: 'user',
+        width: { ideal: 720 },
+        height: { ideal: 1280 }
+      } : false
     });
-    callVideo = withVideo;
+    callVideo = !!withVideo;
     mediaCall = r.peer.call(targetId, localStream, {
-      metadata: { type: 'avcall', video: withVideo, name: r.myName, from: r.myId }
+      metadata: { type: 'avcall', video: callVideo, name: r.myName, from: r.myId }
     });
     if (!mediaCall) {
       stopLocalStream();
-      return toast('Αποτυχία κλήσης');
+      return toast('Αποτυχία κλήσης – δοκίμασε ξανά');
     }
     setupActiveCall(mediaCall, m.name || 'Μέλος');
     panel('p-members', 0);
     panel('p-chat', 0);
+
+    // Αν δεν έρθει stream σε 20s, τερμάτισε
+    const watchdog = setTimeout(() => {
+      if (mediaCall === mediaCall && $('call-status') && $('call-status').textContent.indexOf('Συνδεδεμένοι') === -1) {
+        toast('Δεν απάντησε η άλλη πλευρά');
+        hangupCall(true);
+      }
+    }, 20000);
+    mediaCall.on('stream', () => clearTimeout(watchdog));
+    mediaCall.on('close', () => clearTimeout(watchdog));
   } catch (e) {
     stopLocalStream();
     toast(withVideo ? 'Χρειάζεται κάμερα & μικρόφωνο' : 'Χρειάζεται άδεια μικροφώνου');
@@ -1286,7 +1364,11 @@ async function answerCall() {
     unlockAudio();
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true },
-      video: callVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+      video: callVideo ? {
+        facingMode: 'user',
+        width: { ideal: 720 },
+        height: { ideal: 1280 }
+      } : false
     });
     c.answer(localStream);
     const meta = c.metadata || {};
@@ -1315,38 +1397,47 @@ function setupActiveCall(c, peerName) {
   const audioOnly = $('call-audio-only');
   const peerEl = $('call-peer-name');
   const statusEl = $('call-status');
+  const audioName = $('call-audio-name');
+  const audioStatus = $('call-audio-status');
 
   if (ui) ui.classList.add('on');
   if (peerEl) peerEl.textContent = peerName;
   if (statusEl) statusEl.textContent = 'Σε σύνδεση…';
+  if (audioName) audioName.textContent = peerName;
+  if (audioStatus) audioStatus.textContent = 'Σε σύνδεση…';
+
+  // Reset local PIP position
+  if (local) {
+    local.style.left = '';
+    local.style.top = '';
+    local.style.right = '12px';
+    local.style.bottom = '';
+  }
 
   if (callVideo) {
-    if (remote) remote.style.display = '';
+    if (remote) remote.style.display = 'block';
     if (local) {
-      local.style.display = '';
+      local.style.display = 'block';
       local.srcObject = localStream;
       local.muted = true;
       local.play().catch(() => {});
     }
-    if (audioOnly) audioOnly.style.display = 'none';
+    if (audioOnly) audioOnly.classList.remove('on');
+    enablePipDrag(local);
   } else {
     if (remote) remote.style.display = 'none';
     if (local) local.style.display = 'none';
-    if (audioOnly) audioOnly.style.display = 'block';
+    if (audioOnly) audioOnly.classList.add('on');
   }
 
   c.on('stream', s => {
-    if (callVideo && remote) {
+    if (remote) {
       remote.srcObject = s;
+      remote.muted = false;
       remote.play().catch(() => {});
-    } else {
-      // audio-only: play remote via Audio element or remote video without display
-      if (remote) {
-        remote.srcObject = s;
-        remote.play().catch(() => {});
-      }
     }
     if (statusEl) statusEl.textContent = 'Συνδεδεμένοι';
+    if (audioStatus) audioStatus.textContent = 'Συνδεδεμένοι';
   });
 
   c.on('close', () => hangupCall(true));
@@ -1356,6 +1447,52 @@ function setupActiveCall(c, peerName) {
   });
 }
 
+function enablePipDrag(el) {
+  if (!el || el._dragBound) return;
+  el._dragBound = true;
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+
+  const onStart = e => {
+    const t = e.touches ? e.touches[0] : e;
+    dragging = true;
+    el.classList.add('dragging');
+    const rect = el.getBoundingClientRect();
+    ox = rect.left;
+    oy = rect.top;
+    sx = t.clientX;
+    sy = t.clientY;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    el.style.left = ox + 'px';
+    el.style.top = oy + 'px';
+    e.preventDefault();
+  };
+  const onMove = e => {
+    if (!dragging) return;
+    const t = e.touches ? e.touches[0] : e;
+    let nx = ox + (t.clientX - sx);
+    let ny = oy + (t.clientY - sy);
+    const maxX = window.innerWidth - el.offsetWidth - 4;
+    const maxY = window.innerHeight - el.offsetHeight - 4;
+    nx = Math.max(4, Math.min(maxX, nx));
+    ny = Math.max(4, Math.min(maxY, ny));
+    el.style.left = nx + 'px';
+    el.style.top = ny + 'px';
+  };
+  const onEnd = () => {
+    dragging = false;
+    el.classList.remove('dragging');
+  };
+
+  el.addEventListener('pointerdown', onStart);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onEnd);
+  window.addEventListener('pointercancel', onEnd);
+  el.addEventListener('touchstart', onStart, {passive: false});
+  window.addEventListener('touchmove', onMove, {passive: false});
+  window.addEventListener('touchend', onEnd);
+}
+
 function stopLocalStream() {
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
@@ -1363,25 +1500,39 @@ function stopLocalStream() {
   }
 }
 
+let hangingUp = false;
 function hangupCall(remoteClosed) {
-  if (mediaCall) {
-    try { mediaCall.close(); } catch (e) {}
+  if (hangingUp) return;
+  hangingUp = true;
+  try {
+    if (mediaCall) {
+      try { mediaCall.close(); } catch (e) {}
+    }
+    mediaCall = null;
+    pendingCall = null;
+    stopLocalStream();
+
+    const remote = $('call-remote');
+    const local = $('call-local');
+    if (remote) { remote.srcObject = null; }
+    if (local) {
+      local.srcObject = null;
+      local.style.left = '';
+      local.style.top = '';
+      local.style.right = '12px';
+    }
+
+    const ui = $('call-ui');
+    if (ui) ui.classList.remove('on');
+    const ci = $('call-incoming');
+    if (ci) ci.classList.remove('on');
+    const audioOnly = $('call-audio-only');
+    if (audioOnly) audioOnly.classList.remove('on');
+
+    if (!remoteClosed) toast('Η κλήση τερματίστηκε');
+  } finally {
+    setTimeout(() => { hangingUp = false; }, 300);
   }
-  mediaCall = null;
-  pendingCall = null;
-  stopLocalStream();
-
-  const remote = $('call-remote');
-  const local = $('call-local');
-  if (remote) { remote.srcObject = null; remote.style.display = 'none'; }
-  if (local) { local.srcObject = null; local.style.display = 'none'; }
-
-  const ui = $('call-ui');
-  if (ui) ui.classList.remove('on');
-  const ci = $('call-incoming');
-  if (ci) ci.classList.remove('on');
-
-  if (!remoteClosed) toast('Η κλήση τερματίστηκε');
 }
 
 async function startMic(r, duration = 15) {
@@ -1906,15 +2057,33 @@ function go() {
     const r = newRoom(genPin(), true, p.roomName, p.name, p.avatar);
     r.focus = true;
     host(r);
-  } else if (rooms[p.pin] && rooms[p.pin].ready) {
+    return;
+  }
+  // Είσοδος σε υπάρχον δωμάτιο
+  const existing = rooms[p.pin];
+  if (existing && existing.ready) {
+    // Ήδη μέσα – απλά μπες στην οθόνη
+    existing.myName = p.name || existing.myName;
+    existing.avatar = p.avatar || existing.avatar;
     show('s-room');
     switchRoom(p.pin);
-  } else {
-    const r = newRoom(p.pin, false, 'Δωμάτιο', p.name, p.avatar);
-    r.focus = true;
-    join(r);
-    toast('Σύνδεση…');
+    toast('Είσαι ήδη στο δωμάτιο');
+    return;
   }
+  if (existing) {
+    // Υπάρχει εγγραφή αλλά δεν είναι ready – μην την σβήσεις, ξανασύνδεσε
+    existing.myName = p.name || existing.myName;
+    existing.avatar = p.avatar || existing.avatar;
+    existing.focus = true;
+    existing.tries = 0;
+    join(existing);
+    toast('Σύνδεση…');
+    return;
+  }
+  const r = newRoom(p.pin, false, 'Δωμάτιο', p.name, p.avatar);
+  r.focus = true;
+  join(r);
+  toast('Σύνδεση…');
 }
 
 /* ---------- Persistence / Visibility ---------- */
