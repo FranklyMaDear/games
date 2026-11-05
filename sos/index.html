@@ -338,6 +338,8 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   <div id="home-rooms" style="display:flex;flex-direction:column;gap:10px"></div>
   <button class="btn p big" onclick="openForm('create')">➕ Δημιούργησε δωμάτιο</button>
   <button class="btn big" onclick="openForm('join')">🔑 Μπες σε δωμάτιο</button>
+  <button class="btn g" onclick="promptInstall()">📲 Προσθήκη στην Αρχική</button>
+  <button class="btn" onclick="shareApp()">🌐 Κοινοποίησε την εφαρμογή</button>
 </div>
 
 <!-- FORM -->
@@ -577,18 +579,28 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 <!-- SHARE PANEL -->
 <div id="p-share" class="panel">
   <div class="ph">
-    <h3>Κοινοποίηση δωματίου</h3>
+    <h3>Κοινοποίηση</h3>
     <button class="btn ibtn" onclick="panel('p-share',0)">✕</button>
   </div>
-  <div class="pb">
+  <div class="pb" style="gap:14px">
     <div class="card" style="justify-content:center;flex-direction:column;gap:4px">
-      <span class="mut">PIN</span>
+      <span class="mut">PIN δωματίου</span>
       <b id="sh-pin" style="font-size:2.2rem;letter-spacing:.3em"></b>
     </div>
-    <button class="btn p" id="sh-native">📤 Κοινοποίηση…</button>
+    <label class="l">Σύνδεσμος δωματίου (αντιγραφή)</label>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="sh-url" readonly style="flex:1;font-size:.85rem">
+      <button class="btn p ibtn" id="sh-copy" title="Αντιγραφή">📋</button>
+    </div>
+    <button class="btn p big" id="sh-native">📤 Κοινοποίησε το δωμάτιο</button>
     <div class="grid" id="sh-links"></div>
-    <button class="btn" id="sh-copy">🔗 Αντιγραφή συνδέσμου</button>
-    <p class="mut" style="margin:0">Αν το μέλος ανοίξει τον σύνδεσμο μέσα στο Messenger / Viber / WhatsApp, ας διαλέξει «Άνοιγμα στο Chrome / Safari».</p>
+    <p class="mut" style="margin:0">Αν ανοίξει μέσα σε Messenger / Viber / Instagram → «Άνοιγμα στο Safari / Chrome».</p>
+    <hr style="border:0;border-top:1px solid var(--bd);margin:4px 0">
+    <h3>Η εφαρμογή Find me</h3>
+    <button class="btn g big" id="sh-install">📲 Προσθήκη στην Αρχική οθόνη</button>
+    <button class="btn" id="sh-app">🌐 Κοινοποίησε την εφαρμογή</button>
+    <div class="grid" id="sh-app-links"></div>
+    <p class="mut" style="margin:0">Με προσθήκη στην Αρχική μένεις συνδεδεμένος και βλέπεις ειδοποιήσεις / σήμα στο εικονίδιο όταν έρχονται μηνύματα.</p>
   </div>
 </div>
 
@@ -2881,6 +2893,12 @@ function notifyIncoming(d) {
       }
     }
 
+    // Σήμα (badge) στο εικονίδιο της εφαρμογής στην Αρχική
+    if (d.type === 'CHAT' || d.type === 'VOICE' || d.type === 'FILE' || d.type === 'SOS') {
+      if (document.visibilityState === 'hidden' || !document.hasFocus()) {
+        setBadge(unreadBadge + 1);
+      }
+    }
     // System notification όταν η καρτέλα είναι στο παρασκήνιο
     if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
       const n = new Notification(title + ' · Find me', {
@@ -2892,6 +2910,7 @@ function notifyIncoming(d) {
       n.onclick = () => {
         window.focus();
         n.close();
+        clearBadge();
         if (d.type !== 'CHECKIN' && d.type !== 'SOS') openChat();
       };
     }
@@ -3013,6 +3032,7 @@ function updateChatHeader() {
 }
 
 function openChat() {
+  clearBadge();
   updateChatHeader();
   renderChatTargets();
   renderChat();
@@ -3306,7 +3326,19 @@ function checkin(silent) {
   }
 }
 
-/* ---------- Share ---------- */
+/* ---------- Share / Install / Badge ---------- */
+let deferredInstall = null;
+let unreadBadge = 0;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstall = e;
+});
+
+function appBaseUrl() {
+  return location.href.split(/[?#]/)[0];
+}
+
 function copy(t) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(t).then(() => toast('Αντιγράφηκε')).catch(() => toast(t));
@@ -3325,36 +3357,95 @@ function copy(t) {
   }
 }
 
+function setBadge(n) {
+  unreadBadge = Math.max(0, n | 0);
+  try {
+    if (navigator.setAppBadge) {
+      if (unreadBadge > 0) navigator.setAppBadge(unreadBadge);
+      else if (navigator.clearAppBadge) navigator.clearAppBadge();
+    }
+  } catch (e) {}
+}
+
+function clearBadge() {
+  setBadge(0);
+}
+
+function promptInstall() {
+  askNotif();
+  if (deferredInstall) {
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(c => {
+      if (c.outcome === 'accepted') toast('Προστέθηκε στην Αρχική οθόνη');
+      deferredInstall = null;
+    }).catch(() => {});
+    return;
+  }
+  // Οδηγίες iOS / Safari / Android χωρίς beforeinstallprompt
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (isIOS) {
+    toast('iPhone: πάτα Κοινή χρήση (□↑) → «Στην Αρχική οθόνη»');
+  } else {
+    toast('Chrome: μενού ⋮ → «Εγκατάσταση εφαρμογής» ή «Προσθήκη στην αρχική οθόνη»');
+  }
+}
+
+function shareApp() {
+  const url = appBaseUrl();
+  const textOnly = 'Βρες με – Find me\nΟικογένεια · Φίλοι · Ασφάλεια\nΚοινή θέση, chat, SOS';
+  if (navigator.share) {
+    navigator.share({ title: 'Find me', text: textOnly, url }).catch(() => copy(url));
+  } else {
+    copy(url);
+  }
+}
+
 function openShare() {
   const r = R();
   if (!r) return;
-  const base = location.href.split(/[?#]/)[0];
+  const base = appBaseUrl();
   const url = base + '?room=' + r.pin;
-  // Κείμενο χωρίς URL (το URL μπαίνει μία φορά μέσω του πεδίου url / ή στο τέλος για apps)
-  const textOnly = `Μπες στο δωμάτιο «${r.roomName}» στο Find me.\nPIN: ${r.pin}`;
+  const textOnly = 'Μπες στο δωμάτιο «' + r.roomName + '» στο Find me.\nPIN: ' + r.pin;
   const t = textOnly + '\n' + url;
   const e = encodeURIComponent;
   const shPin = $('sh-pin');
+  const shUrl = $('sh-url');
   const shLinks = $('sh-links');
+  const shAppLinks = $('sh-app-links');
   if (shPin) shPin.textContent = r.pin;
-  if (shLinks) shLinks.innerHTML = `
-    <a class="btn" href="https://wa.me/?text=${e(t)}" target="_blank" rel="noopener">💚 WhatsApp</a>
-    <a class="btn" href="viber://forward?text=${e(t)}">💜 Viber</a>
-    <a class="btn" href="fb-messenger://share/?link=${e(url)}">💙 Messenger</a>
-    <a class="btn" href="sms:?&body=${e(t)}">✉️ SMS</a>`;
+  if (shUrl) shUrl.value = url;
+  if (shLinks) {
+    shLinks.innerHTML =
+      '<a class="btn" href="https://wa.me/?text=' + e(t) + '" target="_blank" rel="noopener">💚 WhatsApp</a>' +
+      '<a class="btn" href="viber://forward?text=' + e(t) + '">💜 Viber</a>' +
+      '<a class="btn" href="https://t.me/share/url?url=' + e(url) + '&text=' + e(textOnly) + '" target="_blank" rel="noopener">✈️ Telegram</a>' +
+      '<a class="btn" href="sms:?&body=' + e(t) + '">✉️ SMS</a>' +
+      '<a class="btn" href="mailto:?subject=' + e('Find me – PIN ' + r.pin) + '&body=' + e(t) + '">📧 Email</a>';
+  }
+  if (shAppLinks) {
+    const appText = 'Find me – οικογένεια, θέση, SOS\n' + base;
+    shAppLinks.innerHTML =
+      '<a class="btn" href="https://wa.me/?text=' + e(appText) + '" target="_blank" rel="noopener">💚 App WhatsApp</a>' +
+      '<a class="btn" href="viber://forward?text=' + e(appText) + '">💜 App Viber</a>';
+  }
   const shNative = $('sh-native');
   if (shNative) shNative.onclick = () => {
     if (navigator.share) {
-      // Μην βάζεις το URL και στο text και στο url → διπλασιάζεται σε iMessage/WhatsApp
-      navigator.share({ title: 'Find me', text: textOnly, url }).catch(() => {
-        copy(t);
-      });
-    } else {
-      copy(t);
-    }
+      navigator.share({ title: 'Find me', text: textOnly, url }).catch(() => copy(t));
+    } else copy(t);
   };
   const shCopy = $('sh-copy');
-  if (shCopy) shCopy.onclick = () => copy(url);
+  if (shCopy) shCopy.onclick = () => {
+    copy(url);
+    if (shUrl) {
+      shUrl.focus();
+      shUrl.select();
+    }
+  };
+  const shInstall = $('sh-install');
+  if (shInstall) shInstall.onclick = () => promptInstall();
+  const shApp = $('sh-app');
+  if (shApp) shApp.onclick = () => shareApp();
   panel('p-share');
 }
 
@@ -3512,6 +3603,7 @@ function go() {
 /* ---------- Persistence / Visibility ---------- */
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    clearBadge();
     // Επανασύνδεση όλων των δωματίων όταν επιστρέφεις στην εφαρμογή
     Object.values(rooms).forEach(r => {
       try {
@@ -3523,18 +3615,17 @@ document.addEventListener('visibilitychange', () => {
           if (r.admin) host(r);
           else join(r);
         } else if (!r.admin && r.hostConn && !r.hostConn.open) {
-          // Η data σύνδεση με τον admin έπεσε
           r.ready = false;
           join(r);
         }
       } catch (e) {}
     });
-    // Ξαναστείλε θέση μόλις επανέλθει
     if (watchId == null && LS('fm-share') !== '0') {
       setSharing(true);
     }
   }
 });
+document.addEventListener('focus', () => clearBadge());
 
 // Keep-alive: περιοδικός έλεγχος σύνδεσης (βοηθάει σε iOS)
 setInterval(() => {
@@ -3631,10 +3722,33 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
     renderHome();
+    askNotif();
 
     // PWA service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
+    // Συντόμευση SOS από Αρχική οθόνη (?sos=1)
+    if (new URLSearchParams(location.search).get('sos') === '1') {
+      const trySos = () => {
+        const ready = Object.values(rooms).find(r => r.ready);
+        if (ready) {
+          active = ready.pin;
+          show('s-room');
+          switchRoom(ready.pin);
+          setTimeout(() => sos(), 600);
+          return true;
+        }
+        return false;
+      };
+      if (!trySos()) {
+        let n = 0;
+        const iv = setInterval(() => {
+          n++;
+          if (trySos() || n > 20) clearInterval(iv);
+        }, 500);
+      }
     }
 
     // Χτύπος καρδιάς στην αρχική (μετά από user gesture ξεκλειδώνει)
