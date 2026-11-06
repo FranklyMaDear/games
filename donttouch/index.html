@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="el">
 <head>
     <meta charset="UTF-8">
@@ -355,6 +355,7 @@
                 </div>
             </div>
 
+            <p id="read-howto-tip" class="text-center text-sm font-semibold text-amber-300 px-2">⬇️ Please read the instructions below before you start</p>
             <div class="bg-slate-800/90 p-5 rounded-3xl border border-slate-700 text-left" id="howto-box">
                 <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2" data-i18n="howto_title">📖 Πώς παίζεται</h2>
                 <ul class="text-sm text-slate-300 space-y-2.5 leading-relaxed" id="howto-list">
@@ -367,8 +368,9 @@
                     <li><span class="text-indigo-400 font-bold">7.</span> Μετά την αντίστροφη μέτρηση <strong class="text-white">μην αγγίξεις και μην κουνήσεις</strong> το κινητό!</li>
                     <li><span class="text-indigo-400 font-bold">8.</span> Αν αγγίξεις, κουνήσεις ή φύγεις από την εφαρμογή → βγαίνεις, παίρνεις αποστολή, κόκκινο flash, δόνηση και ήχος ήττας.</li>
                     <li><span class="text-indigo-400 font-bold">9.</span> Ο τελευταίος που μένει (ή όσοι αντέξουν μέχρι το τέλος) κερδίζει — πράσινο flash, πυροτεχνήματα, δόνηση και χαρούμενος ήχος!</li>
+                    <li><span class="text-indigo-400 font-bold">10.</span> <strong class="text-white">Μην απενεργοποιείς την οθόνη.</strong> Βάλε Αυτόματο Κλείδωμα σε «Ποτέ», αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.</li>
                 </ul>
-                <p class="text-xs text-slate-500 mt-3">Νέα: Κουμπί βοήθειας 🆘, ζωντανός χάρτης 🗺️ και ρόλος Γονέα. Καλύτερα με κινητά επίπεδα σε σταθερή επιφάνεια.</p>
+                <p class="text-xs text-slate-500 mt-3" id="howto-foot">⚠️ Keep the screen on: set Auto-Lock to Never. Phones flat on a stable surface work best.</p>
             </div>
         </div>
     </div>
@@ -1982,16 +1984,18 @@
         function startGateHeartbeat() {
             if (gateHeartTimer || introStarted) return;
             Sfx.init();
-            Sfx.heartbeat();
-            retrigger($('frame-flash'), 'beat');
-            const h = $('intro-heart');
-            if (h) { h.classList.remove('thump'); void h.offsetWidth; h.classList.add('thump'); }
-            gateHeartTimer = setInterval(() => {
-                if (introStarted) { clearInterval(gateHeartTimer); gateHeartTimer = null; return; }
+            let tick = true;
+            const beat = () => {
+                if (introStarted) return;
                 Sfx.heartbeat();
+                Sfx.tickTock(tick);
+                tick = !tick;
                 retrigger($('frame-flash'), 'beat');
+                const h = $('intro-heart');
                 if (h) { h.classList.remove('thump'); void h.offsetWidth; h.classList.add('thump'); }
-            }, 950);
+            };
+            beat();
+            gateHeartTimer = setInterval(beat, 900);
         }
         // First touch unlocks audio (required on iOS) and starts heart sound immediately
         function unlockAudioOnce() {
@@ -2037,11 +2041,16 @@
             if (introDone) return;
             introDone = true;
             introTimers.forEach(clearTimeout);
+            if (gateHeartTimer) { clearInterval(gateHeartTimer); gateHeartTimer = null; }
             $('screen-intro').classList.add('fade-out');
             setTimeout(() => {
                 phase = 'setup';
                 showScreen('screen-setup');
                 $('screen-intro').classList.remove('fade-out');
+                // Always show the top of the setup form first
+                window.scrollTo(0, 0);
+                const setup = $('screen-setup');
+                if (setup) setup.scrollTop = 0;
             }, 500);
         }
 
@@ -2132,7 +2141,10 @@
                     <li><span class="text-indigo-400 font-bold">6.</span> Each player can <strong class="text-white">add up to 2 missions</strong> (write your own or pick from the list). Custom ones are drawn first.</li>
                     <li><span class="text-indigo-400 font-bold">7.</span> After the countdown, <strong class="text-white">do not touch or move</strong> your phone!</li>
                     <li><span class="text-indigo-400 font-bold">8.</span> Touch, move or leave the app → you're out, get a mission, red flash, vibration and lose sound.</li>
-                    <li><span class="text-indigo-400 font-bold">9.</span> Last one standing (or everyone who lasts until time is up) wins — green flash, fireworks, vibration and a happy sound!</li>`;
+                    <li><span class="text-indigo-400 font-bold">9.</span> Last one standing (or everyone who lasts until time is up) wins — green flash, fireworks, vibration and a happy sound!</li>
+                    <li><span class="text-indigo-400 font-bold">10.</span> <strong class="text-white">Do not turn the screen off.</strong> Set Auto-Lock to Never, or motion detection will pause when the screen sleeps.</li>`;
+                    const tip = $('read-howto-tip'); if (tip) tip.textContent = '⬇️ Please read the instructions below before you start';
+                    const foot = $('howto-foot'); if (foot) foot.textContent = '⚠️ Keep the screen on: set Auto-Lock to Never. Phones flat on a stable surface work best.';
                 } else {
                     list.innerHTML = `
                     <li><span class="text-indigo-400 font-bold">1.</span> Δημιούργησε δωμάτιο ή μπες με 4ψήφιο PIN και μοιράσου τον κωδικό.</li>
@@ -2143,7 +2155,10 @@
                     <li><span class="text-indigo-400 font-bold">6.</span> Κάθε παίκτης μπορεί να <strong class="text-white">προσθέσει έως 2 αποστολές</strong> (δικές του ή από τη λίστα). Οι δικές σας μπαίνουν πρώτες στην κλήρωση.</li>
                     <li><span class="text-indigo-400 font-bold">7.</span> Μετά την αντίστροφη μέτρηση <strong class="text-white">μην αγγίξεις και μην κουνήσεις</strong> το κινητό!</li>
                     <li><span class="text-indigo-400 font-bold">8.</span> Αν αγγίξεις, κουνήσεις ή φύγεις από την εφαρμογή → βγαίνεις, παίρνεις αποστολή, κόκκινο flash, δόνηση και ήχος ήττας.</li>
-                    <li><span class="text-indigo-400 font-bold">9.</span> Ο τελευταίος που μένει (ή όσοι αντέξουν μέχρι το τέλος) κερδίζει — πράσινο flash, πυροτεχνήματα, δόνηση και χαρούμενος ήχος!</li>`;
+                    <li><span class="text-indigo-400 font-bold">9.</span> Ο τελευταίος που μένει (ή όσοι αντέξουν μέχρι το τέλος) κερδίζει — πράσινο flash, πυροτεχνήματα, δόνηση και χαρούμενος ήχος!</li>
+                    <li><span class="text-indigo-400 font-bold">10.</span> <strong class="text-white">Μην απενεργοποιείς την οθόνη.</strong> Βάλε Αυτόματο Κλείδωμα σε «Ποτέ», αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.</li>`;
+                    const tip = $('read-howto-tip'); if (tip) tip.textContent = '⬇️ Διάβασε τις οδηγίες από κάτω πριν ξεκινήσεις';
+                    const foot = $('howto-foot'); if (foot) foot.textContent = '⚠️ Κράτα την οθόνη ανοιχτή: Αυτόματο Κλείδωμα → Ποτέ. Καλύτερα με κινητά επίπεδα σε σταθερή επιφάνεια.';
                 }
             }
             // Rebuild mission pick list in current language
