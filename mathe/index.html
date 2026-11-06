@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Παιχνίδι Πολλαπλασιασμού 12×12</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --card: #ffffff;
+      --text: #1a1a2e;
+      --accent: #6366f1;
+      --success: #22c55e;
+      --error: #ef4444;
+      --shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #e0e7ff 0%, #fce7f3 50%, #dbeafe 100%);
+      min-height: 100vh;
+      color: var(--text);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      font-size: clamp(1.3rem, 4vw, 1.8rem);
+      margin: 8px 0 4px;
+      text-align: center;
+      background: linear-gradient(90deg, #6366f1, #ec4899, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 14px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #4f46e5;
+      border: 2px solid #c7d2fe;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+
+    .score-bar {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .score-item {
+      background: white;
+      padding: 6px 14px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+    }
+
+    .score-item span {
+      color: var(--accent);
+    }
+
+    /* Board container */
+    .board-wrap {
+      background: white;
+      border-radius: 20px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+      overflow: auto;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 36px repeat(12, minmax(28px, 1fr));
+      gap: 4px;
+      width: max-content;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 600px) {
+      .board {
+        grid-template-columns: 42px repeat(12, minmax(36px, 1fr));
+        gap: 5px;
+      }
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: clamp(0.65rem, 2.2vw, 0.9rem);
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+      box-shadow: 0 3px 0 rgba(0,0,0,0.15), inset 0 -2px 4px rgba(0,0,0,0.08);
+      position: relative;
+    }
+
+    .cell:active {
+      transform: scale(0.88) translateY(2px);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+    }
+
+    .cell.header {
+      background: #e2e8f0;
+      color: #475569;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .cell.header:active {
+      transform: none;
+    }
+
+    .cell.corner {
+      background: transparent;
+      box-shadow: none;
+      cursor: default;
+    }
+
+    /* Row colors matching the photo */
+    .row-1 { background: #fef08a; color: #854d0e; } /* yellow */
+    .row-2 { background: #a7f3d0; color: #065f46; } /* green */
+    .row-3 { background: #93c5fd; color: #1e3a8a; } /* blue */
+    .row-4 { background: #c4b5fd; color: #4c1d95; } /* purple */
+    .row-5 { background: #f9a8d4; color: #9d174d; } /* pink */
+    .row-6 { background: #fde68a; color: #92400e; } /* yellow */
+    .row-7 { background: #6ee7b7; color: #064e3b; } /* teal */
+    .row-8 { background: #7dd3fc; color: #0c4a6e; } /* sky */
+    .row-9 { background: #c4b5fd; color: #5b21b6; } /* violet */
+    .row-10 { background: #f9a8d4; color: #be185d; } /* rose */
+    .row-11 { background: #fde047; color: #713f12; } /* gold */
+    .row-12 { background: #86efac; color: #14532d; } /* lime */
+
+    .cell.popped {
+      filter: brightness(0.85) saturate(0.7);
+      transform: scale(0.92);
+      box-shadow: inset 0 3px 6px rgba(0,0,0,0.25);
+    }
+
+    .cell.correct {
+      animation: pulse-correct 0.5s ease;
+    }
+
+    .cell.wrong {
+      animation: shake 0.4s ease;
+    }
+
+    .cell.highlight {
+      outline: 3px solid #f59e0b;
+      outline-offset: 2px;
+      z-index: 2;
+    }
+
+    @keyframes pulse-correct {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); box-shadow: 0 0 12px #22c55e; }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    /* Modal / Quiz overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 24px;
+      padding: 28px 24px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+      transform: scale(0.9);
+      transition: transform 0.25s;
+    }
+
+    .overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal h2 {
+      font-size: 1.4rem;
+      margin-bottom: 8px;
+      color: #312e81;
+    }
+
+    .modal .equation {
+      font-size: 2.2rem;
+      font-weight: 800;
+      margin: 16px 0;
+      color: #4f46e5;
+      letter-spacing: 2px;
+    }
+
+    .modal input {
+      width: 100%;
+      font-size: 1.6rem;
+      text-align: center;
+      padding: 12px;
+      border: 3px solid #c7d2fe;
+      border-radius: 16px;
+      outline: none;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    .modal input:focus {
+      border-color: #6366f1;
+    }
+
+    .modal .feedback {
+      font-size: 1.1rem;
+      font-weight: 600;
+      min-height: 28px;
+      margin-bottom: 12px;
+    }
+
+    .feedback.correct { color: var(--success); }
+    .feedback.wrong { color: var(--error); }
+
+    .modal-btns {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    /* Mode indicator */
+    .mode-badge {
+      display: inline-block;
+      background: #e0e7ff;
+      color: #4338ca;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* Instructions */
+    .help {
+      max-width: 520px;
+      background: white;
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-top: 16px;
+      font-size: 0.85rem;
+      color: #475569;
+      line-height: 1.5;
+      box-shadow: var(--shadow);
+    }
+
+    .help strong {
+      color: #312e81;
+    }
+
+    .note {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #b45309;
+      text-align: center;
+      max-width: 480px;
+    }
+
+    /* Confetti simple */
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      z-index: 200;
+      animation: fall 2.5s linear forwards;
+    }
+
+    @keyframes fall {
+      to {
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🔢 Παιχνίδι Πολλαπλασιασμού 12×12</h1>
+  <p class="subtitle">Μάθε τον πίνακα πολλαπλασιασμού παίζοντας!</p>
+
+  <div class="score-bar">
+    <div class="score-item">Σωστά: <span id="score-correct">0</span></div>
+    <div class="score-item">Λάθος: <span id="score-wrong">0</span></div>
+    <div class="score-item">Σειρά: <span id="score-streak">0</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btn-quiz">🎲 Τυχαίο Κουίζ</button>
+    <button class="btn btn-secondary" id="btn-reset">🔄 Επαναφορά</button>
+    <button class="btn btn-secondary" id="btn-reveal">👁️ Εμφάνιση Όλων</button>
+    <button class="btn btn-success" id="btn-practice">✏️ Εξάσκηση</button>
+  </div>
+
+  <div class="mode-badge" id="mode-badge">Λειτουργία: Ελεύθερη (πάτα ένα κουμπί)</div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="help">
+    <strong>Πώς παίζεται:</strong><br>
+    • <strong>Ελεύθερη λειτουργία:</strong> Πάτα οποιοδήποτε χρωματιστό κουμπί για να λύσεις τον πολλαπλασιασμό.<br>
+    • <strong>Τυχαίο Κουίζ:</strong> Το παιχνίδι διαλέγει τυχαία ερωτήσεις.<br>
+    • <strong>Εξάσκηση:</strong> Πάτα κουμπιά με τη σειρά και μάθε τα γινόμενα.<br>
+    • Στόχος: Να μάθεις όλα τα γινόμενα από 1×1 μέχρι 12×12!
+  </div>
+
+  <p class="note">Σημείωση: Αυτό το ψηφιακό παιχνίδι είναι κατάλληλο για παιδιά. Οι φυσικές φουσκαλίδες μπορεί να είναι μικρές για ενήλικες.</p>
+
+  <!-- Quiz Modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="modal-title">Πόσο κάνει;</h2>
+      <div class="equation" id="equation">3 × 7 = ?</div>
+      <input type="number" id="answer-input" placeholder="Η απάντησή σου" inputmode="numeric" autocomplete="off">
+      <div class="feedback" id="feedback"></div>
+      <div class="modal-btns">
+        <button class="btn btn-primary" id="btn-check">Έλεγχος</button>
+        <button class="btn btn-secondary" id="btn-skip">Παράλειψη</button>
+        <button class="btn btn-danger" id="btn-close">Κλείσιμο</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 12;
+    const board = document.getElementById('board');
+    const overlay = document.getElementById('overlay');
+    const equationEl = document.getElementById('equation');
+    const answerInput = document.getElementById('answer-input');
+    const feedbackEl = document.getElementById('feedback');
+    const modeBadge = document.getElementById('mode-badge');
+
+    let scoreCorrect = 0;
+    let scoreWrong = 0;
+    let streak = 0;
+    let currentRow = null;
+    let currentCol = null;
+    let mode = 'free'; // free | quiz | practice
+    let practiceQueue = [];
+    let revealed = false;
+
+    // Build the board
+    function buildBoard() {
+      board.innerHTML = '';
+
+      // Corner
+      const corner = document.createElement('div');
+      corner.className = 'cell corner';
+      corner.textContent = '×';
+      board.appendChild(corner);
+
+      // Top headers 1-12
+      for (let c = 1; c <= SIZE; c++) {
+        const h = document.createElement('div');
+        h.className = 'cell header';
+        h.textContent = c;
+        board.appendChild(h);
+      }
+
+      // Rows
+      for (let r = 1; r <= SIZE; r++) {
+        // Left header
+        const lh = document.createElement('div');
+        lh.className = 'cell header';
+        lh.textContent = r;
+        board.appendChild(lh);
+
+        for (let c = 1; c <= SIZE; c++) {
+          const cell = document.createElement('div');
+          cell.className = `cell row-${r}`;
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          cell.dataset.product = r * c;
+          cell.textContent = revealed ? (r * c) : '?';
+          cell.addEventListener('click', () => onCellClick(r, c, cell));
+          board.appendChild(cell);
+        }
+      }
+    }
+
+    function onCellClick(row, col, cell) {
+      if (mode === 'practice' && practiceQueue.length) {
+        // Only allow the next expected one? Or free within practice
+      }
+      currentRow = row;
+      currentCol = col;
+      openQuiz(row, col);
+    }
+
+    function openQuiz(row, col) {
+      currentRow = row;
+      currentCol = col;
+      equationEl.textContent = `${row} × ${col} = ?`;
+      answerInput.value = '';
+      feedbackEl.textContent = '';
+      feedbackEl.className = 'feedback';
+      overlay.classList.add('show');
+      setTimeout(() => answerInput.focus(), 100);
+
+      // Highlight cell
+      document.querySelectorAll('.cell.highlight').forEach(c => c.classList.remove('highlight'));
+      const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+      if (cell) cell.classList.add('highlight');
+    }
+
+    function closeQuiz() {
+      overlay.classList.remove('show');
+      document.querySelectorAll('.cell.highlight').forEach(c => c.classList.remove('highlight'));
+      if (mode === 'quiz') {
+        // Auto next after short delay? optional
+      }
+    }
+
+    function checkAnswer() {
+      const userAns = parseInt(answerInput.value, 10);
+      const correct = currentRow * currentCol;
+      const cell = document.querySelector(`.cell[data-row="${currentRow}"][data-col="${currentCol}"]`);
+
+      if (isNaN(userAns)) {
+        feedbackEl.textContent = 'Γράψε έναν αριθμό!';
+        feedbackEl.className = 'feedback wrong';
+        return;
+      }
+
+      if (userAns === correct) {
+        feedbackEl.textContent = '✅ Σωστά! Μπράβο!';
+        feedbackEl.className = 'feedback correct';
+        scoreCorrect++;
+        streak++;
+        if (cell) {
+          cell.classList.add('popped', 'correct');
+          cell.textContent = correct;
+        }
+        updateScore();
+        launchConfetti();
+        setTimeout(() => {
+          closeQuiz();
+          if (mode === 'quiz') {
+            setTimeout(startRandomQuiz, 400);
+          } else if (mode === 'practice' && practiceQueue.length) {
+            setTimeout(nextPractice, 300);
+          }
+        }, 900);
+      } else {
+        feedbackEl.textContent = `❌ Λάθος. Η σωστή απάντηση είναι ${correct}`;
+        feedbackEl.className = 'feedback wrong';
+        scoreWrong++;
+        streak = 0;
+        if (cell) cell.classList.add('wrong');
+        updateScore();
+        setTimeout(() => {
+          if (cell) cell.classList.remove('wrong');
+        }, 500);
+      }
+    }
+
+    function updateScore() {
+      document.getElementById('score-correct').textContent = scoreCorrect;
+      document.getElementById('score-wrong').textContent = scoreWrong;
+      document.getElementById('score-streak').textContent = streak;
+    }
+
+    function startRandomQuiz() {
+      mode = 'quiz';
+      modeBadge.textContent = 'Λειτουργία: Τυχαίο Κουίζ';
+      const r = Math.floor(Math.random() * SIZE) + 1;
+      const c = Math.floor(Math.random() * SIZE) + 1;
+      openQuiz(r, c);
+    }
+
+    function startPractice() {
+      mode = 'practice';
+      modeBadge.textContent = 'Λειτουργία: Εξάσκηση (με τη σειρά)';
+      practiceQueue = [];
+      for (let r = 1; r <= SIZE; r++) {
+        for (let c = 1; c <= SIZE; c++) {
+          practiceQueue.push({ r, c });
+        }
+      }
+      // Shuffle a bit for variety? or keep sequential
+      // practiceQueue.sort(() => Math.random() - 0.5);
+      nextPractice();
+    }
+
+    function nextPractice() {
+      if (!practiceQueue.length) {
+        modeBadge.textContent = '🎉 Ολοκλήρωσες την εξάσκηση!';
+        launchConfetti();
+        mode = 'free';
+        return;
+      }
+      const next = practiceQueue.shift();
+      openQuiz(next.r, next.c);
+    }
+
+    function resetAll() {
+      scoreCorrect = 0;
+      scoreWrong = 0;
+      streak = 0;
+      revealed = false;
+      mode = 'free';
+      modeBadge.textContent = 'Λειτουργία: Ελεύθερη (πάτα ένα κουμπί)';
+      updateScore();
+      buildBoard();
+      closeQuiz();
+    }
+
+    function revealAll() {
+      revealed = true;
+      document.querySelectorAll('.cell[data-product]').forEach(cell => {
+        cell.textContent = cell.dataset.product;
+        cell.classList.add('popped');
+      });
+      modeBadge.textContent = 'Λειτουργία: Όλα εμφανισμένα (για μελέτη)';
+    }
+
+    // Confetti
+    function launchConfetti() {
+      const colors = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4'];
+      for (let i = 0; i < 40; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.background = colors[Math.floor(Math.random() * colors.length)];
+        el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        el.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+        el.style.animationDelay = (Math.random() * 0.3) + 's';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+      }
+    }
+
+    // Event listeners
+    document.getElementById('btn-check').addEventListener('click', checkAnswer);
+    document.getElementById('btn-close').addEventListener('click', () => {
+      closeQuiz();
+      mode = 'free';
+      modeBadge.textContent = 'Λειτουργία: Ελεύθερη (πάτα ένα κουμπί)';
+    });
+    document.getElementById('btn-skip').addEventListener('click', () => {
+      closeQuiz();
+      if (mode === 'quiz') setTimeout(startRandomQuiz, 300);
+      else if (mode === 'practice') setTimeout(nextPractice, 300);
+    });
+    document.getElementById('btn-quiz').addEventListener('click', startRandomQuiz);
+    document.getElementById('btn-reset').addEventListener('click', resetAll);
+    document.getElementById('btn-reveal').addEventListener('click', revealAll);
+    document.getElementById('btn-practice').addEventListener('click', startPractice);
+
+    answerInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkAnswer();
+    });
+
+    // Init
+    buildBoard();
+  </script>
+</body>
+</html>
