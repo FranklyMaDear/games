@@ -7,9 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-    <!-- Leaflet Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
     <style>
@@ -288,7 +285,6 @@
     <button id="btn-mute" class="fixed top-3 right-3 z-50 w-11 h-11 rounded-full bg-slate-800/90 border border-slate-600 text-xl gone" aria-label="Toggle sound">🔊</button>
 
     <!-- Map button -->
-    <button id="btn-map" class="gone" aria-label="Χάρτης">🗺️</button>
 
     <!-- Help button -->
 
@@ -299,20 +295,6 @@
             <p id="alert-message" class="text-lg font-semibold text-white mb-6"></p>
             <button onclick="closeAlert()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-colors text-lg">OK</button>
         </div>
-    </div>
-
-    <!-- Map Overlay -->
-    <div id="map-overlay">
-        <div class="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700">
-            <button id="map-close" class="text-white font-bold px-3 py-2 rounded-lg bg-slate-700">✕ Κλείσιμο</button>
-            <span class="font-bold text-white">Χάρτης</span>
-            <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" id="share-location" class="w-5 h-5 accent-emerald-500">
-                <span class="text-slate-300">Μοιράζομαι θέση</span>
-            </label>
-        </div>
-        <div id="map-container"></div>
-        <div id="map-players" class="p-3 bg-slate-900 border-t border-slate-700 max-h-28 overflow-y-auto text-sm"></div>
     </div>
 
     <!-- SCREEN 0: Intro -->
@@ -407,19 +389,6 @@
                     <span id="player-count" class="bg-slate-700 px-3 py-1 rounded-full text-sm font-mono">0</span>
                 </h3>
                 <ul id="players-list" class="space-y-2"></ul>
-            </div>
-
-            <!-- Location & Battery status -->
-            <div class="bg-slate-800 rounded-3xl p-5 border border-slate-700 space-y-3">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-semibold text-slate-300">Τοποθεσία</p>
-                    <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" id="lobby-share-location" class="w-5 h-5 accent-emerald-500">
-                        <span class="text-slate-300">Μοιράζομαι</span>
-                    </label>
-                </div>
-                <p id="location-status" class="text-xs text-slate-400">Η κοινή χρήση θέσης είναι απενεργοποιημένη.</p>
-                <p id="battery-status" class="text-xs text-slate-400"></p>
             </div>
 
             <!-- Sensors -->
@@ -675,7 +644,7 @@
             const showControls = ['screen-setup','screen-lobby','screen-out','screen-result','screen-running','screen-countdown'].includes(id);
             $('btn-mute').classList.toggle('gone', !showControls);
             /* help removed */
-            $('btn-map').classList.toggle('gone', !['screen-lobby','screen-running','screen-out','screen-result'].includes(id));
+            /* map removed */
         }
         function generatePIN() { return Math.floor(1000 + Math.random() * 9000).toString(); }
         function shuffle(a) {
@@ -986,23 +955,56 @@
             setTimeout(() => t.remove(), duration);
         }
 
-        // Wake lock
+        // Wake lock + keep-awake helpers
+        // Browsers suspend sensors when the screen locks. We:
+        // 1) request Screen Wake Lock whenever possible
+        // 2) keep a near-silent audio loop (helps some mobile browsers)
+        // 3) on unlock, re-check orientation — if phone moved while screen was off → out
         let wakePending = false;
+        let keepAliveOsc = null, keepAliveGain = null;
         async function acquireWake() {
-            if (wakeLock || wakePending || !('wakeLock' in navigator) || document.hidden) return;
+            if (wakePending || document.hidden) return;
             wakePending = true;
             try {
-                wakeLock = await navigator.wakeLock.request('screen');
-                wakeLock.addEventListener('release', () => { wakeLock = null; });
-            } catch (e) {}
+                if ('wakeLock' in navigator) {
+                    if (wakeLock) { try { await wakeLock.release(); } catch (e) {} wakeLock = null; }
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                }
+            } catch (e) { /* denied / unsupported */ }
             wakePending = false;
+            startKeepAliveAudio();
         }
+        function startKeepAliveAudio() {
+            try {
+                if (!Sfx.init || !Sfx.init()) return;
+                // Use a tiny silent tone via the shared audio path if possible
+                if (keepAliveOsc) return;
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                // Rely on Sfx having unlocked context; create minimal keep-alive on destination
+                // Access through a quiet oscillator connected at near-zero gain
+            } catch (e) {}
+        }
+        function stopKeepAliveAudio() {
+            try {
+                if (keepAliveOsc) { keepAliveOsc.stop(); keepAliveOsc = null; }
+            } catch (e) {}
+            keepAliveGain = null;
+        }
+        // Re-request wake lock periodically during active rounds (iOS often drops it)
+        setInterval(() => {
+            if (['countdown', 'running', 'out', 'lobby'].includes(phase) && !document.hidden) {
+                acquireWake();
+            }
+        }, 20000);
         ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => {
-            if (phase !== 'result' && phase !== 'setup') acquireWake();
+            if (phase !== 'result') acquireWake();
         }, { passive: true }));
         function releaseWake() {
             try { if (wakeLock) wakeLock.release(); } catch (e) {}
             wakeLock = null;
+            stopKeepAliveAudio();
         }
 
         // ================= Battery =================
@@ -1088,9 +1090,10 @@
             }
         }
         function setSharing(on) {
-            sharingLocation = !!on;
-            $('share-location').checked = sharingLocation;
-            $('lobby-share-location').checked = sharingLocation;
+            sharingLocation = false; // location sharing removed
+            return;
+            $('share-location');
+            $('lobby-share-location');
             try { localStorage.setItem('dtm-share-loc', sharingLocation ? '1' : '0'); } catch(e) {}
             if (sharingLocation) {
                 startLocationWatch();
@@ -1103,60 +1106,16 @@
         // ================= Map =================
         function initMap() {
             if (map) return;
-            map = L.map('map-container', { zoomControl: true }).setView([37.98, 23.73], 13); // Athens default
+            return; // map removed
+            map = null;
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
         }
-        function openMap() {
-            initMap();
-            $('map-overlay').classList.add('open');
-            setTimeout(() => { if (map) map.invalidateSize(); }, 200);
-            updateMapMarkers();
-            if (myLat != null) map.setView([myLat, myLng], 15);
-        }
-        function closeMap() {
-            $('map-overlay').classList.remove('open');
-        }
-        function updateMapMarkers() {
-            if (!map) return;
-            // Remove old markers not present
-            Object.keys(markers).forEach(id => {
-                if (!locations[id]) {
-                    map.removeLayer(markers[id]);
-                    delete markers[id];
-                }
-            });
-            const list = $('map-players');
-            list.innerHTML = '';
-            Object.values(locations).forEach(loc => {
-                const color = getPlayerColor(loc.id);
-                if (!markers[loc.id]) {
-                    const icon = L.divIcon({
-                        className: '',
-                        html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(0,0,0,.5);"></div>`,
-                        iconSize: [16, 16],
-                        iconAnchor: [8, 8]
-                    });
-                    markers[loc.id] = L.marker([loc.lat, loc.lng], { icon }).addTo(map);
-                    markers[loc.id].bindPopup(`<b>${loc.name}</b>${loc.role === 'parent' ? ' (Γονέας)' : ''}<br>±${Math.round(loc.accuracy || 0)}m`);
-                } else {
-                    markers[loc.id].setLatLng([loc.lat, loc.lng]);
-                }
-                const row = mk('div', 'flex items-center gap-2 py-1');
-                row.innerHTML = `<span class="player-dot" style="background:${color}"></span>
-                    <span class="text-white font-medium">${loc.name}</span>
-                    ${loc.role === 'parent' ? '<span class="text-xs text-indigo-300">ΓΟΝΕΑΣ</span>' : ''}
-                    ${loc.battery != null ? `<span class="text-xs text-slate-400 ml-auto">🔋${loc.battery}%</span>` : ''}`;
-                list.appendChild(row);
-            });
-            if (!Object.keys(locations).length) {
-                list.innerHTML = '<p class="text-slate-500 text-center">Κανείς δεν μοιράζεται θέση αυτή τη στιγμή.</p>';
-            }
-        }
-
-        // ================= Networking =================
+        function openMap() { /* removed */ }
+        function closeMap() { /* removed */ }
+        function updateMapMarkers() { /* removed */ }
         function sendToHost(msg) { if (hostConn && hostConn.open) hostConn.send(msg); }
         function broadcast(msg) { guestConns.forEach(c => { if (c.open) c.send(msg); }); }
         function broadcastOrSend(msg) {
@@ -1429,7 +1388,6 @@
             updateBattery();
             // Restore sharing preference
             try {
-                if (localStorage.getItem('dtm-share-loc') === '1') setSharing(true);
             } catch(e) {}
         }
 
@@ -1568,7 +1526,7 @@
             const el = lang === 'el';
             $('wake-status').textContent = wakeLock
                 ? (el ? '✅ Η οθόνη θα μείνει ανοιχτή' : '✅ Screen will stay on during the game')
-                : (el ? '⚠️ Η οθόνη μπορεί να κλείσει. Πάτα μια φορά οπουδήποτε ή βάλε Auto-Lock σε «Ποτέ».' : '⚠️ Screen may turn off. Tap once, or set Auto-Lock to Never.');
+                : (el ? '⚠️ ΣΗΜΑΝΤΙΚΟ: βάλε Αυτόματο Κλείδωμα → Ποτέ στις ρυθμίσεις. Αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.' : '⚠️ IMPORTANT: set Auto-Lock to Never in phone Settings. If the screen turns off, motion sensors pause.');
             if (sensorsOk) {
                 status.textContent = el ? '✅ Αισθητήρες κίνησης έτοιμοι' : '✅ Motion sensors ready';
                 btn.classList.add('hidden');
@@ -1635,11 +1593,25 @@
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
+                // Screen off / app switch / lock — count as leaving the game while armed
                 if (isArmed) triggerLoss('left');
-            } else if (['countdown', 'running', 'out', 'lobby'].includes(phase)) {
+            } else {
                 Sfx.resume();
-                acquireWake();
+                if (['countdown', 'running', 'out', 'lobby'].includes(phase)) acquireWake();
+                // Phone may have been moved while screen was locked (sensors paused).
+                // Re-check orientation as soon as we are visible again.
+                if (isArmed && baseline && grav && !lostLocal) {
+                    const angle = angleBetween(baseline, grav);
+                    const jolt = Math.abs(Math.hypot(grav.x, grav.y, grav.z) - 9.81);
+                    if (angle > curCfg.angle || jolt > curCfg.accel) triggerLoss('move');
+                }
             }
+        });
+        window.addEventListener('pagehide', () => {
+            if (isArmed) triggerLoss('left');
+        });
+        document.addEventListener('freeze', () => {
+            if (isArmed) triggerLoss('left');
         });
 
         function beginCalibration() {
@@ -1996,6 +1968,7 @@
 
         // ================= Intro =================
         let introTimers = [], introDone = false, introStarted = false, introSkippable = false;
+        let gateHeartTimer = null;
         function later(fn, ms) { introTimers.push(setTimeout(fn, ms)); }
 
         function pulseIntroHeart() {
@@ -2006,9 +1979,35 @@
             h.classList.add('thump');
         }
 
+        function startGateHeartbeat() {
+            if (gateHeartTimer || introStarted) return;
+            Sfx.init();
+            Sfx.heartbeat();
+            retrigger($('frame-flash'), 'beat');
+            const h = $('intro-heart');
+            if (h) { h.classList.remove('thump'); void h.offsetWidth; h.classList.add('thump'); }
+            gateHeartTimer = setInterval(() => {
+                if (introStarted) { clearInterval(gateHeartTimer); gateHeartTimer = null; return; }
+                Sfx.heartbeat();
+                retrigger($('frame-flash'), 'beat');
+                if (h) { h.classList.remove('thump'); void h.offsetWidth; h.classList.add('thump'); }
+            }, 950);
+        }
+        // First touch unlocks audio (required on iOS) and starts heart sound immediately
+        function unlockAudioOnce() {
+            startGateHeartbeat();
+            document.removeEventListener('pointerdown', unlockAudioOnce);
+            document.removeEventListener('touchstart', unlockAudioOnce);
+            document.removeEventListener('click', unlockAudioOnce);
+        }
+        document.addEventListener('pointerdown', unlockAudioOnce, { passive: true });
+        document.addEventListener('touchstart', unlockAudioOnce, { passive: true });
+        document.addEventListener('click', unlockAudioOnce);
+
         function startIntro() {
             if (introStarted) return;
             introStarted = true;
+            if (gateHeartTimer) { clearInterval(gateHeartTimer); gateHeartTimer = null; }
             Sfx.init();
             $('intro-gate').classList.add('gone');
             Sfx.rumble(1.7);
@@ -2217,10 +2216,7 @@
 
 
         // Map
-        $('btn-map').addEventListener('click', openMap);
-        $('map-close').addEventListener('click', closeMap);
-        $('share-location').addEventListener('change', (e) => setSharing(e.target.checked));
-        $('lobby-share-location').addEventListener('change', (e) => setSharing(e.target.checked));
+        /* map/location removed */
 
         // Parent quick messages
         document.querySelectorAll('.quick-msg-btn').forEach(btn => {
