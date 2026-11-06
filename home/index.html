@@ -597,6 +597,7 @@
     .ico-x { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid #333; }
     .ico-gmail { background: linear-gradient(135deg, #EA4335, #C5221F); }
     .ico-copy { background: linear-gradient(135deg, #374151, #1f2937); }
+    .ico-embed { background: linear-gradient(135deg, #6366f1, #4f46e5); }
     .ico-native { background: linear-gradient(135deg, var(--neon), var(--neon-bright)); color: #0a0a0c !important; }
     .ico-telegram { background: linear-gradient(135deg, #2AABEE, #229ED9); }
 
@@ -605,7 +606,7 @@
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px;
-      margin-bottom: 4px;
+      margin-bottom: 10px;
     }
     .share-link-label {
       font-size: 0.7rem;
@@ -614,15 +615,34 @@
       text-transform: uppercase;
       letter-spacing: 0.6px;
       margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .share-link-label .hint {
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text-dim);
+      opacity: 0.85;
     }
     .share-link-box {
       display: flex; gap: 8px; align-items: center;
     }
-    .share-link-box input {
+    .share-link-box input,
+    .share-link-box textarea {
       flex: 1; background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 10px; outline: none;
-      color: var(--text); font-size: 0.78rem; font-family: inherit;
+      color: var(--text); font-size: 0.78rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       min-width: 0; padding: 10px 12px;
+      resize: vertical;
+    }
+    .share-link-box textarea {
+      min-height: 72px;
+      line-height: 1.4;
+      max-height: 140px;
     }
     .share-link-box button {
       background: linear-gradient(135deg, var(--neon), var(--neon-bright));
@@ -630,6 +650,7 @@
       border-radius: 10px; padding: 10px 16px; font-weight: 800;
       font-size: 0.75rem; cursor: pointer; font-family: inherit;
       white-space: nowrap;
+      align-self: flex-start;
     }
     .share-link-box button:hover { filter: brightness(1.08); }
 
@@ -969,6 +990,16 @@
           <button type="button" id="copyLinkBtn">Copy</button>
         </div>
       </div>
+      <div class="share-link-section" id="embedSection">
+        <div class="share-link-label">
+          <span>Embed (iframe)</span>
+          <span class="hint">Για ιστοσελίδα / blog</span>
+        </div>
+        <div class="share-link-box">
+          <textarea id="embedCodeInput" readonly rows="3" spellcheck="false"></textarea>
+          <button type="button" id="copyEmbedBtn">Copy</button>
+        </div>
+      </div>
       <button class="btn-close-sheet" id="closeShareBtn">Κλείσιμο</button>
     </div>
   </div>
@@ -1251,6 +1282,17 @@
     }
 
     // ========== SHARE ==========
+    function getEmbedCode(url, title) {
+      const safeTitle = (title || 'Frankly Games').replace(/"/g, '&quot;');
+      // Responsive iframe – works on most blogs / sites
+      return '<iframe src="' + url + '" title="' + safeTitle + '" width="100%" height="640" style="border:0;border-radius:12px;max-width:900px;width:100%;aspect-ratio:16/10;min-height:480px;" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+    }
+
+    function fillShareFields() {
+      document.getElementById('shareUrlInput').value = currentShare.url;
+      document.getElementById('embedCodeInput').value = getEmbedCode(currentShare.url, currentShare.title);
+    }
+
     function openShare(name, url, desc) {
       // Share the specific game page + game title
       currentShare = {
@@ -1260,7 +1302,7 @@
       };
       document.getElementById('shareTitle').textContent = name;
       document.getElementById('shareSubtitle').textContent = 'Μοίρασε αυτό το παιχνίδι με φίλους';
-      document.getElementById('shareUrlInput').value = url;
+      fillShareFields();
       buildShareGrid();
       document.getElementById('shareModal').classList.add('show');
     }
@@ -1269,7 +1311,7 @@
       currentShare = { url: PAGE_URL, title: PAGE_TITLE, text: PAGE_TEXT };
       document.getElementById('shareTitle').textContent = 'Frankly Games';
       document.getElementById('shareSubtitle').textContent = 'Μοίρασε όλη τη σελίδα παιχνιδιών';
-      document.getElementById('shareUrlInput').value = PAGE_URL;
+      fillShareFields();
       buildShareGrid();
       document.getElementById('shareModal').classList.add('show');
     }
@@ -1297,7 +1339,8 @@
         { id: 'x', label: 'X', ico: 'ico-x', icon: 'fa-x-twitter', href: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodedUrl },
         { id: 'wa', label: 'WhatsApp', ico: 'ico-whatsapp', icon: 'fa-whatsapp', href: 'https://wa.me/?text=' + encodedText },
         { id: 'gmail', label: 'Gmail', ico: 'ico-gmail', icon: 'fa-envelope', href: 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodedTitle + '&body=' + encodedText },
-        { id: 'copy', label: 'Copy Link', ico: 'ico-copy', icon: 'fa-link', action: 'copy' }
+        { id: 'copy', label: 'Copy Link', ico: 'ico-copy', icon: 'fa-link', action: 'copy' },
+        { id: 'embed', label: 'Embed', ico: 'ico-embed', icon: 'fa-code', action: 'embed' }
       );
 
       document.getElementById('shareGrid').innerHTML = opts.map(o => {
@@ -1306,6 +1349,9 @@
         }
         if (o.action === 'copy') {
           return `<button type="button" class="share-opt" data-action="copy"><div class="ico ${o.ico}"><i class="fas ${o.icon}"></i></div><span>${o.label}</span></button>`;
+        }
+        if (o.action === 'embed') {
+          return `<button type="button" class="share-opt" data-action="embed"><div class="ico ${o.ico}"><i class="fas ${o.icon}"></i></div><span>${o.label}</span></button>`;
         }
         const isFab = o.icon !== 'fa-envelope';
         return `<a class="share-opt" href="${o.href}" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><div class="ico ${o.ico}"><i class="${isFab ? 'fab' : 'fas'} ${o.icon}"></i></div><span>${o.label}</span></a>`;
@@ -1316,6 +1362,9 @@
       });
       document.querySelectorAll('#shareGrid [data-action="copy"]').forEach(btn => {
         btn.onclick = () => copyLink();
+      });
+      document.querySelectorAll('#shareGrid [data-action="embed"]').forEach(btn => {
+        btn.onclick = () => copyEmbed();
       });
     }
 
@@ -1351,6 +1400,27 @@
       }
     }
 
+    async function copyEmbed() {
+      const code = getEmbedCode(currentShare.url, currentShare.title);
+      const ta = document.getElementById('embedCodeInput');
+      ta.value = code;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+        }
+        showToast('Ο κώδικας iframe αντιγράφηκε! ✓');
+      } catch (e) {
+        // fallback: select text so user can copy manually
+        ta.focus();
+        ta.select();
+        showToast('Επίλεξε & αντιγράψε τον κώδικα');
+      }
+    }
+
     function showToast(msg) {
       const t = document.getElementById('toast');
       t.textContent = msg;
@@ -1378,6 +1448,7 @@
       if (e.target.id === 'shareModal') closeShare();
     });
     document.getElementById('copyLinkBtn').onclick = copyLink;
+    document.getElementById('copyEmbedBtn').onclick = copyEmbed;
     document.getElementById('sharePageBtn').onclick = openPageShare;
 
     document.getElementById('closeGameBtn').onclick = closeGameDetail;
