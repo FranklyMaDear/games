@@ -1,17 +1,31 @@
- <!DOCTYPE html>
-<html lang="el">
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Don't Touch – Phase 1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Don't Touch">
+    <meta name="format-detection" content="telephone=no">
+    <title>Don't Touch</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="//libtl.com/sdk.js" data-zone="11108267" data-sdk="show_11108267"></script>
 
     <style>
+        html, body {
+            height: 100%;
+            height: 100dvh;
+            overscroll-behavior: none;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background-color: #0f172a;
             color: #f8fafc;
             touch-action: manipulation;
@@ -19,13 +33,25 @@
             -webkit-user-select: none;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            margin: 0;
+            padding: 0;
+            /* notch / home indicator safe areas */
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
         }
         .screen {
             display: none !important;
             width: 100%;
             height: 100vh;
             height: 100dvh;
+            max-height: -webkit-fill-available;
             flex-direction: column;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .screen.active { display: flex !important; }
 
@@ -707,7 +733,14 @@
                     return true;
                 } catch (e) { return false; }
             }
-            function resume() { try { if (ctx && ctx.state !== 'running') ctx.resume(); } catch (e) {} }
+            function resume() {
+                try {
+                    if (ctx && ctx.state !== 'running') {
+                        const p = ctx.resume();
+                        if (p && p.catch) p.catch(function () {});
+                    }
+                } catch (e) {}
+            }
             function setMuted(m) {
                 muted = !!m;
                 try { localStorage.setItem('dtm-muted', muted ? '1' : '0'); } catch (e) {}
@@ -816,6 +849,11 @@
 
         // ================= Light effects =================
         function retrigger(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+        function safeVibrate(pattern) {
+            try {
+                if (navigator.vibrate) navigator.vibrate(pattern);
+            } catch (e) { /* iOS Safari has no vibrate */ }
+        }
         function flashScreen(kind, peak) {
             const el = $('flash-overlay');
             el.classList.remove('red', 'gold', 'green');
@@ -912,7 +950,7 @@
             outFx = true;
             Sfx.boom();   // characteristic explosion from intro
             Sfx.lose();
-            if (navigator.vibrate) navigator.vibrate([220, 80, 220, 80, 350]);
+            safeVibrate([220, 80, 220, 80, 350]);
             flashScreen('red', 1);
             setTimeout(() => flashScreen('red', 0.95), 220);
             setTimeout(() => flashScreen('red', 0.85), 440);
@@ -922,7 +960,7 @@
 
         function ownWinEffects() {
             Sfx.win();
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100, 50, 200]);
+            safeVibrate([100, 50, 100, 50, 100, 50, 200]);
             flashScreen('green', 1);
             setTimeout(() => flashScreen('green', 0.9), 300);
             setTimeout(() => flashScreen('green', 0.75), 600);
@@ -1136,10 +1174,21 @@
         }
         function broadcastPlayers() { broadcast({ type: 'PLAYERS', players: publicPlayers() }); }
 
+        // PeerJS options tuned for mobile Chrome / Safari / Firefox
+        const PEER_OPTS = {
+            debug: 0,
+            // default cloud broker; reliable data channels where possible
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' }
+                ]
+            }
+        };
         function createRoom(attempt) {
             roomPin = generatePIN();
             const btn = $('btn-create-room');
-            peer = new Peer(ROOM_PREFIX + roomPin);
+            peer = new Peer(ROOM_PREFIX + roomPin, PEER_OPTS);
 
             peer.on('open', () => {
                 myId = 'host';
@@ -1246,7 +1295,7 @@
                 showAlert(msg);
             };
             let joined = false;
-            peer = new Peer();
+            peer = new Peer(PEER_OPTS);
 
             peer.on('open', () => {
                 myId = peer.id;
@@ -1340,7 +1389,7 @@
             }
             // Local feedback
             Sfx.helpAlert();
-            if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+            safeVibrate([300, 100, 300, 100, 300]);
             flashScreen('red', 1);
             toast('🆘 Σήμα βοήθειας στάλθηκε!');
         }
@@ -1348,7 +1397,7 @@
         function handleHelpReceived(m) {
             if (m.id === myId) return; // already handled locally
             Sfx.helpAlert();
-            if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+            safeVibrate([200, 80, 200]);
             flashScreen('red', 0.9);
             let txt = `🆘 ${m.name} χρειάζεται βοήθεια!`;
             if (m.lat != null) txt += ' (έχει θέση στον χάρτη)';
@@ -1544,14 +1593,25 @@
 
         $('btn-request-sensors').addEventListener('click', async () => {
             acquireWake();
-            if (needsPermission) {
+            Sfx.init();
+            let ok = true;
+            // iOS Safari / some WebKit: must request permission from a user gesture
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const perm = await DeviceMotionEvent.requestPermission();
-                    if (perm !== 'granted') showAlert(lang === 'el' ? 'Δεν δόθηκε άδεια. Η ανίχνευση κίνησης δεν θα δουλεύει.' : 'Permission denied. Motion detection will not work.');
-                } catch (e) {
-                    showAlert(lang === 'el' ? 'Δεν ήταν δυνατή η αίτηση άδειας αισθητήρων.' : 'Could not request sensor permission.');
-                }
+                    if (perm !== 'granted') ok = false;
+                } catch (e) { ok = false; }
             }
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+            }
+            if (!ok) {
+                showAlert(lang === 'el'
+                    ? 'Δεν δόθηκε άδεια. Η ανίχνευση κίνησης δεν θα δουλεύει σε αυτό το κινητό.'
+                    : 'Permission denied. Motion detection will not work on this phone.');
+            }
+            // Android Chrome / Firefox: sensors usually work without this prompt
+            updateSensorStatus();
         });
         $('btn-request-torch').addEventListener('click', async () => {
             acquireWake();
@@ -1570,6 +1630,7 @@
             return Math.acos(Math.max(-1, Math.min(1, dot / m))) * 180 / Math.PI;
         }
 
+        // Motion: DeviceMotion (preferred) — works on Chrome Android, Firefox, Safari (after permission)
         window.addEventListener('devicemotion', (e) => {
             const g = e.accelerationIncludingGravity;
             if (!g || g.x == null) return;
@@ -1588,7 +1649,28 @@
             } else {
                 overCount = 0;
             }
-        }, true);
+        }, { capture: true, passive: true });
+
+        // Fallback orientation for browsers that throttle / limit DeviceMotion
+        let orientBaseline = null;
+        window.addEventListener('deviceorientation', (e) => {
+            if (e.beta == null && e.gamma == null) return;
+            sensorsOk = true;
+            const o = { beta: e.beta || 0, gamma: e.gamma || 0 };
+            if (calibrating) {
+                orientBaseline = o;
+                return;
+            }
+            if (!isArmed || !orientBaseline) return;
+            const dBeta = Math.abs(o.beta - orientBaseline.beta);
+            const dGamma = Math.abs(o.gamma - orientBaseline.gamma);
+            // thresholds roughly match low/med/high angle settings
+            const limit = curCfg.angle;
+            if (dBeta > limit || dGamma > limit) {
+                overCount++;
+                if (overCount >= 2) triggerLoss('move');
+            }
+        }, { passive: true });
 
         document.addEventListener('touchstart', () => { if (isArmed) triggerLoss('touch'); }, { passive: true });
         document.addEventListener('mousedown', () => { if (isArmed) triggerLoss('touch'); });
