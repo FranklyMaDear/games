@@ -546,6 +546,8 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .finger-count {
       font-size: 1.5rem;
@@ -557,32 +559,38 @@
       min-width: 48px;
       text-align: center;
     }
-    .hands {
+    .hands-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    .hands-row {
       display: flex;
       justify-content: center;
-      gap: 18px;
+      gap: 14px;
       flex-wrap: wrap;
     }
     .hand {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
     }
     .hand-label {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       color: #64748b;
       font-weight: 600;
     }
     .fingers {
       display: flex;
-      gap: 5px;
+      gap: 4px;
       align-items: flex-end;
     }
     .finger {
-      width: 28px;
-      height: 48px;
-      border-radius: 14px 14px 8px 8px;
+      width: 26px;
+      height: 44px;
+      border-radius: 13px 13px 7px 7px;
       background: #e2e8f0;
       border: 2px solid #cbd5e1;
       cursor: pointer;
@@ -592,7 +600,7 @@
     .finger.up {
       background: linear-gradient(180deg, #fbbf24, #f59e0b);
       border-color: #d97706;
-      height: 56px;
+      height: 52px;
       box-shadow: 0 3px 8px rgba(245, 158, 11, 0.35);
       transform: translateY(-4px);
     }
@@ -603,6 +611,17 @@
       gap: 8px;
       justify-content: center;
       margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .btn-finger-add {
+      background: linear-gradient(135deg, #34d399, #10b981);
+      color: white;
+      border: none;
+    }
+    .btn-finger-remove {
+      background: #f1f5f9;
+      color: #64748b;
+      border: 2px solid #e2e8f0;
     }
 
     .overlay {
@@ -860,18 +879,11 @@
           <span style="font-size:0.85rem;font-weight:700;color:#312e81;">Μέτρα με τα δάχτυλα</span>
           <div class="finger-count" id="add-finger-count">0</div>
         </div>
-        <div class="hands">
-          <div class="hand">
-            <div class="hand-label">Αριστερό</div>
-            <div class="fingers" id="add-hand-left"></div>
-          </div>
-          <div class="hand">
-            <div class="hand-label">Δεξί</div>
-            <div class="fingers" id="add-hand-right"></div>
-          </div>
-        </div>
+        <div class="hands-wrap" id="add-hands-wrap"></div>
         <div class="finger-btns">
-          <button class="btn btn-secondary" onclick="resetFingers('add')">🔄 Μηδενισμός δαχτύλων</button>
+          <button class="btn btn-finger-add" onclick="addHandPair('add')">➕ +10 δάχτυλα</button>
+          <button class="btn btn-finger-remove" onclick="removeHandPair('add')">➖ −10</button>
+          <button class="btn btn-secondary" onclick="resetFingers('add')">🔄 Μηδενισμός</button>
         </div>
       </div>
     </div>
@@ -950,18 +962,11 @@
           <span style="font-size:0.85rem;font-weight:700;color:#312e81;">Μέτρα με τα δάχτυλα</span>
           <div class="finger-count" id="sub-finger-count">0</div>
         </div>
-        <div class="hands">
-          <div class="hand">
-            <div class="hand-label">Αριστερό</div>
-            <div class="fingers" id="sub-hand-left"></div>
-          </div>
-          <div class="hand">
-            <div class="hand-label">Δεξί</div>
-            <div class="fingers" id="sub-hand-right"></div>
-          </div>
-        </div>
+        <div class="hands-wrap" id="sub-hands-wrap"></div>
         <div class="finger-btns">
-          <button class="btn btn-secondary" onclick="resetFingers('sub')">🔄 Μηδενισμός δαχτύλων</button>
+          <button class="btn btn-finger-add" onclick="addHandPair('sub')">➕ +10 δάχτυλα</button>
+          <button class="btn btn-finger-remove" onclick="removeHandPair('sub')">➖ −10</button>
+          <button class="btn btn-secondary" onclick="resetFingers('sub')">🔄 Μηδενισμός</button>
         </div>
       </div>
     </div>
@@ -1936,51 +1941,101 @@
       }
     }
 
-    /* ========== FINGER HELPER ========== */
-    const fingerState = {
-      add: [false, false, false, false, false, false, false, false, false, false],
-      sub: [false, false, false, false, false, false, false, false, false, false]
+    /* ========== FINGER HELPER (expandable hands) ========== */
+    // pairs: how many pairs of hands (each pair = 10 fingers)
+    // raised: flat array of boolean, length = pairs * 10
+    const fingerData = {
+      add: { pairs: 1, raised: Array(10).fill(false) },
+      sub: { pairs: 1, raised: Array(10).fill(false) }
     };
 
     function buildFingers(prefix) {
-      const left = document.getElementById(prefix + '-hand-left');
-      const right = document.getElementById(prefix + '-hand-right');
-      if (!left || !right) return;
-      left.innerHTML = '';
-      right.innerHTML = '';
-      // Left hand: fingers 0-4 (pinky to thumb from left view - visual order)
-      for (let i = 0; i < 5; i++) {
-        const f = document.createElement('div');
-        f.className = 'finger' + (fingerState[prefix][i] ? ' up' : '');
-        f.dataset.idx = i;
-        f.addEventListener('click', () => toggleFinger(prefix, i));
-        left.appendChild(f);
-      }
-      // Right hand: fingers 5-9
-      for (let i = 5; i < 10; i++) {
-        const f = document.createElement('div');
-        f.className = 'finger' + (fingerState[prefix][i] ? ' up' : '');
-        f.dataset.idx = i;
-        f.addEventListener('click', () => toggleFinger(prefix, i));
-        right.appendChild(f);
+      const wrap = document.getElementById(prefix + '-hands-wrap');
+      if (!wrap) return;
+      const data = fingerData[prefix];
+      wrap.innerHTML = '';
+
+      for (let p = 0; p < data.pairs; p++) {
+        const row = document.createElement('div');
+        row.className = 'hands-row';
+
+        // Left hand of this pair
+        const leftHand = document.createElement('div');
+        leftHand.className = 'hand';
+        const leftLabel = document.createElement('div');
+        leftLabel.className = 'hand-label';
+        leftLabel.textContent = data.pairs > 1 ? `Ζεύγος ${p + 1} · Αρ.` : 'Αριστερό';
+        leftHand.appendChild(leftLabel);
+        const leftFingers = document.createElement('div');
+        leftFingers.className = 'fingers';
+        for (let i = 0; i < 5; i++) {
+          const idx = p * 10 + i;
+          const f = document.createElement('div');
+          f.className = 'finger' + (data.raised[idx] ? ' up' : '');
+          f.addEventListener('click', () => toggleFinger(prefix, idx));
+          leftFingers.appendChild(f);
+        }
+        leftHand.appendChild(leftFingers);
+        row.appendChild(leftHand);
+
+        // Right hand of this pair
+        const rightHand = document.createElement('div');
+        rightHand.className = 'hand';
+        const rightLabel = document.createElement('div');
+        rightLabel.className = 'hand-label';
+        rightLabel.textContent = data.pairs > 1 ? `Ζεύγος ${p + 1} · Δεξ.` : 'Δεξί';
+        rightHand.appendChild(rightLabel);
+        const rightFingers = document.createElement('div');
+        rightFingers.className = 'fingers';
+        for (let i = 5; i < 10; i++) {
+          const idx = p * 10 + i;
+          const f = document.createElement('div');
+          f.className = 'finger' + (data.raised[idx] ? ' up' : '');
+          f.addEventListener('click', () => toggleFinger(prefix, idx));
+          rightFingers.appendChild(f);
+        }
+        rightHand.appendChild(rightFingers);
+        row.appendChild(rightHand);
+
+        wrap.appendChild(row);
       }
       updateFingerCount(prefix);
     }
 
     function toggleFinger(prefix, idx) {
-      fingerState[prefix][idx] = !fingerState[prefix][idx];
+      const data = fingerData[prefix];
+      data.raised[idx] = !data.raised[idx];
       playClick();
       buildFingers(prefix);
     }
 
     function updateFingerCount(prefix) {
-      const count = fingerState[prefix].filter(Boolean).length;
+      const count = fingerData[prefix].raised.filter(Boolean).length;
       const el = document.getElementById(prefix + '-finger-count');
       if (el) el.textContent = count;
     }
 
+    function addHandPair(prefix) {
+      const data = fingerData[prefix];
+      if (data.pairs >= 5) return; // max 50 fingers
+      data.pairs += 1;
+      data.raised = data.raised.concat(Array(10).fill(false));
+      playClick();
+      buildFingers(prefix);
+    }
+
+    function removeHandPair(prefix) {
+      const data = fingerData[prefix];
+      if (data.pairs <= 1) return;
+      data.pairs -= 1;
+      data.raised = data.raised.slice(0, data.pairs * 10);
+      playClick();
+      buildFingers(prefix);
+    }
+
     function resetFingers(prefix) {
-      fingerState[prefix] = [false, false, false, false, false, false, false, false, false, false];
+      const data = fingerData[prefix];
+      data.raised = Array(data.pairs * 10).fill(false);
       playClick();
       buildFingers(prefix);
     }
