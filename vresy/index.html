@@ -3887,8 +3887,22 @@ function acceptAndStart() {
       return;
     }
   }
+
+  // Συντόμευση SOS (?sos=1)
+  if (new URLSearchParams(location.search).get('sos') === '1') {
+    const ready = Object.values(rooms).find(r => r.ready);
+    if (ready) {
+      active = ready.pin;
+      show('s-room');
+      switchRoom(ready.pin);
+      setTimeout(() => sos(), 600);
+      return;
+    }
+  }
+
   show('s-home');
 }
+
 
 
 
@@ -4208,64 +4222,21 @@ window.addEventListener('DOMContentLoaded', () => {
     renderHome();
     askNotif();
 
-    // Όροι χρήσης – υποχρεωτική αποδοχή στην πρώτη είσοδο
+    // Πάντα εμφάνιση αρχικής σελίδας (Splash) με Start + όρους
+    // Αν έχει ήδη αποδεχτεί στο παρελθόν, προ-τσεκάρουμε το κουτάκι (το Start ενεργοποιείται)
     const termsOk = LS('vresy-terms') === '1';
-    if (termsOk) {
-      const chk = $('chk-terms');
-      if (chk) chk.checked = true;
+    const chk = $('chk-terms');
+    if (termsOk && chk) {
+      chk.checked = true;
       toggleStartBtn();
-
-      const q = new URLSearchParams(location.search).get('room');
-      if (q) {
-        const pin = q.replace(/\D/g, '').slice(0, 4);
-        if (pin.length === 4) {
-          if (rooms[pin] && rooms[pin].ready) {
-            show('s-room');
-            switchRoom(pin);
-            if (!rooms[pin].admin) setTimeout(() => openChat(), 200);
-          } else {
-            openForm('join', pin);
-            const nameEl2 = $('f-name');
-            if (nameEl2 && !nameEl2.value && n) nameEl2.value = n;
-            toast('PIN ' + pin + ' έτοιμο – βάλε όνομα και πάτα Συνέχεια');
-          }
-        } else {
-          show('s-home');
-        }
-      } else if (!new URLSearchParams(location.search).get('sos')) {
-        show('s-home');
-      }
-    } else {
-      show('s-splash');
     }
-
+    show('s-splash');
 
     // PWA service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
-    // Συντόμευση SOS από Αρχική οθόνη (?sos=1) – μόνο αν έχουν γίνει αποδεκτοί οι όροι
-    if (new URLSearchParams(location.search).get('sos') === '1' && termsOk) {
-      const trySos = () => {
-        const ready = Object.values(rooms).find(r => r.ready);
-        if (ready) {
-          active = ready.pin;
-          show('s-room');
-          switchRoom(ready.pin);
-          setTimeout(() => sos(), 600);
-          return true;
-        }
-        return false;
-      };
-      if (!trySos()) {
-        let n = 0;
-        const iv = setInterval(() => {
-          n++;
-          if (trySos() || n > 20) clearInterval(iv);
-        }, 500);
-      }
-    }
 
     // Χτύπος καρδιάς στην splash / αρχική
     let hb = null;
