@@ -11,6 +11,18 @@
     <meta name="apple-mobile-web-app-title" content="Don't Touch">
     <meta name="format-detection" content="telephone=no">
     <title>Don't Touch</title>
+    <!-- Open Graph / Social sharing (Facebook, X, Messenger, Viber, etc.) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Don't Touch">
+    <meta property="og:description" content="Phones down. Last one to touch theirs wins! Multiplayer party game – don't move or touch your phone.">
+    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2764.png">
+    <meta property="og:image:alt" content="❤️">
+    <meta property="og:site_name" content="Don't Touch">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Don't Touch">
+    <meta name="twitter:description" content="Phones down. Last one to touch theirs wins! Multiplayer party game.">
+    <meta name="twitter:image" content="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2764.png">
+    <meta name="description" content="Don't Touch – phones down, last one to touch wins. Multiplayer party game for friends.">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
@@ -319,7 +331,7 @@
         <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl max-w-sm w-full mx-4 text-center transform scale-95 transition-transform duration-300" id="alert-box">
             <div class="text-5xl mb-4">⚠️</div>
             <p id="alert-message" class="text-lg font-semibold text-white mb-6"></p>
-            <button onclick="closeAlert()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-colors text-lg">OK</button>
+            <button onclick="closeAlert()" id="alert-ok-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-colors text-lg">OK</button>
         </div>
     </div>
 
@@ -614,17 +626,25 @@
         ];
 
         const SENS_LEVELS = [
-            { v: 'low',  label: 'Χαμηλή',  angle: 15, accel: 4 },
-            { v: 'med',  label: 'Μέτρια',  angle: 8,  accel: 2.5 },
-            { v: 'high', label: 'Υψηλή',   angle: 4,  accel: 1.5 }
+            { v: 'low',  label: { el: 'Χαμηλή', en: 'Low' },  angle: 15, accel: 4 },
+            { v: 'med',  label: { el: 'Μέτρια', en: 'Medium' },  angle: 8,  accel: 2.5 },
+            { v: 'high', label: { el: 'Υψηλή', en: 'High' },   angle: 4,  accel: 1.5 }
         ];
 
         const REASON_TEXT = {
-            touch: 'άγγιξες την οθόνη',
-            move:  'σήκωσες ή κούνησες το κινητό',
-            left:  'έφυγες από την οθόνη του παιχνιδιού',
-            lost:  'χάθηκε η σύνδεση'
+            touch: { el: 'άγγιξες την οθόνη', en: 'touched the screen' },
+            move:  { el: 'σήκωσες ή κούνησες το κινητό', en: 'lifted or moved the phone' },
+            left:  { el: 'έφυγες από την οθόνη του παιχνιδιού', en: 'left the game screen' },
+            lost:  { el: 'χάθηκε η σύνδεση', en: 'lost connection' }
         };
+        function reasonText(key) {
+            const r = REASON_TEXT[key];
+            if (!r) return lang === 'en' ? 'moved the phone' : 'κίνησες το κινητό';
+            return r[lang] || r.el;
+        }
+        function sensLabel(s) {
+            return (s.label && (s.label[lang] || s.label.el)) || s.v;
+        }
 
         // ================= State =================
         let peer = null, isHost = false, myName = '', myId = '', roomPin = '';
@@ -691,7 +711,7 @@
             const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
             return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0');
         }
-        function cleanName(n) { return String(n || '').trim().slice(0, 15) || 'Παίκτης'; }
+        function cleanName(n) { return String(n || '').trim().slice(0, 15) || (lang === 'en' ? 'Player' : 'Παίκτης'); }
         function uniqueName(name) {
             let n = name, i = 2;
             while (players.some(p => p.name.toLowerCase() === n.toLowerCase())) n = name.slice(0, 12) + ' ' + i++;
@@ -1213,7 +1233,7 @@
                 if (phase === 'setup') {
                     btn.textContent = t('create_room');
                     btn.disabled = false;
-                    showAlert('Σφάλμα σύνδεσης. Έλεγξε το internet και δοκίμασε ξανά.');
+                    showAlert(t('conn_error'));
                 }
             });
         }
@@ -1223,12 +1243,12 @@
 
             if (d.type === 'JOIN') {
                 if (phase !== 'lobby') {
-                    conn.send({ type: 'REJECT', reason: 'Το παιχνίδι έχει ήδη ξεκινήσει.' });
+                    conn.send({ type: 'REJECT', reason: t('game_started') });
                     setTimeout(() => conn.close(), 500);
                     return;
                 }
                 if (players.length >= MAX_PLAYERS) {
-                    conn.send({ type: 'REJECT', reason: 'Το δωμάτιο είναι γεμάτο.' });
+                    conn.send({ type: 'REJECT', reason: t('room_full') });
                     setTimeout(() => conn.close(), 500);
                     return;
                 }
@@ -1256,7 +1276,7 @@
                 p.missions = cleanMissions(d.missions);
                 if (phase === 'lobby') { broadcastPlayers(); renderLobby(); }
             } else if (d.type === 'LOST') {
-                eliminate(p.id, REASON_TEXT[d.reason] ? d.reason : 'move');
+                eliminate(p.id, REASON_TEXT[d.reason] ? d.reason : 'move'); // key only
             } else if (d.type === 'LOC') {
                 locations[d.id] = d;
                 if (phase === 'lobby' || $('map-overlay').classList.contains('open')) updateMapMarkers();
@@ -1312,11 +1332,11 @@
                 });
                 hostConn.on('close', hostGone);
                 hostConn.on('error', hostGone);
-                setTimeout(() => { if (!joined && phase === 'setup') fail('Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN.'); }, 12000);
+                setTimeout(() => { if (!joined && phase === 'setup') fail(t('room_not_found')); }, 12000);
             });
             peer.on('error', (err) => {
                 console.error(err);
-                if (phase === 'setup') fail('Το δωμάτιο δεν βρέθηκε. Έλεγξε το PIN.');
+                if (phase === 'setup') fail(t('room_not_found'));
             });
         }
 
@@ -1324,7 +1344,7 @@
         function hostGone() {
             if (hostGoneShown || phase === 'setup') return;
             hostGoneShown = true;
-            showAlert('Ο host αποσυνδέθηκε. Επιστροφή στην αρχή.', () => location.reload());
+            showAlert(t('host_left'), () => location.reload());
         }
 
         function onHostMessage(m) {
@@ -1338,7 +1358,7 @@
                     enterLobby();
                     break;
                 case 'REJECT':
-                    showAlert(m.reason || 'Δεν ήταν δυνατή η είσοδος.', () => location.reload());
+                    showAlert(m.reason || t('rejected'), () => location.reload());
                     break;
                 case 'PLAYERS':
                     players = m.players;
@@ -1394,7 +1414,7 @@
             Sfx.helpAlert();
             safeVibrate([300, 100, 300, 100, 300]);
             flashScreen('red', 1);
-            toast('🆘 Σήμα βοήθειας στάλθηκε!');
+            toast(t('help_sent'));
         }
 
         function handleHelpReceived(m) {
@@ -1402,8 +1422,8 @@
             Sfx.helpAlert();
             safeVibrate([200, 80, 200]);
             flashScreen('red', 0.9);
-            let txt = `🆘 ${m.name} χρειάζεται βοήθεια!`;
-            if (m.lat != null) txt += ' (έχει θέση στον χάρτη)';
+            let txt = `🆘 ${m.name}${t('help_needed')}`;
+            if (m.lat != null) txt += lang === 'en' ? ' (has location on map)' : ' (έχει θέση στον χάρτη)';
             toast(txt, 10000);
             // If map open or parent, center on them
             if (m.lat != null && map && $('map-overlay').classList.contains('open')) {
@@ -1456,8 +1476,8 @@
                 const color = getPlayerColor(p.id);
                 left.innerHTML = `<span class="player-dot" style="background:${color}"></span>`;
                 left.appendChild(mk('span', 'font-bold text-white text-base truncate', p.name));
-                if (p.id === 'host' || p.id === myId && isHost) left.appendChild(mk('span', 'text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded', 'HOST'));
-                if (p.id === myId) left.appendChild(mk('span', 'text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded', 'ΕΣΥ'));
+                if (p.id === 'host' || (p.id === myId && isHost)) left.appendChild(mk('span', 'text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded', t('host')));
+                if (p.id === myId) left.appendChild(mk('span', 'text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded', t('you')));
                 if (p.role === 'parent') left.appendChild(mk('span', 'text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded', 'ΓΟΝΕΑΣ'));
                 const mc = isHost ? (p.missions ? p.missions.length : 0) : (p.mc || 0);
                 const right = mk('div', 'flex items-center gap-2 text-sm flex-shrink-0');
@@ -1471,9 +1491,10 @@
 
         function buildChips() {
             const sw = $('opt-sens');
-            if (sw.children.length) return;
+            // Rebuild on every call so language switch updates labels
+            sw.innerHTML = '';
             SENS_LEVELS.forEach(s => {
-                const b = mk('button', 'chip', s.label);
+                const b = mk('button', 'chip', sensLabel(s));
                 b.dataset.v = s.v;
                 b.onclick = () => { if (!isHost) return; settings.sens = s.v; pushSettings(); };
                 sw.appendChild(b);
@@ -1502,12 +1523,12 @@
                     const v = pick.value;
                     if (!v) return;
                     if (myMissions.length >= 2) {
-                        showAlert('Μπορείς να προσθέσεις έως 2 αποστολές.');
+                        showAlert(t('max_missions'));
                         pick.value = '';
                         return;
                     }
                     if (myMissions.includes(v)) {
-                        showAlert('Έχεις ήδη προσθέσει αυτή την αποστολή.');
+                        showAlert(t('already_mission'));
                         pick.value = '';
                         return;
                     }
@@ -1536,7 +1557,7 @@
             $('opt-defaults').checked = !!settings.defaults;
             $('opt-defaults').disabled = !isHost;
             $('opt-sens').classList.toggle('locked', !isHost);
-            $('settings-note').textContent = isHost ? '' : '(ορίζονται από τον host)';
+            $('settings-note').textContent = isHost ? '' : t('settings_by_host');
         }
 
         function syncMissions() {
@@ -1565,7 +1586,7 @@
             const input = $('mission-input');
             const text = input.value.trim().slice(0, 80);
             if (!text) return;
-            if (myMissions.length >= 2) return showAlert('Μπορείς να προσθέσεις έως 2 αποστολές.');
+            if (myMissions.length >= 2) return showAlert(t('max_missions'));
             myMissions.push(text);
             input.value = '';
             renderMyMissions();
@@ -1577,18 +1598,16 @@
 
         function updateSensorStatus() {
             const status = $('sensor-status'), btn = $('btn-request-sensors');
-            const el = lang === 'el';
-            $('wake-status').textContent = wakeLock
-                ? (el ? '✅ Η οθόνη θα μείνει ανοιχτή' : '✅ Screen will stay on during the game')
-                : (el ? '⚠️ ΣΗΜΑΝΤΙΚΟ: βάλε Αυτόματο Κλείδωμα → Ποτέ στις ρυθμίσεις. Αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.' : '⚠️ IMPORTANT: set Auto-Lock to Never in phone Settings. If the screen turns off, motion sensors pause.');
+            $('wake-status').textContent = wakeLock ? t('wake_ok') : t('wake_warn');
             if (sensorsOk) {
-                status.textContent = el ? '✅ Αισθητήρες κίνησης έτοιμοι' : '✅ Motion sensors ready';
+                status.textContent = t('sensors_ready');
                 btn.classList.add('hidden');
             } else if (needsPermission) {
-                status.textContent = el ? '⚠️ Οι αισθητήρες είναι απενεργοποιημένοι. Πάτα παρακάτω.' : '⚠️ Motion sensors are off. Tap below to enable them.';
+                status.textContent = t('sensors_off');
                 btn.classList.remove('hidden');
+                btn.textContent = t('enable_sensors');
             } else {
-                status.textContent = el ? '⚠️ Δεν εντοπίστηκαν αισθητήρες. Θα πιάνεται μόνο άγγιγμα και έξοδος από την εφαρμογή.' : '⚠️ No motion sensors detected. Only touch and leaving the app will be caught.';
+                status.textContent = t('sensors_none');
                 btn.classList.add('hidden');
             }
         }
@@ -1769,7 +1788,7 @@
             const notReady = players.filter(p => !p.sensors).map(p => p.name);
             if (notReady.length && !forceStart) {
                 forceStart = true;
-                return showAlert('Οι αισθητήρες δεν είναι ενεργοί για: ' + notReady.join(', ') + '. Αυτοί θα πιάνουνται μόνο με άγγιγμα ή έξοδο. Πάτα Ξεκίνα ξανά για να συνεχίσεις.');
+                return showAlert(t('sensors_not_ready') + notReady.join(', ') + t('sensors_not_ready2'));
             }
             forceStart = false;
 
@@ -1792,7 +1811,7 @@
             const payload = {
                 type: 'STATE', state: 'countdown',
                 sens: settings.sens,
-                info: mystery ? 'Μυστικός γύρος 🎲' : 'Διάρκεια: ' + fmt(durationSec)
+                info: mystery ? t('mystery_round') : t('duration_label') + fmt(durationSec)
             };
             broadcast(payload);
             handleState('countdown', payload);
@@ -1846,7 +1865,7 @@
             curCfg = getCfg(m.sens);
             lastTickAt = Date.now();
             $('run-timer').textContent = '--:--';
-            $('run-label').textContent = m.mystery ? 'μυστικός γύρος · πέρασαν' : 'απομένουν';
+            $('run-label').textContent = m.mystery ? t('mystery_elapsed') : t('remaining');
             $('run-alive').textContent = '';
             showScreen('screen-running');
             acquireWake();
@@ -1877,8 +1896,8 @@
             lastTickAt = Date.now();
             const main = m.mystery ? fmt(m.el) : fmt(m.rem);
             $('run-timer').textContent = main;
-            $('out-timer').textContent = main + (m.mystery ? ' πέρασαν' : '');
-            $('run-alive').textContent = m.alive.length + (m.alive.length === 1 ? ' παίκτης' : ' παίκτες') + ' ακόμα μέσα';
+            $('out-timer').textContent = main + (m.mystery ? (lang === 'en' ? ' elapsed' : ' πέρασαν') : '');
+            $('run-alive').textContent = m.alive.length + (m.alive.length === 1 ? t('player_singular') : t('player_plural'));
             $('out-alive').textContent = m.alive.length ? m.alive.join(', ') : '-';
 
             if ((phase === 'running' || phase === 'out') && !m.mystery && m.rem != null && m.rem >= 1 && m.rem <= 10) {
@@ -1938,14 +1957,14 @@
                 showOut(m.reason, m.mission);
                 ownOutEffects();
             } else if (phase === 'running' || phase === 'out') {
-                toast('💥 ' + m.name + ' βγήκε! Αποστολή: ' + m.mission);
+                toast('💥 ' + m.name + (lang === 'en' ? ' is out! Mission: ' : ' βγήκε! Αποστολή: ') + m.mission);
                 Sfx.blip();
             }
         }
 
         function showOut(reason, mission) {
             phase = 'out';
-            $('out-reason').textContent = 'Εσύ ' + (REASON_TEXT[reason] || 'κίνησες το κινητό') + '.';
+            $('out-reason').textContent = (lang === 'en' ? 'You ' : 'Εσύ ') + reasonText(reason) + '.';
             if (mission) $('out-mission').textContent = mission;
             showScreen('screen-out');
         }
@@ -1978,19 +1997,19 @@
             if (won) {
                 ownWinEffects();
                 $('result-icon').textContent = '🏆';
-                $('result-title').textContent = lang === 'en' ? 'YOU WON!' : 'ΚΕΡΔΙΣΕΣ!';
+                $('result-title').textContent = t('you_won');
                 $('result-deco').className = 'absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-emerald-500 to-teal-400';
             } else {
                 Sfx.endChime();
                 $('result-icon').textContent = '😭';
-                $('result-title').textContent = 'ΒΓΗΚΕΣ ΕΞΩ!';
+                $('result-title').textContent = t('you_out');
                 $('result-deco').className = 'absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-red-600 to-orange-500';
             }
 
             const winners = m.ranking.filter(r => r.survived).map(r => r.name);
-            const winnerLine = winners.length ? (winners.length === 1 ? winners[0] + ' κερδίζει' : winners.join(', ') + ' κερδίζουν') : 'Κανείς δεν άντεξε';
-            $('result-sub').textContent = winnerLine + ' · ' + (m.timeUp ? 'τέλος χρόνου' : 'τελευταίος που έμεινε') +
-                ' · ' + (m.mystery ? 'ο μυστικός γύρος κράτησε ' : 'γύρος: ') + fmt(m.elapsed);
+            const winnerLine = winners.length ? (winners.length === 1 ? winners[0] + t('won_line') : winners.join(', ') + t('win_line_pl')) : t('nobody');
+            $('result-sub').textContent = winnerLine + ' · ' + (m.timeUp ? t('time_up') : t('last_standing')) +
+                ' · ' + (m.mystery ? t('mystery_lasted') : t('round')) + fmt(m.elapsed);
 
             const list = $('result-list');
             list.innerHTML = '';
@@ -1998,10 +2017,10 @@
                 const li = mk('li', 'rounded-xl p-3 border ' + (r.id === myId ? 'bg-indigo-500/10 border-indigo-400/50' : 'bg-slate-900 border-slate-700/50'));
                 const row = mk('div', 'flex items-center justify-between gap-2');
                 row.appendChild(mk('span', 'font-bold text-white truncate', (r.survived ? '🏆 ' : (i + 1) + '. ') + r.name));
-                row.appendChild(mk('span', 'font-mono text-sm ' + (r.survived ? 'text-emerald-400' : 'text-slate-400'), (r.survived ? 'άντεξε ' : 'βγήκε στα ') + fmt(r.sec)));
+                row.appendChild(mk('span', 'font-mono text-sm ' + (r.survived ? 'text-emerald-400' : 'text-slate-400'), (r.survived ? t('survived') : t('out_at')) + fmt(r.sec)));
                 li.appendChild(row);
                 if (!r.survived) {
-                    li.appendChild(mk('p', 'text-xs text-slate-500 mt-1', r.name + ' ' + (REASON_TEXT[r.reason] || '') + '.'));
+                    li.appendChild(mk('p', 'text-xs text-slate-500 mt-1', r.name + ' ' + reasonText(r.reason) + '.'));
                     li.appendChild(mk('p', 'text-sm font-semibold text-amber-400 mt-1', '🎯 ' + r.mission));
                 }
                 list.appendChild(li);
@@ -2010,7 +2029,7 @@
             // Stats
             const stats = $('result-stats');
             stats.innerHTML = '';
-            if (m.helpCount) stats.appendChild(mk('p', '', `🆘 Σήματα βοήθειας σε αυτόν τον γύρο: ${m.helpCount}`));
+            if (m.helpCount) stats.appendChild(mk('p', '', (lang === 'en' ? '🆘 Help signals this round: ' : '🆘 Σήματα βοήθειας σε αυτόν τον γύρο: ') + m.helpCount));
             showScreen('screen-result');
         }
 
@@ -2045,7 +2064,7 @@
             clearInterval(tickTimer);
             clearInterval(guestWatch);
             clearInterval(countdownTimer);
-            $('out-mission').textContent = 'Τραβάμε αποστολή…';
+            $('out-mission').textContent = t('drawing_mission');
             setDanger(false);
             renderLobby();
             renderSettings();
@@ -2156,11 +2175,6 @@
                 label_name: 'Το όνομά σου',
                 name_ph: 'π.χ. Μαρία',
                 label_lang: 'Γλώσσα / Language',
-                label_role: 'Ρόλος',
-                role_player: '🎮 Παίκτης',
-                role_parent: '👨‍👩‍👧 Γονέας',
-                role_note_player: 'Κανονικός παίκτης – συμμετέχει στο παιχνίδι.',
-                role_note_parent: 'Ο Γονέας παρακολουθεί, δεν παίζει και λαμβάνει προτεραιότητα στις ειδοποιήσεις.',
                 create_room: 'Δημιουργία Δωματίου',
                 or_join: 'Ή μπες',
                 join: 'Μπες',
@@ -2170,17 +2184,84 @@
                 alert_name: 'Βάλε το όνομά σου!',
                 alert_pin: 'Βάλε έγκυρο 4ψήφιο PIN!',
                 love_label: 'Στηρίξτε την προσπάθειά μας πατώντας την καρδιά',
-                torch_btn: '🔦 Ενεργοποίηση φλας κάμερας (για εφέ νίκης/ήττας)'
+                torch_btn: '🔦 Ενεργοποίηση φλας κάμερας (για εφέ νίκης/ήττας)',
+                press_start: 'Πάτα Start',
+                sound_on: '🔊 Ήχος ανοιχτός',
+                room_code: 'Κωδικός δωματίου',
+                copy_link: '🔗 Αντιγραφή συνδέσμου',
+                players: 'Παίκτες',
+                settings: 'Ρυθμίσεις παιχνιδιού',
+                duration: 'Διάρκεια γύρου',
+                mystery: '🎲 Μυστική διάρκεια (τυχαία 10–60 λεπτά)',
+                sensitivity: 'Ευαισθησία',
+                sens_hint: 'Χαμηλή συγχωρεί μικρές κινήσεις. Υψηλή πιάνει και το παραμικρό.',
+                defaults: 'Συμπερίληψη έτοιμων αποστολών',
+                my_missions: 'Οι αποστολές σου',
+                my_missions_hint: 'Πρόσθεσε έως 2 αποστολές για όσους χάσουν. Οι δικές σου έχουν προτεραιότητα.',
+                mission_ph: 'Γράψε δικιά σου…',
+                add: 'Προσθήκη',
+                pick_mission: '— Ή διάλεξε έτοιμη —',
+                start_game: '🚀 Ξεκίνα το παιχνίδι!',
+                waiting_host: 'Περιμένουμε τον host να ξεκινήσει…',
+                phones_down: 'Κινητά κάτω, οθόνη πάνω!',
+                dont_touch: 'Μην το αγγίξεις!',
+                hands_off: 'ΧΕΡΙΑ ΜΑΚΡΙΑ',
+                remaining: 'απομένουν',
+                mystery_elapsed: 'μυστικός γύρος · πέρασαν',
+                you_out: 'ΒΓΗΚΕΣ ΕΞΩ!',
+                your_mission: 'Η αποστολή σου',
+                drawing_mission: 'Τραβάμε αποστολή…',
+                game_continues: 'Το παιχνίδι συνεχίζεται',
+                still_in: 'Ακόμα μέσα',
+                you_won: 'ΚΕΡΔΙΣΕΣ!',
+                play_again: 'Παίξε ξανά',
+                waiting_new_round: 'Περιμένουμε τον host για νέο γύρο…',
+                read_howto: '📖 Πώς παίζεται — πάτα για να διαβάσεις',
+                howto_foot: '⚠️ Κράτα την οθόνη ανοιχτή: Αυτόματο Κλείδωμα → Ποτέ. Καλύτερα με κινητά επίπεδα σε σταθερή επιφάνεια.',
+                sensors_ready: '✅ Αισθητήρες κίνησης έτοιμοι',
+                sensors_off: '⚠️ Οι αισθητήρες είναι απενεργοποιημένοι. Πάτα παρακάτω.',
+                sensors_none: '⚠️ Δεν εντοπίστηκαν αισθητήρες. Θα πιάνεται μόνο άγγιγμα και έξοδος από την εφαρμογή.',
+                wake_ok: '✅ Η οθόνη θα μείνει ανοιχτή',
+                wake_warn: '⚠️ ΣΗΜΑΝΤΙΚΟ: βάλε Αυτόματο Κλείδωμα → Ποτέ στις ρυθμίσεις. Αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.',
+                enable_sensors: '📱 Ενεργοποίηση αισθητήρων κίνησης',
+                settings_by_host: '(ορίζονται από τον host)',
+                host: 'HOST',
+                you: 'ΕΣΥ',
+                copied: '✅ Αντιγράφηκε!',
+                max_missions: 'Μπορείς να προσθέσεις έως 2 αποστολές.',
+                already_mission: 'Έχεις ήδη προσθέσει αυτή την αποστολή.',
+                sensors_not_ready: 'Οι αισθητήρες δεν είναι ενεργοί για: ',
+                sensors_not_ready2: '. Αυτοί θα πιάνουνται μόνο με άγγιγμα ή έξοδο. Πάτα Ξεκίνα ξανά για να συνεχίσεις.',
+                mystery_round: 'Μυστικός γύρος 🎲',
+                duration_label: 'Διάρκεια: ',
+                player_singular: ' παίκτης ακόμα μέσα',
+                player_plural: ' παίκτες ακόμα μέσα',
+                won_line: ' κερδίζει',
+                win_line_pl: ' κερδίζουν',
+                nobody: 'Κανείς δεν άντεξε',
+                time_up: 'τέλος χρόνου',
+                last_standing: 'τελευταίος που έμεινε',
+                mystery_lasted: 'ο μυστικός γύρος κράτησε ',
+                round: 'γύρος: ',
+                survived: 'άντεξε ',
+                out_at: 'βγήκε στα ',
+                help_sent: '🆘 Σήμα βοήθειας στάλθηκε!',
+                help_needed: ' χρειάζεται βοήθεια!',
+                conn_error: 'Σφάλμα σύνδεσης. Έλεγξε το internet και δοκίμασε ξανά.',
+                room_not_found: 'Δεν βρέθηκε το δωμάτιο. Έλεγξε το PIN.',
+                host_left: 'Ο host αποσυνδέθηκε. Επιστροφή στην αρχή.',
+                rejected: 'Δεν ήταν δυνατή η είσοδος.',
+                room_full: 'Το δωμάτιο είναι γεμάτο.',
+                game_started: 'Το παιχνίδι έχει ήδη ξεκινήσει.',
+                link_fail: 'Δεν αντιγράφηκε ο σύνδεσμος. Μοιράσου το PIN: ',
+                creating: 'Δημιουργία...',
+                joining: '...',
+                ok: 'OK'
             },
             en: {
                 label_name: 'Your name',
                 name_ph: 'e.g. Maria',
                 label_lang: 'Language / Γλώσσα',
-                label_role: 'Role',
-                role_player: '🎮 Player',
-                role_parent: '👨‍👩‍👧 Parent',
-                role_note_player: 'Regular player – takes part in the game.',
-                role_note_parent: 'Parent watches, does not play, and gets priority on alerts.',
                 create_room: 'Create Room',
                 or_join: 'Or join',
                 join: 'Join',
@@ -2190,7 +2271,79 @@
                 alert_name: 'Please enter your name!',
                 alert_pin: 'Enter a valid 4-digit PIN!',
                 love_label: 'Support our effort by pressing the heart',
-                torch_btn: '🔦 Enable camera flash (for win/lose effects)'
+                torch_btn: '🔦 Enable camera flash (for win/lose effects)',
+                press_start: 'Press Start',
+                sound_on: '🔊 Sound on',
+                room_code: 'Room code',
+                copy_link: '🔗 Copy link',
+                players: 'Players',
+                settings: 'Game settings',
+                duration: 'Round length',
+                mystery: '🎲 Mystery length (random 10–60 min)',
+                sensitivity: 'Sensitivity',
+                sens_hint: 'Low forgives small movements. High catches the slightest tilt.',
+                defaults: 'Include built-in missions',
+                my_missions: 'Your missions',
+                my_missions_hint: 'Add up to 2 missions for those who lose. Yours are drawn first.',
+                mission_ph: 'Write your own…',
+                add: 'Add',
+                pick_mission: '— Or pick a ready one —',
+                start_game: '🚀 Start the game!',
+                waiting_host: 'Waiting for the host to start…',
+                phones_down: 'Phones down, screen up!',
+                dont_touch: "Don't touch it!",
+                hands_off: 'HANDS OFF',
+                remaining: 'remaining',
+                mystery_elapsed: 'mystery round · elapsed',
+                you_out: "YOU'RE OUT!",
+                your_mission: 'Your mission',
+                drawing_mission: 'Drawing a mission…',
+                game_continues: 'The game continues',
+                still_in: 'Still in',
+                you_won: 'YOU WON!',
+                play_again: 'Play again',
+                waiting_new_round: 'Waiting for the host for a new round…',
+                read_howto: '📖 How to play — tap to read',
+                howto_foot: '⚠️ Keep the screen on: set Auto-Lock to Never. Phones flat on a stable surface work best.',
+                sensors_ready: '✅ Motion sensors ready',
+                sensors_off: '⚠️ Motion sensors are off. Tap below to enable them.',
+                sensors_none: '⚠️ No motion sensors detected. Only touch and leaving the app will be caught.',
+                wake_ok: '✅ Screen will stay on during the game',
+                wake_warn: '⚠️ IMPORTANT: set Auto-Lock to Never in phone Settings. If the screen turns off, motion sensors pause.',
+                enable_sensors: '📱 Enable motion sensors',
+                settings_by_host: '(set by the host)',
+                host: 'HOST',
+                you: 'YOU',
+                copied: '✅ Copied!',
+                max_missions: 'You can add up to 2 missions.',
+                already_mission: 'You already added this mission.',
+                sensors_not_ready: 'Sensors are not active for: ',
+                sensors_not_ready2: '. They will only be caught by touch or leaving the app. Press Start again to continue.',
+                mystery_round: 'Mystery round 🎲',
+                duration_label: 'Duration: ',
+                player_singular: ' player still in',
+                player_plural: ' players still in',
+                won_line: ' wins',
+                win_line_pl: ' win',
+                nobody: 'Nobody lasted',
+                time_up: 'time up',
+                last_standing: 'last one standing',
+                mystery_lasted: 'the mystery round lasted ',
+                round: 'round: ',
+                survived: 'lasted ',
+                out_at: 'out at ',
+                help_sent: '🆘 Help signal sent!',
+                help_needed: ' needs help!',
+                conn_error: 'Connection error. Check your internet and try again.',
+                room_not_found: 'Room not found. Check the PIN.',
+                host_left: 'The host disconnected. Returning to start.',
+                rejected: 'Could not join.',
+                room_full: 'The room is full.',
+                game_started: 'The game has already started.',
+                link_fail: 'Could not copy the link. Share the PIN: ',
+                creating: 'Creating...',
+                joining: '...',
+                ok: 'OK'
             }
         };
 
@@ -2203,6 +2356,7 @@
             try { localStorage.setItem('dtm-lang', lang); } catch (e) {}
             $('lang-el').classList.toggle('sel', lang === 'el');
             $('lang-en').classList.toggle('sel', lang === 'en');
+            // Setup
             const ln = $('label-name'); if (ln) ln.textContent = t('label_name');
             const ll = $('label-lang'); if (ll) ll.textContent = t('label_lang');
             const inp = $('input-name'); if (inp) inp.placeholder = t('name_ph');
@@ -2211,9 +2365,57 @@
             const torchBtn = $('btn-request-torch'); if (torchBtn) torchBtn.textContent = t('torch_btn');
             const bc = $('btn-create-room'); if (bc && !bc.disabled) bc.textContent = t('create_room');
             const bj = $('btn-join-room'); if (bj && !bj.disabled) bj.textContent = t('join');
-            // How to play list
-            const howtoTitle = document.querySelector('#howto-box h2');
-            if (howtoTitle) howtoTitle.textContent = t('howto_title');
+            const orJoin = document.querySelector('#screen-setup .flex-shrink-0.mx-4'); if (orJoin) orJoin.textContent = t('or_join');
+            // Intro gate
+            const gateLabel = document.querySelector('#intro-gate .gate-label'); if (gateLabel) gateLabel.textContent = t('press_start');
+            const gateSound = document.querySelector('#intro-gate .gate-sound'); if (gateSound) gateSound.textContent = t('sound_on');
+            // Lobby static
+            const roomCode = document.querySelector('#screen-lobby .text-slate-400.text-sm.font-bold'); if (roomCode) roomCode.textContent = t('room_code');
+            const copyBtn = $('btn-copy-link'); if (copyBtn) copyBtn.textContent = t('copy_link');
+            const playersH = document.querySelector('#players-list')?.previousElementSibling?.querySelector('span'); // fragile, better ids later
+            // Better: update by known text patterns or add ids. For now key ones:
+            const playersTitle = document.querySelector('#screen-lobby h3 span'); if (playersTitle && playersTitle.textContent.includes('αίκτες') || playersTitle?.textContent.includes('Players')) playersTitle.textContent = t('players');
+            const settingsH = document.querySelector('#screen-lobby h3'); // will fix below with more precise
+            // Use more robust selectors or direct
+            const allH3 = document.querySelectorAll('#screen-lobby h3');
+            if (allH3[0]) { const sp = allH3[0].querySelector('span'); if (sp) sp.textContent = t('players'); }
+            if (allH3[1]) allH3[1].childNodes[0].textContent = t('settings') + ' ';
+            const durP = document.querySelector('#opt-duration')?.previousElementSibling; if (durP) durP.textContent = t('duration');
+            const sensP = document.querySelector('#opt-sens')?.previousElementSibling; if (sensP) sensP.textContent = t('sensitivity');
+            const sensHint = document.querySelector('#opt-sens')?.nextElementSibling; if (sensHint) sensHint.textContent = t('sens_hint');
+            const mysteryLab = document.querySelector('label[for="opt-mystery"], #opt-mystery')?.parentElement?.querySelector('span'); 
+            // Mystery and defaults labels
+            document.querySelectorAll('#screen-lobby label span').forEach(sp => {
+                if (sp.textContent.includes('Μυστική') || sp.textContent.includes('Mystery')) sp.innerHTML = t('mystery');
+                if (sp.textContent.includes('έτοιμων') || sp.textContent.includes('built-in') || sp.textContent.includes('Συμπερίληψη')) sp.textContent = t('defaults');
+            });
+            const myM = document.querySelector('#my-missions')?.previousElementSibling?.previousElementSibling; // h3
+            const h3s = document.querySelectorAll('#screen-lobby .bg-slate-800 h3');
+            if (h3s[2]) h3s[2].textContent = t('my_missions');
+            const mHint = document.querySelector('#mission-input')?.parentElement?.previousElementSibling; if (mHint) mHint.textContent = t('my_missions_hint');
+            const mInput = $('mission-input'); if (mInput) mInput.placeholder = t('mission_ph');
+            const addBtn = $('btn-add-mission'); if (addBtn) addBtn.textContent = t('add');
+            const pick = $('mission-pick'); if (pick && pick.options[0]) pick.options[0].textContent = t('pick_mission');
+            const startBtn = $('btn-start-game'); if (startBtn) startBtn.textContent = t('start_game');
+            const waitT = $('guest-waiting-text'); if (waitT) waitT.textContent = t('waiting_host');
+            // Countdown
+            const cdH1 = document.querySelector('#screen-countdown h1'); if (cdH1) cdH1.textContent = t('phones_down');
+            const cdDont = document.querySelector('#screen-countdown .mt-8'); if (cdDont) cdDont.textContent = t('dont_touch');
+            // Running
+            const runH1 = document.querySelector('#screen-running h1'); if (runH1) runH1.textContent = t('hands_off');
+            const runLab = $('run-label'); if (runLab) runLab.textContent = t('remaining');
+            // Out
+            const outH2 = document.querySelector('#screen-out h2'); if (outH2) outH2.textContent = t('you_out');
+            const outMisLab = document.querySelector('#out-mission')?.previousElementSibling; if (outMisLab) outMisLab.textContent = t('your_mission');
+            const outMis = $('out-mission'); if (outMis && (outMis.textContent.includes('Τραβάμε') || outMis.textContent.includes('Drawing'))) outMis.textContent = t('drawing_mission');
+            const outCont = document.querySelector('#screen-out .text-slate-400.text-xs.font-bold.uppercase'); // first after mission
+            // Result
+            const playAgain = $('btn-play-again'); if (playAgain) playAgain.textContent = t('play_again');
+            const guestRes = $('guest-result-text'); if (guestRes) guestRes.textContent = t('waiting_new_round');
+            // Howto
+            const howtoTitle = document.querySelector('#howto-box h2'); if (howtoTitle) howtoTitle.textContent = t('howto_title');
+            const tip = $('read-howto-tip'); if (tip) tip.textContent = t('read_howto');
+            const foot = $('howto-foot'); if (foot) foot.textContent = t('howto_foot');
             const list = $('howto-list');
             if (list) {
                 if (lang === 'en') {
@@ -2228,8 +2430,6 @@
                     <li><span class="text-indigo-400 font-bold">8.</span> Touch, move or leave the app → you're out, get a mission, red flash, vibration and lose sound.</li>
                     <li><span class="text-indigo-400 font-bold">9.</span> Last one standing (or everyone who lasts until time is up) wins — green flash, fireworks, vibration and a happy sound!</li>
                     <li><span class="text-indigo-400 font-bold">10.</span> <strong class="text-white">Do not turn the screen off.</strong> Set Auto-Lock to Never, or motion detection will pause when the screen sleeps.</li>`;
-                    const tip = $('read-howto-tip'); if (tip) tip.textContent = '📖 How to play — tap to read';
-                    const foot = $('howto-foot'); if (foot) foot.textContent = '⚠️ Keep the screen on: set Auto-Lock to Never. Phones flat on a stable surface work best.';
                 } else {
                     list.innerHTML = `
                     <li><span class="text-indigo-400 font-bold">1.</span> Δημιούργησε δωμάτιο ή μπες με 4ψήφιο PIN και μοιράσου τον κωδικό.</li>
@@ -2242,15 +2442,13 @@
                     <li><span class="text-indigo-400 font-bold">8.</span> Αν αγγίξεις, κουνήσεις ή φύγεις από την εφαρμογή → βγαίνεις, παίρνεις αποστολή, κόκκινο flash, δόνηση και ήχος ήττας.</li>
                     <li><span class="text-indigo-400 font-bold">9.</span> Ο τελευταίος που μένει (ή όσοι αντέξουν μέχρι το τέλος) κερδίζει — πράσινο flash, πυροτεχνήματα, δόνηση και χαρούμενος ήχος!</li>
                     <li><span class="text-indigo-400 font-bold">10.</span> <strong class="text-white">Μην απενεργοποιείς την οθόνη.</strong> Βάλε Αυτόματο Κλείδωμα σε «Ποτέ», αλλιώς όταν κλείσει η οθόνη σταματάνε οι αισθητήρες.</li>`;
-                    const tip = $('read-howto-tip'); if (tip) tip.textContent = '📖 Πώς παίζεται — πάτα για να διαβάσεις';
-                    const foot = $('howto-foot'); if (foot) foot.textContent = '⚠️ Κράτα την οθόνη ανοιχτή: Αυτόματο Κλείδωμα → Ποτέ. Καλύτερα με κινητά επίπεδα σε σταθερή επιφάνεια.';
                 }
             }
             // Rebuild mission pick list in current language
-            const pick = $('mission-pick');
             if (pick) {
                 const keepFirst = pick.options[0] ? pick.options[0].outerHTML : '<option value="">—</option>';
                 pick.innerHTML = keepFirst;
+                if (pick.options[0]) pick.options[0].textContent = t('pick_mission');
                 DEFAULT_MISSIONS.forEach(m => {
                     const o = document.createElement('option');
                     const text = missionText(m);
@@ -2259,6 +2457,22 @@
                     pick.appendChild(o);
                 });
             }
+            // Rebuild sens chips for language
+            if ($('opt-sens')) buildChips();
+            // Duration options
+            const durSel = $('opt-duration');
+            if (durSel) {
+                const opts = lang === 'en'
+                    ? ['1 min (test)', '15 minutes', '20 minutes', '30 minutes', '45 minutes', '1 hour']
+                    : ['1 λεπτό (δοκιμή)', '15 λεπτά', '20 λεπτά', '30 λεπτά', '45 λεπτά', '1 ώρα'];
+                const vals = ['60','900','1200','1800','2700','3600'];
+                for (let i = 0; i < durSel.options.length && i < opts.length; i++) {
+                    durSel.options[i].textContent = opts[i];
+                }
+            }
+            renderSettings();
+            updateSensorStatus();
+            const alertOk = $('alert-ok-btn'); if (alertOk) alertOk.textContent = t('ok');
         }
 
                 $('btn-toggle-howto').addEventListener('click', () => {
@@ -2278,11 +2492,11 @@
         // ================= Setup wiring =================
         $('btn-create-room').addEventListener('click', () => {
             const name = $('input-name').value.trim();
-            if (!name) return showAlert('Βάλε το όνομά σου!');
+            if (!name) return showAlert(t('alert_name'));
             myName = cleanName(name);
             isHost = true;
             const btn = $('btn-create-room');
-            btn.textContent = 'Δημιουργία...';
+            btn.textContent = t('creating');
             btn.disabled = true;
             createRoom(0);
         });
@@ -2290,12 +2504,12 @@
         $('btn-join-room').addEventListener('click', () => {
             const name = $('input-name').value.trim();
             roomPin = $('input-pin').value.trim();
-            if (!name) return showAlert('Βάλε το όνομά σου!');
-            if (!/^\d{4}$/.test(roomPin)) return showAlert('Βάλε έγκυρο 4ψήφιο PIN!');
+            if (!name) return showAlert(t('alert_name'));
+            if (!/^\d{4}$/.test(roomPin)) return showAlert(t('alert_pin'));
             myName = cleanName(name);
             isHost = false;
             const btn = $('btn-join-room');
-            btn.textContent = '...';
+            btn.textContent = t('joining');
             btn.disabled = true;
             joinRoom();
         });
@@ -2317,10 +2531,10 @@
                 try { ok = document.execCommand('copy'); } catch (e) {}
                 document.body.removeChild(tmp);
             }
-            if (!ok) return showAlert('Δεν αντιγράφηκε ο σύνδεσμος. Μοιράσου το PIN: ' + roomPin);
+            if (!ok) return showAlert(t('link_fail') + roomPin);
             const btn = $('btn-copy-link');
             const orig = btn.textContent;
-            btn.textContent = '✅ Αντιγράφηκε!';
+            btn.textContent = t('copied');
             setTimeout(() => { btn.textContent = orig; }, 2000);
         });
 
