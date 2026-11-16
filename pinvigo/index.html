@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="el">
 <head>
 <meta charset="UTF-8">
@@ -299,9 +299,9 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 .chips{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;-webkit-overflow-scrolling:touch}
 .chip{
   flex:none;height:40px;padding:0 14px;border-radius:20px;
-  background:var(--card);border:1px solid var(--bd);color:#fff;font-weight:600;cursor:pointer
+  background:#F4F8FC;border:1px solid var(--bd);color:#0F172A;font-weight:600;cursor:pointer
 }
-.chip.a{background:var(--p);border-color:var(--p)}
+.chip.a{background:var(--p);border-color:var(--p);color:#fff}
 
 .av{
   width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
@@ -690,8 +690,15 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 <!-- MEMBERS PANEL -->
 <div id="p-members" class="panel">
   <div class="ph">
-    <h3>Μέλη</h3>
+    <h3 id="members-title">Μέλη</h3>
     <button class="btn ibtn" onclick="panel('p-members',0)">✕</button>
+  </div>
+  <div class="pb" style="flex:none;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--bd)">
+    <div id="members-online" class="mut" style="font-size:.9rem;line-height:1.4"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn p" style="flex:1" onclick="panel('p-members',0);openChat()">💬 Chat</button>
+      <button class="btn" style="flex:1" onclick="panel('p-members',0);showMap()">🗺️ Χάρτης</button>
+    </div>
   </div>
   <div class="pb" id="mlist"></div>
   <div class="pb" style="flex:none;border-top:1px solid var(--bd)">
@@ -1543,7 +1550,18 @@ function hostMsg(r, c, d) {
     });
     c.send({type: 'WELCOME', id: c.peer, roomName: r.roomName, members: r.members});
     broadcast(r);
-    toast(d.name + ' μπήκε στο δωμάτιο');
+    const n = r.members.length;
+    const names = r.members.map(m => m.name).filter(Boolean).join(', ');
+    toast(d.name + ' μπήκε · ' + n + ' online');
+    // system note in chat
+    try {
+      const sys = { type: 'TEXT', text: '👋 ' + (d.name || 'Μέλος') + ' μπήκε στο δωμάτιο · ' + n + ' online: ' + names, from: 'sys', name: 'Pinvigo', t: Date.now(), msgId: 'sys-' + Date.now() };
+      r.chat.push(sys);
+      if ($('p-chat') && $('p-chat').classList.contains('open')) drawMsg(sys);
+    } catch (e) {}
+    if ($('p-members') && $('p-members').classList.contains('open')) renderMembers();
+    updateChatHeader();
+    try { if (typeof updateRoomMeta === 'function') updateRoomMeta(); } catch (e) {}
     return;
   }
 
@@ -1816,10 +1834,24 @@ function enter(r) {
       setSharing(true);
     }
   }
-  // Επισκέπτης: πρώτο πράγμα το Chat · Διαχειριστής: χάρτης
-  if (!r.admin) {
-    setTimeout(() => openChat(), 250);
-  }
+  // Δημιουργός / είσοδος: πρώτα σελίδα μελών (online λίστα)
+  setTimeout(() => openMembers(), 200);
+}
+
+function openLocOnMap(lat, lng) {
+  try {
+    panel('p-chat', 0);
+    panel('p-members', 0);
+    showMap();
+    if (map && lat != null && lng != null) {
+      setTimeout(() => {
+        map.setView([lat, lng], 17);
+        if (window._locPinMarker && map.hasLayer(window._locPinMarker)) map.removeLayer(window._locPinMarker);
+        window._locPinMarker = L.marker([lat, lng]).addTo(map)
+          .bindPopup('📍 ' + lat.toFixed(5) + ', ' + lng.toFixed(5)).openPopup();
+      }, 200);
+    }
+  } catch (e) {}
 }
 
 function showMap() {
@@ -1884,7 +1916,7 @@ function meta() {
   const rt = $('rt');
   const rm = $('rm');
   if (rt) rt.textContent = r.roomName;
-  if (rm) rm.textContent = 'PIN ' + r.pin + ' · ' + r.members.length + ' μέλη';
+  if (rm) { const names=(r.members||[]).map(m=>m.name).filter(Boolean).join(', '); rm.textContent = 'PIN ' + r.pin + ' · ' + r.members.length + ' online' + (names? ' · '+names : ''); }
 }
 
 let osmLayer = null;
@@ -2069,6 +2101,14 @@ function renderMembers() {
   if (!l) return;
   l.innerHTML = '';
   const me = r.members.find(x => x.id === r.myId);
+  const onlineCount = (r.members || []).length;
+  const names = (r.members || []).map(m => m.name).filter(Boolean);
+  const onlineEl = $('members-online');
+  if (onlineEl) {
+    onlineEl.innerHTML = '<b style="color:var(--text)">' + onlineCount + ' online</b> · ' + esc(names.join(', ') || '—');
+  }
+  const title = $('members-title');
+  if (title) title.textContent = 'Μέλη (' + onlineCount + ')';
   r.members.forEach(m => {
     const row = document.createElement('div');
     row.className = 'card';
@@ -2081,7 +2121,7 @@ function renderMembers() {
     row.innerHTML = `
       <div class="av" style="background:${m.color}">${m.avatar || (m.name[0]||'?').toUpperCase()}</div>
       <div style="flex:1;min-width:0">
-        <b>${esc(m.name)}${m.id === r.myId ? ' (εσύ)' : ''}</b>
+        <b>${esc(m.name)}${m.id === r.myId ? ' (εσύ)' : ''} <span style="color:#16a34a;font-size:.75rem">● online</span></b>
         <div class="mut">${m.sharing ? '📍 Μοιράζεται θέση' : 'Χωρίς θέση'}${extra}</div>
       </div>`;
     if (m.sharing && m.lat != null) {
@@ -3597,7 +3637,7 @@ function drawMsg(d) {
     el.appendChild(i);
   } else if (d.type === 'LOC_PIN') {
     const t = document.createElement('div');
-    t.innerHTML = `📍 Θέση: <a href="#" onclick="if(map) map.setView([${d.lat},${d.lng}],16);return false;">${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}</a>`;
+    t.innerHTML = `📍 Θέση: <a href="#" style="color:inherit;text-decoration:underline;font-weight:700" onclick="openLocOnMap(${d.lat},${d.lng});return false;">${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}</a>`;
     el.appendChild(t);
   } else {
     const t = document.createElement('div');
@@ -3664,7 +3704,9 @@ function updateChatHeader() {
     if (ci) ci.placeholder = 'Ιδιωτικό μήνυμα…';
   } else {
     if (title) title.textContent = r.roomName || 'Chat';
-    if (sub) sub.textContent = 'PIN ' + r.pin + ' · Ομαδικό chat';
+    const n = (r.members || []).length;
+    const names = (r.members || []).map(m => m.name).filter(Boolean).join(', ');
+    if (sub) sub.textContent = 'PIN ' + r.pin + ' · ' + n + ' online' + (names ? ' · ' + names : '');
     if (ci) ci.placeholder = 'Μήνυμα προς όλους…';
   }
 }
@@ -3996,12 +4038,7 @@ function sosIn(r, d) {
 }
 
 function playHeartbeat() {
-  try {
-    unlockAudio();
-    // τικ-τακ καρδιάς
-    playTone(120, 90, 'sine');
-    setTimeout(() => playTone(90, 120, 'sine'), 180);
-  } catch (e) {}
+  /* silent – no heart sound */
 }
 
 function checkin(silent) {
