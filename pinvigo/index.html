@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="el">
 <head>
 <meta charset="UTF-8">
@@ -541,6 +541,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
   <div class="home-actions">
     <button class="btn p big" id="btn-create-room" onclick="openForm('create')" data-i18n="home.create">➕ Δημιούργησε δωμάτιο</button>
     <button class="btn big" onclick="openForm('join')" data-i18n="home.join">🔑 Μπες με PIN</button>
+    <button class="btn g big" onclick="openPrivate()" id="btn-private">🔒 Private Room</button>
     <button class="btn" onclick="shareApp()" data-i18n="home.share">🌐 Κοινοποίησε την εφαρμογή</button>
     <button class="btn ghost" onclick="openAbout()" data-i18n="home.guide">📖 Οδηγίες</button>
     <button class="btn support big" onclick="showSupport()" data-i18n="home.support">💜 Support</button>
@@ -550,6 +551,58 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 
 
 
+
+<!-- PRIVATE ROOM -->
+<div id="s-private" class="screen">
+  <button class="mut" style="background:0;border:0;text-align:left;color:var(--m);padding:0;height:auto" onclick="show('s-home')">← Πίσω</button>
+  <h2>🔒 Private Room</h2>
+  <p class="mut">Δημιούργησε συνδρομές. Το μέλος πληρώνει εξωτερικά (PayPal / Revolut / IRIS) και εσύ ενεργοποιείς την πρόσβαση αφού ελέγξεις την πληρωμή.</p>
+
+  <div id="private-plans-list"></div>
+
+  <button class="btn p big" onclick="openPrivateForm()">➕ Νέα συνδρομή / πακέτο</button>
+</div>
+
+<!-- PRIVATE FORM -->
+<div id="s-private-form" class="screen">
+  <button class="mut" style="background:0;border:0;text-align:left;color:var(--m);padding:0;height:auto" onclick="show('s-private')">← Πίσω</button>
+  <h2>Νέα συνδρομή</h2>
+
+  <div>
+    <label class="l">Όνομα πακέτου</label>
+    <input type="text" id="pv-name" maxlength="40" placeholder="π.χ. Chat Only ή VIP Video">
+  </div>
+  <div>
+    <label class="l">Τιμή (€)</label>
+    <input type="number" id="pv-price" min="0" step="0.01" placeholder="15.00">
+  </div>
+  <div>
+    <label class="l">Δυνατότητες</label>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+      <label class="card" style="cursor:pointer"><span>💬 Chat</span><input type="checkbox" id="pv-f-chat" checked style="width:22px;height:22px"></label>
+      <label class="card" style="cursor:pointer"><span>📷 Φωτογραφίες</span><input type="checkbox" id="pv-f-photos" style="width:22px;height:22px"></label>
+      <label class="card" style="cursor:pointer"><span>🎥 Βίντεο</span><input type="checkbox" id="pv-f-videos" style="width:22px;height:22px"></label>
+      <label class="card" style="cursor:pointer"><span>🎤 Ηχητική κλήση</span><input type="checkbox" id="pv-f-audio" style="width:22px;height:22px"></label>
+      <label class="card" style="cursor:pointer"><span>📹 Βιντεοκλήση</span><input type="checkbox" id="pv-f-video" style="width:22px;height:22px"></label>
+    </div>
+  </div>
+  <div>
+    <label class="l">Τρόποι πληρωμής</label>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+      <label class="card" style="cursor:pointer"><span>PayPal</span><input type="checkbox" id="pv-pay-paypal" checked style="width:22px;height:22px"></label>
+      <input type="text" id="pv-paypal-detail" placeholder="PayPal email">
+      <label class="card" style="cursor:pointer"><span>Revolut</span><input type="checkbox" id="pv-pay-revolut" style="width:22px;height:22px"></label>
+      <input type="text" id="pv-revolut-detail" placeholder="Revolut username ή τηλέφωνο">
+      <label class="card" style="cursor:pointer"><span>IRIS</span><input type="checkbox" id="pv-pay-iris" style="width:22px;height:22px"></label>
+      <input type="text" id="pv-iris-detail" placeholder="Κινητό ή ΑΦΜ για IRIS">
+    </div>
+  </div>
+  <div>
+    <label class="l">Περιγραφή (προαιρετικό)</label>
+    <input type="text" id="pv-desc" maxlength="120" placeholder="Σύντομη περιγραφή του πακέτου">
+  </div>
+  <button class="btn p big" onclick="savePrivatePlan()">Αποθήκευση & δημιουργία δωματίου</button>
+</div>
 
 <!-- FORM -->
 <div id="s-form" class="screen">
@@ -1337,7 +1390,8 @@ function save() {
       admin: r.admin,
       roomName: r.roomName,
       myName: r.myName,
-      avatar: r.avatar
+      avatar: r.avatar,
+      privatePlan: r.privatePlan || null
     }));
     LS('fm-rooms', JSON.stringify(list));
     Object.values(rooms).forEach(saveMapData);
@@ -1435,7 +1489,8 @@ function broadcast(r) {
     zones: r.zones || [],
     routes: r.routes || [],
     sosAllowed: r.sosAllowed || [],
-    sosContacts: r.sosContacts || loadSosContacts()
+    sosContacts: r.sosContacts || loadSosContacts(),
+    privatePlan: r.privatePlan || null
   });
   if (r.pin === active) refresh();
 }
@@ -1735,6 +1790,7 @@ function memberMsg(r, d) {
     r.zones = d.zones || [];
     r.routes = d.routes || [];
     r.sosAllowed = d.sosAllowed || [];
+    if (d.privatePlan) r.privatePlan = d.privatePlan;
     if (d.sosContacts && d.sosContacts.length) {
       r.sosContacts = d.sosContacts;
       try { LS('fm-sos-contacts-' + r.pin, JSON.stringify(d.sosContacts)); } catch (e) {}
@@ -1836,6 +1892,16 @@ function enter(r) {
   }
   // Δημιουργός / είσοδος: πρώτα σελίδα μελών (online λίστα)
   setTimeout(() => openMembers(), 200);
+
+  // Private Room notice
+  if (r.privatePlan && !r.admin) {
+    const me = r.members.find(x => x.id === r.myId);
+    if (!me || !me.activated) {
+      setTimeout(() => {
+        toast('🔒 Private Room – Πλήρωσε και περίμενε ενεργοποίηση από τον διαχειριστή');
+      }, 600);
+    }
+  }
 }
 
 function openLocOnMap(lat, lng) {
@@ -2133,7 +2199,29 @@ function renderMembers() {
     }
     if (m.id !== r.myId) {
       const actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;gap:6px;flex:none';
+      actions.style.cssText = 'display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end';
+
+      // Private Room activation
+      if (r.admin && r.privatePlan && !m.activated) {
+        const actBtn = document.createElement('button');
+        actBtn.className = 'btn s';
+        actBtn.style.cssText = 'height:36px;font-size:.75rem;padding:0 10px;width:auto';
+        actBtn.textContent = '✅ Ενεργοποίηση';
+        actBtn.onclick = ev => {
+          ev.stopPropagation();
+          m.activated = true;
+          broadcast(r);
+          refresh();
+          toast('Ενεργοποιήθηκε το μέλος ' + m.name);
+        };
+        actions.appendChild(actBtn);
+      } else if (r.privatePlan && m.activated) {
+        const ok = document.createElement('span');
+        ok.style.cssText = 'font-size:.7rem;color:var(--s);font-weight:700;align-self:center';
+        ok.textContent = 'Ενεργό';
+        actions.appendChild(ok);
+      }
+
       const audioBtn = document.createElement('button');
       audioBtn.className = 'btn ibtn';
       audioBtn.textContent = '📞';
@@ -4479,6 +4567,167 @@ window.addEventListener('pageshow', e => {
   }
 });
 
+
+/* ========== Private Room ========== */
+function openPrivate() {
+  show('s-private');
+  renderPrivatePlans();
+}
+
+function openPrivateForm() {
+  // reset form
+  ['pv-name','pv-price','pv-desc','pv-paypal-detail','pv-revolut-detail','pv-iris-detail'].forEach(id => {
+    const el = $(id); if (el) el.value = '';
+  });
+  ['pv-f-chat','pv-f-photos','pv-f-videos','pv-f-audio','pv-f-video','pv-pay-paypal','pv-pay-revolut','pv-pay-iris'].forEach(id => {
+    const el = $(id); if (el) el.checked = (id === 'pv-f-chat' || id === 'pv-pay-paypal');
+  });
+  show('s-private-form');
+}
+
+function loadPrivatePlans() {
+  try {
+    return JSON.parse(LS('pinvigo-private-plans') || '[]');
+  } catch (e) { return []; }
+}
+
+function savePrivatePlans(list) {
+  try { LS('pinvigo-private-plans', JSON.stringify(list)); } catch (e) {}
+}
+
+function renderPrivatePlans() {
+  const box = $('private-plans-list');
+  if (!box) return;
+  const plans = loadPrivatePlans();
+  box.innerHTML = '';
+  if (!plans.length) {
+    box.innerHTML = '<div class="card" style="flex-direction:column;align-items:flex-start;gap:6px"><b>Δεν έχεις ακόμα συνδρομές</b><span class="mut">Δημιούργησε την πρώτη σου συνδρομή Private Room.</span></div>';
+    return;
+  }
+  plans.forEach(plan => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'flex-direction:column;align-items:stretch;gap:8px';
+    const feats = [];
+    if (plan.features.chat) feats.push('💬 Chat');
+    if (plan.features.photos) feats.push('📷 Φωτό');
+    if (plan.features.videos) feats.push('🎥 Βίντεο');
+    if (plan.features.audio) feats.push('🎤 Ήχος');
+    if (plan.features.video) feats.push('📹 Βίντεο');
+    const pays = [];
+    if (plan.payments.paypal) pays.push('PayPal');
+    if (plan.payments.revolut) pays.push('Revolut');
+    if (plan.payments.iris) pays.push('IRIS');
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>${esc(plan.name)}</b>
+        <span style="font-weight:700;color:var(--p)">${plan.price} €</span>
+      </div>
+      <div class="mut" style="font-size:.85rem">${feats.join(' · ') || '—'}</div>
+      <div class="mut" style="font-size:.8rem">Πληρωμή: ${pays.join(', ') || '—'}</div>
+      <div class="mut" style="font-size:.75rem">PIN: <b>${esc(plan.pin)}</b></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn" style="flex:1;height:44px;font-size:.9rem" onclick="sharePrivatePlan('${plan.id}')">📤 Κοινοποίηση</button>
+        <button class="btn ghost" style="flex:none;width:auto;padding:0 12px;height:44px" onclick="deletePrivatePlan('${plan.id}')">🗑️</button>
+      </div>
+    `;
+    box.appendChild(card);
+  });
+}
+
+function savePrivatePlan() {
+  const name = ($('pv-name') && $('pv-name').value || '').trim();
+  const price = parseFloat(($('pv-price') && $('pv-price').value) || '0');
+  if (!name) return toast('Βάλε όνομα πακέτου');
+  if (isNaN(price) || price < 0) return toast('Βάλε έγκυρη τιμή');
+
+  const features = {
+    chat: !!($('pv-f-chat') && $('pv-f-chat').checked),
+    photos: !!($('pv-f-photos') && $('pv-f-photos').checked),
+    videos: !!($('pv-f-videos') && $('pv-f-videos').checked),
+    audio: !!($('pv-f-audio') && $('pv-f-audio').checked),
+    video: !!($('pv-f-video') && $('pv-f-video').checked)
+  };
+  if (!Object.values(features).some(Boolean)) return toast('Επίλεξε τουλάχιστον μία δυνατότητα');
+
+  const payments = {
+    paypal: !!($('pv-pay-paypal') && $('pv-pay-paypal').checked),
+    revolut: !!($('pv-pay-revolut') && $('pv-pay-revolut').checked),
+    iris: !!($('pv-pay-iris') && $('pv-pay-iris').checked)
+  };
+  const details = {
+    paypal: ($('pv-paypal-detail') && $('pv-paypal-detail').value || '').trim(),
+    revolut: ($('pv-revolut-detail') && $('pv-revolut-detail').value || '').trim(),
+    iris: ($('pv-iris-detail') && $('pv-iris-detail').value || '').trim()
+  };
+  if (!Object.values(payments).some(Boolean)) return toast('Επίλεξε τουλάχιστον έναν τρόπο πληρωμής');
+
+  const desc = ($('pv-desc') && $('pv-desc').value || '').trim();
+  const pin = genPin();
+  const id = 'pv-' + Date.now().toString(36);
+
+  const plan = {
+    id, name, price, features, payments, details, desc, pin,
+    created: Date.now()
+  };
+
+  const plans = loadPrivatePlans();
+  plans.push(plan);
+  savePrivatePlans(plans);
+
+  // Create the actual room so admin can enter it later
+  const r = newRoom(pin, true, name, LS('fm-name') || 'Admin', LS('fm-avatar') || '😊');
+  r.privatePlan = plan;
+  r.focus = true;
+  host(r);
+
+  toast('Συνδρομή δημιουργήθηκε · PIN ' + pin);
+  show('s-private');
+  renderPrivatePlans();
+}
+
+function deletePrivatePlan(id) {
+  if (!confirm('Διαγραφή αυτής της συνδρομής;')) return;
+  let plans = loadPrivatePlans();
+  const plan = plans.find(p => p.id === id);
+  plans = plans.filter(p => p.id !== id);
+  savePrivatePlans(plans);
+  if (plan && rooms[plan.pin]) {
+    try { dropRoom(rooms[plan.pin]); } catch (e) {}
+  }
+  renderPrivatePlans();
+  toast('Διαγράφηκε');
+}
+
+function sharePrivatePlan(id) {
+  const plans = loadPrivatePlans();
+  const plan = plans.find(p => p.id === id);
+  if (!plan) return;
+  const base = appBaseUrl();
+  const url = base + '?room=' + plan.pin;
+
+  let payText = '';
+  if (plan.payments.paypal && plan.details.paypal) payText += '\nPayPal: ' + plan.details.paypal;
+  if (plan.payments.revolut && plan.details.revolut) payText += '\nRevolut: ' + plan.details.revolut;
+  if (plan.payments.iris && plan.details.iris) payText += '\nIRIS: ' + plan.details.iris;
+
+  const feats = [];
+  if (plan.features.chat) feats.push('Chat');
+  if (plan.features.photos) feats.push('Φωτογραφίες');
+  if (plan.features.videos) feats.push('Βίντεο');
+  if (plan.features.audio) feats.push('Ηχητική κλήση');
+  if (plan.features.video) feats.push('Βιντεοκλήση');
+
+  const text = `Private Room: ${plan.name}\nΤιμή: ${plan.price} €\nΔυνατότητες: ${feats.join(', ')}\n${plan.desc ? plan.desc + '\n' : ''}Πληρωμή:${payText}\n\nΜετά την πληρωμή μπες στο δωμάτιο:\n${url}\nPIN: ${plan.pin}\n\nΣτείλε μου επιβεβαίωση πληρωμής για ενεργοποίηση.`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'Private Room – ' + plan.name, text }).catch(() => copy(text));
+  } else {
+    copy(text);
+    toast('Το κείμενο κοινοποίησης αντιγράφηκε');
+  }
+}
+
 /* ---------- Boot ---------- */
 window.addEventListener('DOMContentLoaded', () => {
   try {
@@ -4517,6 +4766,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try { sv = JSON.parse(LS('fm-rooms') || '[]'); } catch (e) {}
     sv.forEach(s => {
       const r = newRoom(s.pin, s.admin, s.roomName, s.myName, s.avatar);
+      if (s.privatePlan) r.privatePlan = s.privatePlan;
       r.restored = true;
       if (typeof Peer !== 'undefined') {
         s.admin ? host(r) : join(r);
