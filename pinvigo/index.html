@@ -829,6 +829,7 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     <button class="btn ibtn" onclick="openCallPicker(false)" title="Ηχητική κλήση">📞</button>
     <button class="btn ibtn" onclick="openCallPicker(true)" title="Βιντεοκλήση">📹</button>
     <button class="btn ibtn" onclick="openCallPicker('group')" title="Ομαδική κλήση">👥</button>
+    <button class="btn ibtn" onclick="showSupport()" title="Support" style="background:linear-gradient(135deg,#5B8DEF,#7C5CFC);color:#fff">💜</button>
     <button class="btn ibtn" onclick="panel('p-chat',0)">✕</button>
   </div>
   <div class="p2p-note">🔒 Μηνύματα peer-to-peer (δεν περνούν από server)</div>
@@ -1006,6 +1007,8 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
     </p>
     <p class="mut" style="margin:0;font-size:.85rem">Ευχαριστούμε από την ομάδα FranklyGames ❤️</p>
     <button class="btn g big" id="btn-watch-ad" onclick="watchSupportAd()">▶️ Δες διαφήμιση & στήριξε</button>
+    <a class="btn p big" href="https://ko-fi.com/franklymadear/goal?g=1" target="_blank" rel="noopener" style="text-decoration:none">☕ Στήριξε στο Ko-fi</a>
+    <p class="mut" style="margin:0;font-size:.8rem" data-i18n="support.kofiHint">Εναλλακτικά μπορείς να στηρίξεις απευθείας μέσω Ko-fi.</p>
     <button class="btn" onclick="panel('p-support',0)">Κλείσιμο</button>
   </div>
 </div>
@@ -1270,8 +1273,10 @@ I18N_FALLBACK.el['mode.chatRoom'] = '💬 Chat Room';
 I18N_FALLBACK.en['mode.chatRoom'] = '💬 Chat Room';
 I18N_FALLBACK.el['mode.privateRoom'] = '🔒 Private Room';
 I18N_FALLBACK.en['mode.privateRoom'] = '🔒 Private Room';
-I18N_FALLBACK.el['mode.hint'] = 'Το Chat Room είναι για οικογένεια (θέση, SOS, χάρτης). Το Private Room είναι για πληρωμένη επικοινωνία (chat, κλήσεις, φωτογραφίες).';
-I18N_FALLBACK.en['mode.hint'] = 'Chat Room is for family (location, SOS, map). Private Room is for paid communication (chat, calls, photos).';
+I18N_FALLBACK.el['support.kofiHint'] = 'Εναλλακτικά μπορείς να στηρίξεις απευθείας μέσω Ko-fi.';
+I18N_FALLBACK.en['support.kofiHint'] = 'Alternatively you can support directly via Ko-fi.';
+I18N_FALLBACK.el['support.watch'] = '▶️ Δες διαφήμιση & στήριξε';
+I18N_FALLBACK.en['support.watch'] = '▶️ Watch ad & support';
 
 let i18nDict = I18N_FALLBACK.el;
 let currentLang = 'el';
@@ -2391,23 +2396,35 @@ function renderMembers() {
       const actions = document.createElement('div');
       actions.style.cssText = 'display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end';
 
-      // Private Room activation
-      if (r.admin && r.privatePlan && !m.activated) {
-        const actBtn = document.createElement('button');
-        actBtn.className = 'btn s';
-        actBtn.style.cssText = 'height:42px;font-size:.85rem;padding:0 12px;width:auto;font-weight:700';
-        actBtn.textContent = '✅ Ξεκλείδωμα';
-        actBtn.title = 'Ενεργοποίησε κλήσεις & πρόσβαση αφού επιβεβαιώσεις την πληρωμή';
-        actBtn.onclick = ev => {
-          ev.stopPropagation();
-          m.activated = true;
-          m.canAudio = true;
-          m.canVideo = true;
-          broadcast(r);
-          refresh();
-          toast('Ξεκλειδώθηκε η πρόσβαση για ' + m.name);
+      // Private Room granular permissions (admin only)
+      if (r.admin && r.privatePlan) {
+        const perms = document.createElement('div');
+        perms.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-left:6px';
+
+        const makeToggle = (key, label, emoji) => {
+          const btn = document.createElement('button');
+          btn.className = 'btn';
+          btn.style.cssText = 'height:34px;font-size:.75rem;padding:0 8px;width:auto;font-weight:650';
+          const on = !!m[key];
+          btn.textContent = emoji + ' ' + label + (on ? ' ✓' : '');
+          btn.style.background = on ? 'var(--s)' : '';
+          btn.style.color = on ? '#fff' : '';
+          btn.onclick = ev => {
+            ev.stopPropagation();
+            m[key] = !m[key];
+            if (m[key]) m.activated = true;
+            broadcast(r);
+            refresh();
+            toast((m[key] ? 'Ενεργό' : 'Κλειδωμένο') + ': ' + label + ' για ' + m.name);
+          };
+          return btn;
         };
-        actions.appendChild(actBtn);
+
+        perms.appendChild(makeToggle('canChat', 'Chat', '💬'));
+        perms.appendChild(makeToggle('canPhotos', 'Φωτό', '📷'));
+        perms.appendChild(makeToggle('canAudio', 'Ήχος', '📞'));
+        perms.appendChild(makeToggle('canVideo', 'Βίντεο', '📹'));
+        actions.appendChild(perms);
       } else if (r.privatePlan && m.activated) {
         const ok = document.createElement('span');
         ok.style.cssText = 'font-size:.75rem;color:var(--s);font-weight:700;align-self:center;padding:0 4px';
@@ -2422,7 +2439,7 @@ function renderMembers() {
       audioBtn.title = 'Ηχητική κλήση';
       audioBtn.onclick = ev => {
         ev.stopPropagation();
-        if (r.privatePlan && !m.activated && !r.admin) return toast('Περίμενε ενεργοποίηση από τον διαχειριστή');
+        if (r.privatePlan && !r.admin && !m.canAudio) return toast(currentLang === 'en' ? 'Audio call locked' : 'Ηχητική κλήση κλειδωμένη');
         startAVCall(m, false);
       };
       actions.appendChild(audioBtn);
@@ -2433,7 +2450,7 @@ function renderMembers() {
       videoBtn.title = 'Βιντεοκλήση';
       videoBtn.onclick = ev => {
         ev.stopPropagation();
-        if (r.privatePlan && !m.activated && !r.admin) return toast('Περίμενε ενεργοποίηση από τον διαχειριστή');
+        if (r.privatePlan && !r.admin && !m.canVideo) return toast(currentLang === 'en' ? 'Video call locked' : 'Βιντεοκλήση κλειδωμένη');
         startAVCall(m, true);
       };
       actions.appendChild(videoBtn);
@@ -4060,6 +4077,11 @@ function blockChatSelect(e) {
 function sendText(t) {
   t = (t || ($('ci') && $('ci').value) || '').trim();
   if (!t) return;
+  const r = R();
+  if (r && r.privatePlan && !r.admin) {
+    const me = r.members.find(x => x.id === r.myId);
+    if (!me || !me.canChat) return toast(currentLang === 'en' ? 'Chat is locked by admin' : 'Το chat είναι κλειδωμένο από τον διαχειριστή');
+  }
   post(msg('CHAT', {text: t}));
   if ($('ci')) $('ci').value = '';
 }
@@ -4083,6 +4105,11 @@ if (fileInput) fileInput.onchange = e => {
   const f = e.target.files[0];
   e.target.value = '';
   if (!f) return;
+  const r = R();
+  if (r && r.privatePlan && !r.admin) {
+    const me = r.members.find(x => x.id === r.myId);
+    if (!me || !me.canPhotos) return toast(currentLang === 'en' ? 'Photos are locked' : 'Οι φωτογραφίες είναι κλειδωμένες');
+  }
   const i = new Image();
   i.onload = () => {
     const s = Math.min(1, 1000 / Math.max(i.width, i.height));
