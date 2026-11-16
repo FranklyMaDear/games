@@ -1013,15 +1013,19 @@ label.l{display:block;font-size:.75rem;font-weight:700;color:var(--m);margin-bot
 <!-- LEGAL PANEL -->
 <div id="p-legal" class="panel">
   <div class="ph">
-    <h3>📜 Όροι & Απόρρητο</h3>
+    <h3 data-i18n="legal.title">📜 Όροι & Απόρρητο</h3>
     <button class="btn ibtn" onclick="panel('p-legal',0)">✕</button>
   </div>
 
   <div class="pb" style="gap:16px;font-size:.9rem;line-height:1.5">
 
-    <div class="card" style="flex-direction:column;align-items:stretch;gap:6px;border-color:#ef4444;background:#450a0a22">
-      <b style="color:#fca5a5">⚠️ Ηλικιακός περιορισμός</b>
-      <p class="mut" style="margin:0;color:#fecaca">Το <b>Pinvigo</b> είναι εφαρμογή <b>οικογενειακής επικοινωνίας και ασφάλειας</b> για γονείς, παιδιά και ενήλικες. Υποστηρίζει ηλικιακές κατηγορίες (κάτω των 15, 15–17, 18+) με γονική συναίνεση για ανηλίκους, σύμφωνα με τον GDPR και τον ελληνικό Ν. 4624/2019.</p>
+    <div class="card" style="flex-direction:column;align-items:stretch;gap:6px;border-color:#ef4444;background:#FEF2F2" data-legal-lang="el">
+      <b style="color:#0F172A">⚠️ Ηλικιακός περιορισμός</b>
+      <p class="mut" style="margin:0;color:#0F172A">Το <b>Pinvigo</b> είναι εφαρμογή <b>οικογενειακής επικοινωνίας και ασφάλειας</b> για γονείς, παιδιά και ενήλικες. Υποστηρίζει ηλικιακές κατηγορίες (κάτω των 15, 15–17, 18+) με γονική συναίνεση για ανηλίκους, σύμφωνα με τον GDPR και τον ελληνικό Ν. 4624/2019.</p>
+    </div>
+    <div class="card" style="flex-direction:column;align-items:stretch;gap:6px;border-color:#ef4444;background:#FEF2F2" data-legal-lang="en">
+      <b style="color:#0F172A">⚠️ Age restriction</b>
+      <p class="mut" style="margin:0;color:#0F172A">The <b>Pinvigo</b> app is a <b>family communication and safety</b> application for parents, children and adults. It supports age categories (under 15, 15–17, 18+) with parental consent for minors, in accordance with GDPR and Greek Law 4624/2019.</p>
     </div>
 
     <h3 style="margin:0">1. Όροι Χρήσης</h3>
@@ -1935,11 +1939,10 @@ function enter(r) {
   const isPrivate = !!r.privatePlan;
   const mapWrap = $('map-wrap');
   const bar = $('bar');
-  if (mapWrap) mapWrap.style.display = isPrivate ? 'none' : '';
+  if (mapWrap) mapWrap.style.display = isPrivate ? 'none' : 'none'; // always start hidden; show only on demand
   if (bar) {
     const tiles = bar.querySelectorAll('.tile');
     tiles.forEach((t, i) => {
-      // Hide Button (0), SOS (1), Map (3) in private mode
       if (isPrivate && (i === 0 || i === 1 || i === 3)) {
         t.style.display = 'none';
       } else {
@@ -1949,7 +1952,6 @@ function enter(r) {
   }
 
   if (!isPrivate) {
-    // Ενεργοποίηση θέσης μόνο σε κανονικό Chat Room
     if (!window._s) {
       window._s = 1;
       setSharing(true);
@@ -1964,14 +1966,12 @@ function enter(r) {
     }
   }
 
-  // Δημιουργός / είσοδος: πρώτα σελίδα μελών (online λίστα)
-  setTimeout(() => openMembers(), 200);
+  // Go straight to members page (no map flash)
+  setTimeout(() => openMembers(), 50);
 
-  // Private Room notice + auto message
   if (isPrivate && !r.admin) {
     setTimeout(() => {
       toast('🔒 Private Room – Στείλε μήνυμα ότι πλήρωσες για να ενεργοποιηθεί η πρόσβαση');
-      // Auto system-like message for admin
       post(msg('CHAT', { text: 'Παρακαλώ επιβεβαιώστε την πληρωμή' }));
     }, 500);
   }
@@ -2001,6 +2001,8 @@ function showMap() {
   panel('p-actions', 0);
   panel('p-child', 0);
   panel('p-map-edit', 0);
+  const mapWrap = $('map-wrap');
+  if (mapWrap) mapWrap.style.display = '';
   const drop = $('map-search-drop');
   if (drop) drop.classList.remove('on');
   if (map) setTimeout(() => map.invalidateSize(), 150);
@@ -2343,14 +2345,16 @@ function renderMembers() {
 
   // Κοινοποίηση δωματίου (σύνδεσμος + social)
   const shareBtn = document.createElement('button');
-  shareBtn.className = 'btn p big';
+  shareBtn.className = 'btn p';
+  shareBtn.style.cssText = 'height:48px;font-size:.92rem;font-weight:650';
   shareBtn.textContent = '📤 Κοινοποίηση δωματίου';
   shareBtn.onclick = () => openShare();
   l.appendChild(shareBtn);
 
   if (r.admin) {
     const editBtn = document.createElement('button');
-    editBtn.className = 'btn g big';
+    editBtn.className = 'btn g';
+    editBtn.style.cssText = 'height:48px;font-size:.92rem;font-weight:650';
     editBtn.textContent = '🗺️ Επεξεργασία χάρτη';
     editBtn.onclick = () => openMapEdit();
     l.appendChild(editBtn);
@@ -4340,7 +4344,12 @@ function acceptAndStart() {
   if (!terms || !terms.checked) return;
   try { LS('pinvigo-terms', '1'); } catch (e) {}
   try { LS('pinvigo-lang', currentLang); } catch (e) {}
-  show('s-mode');
+  if (window._pendingRoomJoin) {
+    show('s-mode');
+    // After mode selection they can join, or auto for chat
+  } else {
+    show('s-mode');
+  }
 }
 
 let appMode = 'chat'; // 'chat' | 'private'
@@ -4348,11 +4357,18 @@ let appMode = 'chat'; // 'chat' | 'private'
 function chooseMode(mode) {
   appMode = mode;
   try { LS('pinvigo-mode', mode); } catch (e) {}
+  const privBtn = document.getElementById('btn-private');
+  if (privBtn) privBtn.style.display = (mode === 'chat') ? 'none' : '';
   if (mode === 'private') {
     show('s-private');
     renderPrivatePlans();
   } else {
-    show('s-home');
+    if (window._pendingRoomJoin) {
+      openForm('join', window._pendingRoomJoin);
+      window._pendingRoomJoin = null;
+    } else {
+      show('s-home');
+    }
   }
 }
 
@@ -4879,6 +4895,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     (async function initLang(){ await setLanguage(detectLang()); })();
     show('s-splash');
+
+    // If opened via room link, prepare join after start
+    try {
+      const roomParam = new URLSearchParams(location.search).get('room');
+      if (roomParam && /^\d{4}$/.test(roomParam.replace(/\D/g,''))) {
+        window._pendingRoomJoin = roomParam.replace(/\D/g,'').slice(0,4);
+      }
+    } catch (e) {}
 
     // PWA service worker
     if ('serviceWorker' in navigator) {
