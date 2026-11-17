@@ -534,6 +534,26 @@ body.is-private .chatroom-only{display:none!important}
 .perm.on{background:var(--s);border-color:var(--s);color:#fff}
 .perm-all{display:flex;gap:6px;margin-top:8px}
 .perm-all-btn{flex:1;min-height:38px;border-radius:10px;border:1px solid var(--bd);background:#fff;color:var(--text);font-family:inherit;font-size:.82rem;font-weight:650;cursor:pointer}
+
+/* ===== private room: bar, support heart, floating hearts ===== */
+body:not(.is-private) .private-only{display:none!important}
+body.is-private #bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+.heart-blink{background:#FFF1F2!important}
+.heart-blink{animation:heartBlink 1.3s ease-in-out infinite}
+@keyframes heartBlink{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.22);opacity:.5}}
+.float-heart{position:absolute;bottom:96px;z-index:6;border:0;background:transparent;font-size:2rem;line-height:1;padding:6px;cursor:pointer;pointer-events:auto;
+  filter:drop-shadow(0 3px 6px rgba(225,29,72,.35));animation:heartFloat 4.6s ease-out forwards}
+@keyframes heartFloat{
+  0%{transform:translate(0,0) scale(.5);opacity:0}
+  12%{opacity:1;transform:translate(-6px,-40px) scale(1)}
+  45%{transform:translate(14px,-34vh) scale(1.1)}
+  75%{opacity:.9;transform:translate(-10px,-52vh) scale(1.05)}
+  100%{transform:translate(8px,-66vh) scale(.9);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){.heart-blink{animation:none}.float-heart{animation-duration:.01s}}
+
+/* ===== sub-panels must open ABOVE the members panel (Share / Guide / Support ...) ===== */
+#p-share,#p-about,#p-support,#p-legal,#p-listen,#p-map-edit,#p-call-pick,#p-actions,#p-child,.panel:not([id]){z-index:1200}
 </style>
 
 </head>
@@ -792,12 +812,13 @@ body.is-private .chatroom-only{display:none!important}
     <button type="button" class="btn p big" onclick="openChat()">💬 Άνοιγμα chat</button>
     <button type="button" class="btn" onclick="openMembers()">👥 Μέλη</button>
     <button type="button" class="btn chatroom-only" onclick="showMap()">🗺️ Χάρτης</button>
+    <button type="button" class="btn private-only" onclick="showSupport()">💜 Support</button>
   </div>
   <div id="bar">
-    <button class="tile s" onclick="openActions()"><b>⚡</b>Button</button>
-    <button class="tile d" onclick="sos()"><b>🆘</b>SOS</button>
+    <button class="tile s chatroom-only" onclick="openActions()"><b>⚡</b>Button</button>
+    <button class="tile d chatroom-only" onclick="sos()"><b>🆘</b>SOS</button>
     <button class="tile" onclick="openChat()"><b>💬</b>Chat</button>
-    <button class="tile" onclick="showMap()"><b>🗺️</b>Χάρτης</button>
+    <button class="tile chatroom-only" onclick="showMap()"><b>🗺️</b>Χάρτης</button>
     <button class="tile" onclick="openMembers()"><b>👥</b>Μέλη</button>
   </div>
 </div>
@@ -925,6 +946,7 @@ body.is-private .chatroom-only{display:none!important}
     <button type="button" class="ch-ic" id="ch-call-v" onclick="openCallPicker(true)" title="Βιντεοκλήση">📹</button>
     <button type="button" class="ch-ic chatroom-only" onclick="openCallPicker('group')" title="Ομαδική κλήση">👥</button>
     <button type="button" class="ch-ic chatroom-only chat-support-heart" onclick="showSupport()" title="Support" style="background:linear-gradient(135deg,#5B8DEF,#7C5CFC);color:#fff">💜</button>
+    <button type="button" class="ch-ic private-only heart-blink" onclick="showSupport()" title="Support" aria-label="Support">❤️</button>
     <button type="button" class="ch-ic" onclick="openMembers()" title="Μέλη">⋯</button>
   </div>
   <div id="chat-lock"></div>
@@ -2416,7 +2438,7 @@ function hostMsg(r, c, d) {
       sharing: false,
       battery: null
     });
-    c.send({type: 'WELCOME', id: c.peer, roomName: r.roomName, members: r.members});
+    c.send({type: 'WELCOME', id: c.peer, roomName: r.roomName, members: r.members, privatePlan: r.privatePlan || null});
     broadcast(r);
     const n = r.members.length;
     const names = r.members.map(m => m.name).filter(Boolean).join(', ');
@@ -2594,6 +2616,7 @@ function memberMsg(r, d) {
     r.myId = d.id;
     r.roomName = d.roomName;
     r.members = d.members;
+    if (d.privatePlan) r.privatePlan = d.privatePlan;
     save();
     if (r.focus || !rooms[active] || !rooms[active].ready) enter(r);
     else tabs();
@@ -2605,6 +2628,7 @@ function memberMsg(r, d) {
     r.routes = d.routes || [];
     r.sosAllowed = d.sosAllowed || [];
     if (d.privatePlan) r.privatePlan = d.privatePlan;
+    if (r.pin === active) applyRoomMode();
     if (d.sosContacts && d.sosContacts.length) {
       r.sosContacts = d.sosContacts;
       try { LS('fm-sos-contacts-' + r.pin, JSON.stringify(d.sosContacts)); } catch (e) {}
@@ -2700,13 +2724,7 @@ function enter(r) {
   applyRoomMode();
   if (bar) {
     const tiles = bar.querySelectorAll('.tile');
-    tiles.forEach((t, i) => {
-      if (isPrivate && (i === 0 || i === 1 || i === 3)) {
-        t.style.display = 'none';
-      } else {
-        t.style.display = '';
-      }
-    });
+    tiles.forEach(t => { t.style.display = ''; });
   }
 
   if (!isPrivate) {
@@ -4452,6 +4470,7 @@ function addMsg(r, d) {
   // Εμφάνισε μόνο αν ταιριάζει με το τρέχον tab chat
   if (r.pin === active && msgMatchesTab(d)) drawMsg(d);
   if (d.ttl) setTimeout(() => delMsg(r, d.msgId), 10000);
+  if (d.from !== 'sys' && r.pin === active) setTimeout(spawnHeart, 500);
   if (d.from !== r.myId) {
     notifyIncoming(d);
   }
@@ -4659,6 +4678,27 @@ function updateChatHeader() {
   const w = $('chat-targets');
   if (w) w.style.display = (r.members || []).length > 2 ? '' : 'none';
 }
+
+
+/* ---------- floating support hearts (private rooms) ---------- */
+function spawnHeart() {
+  const p = $('p-chat');
+  const r = R();
+  if (!p || !r || !r.privatePlan || !p.classList.contains('open')) return;
+  const now = Date.now();
+  if (now - (window._lastHeart || 0) < 7000) return;     // never spammy
+  window._lastHeart = now;
+  const h = document.createElement('button');
+  h.type = 'button';
+  h.className = 'float-heart';
+  h.textContent = ['💜', '❤️', '💖'][Math.floor(Math.random() * 3)];
+  h.style.right = (14 + Math.random() * 56) + 'px';
+  h.setAttribute('aria-label', 'Support');
+  h.onclick = () => { h.remove(); showSupport(); };
+  p.appendChild(h);
+  setTimeout(() => h.remove(), 4800);
+}
+setInterval(() => { try { spawnHeart(); } catch (e) {} }, 30000);
 
 function dayLabel(ts) {
   const d = new Date(ts), n = new Date();
